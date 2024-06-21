@@ -1,0 +1,31 @@
+name: Run Trading Bot
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # This will run the workflow daily at midnight
+  workflow_dispatch: # Allows you to manually trigger the workflow from the GitHub interface
+
+jobs:
+  run-trading-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8' # Specify the Python version you need
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Trading Bot
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+          API_SECRET: ${{ secrets.API_SECRET }}
+        run: |
+          python trading_bot.py
