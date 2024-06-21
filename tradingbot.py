@@ -30,17 +30,26 @@ class MLTrader(Strategy):
         self.api = REST(base_url=BASE_URL, key_id=API_KEY, secret_key=API_SECRET)
 
     def position_sizing(self):
+        """
+        Determine the position size based on available cash and the last price of the symbol.
+        """
         cash = self.get_cash()
         last_price = self.get_last_price(self.symbol)
         quantity = round(cash * self.cash_at_risk / last_price, 0)
         return cash, last_price, quantity
 
     def get_dates(self):
+        """
+        Get today's date and the date three days prior.
+        """
         today = self.get_datetime()
         three_days_prior = today - Timedelta(days=3)
         return today.strftime('%Y-%m-%d'), three_days_prior.strftime('%Y-%m-%d')
 
     def get_sentiment(self):
+        """
+        Get the sentiment from news headlines.
+        """
         today, three_days_prior = self.get_dates()
         news = self.api.get_news(symbol=self.symbol, start=three_days_prior, end=today)
         news = [ev.__dict__["_raw"]["headline"] for ev in news]
@@ -48,6 +57,9 @@ class MLTrader(Strategy):
         return probability, sentiment
 
     def on_trading_iteration(self):
+        """
+        Execute a trading iteration based on sentiment analysis.
+        """
         cash, last_price, quantity = self.position_sizing()
         probability, sentiment = self.get_sentiment()
 
