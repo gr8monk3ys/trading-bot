@@ -1,0 +1,717 @@
+"""
+Advanced Technical Indicators Library
+
+Comprehensive collection of technical analysis indicators for algorithmic trading.
+All indicators use TA-Lib for consistency and performance.
+
+Categories:
+- Trend Indicators: SMA, EMA, MACD, ADX, Parabolic SAR
+- Momentum Indicators: RSI, Stochastic, CCI, Williams %R, ROC
+- Volatility Indicators: Bollinger Bands, ATR, Keltner Channels, Standard Deviation
+- Volume Indicators: VWAP, OBV, Volume SMA, Money Flow Index
+- Support/Resistance: Pivot Points, Fibonacci Retracements
+
+Usage:
+    from utils.indicators import TechnicalIndicators
+
+    # Initialize with price data
+    indicators = TechnicalIndicators(
+        high=high_prices,
+        low=low_prices,
+        close=close_prices,
+        volume=volumes
+    )
+
+    # Calculate indicators
+    rsi = indicators.rsi(period=14)
+    vwap = indicators.vwap()
+    bb_upper, bb_middle, bb_lower = indicators.bollinger_bands(period=20, std=2.0)
+"""
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import talib
+
+# ==================== UTILITY FUNCTIONS ====================
+
+
+def safe_last(arr: Union[np.ndarray, list, None]) -> Optional[float]:
+    """
+    Safely extract the last value from an array.
+
+    Returns None if array is empty, None, or last value is NaN.
+    Used across strategies to extract indicator values safely.
+
+    Args:
+        arr: Numpy array or list of values
+
+    Returns:
+        Last value as float, or None if invalid
+    """
+    if arr is None or len(arr) == 0:
+        return None
+    val = arr[-1]
+    if isinstance(val, (int, float)) and np.isnan(val):
+        return None
+    return float(val)
+
+
+class TechnicalIndicators:
+    """
+    Technical indicators calculator using TA-Lib.
+
+    All methods return numpy arrays aligned with the input data.
+    NaN values indicate insufficient data for calculation.
+    """
+
+    def __init__(
+        self,
+        high: Optional[np.ndarray] = None,
+        low: Optional[np.ndarray] = None,
+        close: Optional[np.ndarray] = None,
+        open_: Optional[np.ndarray] = None,
+        volume: Optional[np.ndarray] = None,
+        timestamps: Optional[List[datetime]] = None,
+    ):
+        """
+        Initialize with price/volume data.
+
+        Args:
+            high: High prices
+            low: Low prices
+            close: Close prices
+            open_: Open prices (optional)
+            volume: Trading volume (optional)
+            timestamps: Timestamps for each bar (optional, needed for VWAP)
+        """
+        self.high = np.asarray(high, dtype=np.float64) if high is not None else None
+        self.low = np.asarray(low, dtype=np.float64) if low is not None else None
+        self.close = np.asarray(close, dtype=np.float64) if close is not None else None
+        self.open = np.asarray(open_, dtype=np.float64) if open_ is not None else None
+        self.volume = np.asarray(volume, dtype=np.float64) if volume is not None else None
+        self.timestamps = timestamps
+
+    # ==================== TREND INDICATORS ====================
+
+    def sma(self, period: int = 20, price: str = "close") -> np.ndarray:
+        """
+        Simple Moving Average.
+
+        Args:
+            period: Number of periods (default: 20)
+            price: Price type ('close', 'high', 'low', 'open')
+
+        Returns:
+            SMA values
+        """
+        prices = self._get_price_array(price)
+        return talib.SMA(prices, timeperiod=period)
+
+    def ema(self, period: int = 20, price: str = "close") -> np.ndarray:
+        """
+        Exponential Moving Average.
+
+        Args:
+            period: Number of periods (default: 20)
+            price: Price type ('close', 'high', 'low', 'open')
+
+        Returns:
+            EMA values
+        """
+        prices = self._get_price_array(price)
+        return talib.EMA(prices, timeperiod=period)
+
+    def macd(
+        self, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Moving Average Convergence Divergence.
+
+        Args:
+            fast_period: Fast EMA period (default: 12)
+            slow_period: Slow EMA period (default: 26)
+            signal_period: Signal line period (default: 9)
+
+        Returns:
+            Tuple of (macd, signal, histogram)
+        """
+        close = self._require_close()
+        return talib.MACD(
+            close, fastperiod=fast_period, slowperiod=slow_period, signalperiod=signal_period
+        )
+
+    def adx(self, period: int = 14) -> np.ndarray:
+        """
+        Average Directional Index (trend strength).
+
+        Values:
+            0-25: Weak or absent trend
+            25-50: Strong trend
+            50-75: Very strong trend
+            75-100: Extremely strong trend
+
+        Args:
+            period: Number of periods (default: 14)
+
+        Returns:
+            ADX values
+        """
+        high, low, close = self._require_hlc()
+        return talib.ADX(high, low, close, timeperiod=period)
+
+    def adx_di(self, period: int = 14) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        ADX with Directional Indicators.
+
+        Returns ADX, +DI (bullish), and -DI (bearish).
+        When +DI > -DI: Uptrend
+        When -DI > +DI: Downtrend
+
+        Args:
+            period: Number of periods (default: 14)
+
+        Returns:
+            Tuple of (adx, plus_di, minus_di)
+        """
+        high, low, close = self._require_hlc()
+        adx = talib.ADX(high, low, close, timeperiod=period)
+        plus_di = talib.PLUS_DI(high, low, close, timeperiod=period)
+        minus_di = talib.MINUS_DI(high, low, close, timeperiod=period)
+        return adx, plus_di, minus_di
+
+    def parabolic_sar(self, acceleration: float = 0.02, maximum: float = 0.2) -> np.ndarray:
+        """
+        Parabolic SAR (Stop and Reverse).
+
+        Trailing stop and trend indicator.
+        When price > SAR: Uptrend
+        When price < SAR: Downtrend
+
+        Args:
+            acceleration: Acceleration factor (default: 0.02)
+            maximum: Maximum acceleration (default: 0.2)
+
+        Returns:
+            SAR values
+        """
+        high, low = self._require_high_low()
+        return talib.SAR(high, low, acceleration=acceleration, maximum=maximum)
+
+    # ==================== MOMENTUM INDICATORS ====================
+
+    def rsi(self, period: int = 14, price: str = "close") -> np.ndarray:
+        """
+        Relative Strength Index.
+
+        Values:
+            > 70: Overbought
+            < 30: Oversold
+
+        Args:
+            period: Number of periods (default: 14)
+            price: Price type ('close', 'high', 'low', 'open')
+
+        Returns:
+            RSI values (0-100)
+        """
+        prices = self._get_price_array(price)
+        return talib.RSI(prices, timeperiod=period)
+
+    def stochastic(
+        self, fastk_period: int = 14, slowk_period: int = 3, slowd_period: int = 3
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Stochastic Oscillator.
+
+        Values:
+            > 80: Overbought
+            < 20: Oversold
+
+        Signals:
+            %K crosses above %D: Bullish
+            %K crosses below %D: Bearish
+
+        Args:
+            fastk_period: Fast %K period (default: 14)
+            slowk_period: Slow %K period (default: 3)
+            slowd_period: Slow %D period (default: 3)
+
+        Returns:
+            Tuple of (slowk, slowd)
+        """
+        high, low, close = self._require_hlc()
+        slowk, slowd = talib.STOCH(
+            high,
+            low,
+            close,
+            fastk_period=fastk_period,
+            slowk_period=slowk_period,
+            slowk_matype=talib.MA_Type.SMA,
+            slowd_period=slowd_period,
+            slowd_matype=talib.MA_Type.SMA,
+        )
+        return slowk, slowd
+
+    def stochastic_rsi(
+        self, rsi_period: int = 14, stoch_period: int = 14, k_period: int = 3, d_period: int = 3
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Stochastic RSI (more sensitive than regular Stochastic).
+
+        Combines RSI with Stochastic for faster signals.
+
+        Args:
+            rsi_period: RSI calculation period (default: 14)
+            stoch_period: Stochastic calculation period (default: 14)
+            k_period: %K smoothing (default: 3)
+            d_period: %D smoothing (default: 3)
+
+        Returns:
+            Tuple of (fastk, fastd)
+        """
+        close = self._require_close()
+        fastk, fastd = talib.STOCHRSI(
+            close,
+            timeperiod=rsi_period,
+            fastk_period=k_period,
+            fastd_period=d_period,
+            fastd_matype=talib.MA_Type.SMA,
+        )
+        return fastk, fastd
+
+    def cci(self, period: int = 20) -> np.ndarray:
+        """
+        Commodity Channel Index.
+
+        Values:
+            > 100: Overbought
+            < -100: Oversold
+
+        Args:
+            period: Number of periods (default: 20)
+
+        Returns:
+            CCI values
+        """
+        high, low, close = self._require_hlc()
+        return talib.CCI(high, low, close, timeperiod=period)
+
+    def williams_r(self, period: int = 14) -> np.ndarray:
+        """
+        Williams %R (momentum indicator).
+
+        Values:
+            > -20: Overbought
+            < -80: Oversold
+
+        Args:
+            period: Number of periods (default: 14)
+
+        Returns:
+            Williams %R values (-100 to 0)
+        """
+        high, low, close = self._require_hlc()
+        return talib.WILLR(high, low, close, timeperiod=period)
+
+    def roc(self, period: int = 12, price: str = "close") -> np.ndarray:
+        """
+        Rate of Change (price momentum).
+
+        Measures percentage change over period.
+        Positive: Upward momentum
+        Negative: Downward momentum
+
+        Args:
+            period: Number of periods (default: 12)
+            price: Price type ('close', 'high', 'low', 'open')
+
+        Returns:
+            ROC values (percentage)
+        """
+        prices = self._get_price_array(price)
+        return talib.ROC(prices, timeperiod=period)
+
+    # ==================== VOLATILITY INDICATORS ====================
+
+    def bollinger_bands(
+        self, period: int = 20, std: float = 2.0, price: str = "close"
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Bollinger Bands (volatility and overbought/oversold).
+
+        Interpretation:
+            Price near upper band: Overbought
+            Price near lower band: Oversold
+            Bands squeeze: Low volatility (breakout coming)
+            Bands expand: High volatility
+
+        Args:
+            period: Number of periods (default: 20)
+            std: Standard deviations (default: 2.0)
+            price: Price type ('close', 'high', 'low', 'open')
+
+        Returns:
+            Tuple of (upper, middle, lower)
+        """
+        prices = self._get_price_array(price)
+        upper, middle, lower = talib.BBANDS(
+            prices, timeperiod=period, nbdevup=std, nbdevdn=std, matype=talib.MA_Type.SMA
+        )
+        return upper, middle, lower
+
+    def atr(self, period: int = 14) -> np.ndarray:
+        """
+        Average True Range (volatility).
+
+        Measures market volatility.
+        Higher ATR = Higher volatility
+        Used for stop-loss placement and position sizing.
+
+        Args:
+            period: Number of periods (default: 14)
+
+        Returns:
+            ATR values
+        """
+        high, low, close = self._require_hlc()
+        return talib.ATR(high, low, close, timeperiod=period)
+
+    def keltner_channels(
+        self, ema_period: int = 20, atr_period: int = 10, atr_multiplier: float = 2.0
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Keltner Channels (volatility-based bands).
+
+        Similar to Bollinger Bands but uses ATR instead of standard deviation.
+
+        Args:
+            ema_period: EMA period for middle line (default: 20)
+            atr_period: ATR period (default: 10)
+            atr_multiplier: ATR multiplier (default: 2.0)
+
+        Returns:
+            Tuple of (upper, middle, lower)
+        """
+        high, low, close = self._require_hlc()
+        middle = talib.EMA(close, timeperiod=ema_period)
+        atr = talib.ATR(high, low, close, timeperiod=atr_period)
+
+        upper = middle + (atr * atr_multiplier)
+        lower = middle - (atr * atr_multiplier)
+
+        return upper, middle, lower
+
+    def stddev(self, period: int = 20, price: str = "close") -> np.ndarray:
+        """
+        Standard Deviation (volatility measure).
+
+        Args:
+            period: Number of periods (default: 20)
+            price: Price type ('close', 'high', 'low', 'open')
+
+        Returns:
+            Standard deviation values
+        """
+        prices = self._get_price_array(price)
+        return talib.STDDEV(prices, timeperiod=period, nbdev=1)
+
+    # ==================== VOLUME INDICATORS ====================
+
+    def vwap(self) -> np.ndarray:
+        """
+        Volume Weighted Average Price.
+
+        Institutional benchmark price.
+        Price above VWAP: Bullish
+        Price below VWAP: Bearish
+
+        Requires volume and timestamps to be set.
+        Resets at start of each trading day.
+
+        Returns:
+            VWAP values
+        """
+        volume = self._require_volume()
+        high, low, close = self._require_hlc()
+
+        # Typical price: (H + L + C) / 3
+        typical_price = (high + low + close) / 3
+
+        # If timestamps provided, reset VWAP daily
+        if self.timestamps:
+            vwap_values = np.zeros(len(typical_price))
+
+            # Group by date
+            dates = [ts.date() if hasattr(ts, "date") else ts for ts in self.timestamps]
+            unique_dates = sorted(set(dates))
+
+            for date in unique_dates:
+                # Find indices for this date
+                date_mask = np.array([d == date for d in dates])
+                date_indices = np.where(date_mask)[0]
+
+                if len(date_indices) == 0:
+                    continue
+
+                # Calculate VWAP for this day
+                day_typical = typical_price[date_indices]
+                day_volume = volume[date_indices]
+
+                # Cumulative (typical_price * volume) / cumulative volume
+                pv = day_typical * day_volume
+                cumsum_pv = np.cumsum(pv)
+                cumsum_volume = np.cumsum(day_volume)
+
+                # Avoid division by zero
+                cumsum_volume[cumsum_volume == 0] = 1
+
+                vwap_values[date_indices] = cumsum_pv / cumsum_volume
+
+            return vwap_values
+        else:
+            # Simple cumulative VWAP (no daily reset)
+            pv = typical_price * volume
+            cumsum_pv = np.cumsum(pv)
+            cumsum_volume = np.cumsum(volume)
+
+            # Avoid division by zero
+            cumsum_volume[cumsum_volume == 0] = 1
+
+            return np.asarray(cumsum_pv / cumsum_volume)
+
+    def obv(self) -> np.ndarray:
+        """
+        On-Balance Volume (volume momentum).
+
+        Cumulative volume indicator:
+            Price up: Add volume
+            Price down: Subtract volume
+
+        Rising OBV: Buying pressure
+        Falling OBV: Selling pressure
+
+        Returns:
+            OBV values
+        """
+        close = self._require_close()
+        volume = self._require_volume()
+        return talib.OBV(close, volume)
+
+    def volume_sma(self, period: int = 20) -> np.ndarray:
+        """
+        Volume Simple Moving Average.
+
+        Average volume over period.
+        Current volume > SMA: High volume (confirmation)
+        Current volume < SMA: Low volume (weak signal)
+
+        Args:
+            period: Number of periods (default: 20)
+
+        Returns:
+            Volume SMA values
+        """
+        volume = self._require_volume()
+        return talib.SMA(volume, timeperiod=period)
+
+    def mfi(self, period: int = 14) -> np.ndarray:
+        """
+        Money Flow Index (volume-weighted RSI).
+
+        Values:
+            > 80: Overbought
+            < 20: Oversold
+
+        Args:
+            period: Number of periods (default: 14)
+
+        Returns:
+            MFI values (0-100)
+        """
+        high, low, close = self._require_hlc()
+        volume = self._require_volume()
+        return talib.MFI(high, low, close, volume, timeperiod=period)
+
+    # ==================== SUPPORT/RESISTANCE ====================
+
+    def pivot_points(self) -> Dict[str, float]:
+        """
+        Classic Pivot Points (support/resistance levels).
+
+        Uses last complete bar's high, low, close.
+
+        Returns:
+            Dict with keys: PP, R1, R2, R3, S1, S2, S3
+        """
+        high_arr, low_arr, close_arr = self._require_hlc()
+
+        # Use last bar
+        high = float(high_arr[-1])
+        low = float(low_arr[-1])
+        close = float(close_arr[-1])
+
+        # Pivot Point
+        pp = (high + low + close) / 3
+
+        # Support and Resistance levels
+        r1 = 2 * pp - low
+        r2 = pp + (high - low)
+        r3 = high + 2 * (pp - low)
+
+        s1 = 2 * pp - high
+        s2 = pp - (high - low)
+        s3 = low - 2 * (high - pp)
+
+        return {"PP": pp, "R1": r1, "R2": r2, "R3": r3, "S1": s1, "S2": s2, "S3": s3}
+
+    def fibonacci_retracement(
+        self, swing_high: Optional[float] = None, swing_low: Optional[float] = None
+    ) -> Dict[str, float]:
+        """
+        Fibonacci Retracement Levels.
+
+        Args:
+            swing_high: Swing high price (default: max of high array)
+            swing_low: Swing low price (default: min of low array)
+
+        Returns:
+            Dict with retracement levels (0%, 23.6%, 38.2%, 50%, 61.8%, 100%)
+        """
+        high_arr, low_arr = self._require_high_low()
+        if swing_high is None:
+            swing_high = float(np.max(high_arr))
+
+        if swing_low is None:
+            swing_low = float(np.min(low_arr))
+
+        diff = swing_high - swing_low
+
+        return {
+            "0.0%": swing_high,
+            "23.6%": swing_high - 0.236 * diff,
+            "38.2%": swing_high - 0.382 * diff,
+            "50.0%": swing_high - 0.500 * diff,
+            "61.8%": swing_high - 0.618 * diff,
+            "78.6%": swing_high - 0.786 * diff,
+            "100.0%": swing_low,
+        }
+
+    # ==================== HELPER METHODS ====================
+
+    def _get_price_array(self, price: str) -> np.ndarray:
+        """Get price array by name."""
+        prices: Optional[np.ndarray]
+        if price == "close":
+            prices = self.close
+        elif price == "high":
+            prices = self.high
+        elif price == "low":
+            prices = self.low
+        elif price == "open":
+            prices = self.open
+        else:
+            raise ValueError(f"Invalid price type: {price}")
+
+        if prices is None:
+            raise ValueError(f"Price data required for '{price}' calculations")
+
+        return prices
+
+    def _require_close(self) -> np.ndarray:
+        """Ensure close prices are available."""
+        if self.close is None:
+            raise ValueError("Close price data required")
+        return self.close
+
+    def _require_high_low(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Ensure high/low prices are available."""
+        if self.high is None or self.low is None:
+            raise ValueError("High/low price data required")
+        return self.high, self.low
+
+    def _require_hlc(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Ensure high/low/close prices are available."""
+        if self.high is None or self.low is None or self.close is None:
+            raise ValueError("High/low/close price data required")
+        return self.high, self.low, self.close
+
+    def _require_volume(self) -> np.ndarray:
+        """Ensure volume data is available."""
+        if self.volume is None:
+            raise ValueError("Volume data required")
+        return self.volume
+
+    # ==================== COMPOSITE INDICATORS ====================
+
+    def all_momentum_indicators(self) -> Dict[str, Any]:
+        """
+        Calculate all momentum indicators at once.
+
+        Returns:
+            Dict with all momentum indicator values
+        """
+        return {
+            "rsi": self.rsi(),
+            "stochastic": self.stochastic(),
+            "cci": self.cci(),
+            "williams_r": self.williams_r(),
+            "roc": self.roc(),
+            "macd": self.macd(),
+        }
+
+    def all_trend_indicators(self) -> Dict[str, Any]:
+        """
+        Calculate all trend indicators at once.
+
+        Returns:
+            Dict with all trend indicator values
+        """
+        adx, plus_di, minus_di = self.adx_di()
+
+        return {
+            "sma_20": self.sma(20),
+            "sma_50": self.sma(50),
+            "sma_200": self.sma(200),
+            "ema_20": self.ema(20),
+            "ema_50": self.ema(50),
+            "macd": self.macd(),
+            "adx": adx,
+            "plus_di": plus_di,
+            "minus_di": minus_di,
+            "parabolic_sar": self.parabolic_sar(),
+        }
+
+    def all_volatility_indicators(self) -> Dict[str, Any]:
+        """
+        Calculate all volatility indicators at once.
+
+        Returns:
+            Dict with all volatility indicator values
+        """
+        return {
+            "bollinger_bands": self.bollinger_bands(),
+            "atr": self.atr(),
+            "keltner_channels": self.keltner_channels(),
+            "stddev": self.stddev(),
+        }
+
+
+# ==================== QUICK ANALYSIS FUNCTIONS ====================
+# Aggregator helpers live in ``utils.indicator_analysis``. Re-exported here so
+# that ``from utils.indicators import analyze_trend, analyze_momentum,
+# analyze_volatility`` keeps working for existing call sites.
+from utils.indicator_analysis import (  # noqa: E402  (intentional late import to avoid cycles)
+    analyze_momentum,
+    analyze_trend,
+    analyze_volatility,
+)
+
+__all__ = [
+    "TechnicalIndicators",
+    "safe_last",
+    "analyze_trend",
+    "analyze_momentum",
+    "analyze_volatility",
+]
