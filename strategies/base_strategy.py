@@ -21,6 +21,7 @@ class BaseStrategy(Strategy):
         self.symbols = parameters.get('symbols', [])
         self._shutdown_event = asyncio.Event()
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.price_history = {} #added
 
     async def initialize(self, **kwargs):
         """Initialize strategy parameters."""
@@ -46,12 +47,18 @@ class BaseStrategy(Strategy):
         self.sentiment_threshold = self.parameters.get('sentiment_threshold', 0.6)
         self.position_size = self.parameters.get('position_size', 0.1)
         self.max_position_size = self.parameters.get('max_position_size', 0.25)
-        self.stop_loss = self.parameters.get('stop_loss', 0.02)
-        self.take_profit = self.parameters.get('take_profit', 0.05)
+        self.stop_loss_pct = self.parameters.get('stop_loss_pct', 0.02)
+        self.take_profit_pct = self.parameters.get('take_profit_pct', 0.05)
         self.portfolio_risk_limit = self.parameters.get('portfolio_risk_limit', 0.02)
         self.position_risk_limit = self.parameters.get('position_risk_limit', 0.01)
         self.max_correlation = self.parameters.get('max_correlation', 0.7)
         self.var_confidence = self.parameters.get('var_confidence', 0.95)
+        self.price_history_window = self.parameters.get('price_history_window', 30)
+        self.volatility_threshold = self.parameters.get('volatility_threshold', 0.4)
+        self.var_threshold = self.parameters.get('var_threshold', 0.03)
+        self.es_threshold = self.parameters.get('es_threshold', 0.04)
+        self.drawdown_threshold = self.parameters.get('drawdown_threshold', 0.3)
+
 
     async def on_trading_iteration(self):
         """Main trading logic. Must be implemented by subclasses."""
@@ -109,7 +116,7 @@ class BaseStrategy(Strategy):
                 # Update stop losses for existing positions
                 for position in positions:
                     await self._update_stop_loss(position)
-                
+
                 # Get trading signals for each symbol
                 for symbol in self.symbols:
                     try:
@@ -164,6 +171,33 @@ class BaseStrategy(Strategy):
     def execute_trade(self, symbol, signal):
         """Execute a trade based on the signal."""
         pass
+
+    def create_order(self, symbol, quantity, side, type="market", limit_price=None, stop_price=None):
+        """
+        Create an order object.
+
+        Args:
+            symbol (str): The symbol to trade.
+            quantity (float): The quantity to trade.
+            side (str): 'buy' or 'sell'.
+            type (str): 'market', 'limit', or 'stop'.
+            limit_price (float, optional): The limit price for limit orders.
+            stop_price (float, optional): The stop price for stop orders.
+
+        Returns:
+            dict: The order object.
+        """
+        order = {
+            "symbol": symbol,
+            "quantity": quantity,
+            "side": side,
+            "type": type,
+        }
+        if limit_price:
+            order["limit_price"] = limit_price
+        if stop_price:
+            order["stop_price"] = stop_price
+        return order
 
     def check_risk_limits(self):
         """Check if any risk limits have been breached."""
@@ -220,6 +254,41 @@ class BaseStrategy(Strategy):
         except Exception as e:
             self.logger.error(f"Error in position sizing for {symbol}: {str(e)}")
             return cash, last_price, 0
+    async def _update_stop_loss(self, position):
+        """Update the stop-loss level for a position based on volatility."""
+        try:
+            symbol = position.symbol
+            current_price = position.current_price  # Assuming Position object has current_price
+            volatility = self._calculate_volatility(symbol)
+
+            # Example: Set stop-loss at 2 standard deviations below the current price
+            stop_loss = current_price - (2 * volatility * current_price)
+
+            #TODO: compare to the parameter and take the greater of the two.
+
+            self.logger.info(f"Updating stop-loss for {symbol} to {stop_loss:.2f}")
+
+            #TODO: Implement logic to update the stop-loss order with the broker
+
+        except Exception as e:
+            self.logger.error(f"Error updating stop-loss for {symbol}: {e}", exc_info=True)
+
+    def _calculate_volatility(self, symbol):
+        """Calculate the historical volatility for a symbol."""
+        try:
+            # Assuming self.price_history is available and populated by the strategy
+            if symbol not in self.price_history or len(self.price_history[symbol]) < self.price_history_window:
+                self.logger.warning(f"Insufficient price history for {symbol} to calculate volatility")
+                return 0  # Or some default value
+
+            prices = np.array(self.price_history[symbol])
+            returns = np.diff(np.log(prices))
+            volatility = np.std(returns) * np.sqrt(252)  # Annualize
+            return volatility
+
+        except Exception as e:
+            self.logger.error(f"Error calculating volatility for {symbol}: {e}", exc_info=True)
+            return 0  # Or some default value
 
     def update_performance_metrics(self, trade_result, symbol):
         """Update performance tracking metrics after each trade."""

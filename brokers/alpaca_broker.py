@@ -5,16 +5,15 @@ import signal
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 
-from alpaca.trading import TradingClient
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.live import StockDataStream
-from alpaca.data.requests import StockLatestTradeRequest, StockBarsRequest
-from alpaca.data.timeframe import TimeFrame
-from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, GetOrdersRequest
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
+from alpaca_trade_api.trading import TradingClient
+from alpaca_trade_api.data.historical import StockHistoricalDataClient
+from alpaca_trade_api.data.live import StockDataStream
+from alpaca_trade_api.data.requests import StockLatestTradeRequest, StockBarsRequest
+from alpaca_trade_api.data.timeframe import TimeFrame
+from alpaca_trade_api.trading.requests import MarketOrderRequest, LimitOrderRequest, GetOrdersRequest
+from alpaca_trade_api.trading.enums import OrderSide, TimeInForce, OrderType
 
 from lumibot.brokers import Broker
-from lumibot.data_sources import AlpacaData
 from lumibot.entities import Position
 
 from config import ALPACA_CREDS, SYMBOLS
@@ -83,21 +82,20 @@ class AlpacaBroker(Broker):
                 secret_key=self.api_secret
             )
             
-            # Initialize the stream
+            # Initialize the stream for WebSockets
             self.stream = StockDataStream(
                 api_key=self.api_key,
                 secret_key=self.api_secret
             )
-            
+
+            self._subscribed_symbols = set()  # Keep track of subscribed symbols
+
             # Initialize data source for Lumibot
             config = {
                 "API_KEY": self.api_key,
                 "API_SECRET": self.api_secret,
                 "PAPER": self.paper
             }
-            self.data_source = AlpacaData(config)
-            
-            logger.info("Successfully initialized AlpacaData source")
             
         except Exception as e:
             logger.error(f"Error initializing AlpacaBroker: {e}", exc_info=True)
@@ -118,18 +116,18 @@ class AlpacaBroker(Broker):
             
             # Subscribe to market data for each symbol individually
             logger.info(f"Subscribing to symbols: {SYMBOLS}")
-            for symbol in SYMBOLS:
-                self.stream.subscribe_bars(bar_handler, symbol)
-                self.stream.subscribe_trades(trade_handler, symbol)
-                self.stream.subscribe_quotes(quote_handler, symbol)
-            
+            self.stream.subscribe_bars(bar_handler, SYMBOLS)
+            self.stream.subscribe_trades(trade_handler, SYMBOLS)
+            self.stream.subscribe_quotes(quote_handler, SYMBOLS)
+            self._subscribed_symbols.update(SYMBOLS)
+
             logger.info("Starting message processing...")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error initializing stream: {e}", exc_info=True)
             return False
-
+    
     async def connect(self):
         """Connect to the websocket stream."""
         logger.info("Connecting to websocket stream...")
@@ -142,11 +140,12 @@ class AlpacaBroker(Broker):
 
             # Now connect to the websocket
             await self.stream._connect()
-            
+
             # Create task to process messages
-            task = asyncio.create_task(self.stream._run_forever())
+            task = asyncio.create_task(self.stream.run())  # Use run() instead of _run_forever()
+            logger.info("AlpacaBroker connected and running")
             return task
-            
+
         except Exception as e:
             logger.error(f"Error connecting to stream: {e}", exc_info=True)
             return None
@@ -155,25 +154,24 @@ class AlpacaBroker(Broker):
         """Disconnect from the websocket stream."""
         try:
             logger.info("Disconnecting from websocket stream...")
-            
+
             # Unsubscribe from all symbols
-            for symbol in SYMBOLS:
+            if self._subscribed_symbols:
                 try:
-                    self.stream.unsubscribe_bars(symbol)
-                    self.stream.unsubscribe_trades(symbol)
-                    self.stream.unsubscribe_quotes(symbol)
+                    self.stream.unsubscribe_bars(list(self._subscribed_symbols))
+                    self.stream.unsubscribe_trades(list(self._subscribed_symbols))
+                    self.stream.unsubscribe_quotes(list(self._subscribed_symbols))
+
                 except Exception as e:
-                    logger.warning(f"Error unsubscribing from {symbol}: {e}")
+                    logger.warning(f"Error unsubscribing: {e}")
             
-            # Close the websocket connection
-            if hasattr(self.stream, '_ws') and self.stream._ws:
-                await self.stream._ws.close()
-                
-            logger.info("Successfully disconnected from stream")
-            
+            # Close websocket connection
+            await self.stream.close()
+            self._subscribed_symbols = set() #reset
+            logger.info("Successfully disconnected from websocket stream")
+
         except Exception as e:
             logger.error(f"Error disconnecting from stream: {e}", exc_info=True)
-            raise
 
     async def _handle_trade(self, data):
         """Handle trade updates."""
@@ -182,12 +180,12 @@ class AlpacaBroker(Broker):
             price = float(data.price)
             size = float(data.size)
             timestamp = data.timestamp
-            
+
             # Notify subscribers
             for subscriber in self._subscribers:
                 if hasattr(subscriber, 'on_trade'):
                     await subscriber.on_trade(symbol, price, size, timestamp)
-                    
+
         except Exception as e:
             logger.error(f"Error handling trade: {e}", exc_info=True)
 
@@ -200,12 +198,12 @@ class AlpacaBroker(Broker):
             ask_price = float(data.ask_price)
             ask_size = float(data.ask_size)
             timestamp = data.timestamp
-            
+
             # Notify subscribers
             for subscriber in self._subscribers:
                 if hasattr(subscriber, 'on_quote'):
                     await subscriber.on_quote(symbol, bid_price, bid_size, ask_price, ask_size, timestamp)
-                    
+
         except Exception as e:
             logger.error(f"Error handling quote: {e}", exc_info=True)
 
@@ -219,98 +217,17 @@ class AlpacaBroker(Broker):
             close_price = float(data.close)
             volume = float(data.volume)
             timestamp = data.timestamp
-            
+
             # Notify subscribers
             for subscriber in self._subscribers:
                 if hasattr(subscriber, 'on_bar'):
                     await subscriber.on_bar(symbol, open_price, high_price, low_price, close_price, volume, timestamp)
-                    
         except Exception as e:
             logger.error(f"Error handling bar: {e}", exc_info=True)
 
-    async def get_latest_volume(self, symbol: str) -> float:
-        """Get the latest daily trading volume for a symbol."""
-        logger.debug(f"Fetching latest volume for {symbol}")
-        try:
-            # Get the latest bar data
-            from datetime import datetime, timedelta
-            
-            end = datetime.now()
-            start = end - timedelta(days=1)
-            
-            bars = self.data_client.get_stock_bars(
-                symbol=symbol,
-                timeframe=TimeFrame.Day,
-                start=start.isoformat(),
-                end=end.isoformat()
-            )
-            
-            if not bars or not bars.data:
-                logger.warning(f"No volume data available for {symbol}")
-                return 0
-            
-            # Return the latest volume
-            latest_bar = bars.data[-1]
-            logger.debug(f"Latest volume for {symbol}: {latest_bar.volume}")
-            return latest_bar.volume
-            
-        except Exception as e:
-            logger.error(f"Error fetching volume for {symbol}: {e}", exc_info=True)
-            return 0
-
-    async def subscribe_to_market_data(self, symbols: List[str]):
-        """Subscribe to market data for specified symbols."""
-        logger.info(f"Subscribing to market data for {len(symbols)} symbols...")
-        try:
-            async with self._ws_lock:
-                new_symbols = set(symbols) - self._subscribed_symbols
-                if new_symbols:
-                    logger.debug(f"New symbols to subscribe: {new_symbols}")
-                    await self.stream.subscribe_bars(new_symbols)
-                    await self.stream.subscribe_trades(new_symbols)
-                    await self.stream.subscribe_quotes(new_symbols)
-                    self._subscribed_symbols.update(new_symbols)
-                    logger.info(f"Successfully subscribed to {len(new_symbols)} new symbols")
-        except Exception as e:
-            logger.error(f"Error subscribing to market data: {e}", exc_info=True)
-            raise
-    
-    async def unsubscribe_from_market_data(self, symbols: List[str]):
-        """Unsubscribe from market data for specified symbols."""
-        logger.info(f"Unsubscribing from market data for {len(symbols)} symbols...")
-        try:
-            async with self._ws_lock:
-                symbols_to_remove = set(symbols) & self._subscribed_symbols
-                if symbols_to_remove:
-                    logger.debug(f"Symbols to unsubscribe: {symbols_to_remove}")
-                    await self.stream.unsubscribe_bars(symbols_to_remove)
-                    await self.stream.unsubscribe_trades(symbols_to_remove)
-                    await self.stream.unsubscribe_quotes(symbols_to_remove)
-                    self._subscribed_symbols -= symbols_to_remove
-                    logger.info(f"Successfully unsubscribed from {len(symbols_to_remove)} symbols")
-        except Exception as e:
-            logger.error(f"Error unsubscribing from market data: {e}", exc_info=True)
-            raise
-    
     async def close(self):
-        """Close the broker connection."""
-        logger.info("Closing the broker connection...")
-        try:
-            if self._ws_task and not self._ws_task.done():
-                self._ws_task.cancel()
-                try:
-                    await self._ws_task
-                except asyncio.CancelledError:
-                    pass
-            
-            if self.stream and self.stream.is_running():
-                await self.stream.close()
-            
-            logger.info("Successfully closed Alpaca broker connection")
-        except Exception as e:
-            logger.error(f"Error closing Alpaca broker connection: {e}", exc_info=True)
-            raise
-    
+        pass # already disconnected
+
     async def get_account(self):
         """Get account information."""
         try:
@@ -345,30 +262,29 @@ class AlpacaBroker(Broker):
         logger.debug(f"Submitting order: {order}...")
         try:
             # Convert order side to Alpaca enum
-            side = OrderSide.BUY if order.side.lower() == 'buy' else OrderSide.SELL
+            side = OrderSide.BUY if order["side"].lower() == 'buy' else OrderSide.SELL
             
             # Base order parameters
             base_params = {
-                "symbol": order.symbol,
-                "qty": float(order.quantity),
+                "symbol": order["symbol"],
+                "qty": float(order["quantity"]),
                 "side": side,
                 "time_in_force": TimeInForce.DAY,
             }
 
             # Create appropriate order request based on type
-            if order.type == "market":
+            if order["type"] == "market":
                 order_request = MarketOrderRequest(**base_params)
             else:
-                base_params["limit_price"] = float(order.limit_price)
+                base_params["limit_price"] = float(order["limit_price"])
                 order_request = LimitOrderRequest(**base_params)
 
             logger.debug(f"Submitting order request: {order_request}")
-            # submit_order() is synchronous
             return self.trading_client.submit_order(order_request)
         except Exception as e:
-            logger.error(f"Failed to submit order: {e}", exc_info=True)
+            logger.error(f"Error submitting order: {e}", exc_info=True)
             raise
-    
+
     async def cancel_order(self, order_id: str):
         """Cancel a trading order."""
         logger.debug(f"Cancelling order {order_id}...")
@@ -416,23 +332,12 @@ class AlpacaBroker(Broker):
             # Get latest trade using Alpaca SDK
             request = StockLatestTradeRequest(symbol_or_symbols=symbol)
             trade = self.data_client.get_stock_latest_trade(request)
-            
+
             if trade and symbol in trade:
                 return float(trade[symbol].price)
-            
-            # Fallback to getting latest bar if trade not available
-            bars_request = StockBarsRequest(
-                symbol_or_symbols=symbol,
-                timeframe=TimeFrame.Minute,
-                limit=1
-            )
-            bars = self.data_client.get_stock_bars(bars_request)
-            
-            if bars and symbol in bars:
-                return float(bars[symbol][0].close)
-                
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error getting last price for {symbol}: {e}", exc_info=True)
             return None
@@ -548,7 +453,7 @@ class AlpacaBroker(Broker):
                     "symbol": pos.symbol,
                     "quantity": float(pos.qty),
                     "avg_price": float(pos.avg_entry_price),
-                    "current_price": float(pos.current_price),
+                    "current_price": float(position.current_price),
                     "asset_id": pos.asset_id,
                     "market_value": float(pos.market_value),
                     "cost_basis": float(pos.cost_basis),
@@ -577,11 +482,8 @@ class AlpacaBroker(Broker):
                 "asset_id": position.asset_id,
                 "market_value": float(position.market_value),
                 "cost_basis": float(position.cost_basis),
-                "unrealized_pl": float(position.unrealized_pl),
-                "unrealized_plpc": float(position.unrealized_plpc),
-                "unrealized_intraday_pl": float(position.unrealized_intraday_pl),
-                "unrealized_intraday_plpc": float(position.unrealized_intraday_plpc),
-                "side": "long" if float(position.qty) > 0 else "short"
+                "unrealized_pl": float(position.unrealized_plpc),
+                "unrealized_intraday_pl": float(pos.qty) > 0 else "short"
             }
         except Exception as e:
             if "position does not exist" not in str(e).lower():
@@ -667,8 +569,7 @@ class AlpacaBroker(Broker):
             return {
                 "timestamps": portfolio_history.timestamp,
                 "equity": portfolio_history.equity,
-                "profit_loss": portfolio_history.profit_loss,
-                "profit_loss_pct": portfolio_history.profit_loss_pct
+                "profit_loss": portfolio_history.profit_loss_pct
             }
         except Exception as e:
             logger.error(f"Error getting historical account value: {e}", exc_info=True)

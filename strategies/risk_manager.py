@@ -1,50 +1,74 @@
 import numpy as np
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
 class RiskManager:
-    def __init__(self, max_portfolio_risk=0.02, max_position_risk=0.01, max_correlation=0.7):
-        self.max_portfolio_risk = max_portfolio_risk  # 2% max portfolio risk
-        self.max_position_risk = max_position_risk    # 1% max position risk
-        self.max_correlation = max_correlation        # 0.7 max correlation between positions
+    def __init__(
+        self,
+        max_portfolio_risk=0.02,
+        max_position_risk=0.01,
+        max_correlation=0.7,
+        volatility_threshold=0.4,
+        var_threshold=0.03,
+        es_threshold=0.04,
+        drawdown_threshold=0.3,
+    ):
+        self.max_portfolio_risk = max_portfolio_risk
+        self.max_position_risk = max_position_risk
+        self.max_correlation = max_correlation
+        self.volatility_threshold = volatility_threshold
+        self.var_threshold = var_threshold
+        self.es_threshold = es_threshold
+        self.drawdown_threshold = drawdown_threshold
         self.position_sizes = {}
         self.position_correlations = {}
-        
+
+    def _calculate_volatility(self, price_history):
+        """Calculate annualized volatility."""
+        returns = np.diff(price_history) / price_history[:-1]
+        return np.std(returns) * np.sqrt(252)
+
+    def _calculate_var(self, price_history):
+        """Calculate Value at Risk (VaR) at 95% confidence level."""
+        returns = np.diff(price_history) / price_history[:-1]
+        return np.percentile(returns, 5) * np.sqrt(252)
+
+    def _calculate_expected_shortfall(self, price_history):
+        """Calculate Expected Shortfall (ES) at 95% confidence level."""
+        returns = np.diff(price_history) / price_history[:-1]
+        var_95 = self._calculate_var(price_history)
+        return np.mean(returns[returns <= var_95]) * np.sqrt(252)
+
+    def _calculate_max_drawdown(self, price_history):
+        """Calculate maximum drawdown."""
+        rolling_max = np.maximum.accumulate(price_history)
+        drawdowns = (price_history - rolling_max) / rolling_max
+        return np.min(drawdowns)
+
     def calculate_position_risk(self, symbol, price_history):
         """Calculate position risk using various metrics."""
         try:
-            returns = np.diff(price_history) / price_history[:-1]
-            
-            # Calculate volatility (annualized)
-            daily_vol = np.std(returns) * np.sqrt(252)
-            
-            # Calculate Value at Risk (VaR) - 95% confidence
-            var_95 = np.percentile(returns, 5) * np.sqrt(252)
-            
-            # Calculate Expected Shortfall (ES)
-            es_95 = np.mean(returns[returns <= var_95]) * np.sqrt(252)
-            
-            # Calculate Maximum Drawdown
-            rolling_max = np.maximum.accumulate(price_history)
-            drawdowns = (price_history - rolling_max) / rolling_max
-            max_drawdown = np.min(drawdowns)
-            
+            daily_vol = self._calculate_volatility(price_history)
+            var_95 = self._calculate_var(price_history)
+            es_95 = self._calculate_expected_shortfall(price_history)
+            max_drawdown = self._calculate_max_drawdown(price_history)
+
             # Combine metrics into a risk score (0 to 1)
             risk_score = (
-                0.3 * (daily_vol / 0.4) +          # Normalize vol (assuming 40% is high)
-                0.3 * (abs(var_95) / 0.03) +       # Normalize VaR
-                0.2 * (abs(es_95) / 0.04) +        # Normalize ES
-                0.2 * (abs(max_drawdown) / 0.3)    # Normalize drawdown
+                0.3 * (daily_vol / self.volatility_threshold)
+                + 0.3 * (abs(var_95) / self.var_threshold)
+                + 0.2 * (abs(es_95) / self.es_threshold)
+                + 0.2 * (abs(max_drawdown) / self.drawdown_threshold)
             )
-            
+
             return min(risk_score, 1.0)
-            
+
         except Exception as e:
             logger.error(f"Error calculating position risk for {symbol}: {e}")
             return 1.0  # Return maximum risk on error
-            
+
     def calculate_position_correlation(self, symbol1, symbol2, price_history1, price_history2):
         """Calculate correlation between two positions."""
         try:

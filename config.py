@@ -6,20 +6,15 @@ load_dotenv()
 
 # Alpaca credentials configuration
 ALPACA_CREDS = {
-    "API_KEY": os.getenv("API_KEY"),
-    "API_SECRET": os.getenv("API_SECRET"),
+   "API_KEY": os.getenv("ALPACA_API_KEY_ID", "AKF8LBJTECAUWTFSXQAY"),
+    "API_SECRET": os.getenv("ALPACA_SECRET_KEY", "YmuQW3vIwDQ9hjM7JbLbz8dUqzH7UAeNdqbeCbBW"),
     "PAPER": str(os.getenv("PAPER", "True")).lower() == "true"  # Ensure string comparison
 }
 
-# Trading symbols
+# Trading symbols - Reduced for testing
 SYMBOLS = [
     "AAPL",  # Apple
     "MSFT",  # Microsoft
-    "GOOGL", # Google
-    "AMZN",  # Amazon
-    "META",  # Meta (Facebook)
-    "NVDA",  # NVIDIA
-    "TSLA"   # Tesla
 ]
 
 # Trading parameters
