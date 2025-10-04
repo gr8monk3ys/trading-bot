@@ -1,0 +1,874 @@
+{
+  "spec_ref": "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md",
+  "generated_at": "2026-05-11T21:55:40.633303Z",
+  "status": "REPORTED",
+  "data_source": "yfinance",
+  "config": {
+    "symbols": [
+      "SPY",
+      "QQQ",
+      "AAPL",
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "META",
+      "NVDA",
+      "TSLA",
+      "JPM"
+    ],
+    "start": "2020-01-01",
+    "end": "2024-12-31",
+    "initial_capital": 100000,
+    "slippage_bps": 40,
+    "spread_bps": 10,
+    "min_trades_for_significance": 50
+  },
+  "n_trades": 102,
+  "inconclusive": false,
+  "metrics": {
+    "total_return": 6.459960402967409,
+    "annualized_return": 0.49475908585779194,
+    "max_drawdown": 0.4695692984297289,
+    "sharpe_ratio": 1.3623230400606026,
+    "sortino_ratio": 2.078356419800428,
+    "win_rate": 0.2549019607843137,
+    "profit_factor": 7.265733609337351,
+    "avg_trade": 1916.641596389472,
+    "avg_win": 0.03380840780437688,
+    "avg_loss": 0.006049069854310053,
+    "volatility": 0.020034110839223646,
+    "trade_count": 102,
+    "num_trades": 102,
+    "final_equity": 745996.040296741,
+    "calmar_ratio": 1.0536444514415644,
+    "recovery_factor": 13.757203515157292
+  },
+  "trades": [
+    {
+      "symbol": "AAPL",
+      "side": "sell",
+      "quantity": 165,
+      "price": 60.544620251658465,
+      "pnl": 0.0,
+      "timestamp": "2020-03-16 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "sell",
+      "quantity": 81,
+      "price": 135.39543146405936,
+      "pnl": 0.0,
+      "timestamp": "2020-03-16 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "sell",
+      "quantity": 128,
+      "price": 94.0358707275291,
+      "pnl": 0.0,
+      "timestamp": "2020-03-19 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "sell",
+      "quantity": 144,
+      "price": 92.29350866259631,
+      "pnl": 0.0,
+      "timestamp": "2020-03-20 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "sell",
+      "quantity": 153,
+      "price": 95.1300694271082,
+      "pnl": 0.0,
+      "timestamp": "2020-03-23 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "sell",
+      "quantity": 2619,
+      "price": 6.137647266290814,
+      "pnl": 0.0,
+      "timestamp": "2020-03-25 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "buy",
+      "quantity": 348,
+      "price": 50.75560277169226,
+      "pnl": 0.0,
+      "timestamp": "2020-05-04 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "buy",
+      "quantity": 1876,
+      "price": 8.488164733127835,
+      "pnl": -4409.570767786252,
+      "timestamp": "2020-05-28 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "buy",
+      "quantity": 76,
+      "price": 187.75413779966257,
+      "pnl": -3979.2616815058445,
+      "timestamp": "2020-06-12 00:00:00"
+    },
+    {
+      "symbol": "JPM",
+      "side": "buy",
+      "quantity": 129,
+      "price": 99.89494137018363,
+      "pnl": 0.0,
+      "timestamp": "2020-06-12 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "buy",
+      "quantity": 61,
+      "price": 188.95276097418656,
+      "pnl": -267.786647550636,
+      "timestamp": "2020-06-15 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "quantity": 115,
+      "price": 90.44966872287364,
+      "pnl": -3439.080574189745,
+      "timestamp": "2020-06-29 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "buy",
+      "quantity": 47,
+      "price": 198.45311102164953,
+      "pnl": 0.0,
+      "timestamp": "2020-06-29 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "buy",
+      "quantity": 89,
+      "price": 94.47496117965332,
+      "pnl": 0.0,
+      "timestamp": "2020-07-24 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 22,
+      "price": 342.57630422811656,
+      "pnl": 0.0,
+      "timestamp": "2020-09-04 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 24,
+      "price": 283.5903803615746,
+      "pnl": 0.0,
+      "timestamp": "2020-09-04 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "buy",
+      "quantity": 29,
+      "price": 214.26263968380513,
+      "pnl": 0.0,
+      "timestamp": "2020-09-04 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 33,
+      "price": 164.73690985784,
+      "pnl": -2339.6168684729323,
+      "timestamp": "2020-09-04 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "buy",
+      "quantity": 400,
+      "price": 12.62357663719771,
+      "pnl": -2594.3717483627584,
+      "timestamp": "2020-09-04 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "buy",
+      "quantity": 59,
+      "price": 76.18598237556292,
+      "pnl": 0.0,
+      "timestamp": "2020-09-08 00:00:00"
+    },
+    {
+      "symbol": "JPM",
+      "side": "buy",
+      "quantity": 40,
+      "price": 100.87841817533875,
+      "pnl": 0.0,
+      "timestamp": "2020-09-09 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "quantity": 28,
+      "price": 131.01359054180008,
+      "pnl": -1973.1311681239652,
+      "timestamp": "2021-01-05 00:00:00"
+    },
+    {
+      "symbol": "META",
+      "side": "sell",
+      "quantity": 12,
+      "price": 267.4673310247731,
+      "pnl": 0.0,
+      "timestamp": "2021-01-20 00:00:00"
+    },
+    {
+      "symbol": "META",
+      "side": "sell",
+      "quantity": 13,
+      "price": 272.8560258217704,
+      "pnl": 0.0,
+      "timestamp": "2021-01-21 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "buy",
+      "quantity": 43,
+      "price": 92.66606316160158,
+      "pnl": 0.0,
+      "timestamp": "2021-01-28 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "quantity": 27,
+      "price": 131.9640716789978,
+      "pnl": -1571.2279314014654,
+      "timestamp": "2021-01-29 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "quantity": 24,
+      "price": 134.14409665090966,
+      "pnl": 0.0,
+      "timestamp": "2021-02-01 00:00:00"
+    },
+    {
+      "symbol": "JPM",
+      "side": "buy",
+      "quantity": 19,
+      "price": 150.50749342677807,
+      "pnl": 0.0,
+      "timestamp": "2021-03-01 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "sell",
+      "quantity": 11,
+      "price": 222.67428492032647,
+      "pnl": 1793.1621354853337,
+      "timestamp": "2021-03-10 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "sell",
+      "quantity": 12,
+      "price": 233.18685249398962,
+      "pnl": 2082.3276859588673,
+      "timestamp": "2021-03-11 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 7,
+      "price": 416.74243992811336,
+      "pnl": 0.0,
+      "timestamp": "2021-04-23 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "quantity": 21,
+      "price": 133.48252287760425,
+      "pnl": 0.0,
+      "timestamp": "2021-04-29 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 15,
+      "price": 165.59617384233013,
+      "pnl": -1076.3511727095938,
+      "timestamp": "2021-05-04 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 13,
+      "price": 172.19705690104854,
+      "pnl": -1018.6491627783206,
+      "timestamp": "2021-06-28 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "quantity": 14,
+      "price": 146.1521361510583,
+      "pnl": 0.0,
+      "timestamp": "2021-07-20 00:00:00"
+    },
+    {
+      "symbol": "META",
+      "side": "buy",
+      "quantity": 5,
+      "price": 356.3107214877271,
+      "pnl": -430.2063458425769,
+      "timestamp": "2021-07-30 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "buy",
+      "quantity": 4,
+      "price": 355.993414027842,
+      "pnl": 0.0,
+      "timestamp": "2021-11-10 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 4,
+      "price": 390.59285873389626,
+      "pnl": 0.0,
+      "timestamp": "2021-11-11 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "quantity": 8,
+      "price": 171.1427238835162,
+      "pnl": 0.0,
+      "timestamp": "2021-12-17 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "sell",
+      "quantity": 2,
+      "price": 452.94808042545463,
+      "pnl": 184.93921102226398,
+      "timestamp": "2022-02-01 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "sell",
+      "quantity": 4,
+      "price": 297.3037889946991,
+      "pnl": 397.6312958756956,
+      "timestamp": "2022-02-25 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "sell",
+      "quantity": 5,
+      "price": 288.11373628694764,
+      "pnl": 1128.0923007763392,
+      "timestamp": "2022-03-01 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "sell",
+      "quantity": 11,
+      "price": 145.52008913502232,
+      "pnl": 0.0,
+      "timestamp": "2022-03-11 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 5,
+      "price": 354.10522576493713,
+      "pnl": 0.0,
+      "timestamp": "2022-04-07 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "buy",
+      "quantity": 5,
+      "price": 301.3766046670792,
+      "pnl": 0.0,
+      "timestamp": "2022-04-07 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "sell",
+      "quantity": 5,
+      "price": 289.6222576712113,
+      "pnl": 439.1802151743037,
+      "timestamp": "2022-04-28 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "sell",
+      "quantity": 3,
+      "price": 413.80647569162466,
+      "pnl": 159.98400233190603,
+      "timestamp": "2022-05-05 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "sell",
+      "quantity": 5,
+      "price": 312.99496066266744,
+      "pnl": 28.752577186358224,
+      "timestamp": "2022-05-05 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "sell",
+      "quantity": 16,
+      "price": 116.49980039222135,
+      "pnl": 533.8613276705091,
+      "timestamp": "2022-05-05 00:00:00"
+    },
+    {
+      "symbol": "META",
+      "side": "sell",
+      "quantity": 12,
+      "price": 169.47833091826038,
+      "pnl": 0.0,
+      "timestamp": "2022-06-27 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "sell",
+      "quantity": 14,
+      "price": 153.71608308391862,
+      "pnl": 188.58673291357752,
+      "timestamp": "2022-09-21 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "sell",
+      "quantity": 200,
+      "price": 12.56023526330375,
+      "pnl": 0.0,
+      "timestamp": "2022-09-22 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "sell",
+      "quantity": 12,
+      "price": 228.55124183988286,
+      "pnl": 321.1803264423879,
+      "timestamp": "2022-10-14 00:00:00"
+    },
+    {
+      "symbol": "META",
+      "side": "sell",
+      "quantity": 27,
+      "price": 111.8566922495027,
+      "pnl": 0.0,
+      "timestamp": "2022-11-10 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "sell",
+      "quantity": 34,
+      "price": 96.40049735943322,
+      "pnl": 451.0790181850355,
+      "timestamp": "2022-11-11 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "sell",
+      "quantity": 36,
+      "price": 100.78206573951675,
+      "pnl": 0.0,
+      "timestamp": "2022-11-11 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "sell",
+      "quantity": 22,
+      "price": 182.84925077880035,
+      "pnl": 2647.7874422366526,
+      "timestamp": "2022-11-25 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 44,
+      "price": 100.05684591708648,
+      "pnl": -185.9493710645839,
+      "timestamp": "2023-02-08 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "buy",
+      "quantity": 42,
+      "price": 95.01929116677975,
+      "pnl": 0.0,
+      "timestamp": "2023-02-09 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 34,
+      "price": 104.98497163747673,
+      "pnl": -311.24442486135626,
+      "timestamp": "2023-04-26 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 26,
+      "price": 124.25447330902314,
+      "pnl": -739.0174860012437,
+      "timestamp": "2023-06-08 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 7,
+      "price": 375.6342903882062,
+      "pnl": 0.0,
+      "timestamp": "2023-07-21 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "buy",
+      "quantity": 7,
+      "price": 345.117511318187,
+      "pnl": 0.0,
+      "timestamp": "2023-07-24 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "buy",
+      "quantity": 51,
+      "price": 46.83634590338902,
+      "pnl": -1954.9883311006051,
+      "timestamp": "2023-08-28 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "sell",
+      "quantity": 5,
+      "price": 432.2875148924964,
+      "pnl": 359.0451998908688,
+      "timestamp": "2023-10-09 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 16,
+      "price": 146.71555618951473,
+      "pnl": -814.1573174732462,
+      "timestamp": "2023-11-22 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "buy",
+      "quantity": 45,
+      "price": 47.77684295917821,
+      "pnl": -1767.3120714228123,
+      "timestamp": "2023-11-24 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "sell",
+      "quantity": 10,
+      "price": 191.55671192286525,
+      "pnl": 513.1110976134503,
+      "timestamp": "2024-01-19 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 4,
+      "price": 489.2022355093937,
+      "pnl": 0.0,
+      "timestamp": "2024-02-01 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 4,
+      "price": 421.8834770506134,
+      "pnl": 0.0,
+      "timestamp": "2024-02-01 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "buy",
+      "quantity": 4,
+      "price": 403.7847946065907,
+      "pnl": 0.0,
+      "timestamp": "2024-02-01 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 3,
+      "price": 498.5721918395542,
+      "pnl": 0.0,
+      "timestamp": "2024-02-14 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "sell",
+      "quantity": 8,
+      "price": 173.71809784171546,
+      "pnl": 267.7799654415619,
+      "timestamp": "2024-03-18 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 8,
+      "price": 183.32262149881288,
+      "pnl": -699.9351812110083,
+      "timestamp": "2024-04-16 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "sell",
+      "quantity": 8,
+      "price": 170.17452332493403,
+      "pnl": 861.4339775460339,
+      "timestamp": "2024-04-25 00:00:00"
+    },
+    {
+      "symbol": "JPM",
+      "side": "buy",
+      "quantity": 7,
+      "price": 199.52680646268945,
+      "pnl": 0.0,
+      "timestamp": "2024-05-21 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "buy",
+      "quantity": 6,
+      "price": 208.14331753159553,
+      "pnl": 0.0,
+      "timestamp": "2024-06-24 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "buy",
+      "quantity": 11,
+      "price": 118.1118219017797,
+      "pnl": -1205.694385827526,
+      "timestamp": "2024-06-24 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 2,
+      "price": 479.3829034362079,
+      "pnl": 0.0,
+      "timestamp": "2024-06-25 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "buy",
+      "quantity": 2,
+      "price": 456.73342493960166,
+      "pnl": 0.0,
+      "timestamp": "2024-07-01 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 1,
+      "price": 552.6613123017429,
+      "pnl": 0.0,
+      "timestamp": "2024-07-18 00:00:00"
+    },
+    {
+      "symbol": "META",
+      "side": "sell",
+      "quantity": 1,
+      "price": 497.729504771216,
+      "pnl": 0.0,
+      "timestamp": "2024-08-01 00:00:00"
+    },
+    {
+      "symbol": "META",
+      "side": "sell",
+      "quantity": 2,
+      "price": 488.1252288605634,
+      "pnl": 0.0,
+      "timestamp": "2024-08-02 00:00:00"
+    },
+    {
+      "symbol": "JPM",
+      "side": "buy",
+      "quantity": 5,
+      "price": 212.4644069803943,
+      "pnl": 0.0,
+      "timestamp": "2024-09-06 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "sell",
+      "quantity": 2,
+      "price": 473.21539021262447,
+      "pnl": 269.42667242020525,
+      "timestamp": "2024-09-12 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "sell",
+      "quantity": 6,
+      "price": 158.05609634136337,
+      "pnl": 417.6716503159821,
+      "timestamp": "2024-09-16 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 2,
+      "price": 568.8623411804045,
+      "pnl": 0.0,
+      "timestamp": "2024-10-02 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "buy",
+      "quantity": 6,
+      "price": 162.0826454735202,
+      "pnl": 0.0,
+      "timestamp": "2024-10-10 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 1,
+      "price": 588.1523014938325,
+      "pnl": 0.0,
+      "timestamp": "2024-11-18 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 1,
+      "price": 500.0232152655715,
+      "pnl": 0.0,
+      "timestamp": "2024-11-18 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "buy",
+      "quantity": 4,
+      "price": 201.70407492121572,
+      "pnl": -423.4934042951155,
+      "timestamp": "2024-11-18 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 1,
+      "price": 514.1732593600076,
+      "pnl": 0.0,
+      "timestamp": "2024-12-19 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "buy",
+      "quantity": 1,
+      "price": 430.6049115493785,
+      "pnl": 0.0,
+      "timestamp": "2024-12-23 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "sell",
+      "quantity": 384,
+      "price": 416.89958787191955,
+      "pnl": 135723.14607283438,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "sell",
+      "quantity": 2183,
+      "price": 137.35286560029132,
+      "pnl": 0.0,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "sell",
+      "quantity": 210,
+      "price": 424.5854373357981,
+      "pnl": 26419.891910968418,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "JPM",
+      "side": "sell",
+      "quantity": 200,
+      "price": 239.11836919318984,
+      "pnl": 25583.437619621145,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "sell",
+      "quantity": 211,
+      "price": 252.09784333507258,
+      "pnl": 4737.816801762958,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "sell",
+      "quantity": 30,
+      "price": 588.1021923115998,
+      "pnl": 5062.910932263241,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "sell",
+      "quantity": 41,
+      "price": 515.4507856773504,
+      "pnl": 6917.705632047434,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "sell",
+      "quantity": 146,
+      "price": 221.18015358103537,
+      "pnl": 0.0,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "sell",
+      "quantity": 94,
+      "price": 191.10775052449839,
+      "pnl": 9208.547069722821,
+      "timestamp": "2024-12-30 00:00:00"
+    }
+  ],
+  "data_quality": {
+    "symbols_loaded": 10,
+    "symbols_requested": 10,
+    "symbols_rejected": 0
+  },
+  "equity_curve_summary": {
+    "start_equity": 100000.0,
+    "end_equity": 745996.040296741,
+    "n_days": 1258
+  }
+}
