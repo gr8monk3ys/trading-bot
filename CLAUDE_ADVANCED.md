@@ -242,19 +242,105 @@ await strategy.initialize()
 
 ---
 
+### 5. Options Trading Strategy
+
+**File:** `strategies/options_strategy.py` (500+ lines)
+
+**What It Does:**
+Advanced options strategies for income generation, defined-risk trades, and portfolio hedging.
+
+**Risk Profile:** Medium to High (requires options knowledge)
+
+**Strategies Implemented:**
+1. **Covered Calls** - Sell calls against stock positions (income generation)
+2. **Cash-Secured Puts** - Get paid to wait for entry price
+3. **Call/Put Debit Spreads** - Directional trades with defined risk
+4. **Iron Condor** - Range-bound, high-volatility strategy (advanced)
+5. **Protective Puts** - Portfolio insurance
+
+**How It Works:**
+1. **Market Analysis**
+   - RSI for overbought/oversold conditions
+   - Bollinger Bands for volatility
+   - Trend analysis (bullish/bearish/neutral)
+   - Implied volatility estimation
+
+2. **Strategy Selection**
+   - Covered calls: When stock owned + RSI > 70
+   - Cash-secured puts: RSI < 30 + not in strong downtrend
+   - Call spreads: Bullish trend + high IV
+   - Put spreads: Bearish trend + high IV
+   - Iron condor: Neutral + high IV + 40 < RSI < 60
+
+3. **Risk Management**
+   - Max 20% portfolio allocation to options
+   - Defined-risk strategies (spreads)
+   - Profit target: 50% of max profit
+   - Stop loss: 30% of position
+   - Close 7 days before expiration
+
+**Usage:**
+```python
+from strategies.options_strategy import OptionsStrategy
+
+# Conservative: Income generation
+strategy = OptionsStrategy(
+    broker=broker,
+    symbols=['AAPL', 'MSFT'],  # Blue-chip stocks
+    parameters={
+        'position_size': 0.10,
+        'option_allocation': 0.15,  # Only 15% in options
+
+        # Enable conservative strategies
+        'enable_covered_calls': True,
+        'enable_cash_secured_puts': True,
+        'enable_protective_puts': True,
+
+        # Disable aggressive strategies
+        'enable_call_spreads': False,
+        'enable_put_spreads': False,
+        'enable_iron_condor': False,
+
+        # Conservative strikes
+        'call_strike_otm_pct': 0.10,  # 10% OTM
+        'put_strike_otm_pct': 0.10,
+    }
+)
+
+await strategy.initialize()
+# Automatically:
+# 1. Analyzes market conditions
+# 2. Selects appropriate option strategy
+# 3. Manages risk and position sizing
+# 4. Monitors positions for exit criteria
+```
+
+**Important Notes:**
+- ⚠️ **PAPER TRADE FIRST** - Options are complex and risky
+- Requires understanding of: Greeks, time decay, assignment risk
+- Current implementation: Strategy framework complete, API integration pending
+- Best for: Income generation and defined-risk directional trades
+- Not recommended for: Beginners without options experience
+
+**Example:** `examples/options_strategy_example.py`
+
+---
+
 ## 📁 New File Structure
 
 ```
 trading-bot/
 ├── strategies/
 │   ├── ensemble_strategy.py          # ⭐ Multi-strategy combination
-│   └── pairs_trading_strategy.py     # ⭐ Market-neutral stat arb
+│   ├── pairs_trading_strategy.py     # ⭐ Market-neutral stat arb
+│   └── options_strategy.py           # ⭐ Advanced options trading
 ├── utils/
 │   ├── indicators.py                 # ⭐ 30+ technical indicators
 │   └── extended_hours.py             # ⭐ Pre-market & after-hours
 ├── examples/
 │   ├── ensemble_strategy_example.py
 │   ├── pairs_trading_example.py
+│   ├── options_strategy_example.py
 │   └── extended_hours_trading_example.py
 ├── ADVANCED_FEATURES.md              # ⭐ Complete guide
 ├── pyproject.toml                    # ⭐ UV package management
@@ -377,7 +463,7 @@ black .
 **Phase 4: Advanced Strategies** 🔄 IN PROGRESS
 - ✅ Ensemble strategy
 - ✅ Pairs trading
-- ⏳ Options strategies
+- 🔄 Options strategies (framework complete, API integration pending)
 - ⏳ ML price prediction
 - ⏳ Social sentiment
 

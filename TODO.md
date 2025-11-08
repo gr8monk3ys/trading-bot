@@ -636,9 +636,9 @@ if result.filled_qty < result.qty:
 ---
 
 ### Phase 4: Advanced Strategies (1-2 months)
-1. ⏳ Implement options strategies (covered calls, protective puts)
+1. 🔄 Implement options strategies (framework complete, API integration pending)
 2. ⏳ Add market making with limit orders
-3. ⏳ Add pairs trading
+3. ✅ Add pairs trading (COMPLETE)
 4. ⏳ Add ML price prediction
 5. ⏳ Add social sentiment
 
