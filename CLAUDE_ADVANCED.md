@@ -562,12 +562,12 @@ black .
 - ✅ Add market regime detection (in ensemble)
 - ✅ Advanced indicators library
 
-**Phase 4: Advanced Strategies** 🔄 IN PROGRESS
+**Phase 4: Advanced Strategies** ✅ MOSTLY COMPLETE
 - ✅ Ensemble strategy
 - ✅ Pairs trading
 - 🔄 Options strategies (framework complete, API integration pending)
 - ✅ ML price prediction (LSTM implementation complete)
-- ⏳ Social sentiment
+- ❌ Social sentiment (DISABLED - fake news removed, needs real News API)
 
 ---
 

@@ -640,7 +640,7 @@ if result.filled_qty < result.qty:
 2. ⏳ Add market making with limit orders
 3. ✅ Add pairs trading (COMPLETE)
 4. ✅ Add ML price prediction (LSTM complete - requires TensorFlow)
-5. ⏳ Add social sentiment
+5. ❌ Add social sentiment (DISABLED - fake news removed, needs real API)
 
 **Expected Impact:** +20-30% annual returns (if done well)
 

@@ -602,34 +602,29 @@ class AlpacaBroker(Broker):
             
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_news(self, symbol, start, end):
-        """Get news for a symbol."""
+        """
+        Get news for a symbol.
+
+        ⚠️  WARNING: News API not yet implemented!
+
+        The alpaca-py library's news API is not yet integrated.
+        This method returns an empty list to prevent fake data from being used.
+
+        DO NOT use SentimentStockStrategy until this is properly implemented.
+
+        To implement:
+        1. Use Alpaca News API when available in alpaca-py
+        2. Alternative: Integrate NewsAPI.org or Alpha Vantage News
+        3. Validate news data before returning
+        """
         try:
-            # Note: The updated alpaca-py doesn't have direct news API yet
-            # Implement a basic news handler for now
-            # In a real implementation, you would use the News API from Alpaca
-            
-            # Return a placeholder (future implementation would use proper API)
-            news_items = [
-                {
-                    'headline': f"News article about {symbol} #{i}",
-                    'summary': f"This is a news summary for {symbol}",
-                    'created_at': datetime.now(),
-                    'url': f"https://example.com/news/{symbol}/{i}",
-                    'source': 'Sample News Provider'
-                }
-                for i in range(1, 4)  # Return 3 sample news items
-            ]
-            
-            # Create a proper-looking response for the calling code
-            class NewsItem:
-                def __init__(self, headline, summary, created_at, url, source):
-                    self.headline = headline
-                    self.summary = summary
-                    self.created_at = created_at
-                    self.url = url
-                    self.source = source
-                    
-            return [NewsItem(**item) for item in news_items]
+            # Log warning about missing news API
+            logger.warning(f"⚠️  News API not implemented - returning empty news for {symbol}")
+            logger.warning("   SentimentStockStrategy will not work without real news data!")
+
+            # Return empty list instead of fake data
+            # This prevents sentiment strategy from making trades on fabricated information
+            return []
             
         except Exception as e:
             logger.error(f"Error getting news for {symbol}: {e}", exc_info=True)
