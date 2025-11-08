@@ -1,0 +1,563 @@
+import logging
+import asyncio
+import numpy as np
+import pandas as pd
+import talib
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional, Tuple
+
+from strategies.base_strategy import BaseStrategy
+from strategies.risk_manager import RiskManager
+from brokers.order_builder import OrderBuilder
+
+logger = logging.getLogger(__name__)
+
+class MomentumStrategy(BaseStrategy):
+    """
+    Momentum-based trading strategy that uses technical indicators to identify
+    trend strength and momentum for making buy/sell decisions. This strategy combines
+    multiple momentum indicators including MACD, RSI, and ADX to generate signals.
+    """
+    
+    NAME = "MomentumStrategy"
+    
+    def default_parameters(self):
+        """Return default parameters for the strategy."""
+        return {
+            # Basic parameters
+            'position_size': 0.1,  # 10% of available capital per position
+            'max_positions': 5,    # Maximum number of concurrent positions
+            'max_portfolio_risk': 0.02,  # Maximum portfolio risk (2%)
+            'stop_loss': 0.03,     # 3% stop loss
+            'take_profit': 0.06,   # 6% take profit
+            
+            # Momentum parameters
+            'rsi_period': 14,
+            'rsi_overbought': 70,
+            'rsi_oversold': 30,
+            'macd_fast_period': 12,
+            'macd_slow_period': 26,
+            'macd_signal_period': 9,
+            'adx_period': 14,
+            'adx_threshold': 25,   # ADX above this indicates strong trend
+            
+            # Volume parameters
+            'volume_ma_period': 20,  # Volume moving average period
+            'volume_factor': 1.5,    # Volume must be this times the average to consider
+            
+            # Price MA parameters
+            'fast_ma_period': 10,
+            'medium_ma_period': 30,
+            'slow_ma_period': 50,
+            
+            # Volatility parameters
+            'atr_period': 14,
+            'atr_multiplier': 2.0,  # For trailing stops
+            
+            # Risk management
+            'max_correlation': 0.7,  # Maximum correlation between positions
+            'max_sector_exposure': 0.3,  # Maximum exposure to any one sector
+        }
+    
+    async def initialize(self, **kwargs):
+        """Initialize the momentum strategy."""
+        try:
+            # Initialize the base strategy
+            await super().initialize(**kwargs)
+            
+            # Set strategy-specific parameters
+            params = self.default_parameters()
+            params.update(self.parameters)
+            self.parameters = params
+            
+            # Extract parameters
+            self.position_size = self.parameters['position_size']
+            self.max_positions = self.parameters['max_positions']
+            self.stop_loss = self.parameters['stop_loss']
+            self.take_profit = self.parameters['take_profit']
+            
+            # Technical indicator parameters
+            self.rsi_period = self.parameters['rsi_period']
+            self.rsi_overbought = self.parameters['rsi_overbought']
+            self.rsi_oversold = self.parameters['rsi_oversold']
+            self.macd_fast = self.parameters['macd_fast_period']
+            self.macd_slow = self.parameters['macd_slow_period']
+            self.macd_signal = self.parameters['macd_signal_period']
+            self.adx_period = self.parameters['adx_period']
+            self.adx_threshold = self.parameters['adx_threshold']
+            self.volume_ma_period = self.parameters['volume_ma_period']
+            self.volume_factor = self.parameters['volume_factor']
+            self.fast_ma = self.parameters['fast_ma_period']
+            self.medium_ma = self.parameters['medium_ma_period']
+            self.slow_ma = self.parameters['slow_ma_period']
+            self.atr_period = self.parameters['atr_period']
+            self.atr_multiplier = self.parameters['atr_multiplier']
+            
+            # Initialize tracking dictionaries
+            self.indicators = {symbol: {} for symbol in self.symbols}
+            self.signals = {symbol: 'neutral' for symbol in self.symbols}
+            self.last_signal_time = {symbol: None for symbol in self.symbols}
+            self.stop_prices = {}
+            self.target_prices = {}
+            self.current_prices = {}
+            self.price_history = {symbol: [] for symbol in self.symbols}
+            
+            # Risk manager initialization
+            self.risk_manager = RiskManager(
+                max_portfolio_risk=self.parameters['max_portfolio_risk'],
+                max_position_risk=self.parameters.get('max_position_risk', 0.01),
+                max_correlation=self.parameters['max_correlation']
+            )
+            
+            # Add strategy as subscriber to broker
+            if hasattr(self.broker, '_add_subscriber'):
+                self.broker._add_subscriber(self)
+            
+            logger.info(f"Initialized {self.NAME} with {len(self.symbols)} symbols")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error initializing {self.NAME}: {e}", exc_info=True)
+            return False
+    
+    async def on_bar(self, symbol, open_price, high_price, low_price, close_price, volume, timestamp):
+        """Handle incoming bar data."""
+        try:
+            if symbol not in self.symbols:
+                return
+                
+            # Store latest price
+            self.current_prices[symbol] = close_price
+            
+            # Update price history
+            self.price_history[symbol].append({
+                'timestamp': timestamp,
+                'open': open_price,
+                'high': high_price,
+                'low': low_price,
+                'close': close_price,
+                'volume': volume
+            })
+            
+            # Keep only necessary history
+            max_history = max(
+                self.slow_ma, 
+                self.rsi_period, 
+                self.macd_slow + self.macd_signal, 
+                self.adx_period
+            ) + 10  # Extra buffer
+            
+            if len(self.price_history[symbol]) > max_history:
+                self.price_history[symbol] = self.price_history[symbol][-max_history:]
+                
+            # Update technical indicators
+            await self._update_indicators(symbol)
+            
+            # Check for signals
+            signal = await self._generate_signal(symbol)
+            self.signals[symbol] = signal
+            
+            # Execute trades if needed
+            if signal != 'neutral':
+                await self._execute_signal(symbol, signal)
+                
+            # Check stop losses and take profits for existing positions
+            await self._check_exit_conditions(symbol)
+            
+        except Exception as e:
+            logger.error(f"Error in on_bar for {symbol}: {e}", exc_info=True)
+    
+    async def _update_indicators(self, symbol):
+        """Update technical indicators for a symbol."""
+        try:
+            # Ensure we have enough price history
+            if len(self.price_history[symbol]) < self.slow_ma:
+                return
+                
+            # Extract price data into arrays
+            closes = np.array([bar['close'] for bar in self.price_history[symbol]])
+            highs = np.array([bar['high'] for bar in self.price_history[symbol]])
+            lows = np.array([bar['low'] for bar in self.price_history[symbol]])
+            volumes = np.array([bar['volume'] for bar in self.price_history[symbol]])
+            
+            # Calculate RSI
+            rsi = talib.RSI(closes, timeperiod=self.rsi_period)
+            
+            # Calculate MACD
+            macd, signal, hist = talib.MACD(
+                closes, 
+                fastperiod=self.macd_fast, 
+                slowperiod=self.macd_slow, 
+                signalperiod=self.macd_signal
+            )
+            
+            # Calculate ADX
+            adx = talib.ADX(highs, lows, closes, timeperiod=self.adx_period)
+            
+            # Calculate moving averages
+            fast_ma = talib.SMA(closes, timeperiod=self.fast_ma)
+            medium_ma = talib.SMA(closes, timeperiod=self.medium_ma)
+            slow_ma = talib.SMA(closes, timeperiod=self.slow_ma)
+            
+            # Calculate volume moving average
+            volume_ma = talib.SMA(volumes, timeperiod=self.volume_ma_period)
+            
+            # Calculate ATR for stop loss
+            atr = talib.ATR(highs, lows, closes, timeperiod=self.atr_period)
+            
+            # Store indicators
+            self.indicators[symbol] = {
+                'rsi': rsi[-1] if len(rsi) > 0 else None,
+                'macd': macd[-1] if len(macd) > 0 else None,
+                'macd_signal': signal[-1] if len(signal) > 0 else None,
+                'macd_hist': hist[-1] if len(hist) > 0 else None,
+                'adx': adx[-1] if len(adx) > 0 else None,
+                'fast_ma': fast_ma[-1] if len(fast_ma) > 0 else None,
+                'medium_ma': medium_ma[-1] if len(medium_ma) > 0 else None,
+                'slow_ma': slow_ma[-1] if len(slow_ma) > 0 else None,
+                'volume': volumes[-1] if len(volumes) > 0 else None,
+                'volume_ma': volume_ma[-1] if len(volume_ma) > 0 else None,
+                'atr': atr[-1] if len(atr) > 0 else None,
+                'close': closes[-1] if len(closes) > 0 else None
+            }
+            
+        except Exception as e:
+            logger.error(f"Error updating indicators for {symbol}: {e}", exc_info=True)
+    
+    async def _generate_signal(self, symbol):
+        """Generate trading signal based on indicators."""
+        try:
+            # Check if indicators are available
+            if not self.indicators.get(symbol) or self.indicators[symbol]['rsi'] is None:
+                return 'neutral'
+                
+            ind = self.indicators[symbol]
+            
+            # Get current indicator values
+            rsi = ind['rsi']
+            macd = ind['macd']
+            macd_signal = ind['macd_signal']
+            macd_hist = ind['macd_hist']
+            adx = ind['adx']
+            fast_ma = ind['fast_ma']
+            medium_ma = ind['medium_ma']
+            slow_ma = ind['slow_ma']
+            volume = ind['volume']
+            volume_ma = ind['volume_ma']
+            
+            # Calculate strength factors
+            momentum_score = 0
+            
+            # RSI factor (0-100)
+            if rsi < self.rsi_oversold:
+                momentum_score += 1  # Bullish
+            elif rsi > self.rsi_overbought:
+                momentum_score -= 1  # Bearish
+                
+            # MACD factor
+            if macd > macd_signal and macd_hist > 0:
+                momentum_score += 1  # Bullish
+            elif macd < macd_signal and macd_hist < 0:
+                momentum_score -= 1  # Bearish
+                
+            # ADX factor (trend strength)
+            trend_strength = 0
+            if adx > self.adx_threshold:
+                trend_strength = 1  # Strong trend
+                
+            # Moving average setup
+            ma_bullish = fast_ma > medium_ma > slow_ma
+            ma_bearish = fast_ma < medium_ma < slow_ma
+            
+            if ma_bullish:
+                momentum_score += 1
+            elif ma_bearish:
+                momentum_score -= 1
+                
+            # Volume confirmation
+            volume_confirmation = volume > (volume_ma * self.volume_factor)
+            
+            # Determine final signal
+            if momentum_score >= 2 and trend_strength and volume_confirmation:
+                return 'buy'
+            elif momentum_score <= -2 and trend_strength and volume_confirmation:
+                return 'sell'
+                
+            return 'neutral'
+            
+        except Exception as e:
+            logger.error(f"Error generating signal for {symbol}: {e}", exc_info=True)
+            return 'neutral'
+    
+    async def _execute_signal(self, symbol, signal):
+        """Execute a trading signal."""
+        try:
+            # Check if we have enough time since last signal to avoid overtrading
+            current_time = datetime.now()
+            if (self.last_signal_time.get(symbol) and 
+                (current_time - self.last_signal_time[symbol]).total_seconds() < 3600):  # 1 hour cooldown
+                return
+                
+            # Get current positions
+            positions = await self.broker.get_positions()
+            current_position = next((p for p in positions if p.symbol == symbol), None)
+            
+            # Get account info
+            account = await self.broker.get_account()
+            buying_power = float(account.buying_power)
+            
+            # Execute buy signal
+            if signal == 'buy' and not current_position:
+                # Check if we're already at max positions
+                if len(positions) >= self.max_positions:
+                    logger.info(f"Max positions reached ({self.max_positions}), skipping buy for {symbol}")
+                    return
+                
+                # Calculate position size
+                price = self.current_prices[symbol]
+                position_value = buying_power * self.position_size
+                
+                # Risk-adjust position size
+                current_positions = {}
+                for pos in positions:
+                    pos_symbol = pos.symbol
+                    if pos_symbol in self.price_history:
+                        price_history = self.price_history[pos_symbol]
+                        close_prices = [bar['close'] for bar in price_history]
+                        current_positions[pos_symbol] = {
+                            'value': float(pos.market_value),
+                            'price_history': close_prices,
+                            'risk': None
+                        }
+                
+                # Use risk manager to adjust position size if we have price history
+                if len(self.price_history[symbol]) > 20:
+                    close_prices = [bar['close'] for bar in self.price_history[symbol]]
+                    adjusted_value = self.risk_manager.adjust_position_size(
+                        symbol, 
+                        position_value,
+                        close_prices,
+                        current_positions
+                    )
+                    position_value = adjusted_value
+                
+                if position_value <= 0:
+                    logger.info(f"Risk manager rejected position for {symbol}")
+                    return
+
+                # CRITICAL SAFETY: Enforce maximum position size limit (5% of portfolio)
+                position_value, quantity = await self.enforce_position_size_limit(symbol, position_value, price)
+
+                # Allow fractional shares (Alpaca minimum is typically 0.01)
+                if quantity < 0.01:
+                    logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
+                    return
+
+                # Calculate take-profit and stop-loss levels
+                take_profit_price = price * (1 + self.take_profit)
+                stop_loss_price = price * (1 - self.stop_loss)
+
+                # Create bracket order using OrderBuilder
+                logger.info(f"Creating bracket order for {symbol}:")
+                logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} shares")
+                logger.info(f"  Take-profit: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
+                logger.info(f"  Stop-loss: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
+
+                # Use fractional shares for precise position sizing
+                order = (OrderBuilder(symbol, 'buy', quantity)
+                         .market()
+                         .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+                         .gtc()
+                         .build())
+
+                result = await self.broker.submit_order_advanced(order)
+
+                if result:
+                    logger.info(f"BUY bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}")
+
+                    # Store stop loss and take profit levels for tracking
+                    self.stop_prices[symbol] = stop_loss_price
+                    self.target_prices[symbol] = take_profit_price
+
+                    # Update last signal time
+                    self.last_signal_time[symbol] = current_time
+                    
+            # Execute sell signal
+            elif signal == 'sell' and current_position:
+                # We have a position and should sell it
+                quantity = float(current_position.qty)
+                price = self.current_prices[symbol]
+
+                # Create market sell order using OrderBuilder
+                order = (OrderBuilder(symbol, 'sell', quantity)
+                         .market()
+                         .day()
+                         .build())
+
+                result = await self.broker.submit_order_advanced(order)
+
+                if result:
+                    logger.info(f"SELL order submitted for {symbol}: {quantity} shares at ~${price:.2f}")
+
+                    # Clear stop and target prices
+                    if symbol in self.stop_prices:
+                        del self.stop_prices[symbol]
+                    if symbol in self.target_prices:
+                        del self.target_prices[symbol]
+
+                    # Update last signal time
+                    self.last_signal_time[symbol] = current_time
+                
+        except Exception as e:
+            logger.error(f"Error executing signal for {symbol}: {e}", exc_info=True)
+    
+    async def _check_exit_conditions(self, symbol):
+        """
+        Check stop loss and take profit conditions.
+
+        Note: With bracket orders, the broker automatically handles stop-loss and take-profit
+        exits. This method is kept for backward compatibility and monitoring purposes only.
+        The bracket orders will execute independently of this method.
+        """
+        try:
+            # Get current position
+            positions = await self.broker.get_positions()
+            current_position = next((p for p in positions if p.symbol == symbol), None)
+
+            if not current_position:
+                # Position was closed (likely by bracket order), clean up tracking
+                if symbol in self.stop_prices:
+                    del self.stop_prices[symbol]
+                if symbol in self.target_prices:
+                    del self.target_prices[symbol]
+                return
+
+            current_price = self.current_prices.get(symbol)
+            if not current_price:
+                return
+
+            # Log when price approaches stop-loss or take-profit levels for monitoring
+            stop_price = self.stop_prices.get(symbol)
+            target_price = self.target_prices.get(symbol)
+
+            if stop_price and current_price <= stop_price * 1.01:  # Within 1% of stop
+                logger.debug(f"{symbol} approaching stop-loss: ${current_price:.2f} near ${stop_price:.2f}")
+
+            if target_price and current_price >= target_price * 0.99:  # Within 1% of target
+                logger.debug(f"{symbol} approaching take-profit: ${current_price:.2f} near ${target_price:.2f}")
+
+        except Exception as e:
+            logger.error(f"Error checking exit conditions for {symbol}: {e}", exc_info=True)
+    
+    async def analyze_symbol(self, symbol):
+        """Analyze a symbol and determine if we should trade it."""
+        # This is already handled in _generate_signal
+        return self.signals.get(symbol, 'neutral')
+    
+    async def execute_trade(self, symbol, signal):
+        """Execute a trade based on the signal."""
+        # This is already handled in _execute_signal
+        pass
+    
+    async def generate_signals(self):
+        """Generate signals for all symbols (used in backtest mode)."""
+        for symbol in self.symbols:
+            if symbol in self.current_data:
+                df = self.current_data[symbol]
+                if len(df) < self.slow_ma:
+                    continue
+                    
+                # Extract price data
+                closes = df['close'].values
+                highs = df['high'].values
+                lows = df['low'].values
+                volumes = df['volume'].values
+                
+                # Calculate RSI
+                rsi = talib.RSI(closes, timeperiod=self.rsi_period)
+                
+                # Calculate MACD
+                macd, signal, hist = talib.MACD(
+                    closes, 
+                    fastperiod=self.macd_fast, 
+                    slowperiod=self.macd_slow, 
+                    signalperiod=self.macd_signal
+                )
+                
+                # Calculate ADX
+                adx = talib.ADX(highs, lows, closes, timeperiod=self.adx_period)
+                
+                # Calculate moving averages
+                fast_ma = talib.SMA(closes, timeperiod=self.fast_ma)
+                medium_ma = talib.SMA(closes, timeperiod=self.medium_ma)
+                slow_ma = talib.SMA(closes, timeperiod=self.slow_ma)
+                
+                # Calculate volume moving average
+                volume_ma = talib.SMA(volumes, timeperiod=self.volume_ma_period)
+                
+                # Store indicators
+                self.indicators[symbol] = {
+                    'rsi': rsi[-1] if len(rsi) > 0 else None,
+                    'macd': macd[-1] if len(macd) > 0 else None,
+                    'macd_signal': signal[-1] if len(signal) > 0 else None,
+                    'macd_hist': hist[-1] if len(hist) > 0 else None,
+                    'adx': adx[-1] if len(adx) > 0 else None,
+                    'fast_ma': fast_ma[-1] if len(fast_ma) > 0 else None,
+                    'medium_ma': medium_ma[-1] if len(medium_ma) > 0 else None,
+                    'slow_ma': slow_ma[-1] if len(slow_ma) > 0 else None,
+                    'volume': volumes[-1] if len(volumes) > 0 else None,
+                    'volume_ma': volume_ma[-1] if len(volume_ma) > 0 else None,
+                    'close': closes[-1] if len(closes) > 0 else None
+                }
+                
+                # Generate signal
+                signal = await self._generate_signal(symbol)
+                self.signals[symbol] = signal
+    
+    def get_orders(self):
+        """Get orders for backtest mode."""
+        orders = []
+        
+        for symbol, signal in self.signals.items():
+            if signal == 'neutral':
+                continue
+                
+            # Get current positions (for backtest)
+            current_positions = getattr(self, 'positions', {})
+            has_position = symbol in current_positions
+            
+            # Current price
+            price = self.indicators[symbol]['close']
+            if not price:
+                continue
+                
+            # Buy signal
+            if signal == 'buy' and not has_position:
+                # Calculate position size (simplified for backtest)
+                capital = getattr(self, 'capital', 100000)
+                position_size = capital * self.position_size
+                quantity = position_size / price
+
+                # Allow fractional shares (minimum 0.01 shares)
+                if quantity >= 0.01:
+                    orders.append({
+                        'symbol': symbol,
+                        'quantity': quantity,  # Keep fractional quantity
+                        'side': 'buy',
+                        'type': 'market'
+                    })
+                    
+            # Sell signal
+            elif signal == 'sell' and has_position:
+                position = current_positions[symbol]
+                quantity = position.get('quantity', 0)
+                
+                if quantity > 0:
+                    orders.append({
+                        'symbol': symbol,
+                        'quantity': quantity,
+                        'side': 'sell',
+                        'type': 'market'
+                    })
+        
+        return orders

@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install UV
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install TA-Lib (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential wget
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+        tar -xzf ta-lib-0.4.0-src.tar.gz
+        cd ta-lib/
+        ./configure --prefix=/usr
+        make
+        sudo make install
+        cd ..
+
+    - name: Install TA-Lib (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install ta-lib
+
+    - name: Install dependencies
+      run: |
+        uv pip install -e ".[dev,test]"
+
+    - name: Lint with ruff
+      run: |
+        uv pip install ruff
+        ruff check .
+
+    - name: Format check with black
+      run: |
+        uv pip install black
+        black --check .
+
+    - name: Type check with mypy
+      continue-on-error: true
+      run: |
+        uv pip install mypy
+        mypy strategies/ brokers/ engine/ utils/
+
+    - name: Run tests
+      env:
+        ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+        ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+        PAPER: "True"
+      run: |
+        pytest tests/ -v --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=xml
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run Bandit security linter
+      run: |
+        pip install bandit[toml]
+        bandit -r strategies/ brokers/ engine/ utils/ -f json -o bandit-report.json || true
+
+    - name: Check for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.repository.default_branch }}
+        head: HEAD
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install UV
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    - name: Check for dependency vulnerabilities
+      run: |
+        pip install safety
+        safety check --json || true
+
+  build:
+    needs: [test, security, dependency-check]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install build tools
+      run: |
+        pip install build twine
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Check package
+      run: |
+        twine check dist/*
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/

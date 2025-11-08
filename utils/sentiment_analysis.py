@@ -1,8 +1,17 @@
+#!/usr/bin/env python3
+"""
+Sentiment Analysis for Trading
+
+This module provides functions to analyze sentiment from financial news and social media
+for use in trading strategies.
+"""
+
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import numpy as np
 import os
 import re
+import logging
 
 # Initialize the model and tokenizer locally
 model_name = "ProsusAI/finbert"
@@ -199,5 +208,6 @@ def analyze_sentiment(texts):
         return float(final_confidence), final_sentiment
             
     except Exception as e:
-        print(f"Error in sentiment analysis: {str(e)}")
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in sentiment analysis: {str(e)}", exc_info=True)
         return 0, "neutral"

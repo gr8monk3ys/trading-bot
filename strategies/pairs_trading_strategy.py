@@ -1,0 +1,599 @@
+"""
+Pairs Trading Strategy - Market-Neutral Statistical Arbitrage
+
+Trades the spread between two cointegrated stocks. When the spread widens beyond
+normal levels, we bet on mean reversion by going long the underperformer and
+short the outperformer.
+
+Key Features:
+- Cointegration testing (Engle-Granger method)
+- Z-score based entry/exit signals
+- Market-neutral (long one stock, short another)
+- Lower correlation to market (hedged)
+- Statistical edge from mean reversion
+
+Expected Sharpe Ratio: 0.80-1.20 (highest potential from research)
+Best For: All market conditions (market-neutral)
+Risk: Medium (both positions can move against you)
+
+Common Stock Pairs:
+- KO/PEP (Coca-Cola / PepsiCo)
+- GM/F (General Motors / Ford)
+- WMT/TGT (Walmart / Target)
+- JPM/BAC (JPMorgan / Bank of America)
+- AAPL/MSFT (Apple / Microsoft)
+"""
+
+import logging
+import asyncio
+import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional, Tuple
+from statsmodels.tsa.stattools import coint, adfuller
+from scipy import stats
+
+from strategies.base_strategy import BaseStrategy
+from strategies.risk_manager import RiskManager
+from brokers.order_builder import OrderBuilder
+
+logger = logging.getLogger(__name__)
+
+
+class PairsTradingStrategy(BaseStrategy):
+    """
+    Pairs trading strategy using statistical arbitrage.
+
+    Methodology:
+    1. Find cointegrated pairs (statistical relationship)
+    2. Calculate spread (hedge ratio * stock1 - stock2)
+    3. Calculate z-score of spread
+    4. Enter when |z-score| > threshold (spread is wide)
+    5. Exit when z-score approaches 0 (spread normalizes)
+
+    Market-neutral: Long-short positions cancel out market risk.
+    """
+
+    NAME = "PairsTradingStrategy"
+
+    def default_parameters(self):
+        """Return default parameters."""
+        return {
+            # Basic parameters
+            'position_size': 0.10,  # 10% per PAIR (split between long/short)
+            'max_pairs': 3,  # Maximum concurrent pairs
+            'max_portfolio_risk': 0.02,
+
+            # Pair selection
+            'lookback_period': 60,  # Days for cointegration test
+            'min_correlation': 0.70,  # Minimum correlation to consider
+            'cointegration_pvalue': 0.05,  # Max p-value for cointegration
+
+            # Entry/exit signals
+            'entry_z_score': 2.0,  # Enter when |z-score| > 2.0
+            'exit_z_score': 0.5,  # Exit when |z-score| < 0.5
+            'stop_loss_z_score': 3.5,  # Stop loss at |z-score| > 3.5
+
+            # Position management
+            'hedge_ratio_recalc_days': 7,  # Recalculate hedge ratio weekly
+            'max_holding_days': 10,  # Maximum days to hold pair
+            'take_profit_pct': 0.04,  # 4% profit target on pair
+            'stop_loss_pct': 0.03,  # 3% stop loss on pair
+
+            # Risk management
+            'max_correlation': 0.7,
+        }
+
+    async def initialize(self, **kwargs):
+        """Initialize pairs trading strategy."""
+        try:
+            await super().initialize(**kwargs)
+
+            # Set parameters
+            params = self.default_parameters()
+            params.update(self.parameters)
+            self.parameters = params
+
+            # Extract parameters
+            self.position_size = self.parameters['position_size']
+            self.max_pairs = self.parameters['max_pairs']
+
+            # Pairs must be provided as tuples
+            # Example: symbols = [('AAPL', 'MSFT'), ('KO', 'PEP'), ('JPM', 'BAC')]
+            if not self.symbols or not isinstance(self.symbols[0], (tuple, list)):
+                raise ValueError("Pairs trading requires symbol pairs, e.g. [('AAPL', 'MSFT'), ('KO', 'PEP')]")
+
+            # Store pairs
+            self.pairs = self.symbols
+            self.all_symbols = list(set([s for pair in self.pairs for s in pair]))
+
+            # Initialize tracking
+            self.price_history = {symbol: [] for symbol in self.all_symbols}
+            self.current_prices = {}
+
+            # Pair statistics
+            self.pair_stats = {pair: {} for pair in self.pairs}
+            self.pair_spreads = {pair: [] for pair in self.pairs}
+            self.pair_signals = {pair: 'neutral' for pair in self.pairs}
+            self.pair_positions = {}  # Track active pair trades
+
+            # Cointegration results
+            self.cointegration_results = {pair: None for pair in self.pairs}
+            self.last_coint_check = {pair: None for pair in self.pairs}
+
+            # Risk manager
+            self.risk_manager = RiskManager(
+                max_portfolio_risk=self.parameters['max_portfolio_risk'],
+                max_position_risk=self.parameters.get('max_position_risk', 0.01),
+                max_correlation=self.parameters['max_correlation']
+            )
+
+            logger.info(f"Initialized {self.NAME}")
+            logger.info(f"  Pairs: {len(self.pairs)}")
+            for pair in self.pairs:
+                logger.info(f"    {pair[0]} / {pair[1]}")
+            logger.info(f"  Entry z-score: {self.parameters['entry_z_score']}")
+            logger.info(f"  Exit z-score: {self.parameters['exit_z_score']}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error initializing {self.NAME}: {e}", exc_info=True)
+            return False
+
+    async def on_bar(self, symbol, open_price, high_price, low_price, close_price, volume, timestamp):
+        """Handle incoming bar data."""
+        try:
+            if symbol not in self.all_symbols:
+                return
+
+            # Store price
+            self.current_prices[symbol] = close_price
+
+            # Update price history
+            self.price_history[symbol].append({
+                'timestamp': timestamp,
+                'close': close_price,
+                'volume': volume
+            })
+
+            # Keep history manageable
+            max_history = 100
+            if len(self.price_history[symbol]) > max_history:
+                self.price_history[symbol] = self.price_history[symbol][-max_history:]
+
+            # Process each pair
+            for pair in self.pairs:
+                symbol1, symbol2 = pair
+
+                # Wait until we have data for both symbols
+                if len(self.price_history[symbol1]) < 30 or len(self.price_history[symbol2]) < 30:
+                    continue
+
+                # Check cointegration periodically
+                await self._check_cointegration(pair)
+
+                # Calculate spread and z-score
+                await self._calculate_spread(pair)
+
+                # Generate trading signals
+                await self._generate_pair_signal(pair)
+
+                # Execute trades
+                signal = self.pair_signals[pair]
+                if signal != 'neutral':
+                    await self._execute_pair_trade(pair, signal)
+
+                # Check exits for active positions
+                await self._check_pair_exit(pair)
+
+        except Exception as e:
+            logger.error(f"Error in on_bar for {symbol}: {e}", exc_info=True)
+
+    async def _check_cointegration(self, pair: Tuple[str, str]):
+        """
+        Test if pair is cointegrated (has stable long-run relationship).
+
+        Uses Engle-Granger two-step method.
+        """
+        try:
+            symbol1, symbol2 = pair
+
+            # Check if we need to recalculate
+            last_check = self.last_coint_check.get(pair)
+            if last_check:
+                days_since = (datetime.now() - last_check).days
+                if days_since < self.parameters['hedge_ratio_recalc_days']:
+                    return  # Still valid
+
+            # Get price series
+            prices1 = np.array([bar['close'] for bar in self.price_history[symbol1]])
+            prices2 = np.array([bar['close'] for bar in self.price_history[symbol2]])
+
+            # Need enough history
+            if len(prices1) < 30 or len(prices2) < 30:
+                return
+
+            # Use same length
+            min_len = min(len(prices1), len(prices2))
+            prices1 = prices1[-min_len:]
+            prices2 = prices2[-min_len:]
+
+            # Step 1: Check correlation
+            correlation = np.corrcoef(prices1, prices2)[0, 1]
+
+            if correlation < self.parameters['min_correlation']:
+                logger.debug(f"{pair} correlation too low: {correlation:.2f}")
+                self.cointegration_results[pair] = {
+                    'cointegrated': False,
+                    'reason': 'low_correlation',
+                    'correlation': correlation
+                }
+                return
+
+            # Step 2: Run cointegration test (Engle-Granger)
+            score, pvalue, _ = coint(prices1, prices2)
+
+            # Calculate hedge ratio (beta from regression)
+            # spread = prices1 - hedge_ratio * prices2
+            hedge_ratio = np.polyfit(prices2, prices1, 1)[0]
+
+            # Test if pair is cointegrated
+            is_cointegrated = pvalue < self.parameters['cointegration_pvalue']
+
+            # Calculate spread
+            spread = prices1 - hedge_ratio * prices2
+
+            # Test spread for stationarity (should be stationary if cointegrated)
+            adf_result = adfuller(spread)
+            adf_pvalue = adf_result[1]
+            is_stationary = adf_pvalue < 0.05
+
+            self.cointegration_results[pair] = {
+                'cointegrated': is_cointegrated and is_stationary,
+                'correlation': correlation,
+                'hedge_ratio': hedge_ratio,
+                'coint_pvalue': pvalue,
+                'adf_pvalue': adf_pvalue,
+                'spread_mean': np.mean(spread),
+                'spread_std': np.std(spread),
+                'timestamp': datetime.now()
+            }
+
+            self.last_coint_check[pair] = datetime.now()
+
+            if is_cointegrated and is_stationary:
+                logger.info(f"✅ {pair} is COINTEGRATED:")
+                logger.info(f"   Correlation: {correlation:.3f}")
+                logger.info(f"   Hedge Ratio: {hedge_ratio:.4f}")
+                logger.info(f"   Coint p-value: {pvalue:.4f}")
+                logger.info(f"   Spread std: {np.std(spread):.4f}")
+            else:
+                logger.debug(f"❌ {pair} NOT cointegrated (p={pvalue:.3f}, adf={adf_pvalue:.3f})")
+
+        except Exception as e:
+            logger.error(f"Error checking cointegration for {pair}: {e}", exc_info=True)
+
+    async def _calculate_spread(self, pair: Tuple[str, str]):
+        """Calculate spread and z-score for pair."""
+        try:
+            symbol1, symbol2 = pair
+
+            # Check if pair is cointegrated
+            coint_result = self.cointegration_results.get(pair)
+            if not coint_result or not coint_result.get('cointegrated'):
+                return
+
+            # Get current prices
+            price1 = self.current_prices.get(symbol1)
+            price2 = self.current_prices.get(symbol2)
+
+            if not price1 or not price2:
+                return
+
+            # Get hedge ratio
+            hedge_ratio = coint_result['hedge_ratio']
+
+            # Calculate spread: stock1 - hedge_ratio * stock2
+            spread = price1 - hedge_ratio * price2
+
+            # Store spread
+            self.pair_spreads[pair].append({
+                'timestamp': datetime.now(),
+                'spread': spread
+            })
+
+            # Keep limited history
+            if len(self.pair_spreads[pair]) > 100:
+                self.pair_spreads[pair] = self.pair_spreads[pair][-100:]
+
+            # Calculate z-score
+            recent_spreads = [s['spread'] for s in self.pair_spreads[pair][-30:]]  # Last 30 bars
+
+            if len(recent_spreads) >= 5:
+                spread_mean = np.mean(recent_spreads)
+                spread_std = np.std(recent_spreads)
+
+                if spread_std > 0:
+                    z_score = (spread - spread_mean) / spread_std
+                else:
+                    z_score = 0
+
+                self.pair_stats[pair] = {
+                    'spread': spread,
+                    'spread_mean': spread_mean,
+                    'spread_std': spread_std,
+                    'z_score': z_score,
+                    'hedge_ratio': hedge_ratio,
+                    'price1': price1,
+                    'price2': price2
+                }
+
+        except Exception as e:
+            logger.error(f"Error calculating spread for {pair}: {e}", exc_info=True)
+
+    async def _generate_pair_signal(self, pair: Tuple[str, str]):
+        """Generate trading signal for pair based on z-score."""
+        try:
+            stats = self.pair_stats.get(pair)
+            if not stats or 'z_score' not in stats:
+                self.pair_signals[pair] = 'neutral'
+                return
+
+            z_score = stats['z_score']
+            entry_threshold = self.parameters['entry_z_score']
+
+            # Entry signals
+            # z-score > 2: spread too wide, short spread (sell stock1, buy stock2)
+            # z-score < -2: spread too narrow, long spread (buy stock1, sell stock2)
+
+            if z_score > entry_threshold:
+                # Spread is too wide - expect it to narrow
+                # Short the spread: sell stock1 (expensive), buy stock2 (cheap)
+                self.pair_signals[pair] = 'short_spread'
+                logger.debug(f"{pair} signal: SHORT spread (z={z_score:.2f})")
+
+            elif z_score < -entry_threshold:
+                # Spread is too narrow - expect it to widen
+                # Long the spread: buy stock1 (cheap), sell stock2 (expensive)
+                self.pair_signals[pair] = 'long_spread'
+                logger.debug(f"{pair} signal: LONG spread (z={z_score:.2f})")
+
+            else:
+                self.pair_signals[pair] = 'neutral'
+
+        except Exception as e:
+            logger.error(f"Error generating signal for {pair}: {e}", exc_info=True)
+            self.pair_signals[pair] = 'neutral'
+
+    async def _execute_pair_trade(self, pair: Tuple[str, str], signal: str):
+        """Execute pair trade (long one stock, short the other)."""
+        try:
+            symbol1, symbol2 = pair
+
+            # Check if we already have position in this pair
+            if pair in self.pair_positions:
+                logger.debug(f"Already have position in {pair}")
+                return
+
+            # Check max pairs
+            if len(self.pair_positions) >= self.max_pairs:
+                logger.info(f"Max pairs ({self.max_pairs}) reached")
+                return
+
+            # Get account
+            account = await self.broker.get_account()
+            buying_power = float(account.buying_power)
+
+            # Calculate position sizes
+            stats = self.pair_stats[pair]
+            price1 = stats['price1']
+            price2 = stats['price2']
+            hedge_ratio = stats['hedge_ratio']
+
+            # Total capital for this pair (split between both positions)
+            pair_capital = buying_power * self.position_size
+
+            # For market-neutral pair:
+            # We want: quantity1 * price1 = hedge_ratio * quantity2 * price2
+            # And: quantity1 * price1 + quantity2 * price2 = pair_capital
+
+            # Solve for quantities
+            # Let value1 = quantity1 * price1
+            # Then value2 = value1 / hedge_ratio
+            # And value1 + value2 = pair_capital
+            # So value1 = pair_capital / (1 + 1/hedge_ratio)
+
+            value1 = pair_capital / (1 + 1/hedge_ratio)
+            value2 = pair_capital - value1
+
+            quantity1 = value1 / price1
+            quantity2 = value2 / price2
+
+            # Minimum position check
+            if quantity1 < 0.01 or quantity2 < 0.01:
+                logger.info(f"Position sizes too small for {pair}")
+                return
+
+            # Determine sides based on signal
+            if signal == 'long_spread':
+                # Long the spread: BUY stock1, SELL (short) stock2
+                side1 = 'buy'
+                side2 = 'sell'
+                logger.info(f"LONG spread {pair}:")
+            else:  # short_spread
+                # Short the spread: SELL stock1, BUY stock2
+                side1 = 'sell'
+                side2 = 'buy'
+                logger.info(f"SHORT spread {pair}:")
+
+            logger.info(f"  {side1.upper()} {symbol1}: {quantity1:.4f} @ ${price1:.2f}")
+            logger.info(f"  {side2.upper()} {symbol2}: {quantity2:.4f} @ ${price2:.2f}")
+            logger.info(f"  Z-score: {stats['z_score']:.2f}")
+            logger.info(f"  Hedge ratio: {hedge_ratio:.4f}")
+
+            # Execute both orders
+            order1 = (OrderBuilder(symbol1, side1, quantity1)
+                     .market()
+                     .day()
+                     .build())
+
+            order2 = (OrderBuilder(symbol2, side2, quantity2)
+                     .market()
+                     .day()
+                     .build())
+
+            result1 = await self.broker.submit_order_advanced(order1)
+            result2 = await self.broker.submit_order_advanced(order2)
+
+            if result1 and result2:
+                logger.info(f"✅ Pair trade executed: {pair}")
+
+                # Track position
+                self.pair_positions[pair] = {
+                    'entry_time': datetime.now(),
+                    'signal': signal,
+                    'symbol1': symbol1,
+                    'symbol2': symbol2,
+                    'quantity1': quantity1,
+                    'quantity2': quantity2,
+                    'price1': price1,
+                    'price2': price2,
+                    'side1': side1,
+                    'side2': side2,
+                    'entry_z_score': stats['z_score'],
+                    'hedge_ratio': hedge_ratio
+                }
+            else:
+                logger.error(f"❌ Failed to execute pair trade for {pair}")
+
+        except Exception as e:
+            logger.error(f"Error executing pair trade for {pair}: {e}", exc_info=True)
+
+    async def _check_pair_exit(self, pair: Tuple[str, str]):
+        """Check if we should exit pair position."""
+        try:
+            if pair not in self.pair_positions:
+                return
+
+            position = self.pair_positions[pair]
+            stats = self.pair_stats.get(pair)
+
+            if not stats or 'z_score' not in stats:
+                return
+
+            z_score = stats['z_score']
+            entry_z_score = position['entry_z_score']
+
+            # Exit conditions:
+            # 1. Z-score reverted to near zero (take profit)
+            # 2. Z-score went even further out (stop loss)
+            # 3. Maximum holding period reached
+            # 4. P/L threshold reached
+
+            should_exit = False
+            exit_reason = ""
+
+            # 1. Z-score reversion (profit target)
+            if abs(z_score) < self.parameters['exit_z_score']:
+                should_exit = True
+                exit_reason = f"z-score reverted ({z_score:.2f})"
+
+            # 2. Z-score divergence (stop loss)
+            if abs(z_score) > self.parameters['stop_loss_z_score']:
+                should_exit = True
+                exit_reason = f"z-score diverged ({z_score:.2f})"
+
+            # 3. Max holding period
+            entry_time = position['entry_time']
+            holding_days = (datetime.now() - entry_time).days
+            if holding_days >= self.parameters['max_holding_days']:
+                should_exit = True
+                exit_reason = f"max holding period ({holding_days} days)"
+
+            # 4. P/L check
+            symbol1 = position['symbol1']
+            symbol2 = position['symbol2']
+            current_price1 = self.current_prices.get(symbol1)
+            current_price2 = self.current_prices.get(symbol2)
+
+            if current_price1 and current_price2:
+                # Calculate P/L
+                entry_price1 = position['price1']
+                entry_price2 = position['price2']
+                quantity1 = position['quantity1']
+                quantity2 = position['quantity2']
+                side1 = position['side1']
+                side2 = position['side2']
+
+                # P/L for each leg
+                if side1 == 'buy':
+                    pnl1 = (current_price1 - entry_price1) * quantity1
+                else:
+                    pnl1 = (entry_price1 - current_price1) * quantity1
+
+                if side2 == 'buy':
+                    pnl2 = (current_price2 - entry_price2) * quantity2
+                else:
+                    pnl2 = (entry_price2 - current_price2) * quantity2
+
+                total_pnl = pnl1 + pnl2
+                entry_value = entry_price1 * quantity1 + entry_price2 * quantity2
+                pnl_pct = total_pnl / entry_value if entry_value > 0 else 0
+
+                # Take profit
+                if pnl_pct >= self.parameters['take_profit_pct']:
+                    should_exit = True
+                    exit_reason = f"take profit ({pnl_pct:.1%})"
+
+                # Stop loss
+                if pnl_pct <= -self.parameters['stop_loss_pct']:
+                    should_exit = True
+                    exit_reason = f"stop loss ({pnl_pct:.1%})"
+
+                # Exit if conditions met
+                if should_exit:
+                    logger.info(f"Exiting pair {pair}: {exit_reason}")
+                    logger.info(f"  P/L: ${total_pnl:+,.2f} ({pnl_pct:+.2%})")
+                    logger.info(f"  Z-score: {entry_z_score:.2f} → {z_score:.2f}")
+
+                    # Close both positions
+                    # Reverse the original sides
+                    exit_side1 = 'sell' if side1 == 'buy' else 'buy'
+                    exit_side2 = 'sell' if side2 == 'buy' else 'buy'
+
+                    order1 = (OrderBuilder(symbol1, exit_side1, quantity1)
+                             .market()
+                             .day()
+                             .build())
+
+                    order2 = (OrderBuilder(symbol2, exit_side2, quantity2)
+                             .market()
+                             .day()
+                             .build())
+
+                    result1 = await self.broker.submit_order_advanced(order1)
+                    result2 = await self.broker.submit_order_advanced(order2)
+
+                    if result1 and result2:
+                        logger.info(f"✅ Pair position closed: {pair}")
+                        del self.pair_positions[pair]
+
+        except Exception as e:
+            logger.error(f"Error checking pair exit for {pair}: {e}", exc_info=True)
+
+    async def analyze_symbol(self, symbol):
+        """Not used for pairs trading."""
+        return 'neutral'
+
+    async def execute_trade(self, symbol, signal):
+        """Not used for pairs trading."""
+        pass
+
+    async def generate_signals(self):
+        """Generate signals for backtest mode."""
+        pass
+
+    def get_orders(self):
+        """Get orders for backtest."""
+        return []

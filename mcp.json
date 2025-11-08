@@ -1,0 +1,180 @@
+{
+  "mcpServers": {
+    "trading-bot": {
+      "command": "python",
+      "args": ["-m", "mcp_server"],
+      "env": {
+        "PYTHONPATH": "/Users/gr8monk3ys/code/trading-bot"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      },
+      "description": "Professional Trading Bot MCP Server - Provides access to trading strategies, backtesting, and market analysis"
+    }
+  },
+  "resources": {
+    "strategies": {
+      "uri": "trading://strategies",
+      "name": "Trading Strategies",
+      "description": "Access to all trading strategies (Momentum, Mean Reversion, Ensemble, Pairs Trading, etc.)",
+      "mimeType": "application/json"
+    },
+    "backtests": {
+      "uri": "trading://backtests",
+      "name": "Backtest Results",
+      "description": "Historical backtest results and performance metrics",
+      "mimeType": "application/json"
+    },
+    "positions": {
+      "uri": "trading://positions",
+      "name": "Current Positions",
+      "description": "Real-time portfolio positions and P/L",
+      "mimeType": "application/json"
+    },
+    "market-data": {
+      "uri": "trading://market-data",
+      "name": "Market Data",
+      "description": "Real-time and historical market data from Alpaca",
+      "mimeType": "application/json"
+    },
+    "performance": {
+      "uri": "trading://performance",
+      "name": "Performance Metrics",
+      "description": "Sharpe ratio, max drawdown, win rate, and other metrics",
+      "mimeType": "application/json"
+    }
+  },
+  "tools": {
+    "backtest_strategy": {
+      "description": "Run backtest on a trading strategy",
+      "parameters": {
+        "strategy": {
+          "type": "string",
+          "description": "Strategy name (momentum, mean_reversion, ensemble, pairs_trading)",
+          "required": true
+        },
+        "symbols": {
+          "type": "array",
+          "description": "List of stock symbols to trade",
+          "required": true
+        },
+        "start_date": {
+          "type": "string",
+          "description": "Start date (YYYY-MM-DD)",
+          "required": true
+        },
+        "end_date": {
+          "type": "string",
+          "description": "End date (YYYY-MM-DD)",
+          "required": false
+        }
+      }
+    },
+    "analyze_symbol": {
+      "description": "Analyze a stock symbol with technical indicators",
+      "parameters": {
+        "symbol": {
+          "type": "string",
+          "description": "Stock symbol (e.g., AAPL, MSFT)",
+          "required": true
+        },
+        "timeframe": {
+          "type": "string",
+          "description": "Timeframe (1Min, 5Min, 1Hour, 1Day)",
+          "required": false,
+          "default": "1Day"
+        }
+      }
+    },
+    "get_positions": {
+      "description": "Get current portfolio positions",
+      "parameters": {}
+    },
+    "get_account": {
+      "description": "Get account information and buying power",
+      "parameters": {}
+    },
+    "calculate_indicators": {
+      "description": "Calculate technical indicators for a symbol",
+      "parameters": {
+        "symbol": {
+          "type": "string",
+          "description": "Stock symbol",
+          "required": true
+        },
+        "indicators": {
+          "type": "array",
+          "description": "List of indicators (RSI, MACD, VWAP, ADX, etc.)",
+          "required": true
+        }
+      }
+    },
+    "check_cointegration": {
+      "description": "Test if two stocks are cointegrated (for pairs trading)",
+      "parameters": {
+        "symbol1": {
+          "type": "string",
+          "description": "First stock symbol",
+          "required": true
+        },
+        "symbol2": {
+          "type": "string",
+          "description": "Second stock symbol",
+          "required": true
+        },
+        "lookback_days": {
+          "type": "integer",
+          "description": "Number of days to analyze",
+          "required": false,
+          "default": 60
+        }
+      }
+    },
+    "detect_market_regime": {
+      "description": "Detect current market regime (trending/ranging/volatile)",
+      "parameters": {
+        "symbol": {
+          "type": "string",
+          "description": "Stock symbol or index (SPY, QQQ, etc.)",
+          "required": true
+        }
+      }
+    },
+    "optimize_strategy": {
+      "description": "Optimize strategy parameters using grid search",
+      "parameters": {
+        "strategy": {
+          "type": "string",
+          "description": "Strategy name",
+          "required": true
+        },
+        "optimize_for": {
+          "type": "string",
+          "description": "Metric to optimize (sharpe, returns, profit_factor)",
+          "required": false,
+          "default": "sharpe"
+        }
+      }
+    }
+  },
+  "prompts": {
+    "analyze_market": {
+      "description": "Comprehensive market analysis prompt",
+      "template": "Analyze the current market conditions for {{symbol}}. Include:\n1. Technical indicators (RSI, MACD, ADX)\n2. Market regime (trending/ranging/volatile)\n3. Support and resistance levels\n4. Trading recommendations"
+    },
+    "backtest_report": {
+      "description": "Generate backtest performance report",
+      "template": "Generate a comprehensive backtest report for {{strategy}} strategy:\n1. Performance metrics (Sharpe, returns, drawdown)\n2. Trade analysis (win rate, profit factor)\n3. Risk metrics (VaR, correlation)\n4. Recommendations for improvement"
+    },
+    "pairs_analysis": {
+      "description": "Pairs trading analysis",
+      "template": "Analyze the pair {{symbol1}}/{{symbol2}} for pairs trading:\n1. Cointegration test results\n2. Current spread and z-score\n3. Historical spread behavior\n4. Trading signals and entry points"
+    },
+    "portfolio_review": {
+      "description": "Portfolio performance review",
+      "template": "Review the current portfolio performance:\n1. Current positions and P/L\n2. Risk exposure and correlation\n3. Performance vs benchmarks\n4. Rebalancing recommendations"
+    }
+  }
+}

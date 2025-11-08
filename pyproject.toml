@@ -1,0 +1,178 @@
+[project]
+name = "trading-bot"
+version = "3.0.0"
+description = "Professional algorithmic trading bot with advanced strategies and institutional-grade risk management"
+authors = [
+    {name = "gr8monk3ys", email = "your-email@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+license = {text = "MIT"}
+keywords = ["trading", "algorithmic-trading", "alpaca", "quantitative-finance", "bot"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+
+dependencies = [
+    # Core trading
+    "alpaca-py>=0.22.0",
+    "lumibot>=3.5.1",
+
+    # Data & Analysis
+    "pandas>=2.0.0,<2.1.0",
+    "numpy>=1.24.0,<2.0.0",
+    "scipy>=1.11.0",
+    "statsmodels>=0.14.0",
+
+    # Technical Analysis
+    "ta-lib>=0.4.28",
+    "yfinance>=0.2.28",
+
+    # Machine Learning
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "scikit-learn>=1.3.0",
+
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "aiohttp>=3.9.0",
+    "requests>=2.31.0",
+    "pytz>=2023.3",
+
+    # Async
+    "asyncio>=3.4.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.7.0",
+    "ruff>=0.0.285",
+    "mypy>=1.5.0",
+    "pre-commit>=3.3.3",
+]
+
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+]
+
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.1.0",
+    "mkdocstrings[python]>=0.22.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/gr8monk3ys/trading-bot"
+Documentation = "https://github.com/gr8monk3ys/trading-bot/blob/main/README.md"
+Repository = "https://github.com/gr8monk3ys/trading-bot"
+Issues = "https://github.com/gr8monk3ys/trading-bot/issues"
+
+[project.scripts]
+trading-bot = "main:main"
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["strategies", "brokers", "engine", "utils"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --cov=strategies --cov=brokers --cov=engine --cov=utils"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | data
+  | results
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disallow_untyped_calls = false
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+module = [
+    "alpaca.*",
+    "lumibot.*",
+    "talib.*",
+    "transformers.*",
+]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["strategies", "brokers", "engine", "utils"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__init__.py",
+    "*/examples/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false

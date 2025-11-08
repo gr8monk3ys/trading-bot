@@ -3,6 +3,7 @@ import logging
 import asyncio
 from lumibot.strategies import Strategy
 import numpy as np
+from utils.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -11,10 +12,10 @@ class BaseStrategy(Strategy):
         """Initialize the strategy."""
         name = name or self.__class__.__name__
         parameters = parameters or {}
-        
+
         # Initialize parent class with broker
         super().__init__(name=name, broker=broker)
-        
+
         # Initialize our parameters
         self.parameters = parameters
         self.interval = parameters.get('interval', 60)  # Default to 60 seconds
@@ -23,21 +24,33 @@ class BaseStrategy(Strategy):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.price_history = {} #added
 
+        # CRITICAL SAFETY: Initialize circuit breaker for daily loss protection
+        max_daily_loss = parameters.get('max_daily_loss', 0.03)  # Default 3%
+        self.circuit_breaker = CircuitBreaker(
+            max_daily_loss=max_daily_loss,
+            auto_close_positions=True
+        )
+
     async def initialize(self, **kwargs):
         """Initialize strategy parameters."""
         try:
             # Update parameters
             self.parameters.update(kwargs)
-            
+
             # Set up strategy parameters
             self.interval = self.parameters.get('interval', 60)
             self.symbols = self.parameters.get('symbols', [])
-            
+
             # Initialize any other strategy-specific parameters
             await self._initialize_parameters()
-            
+
+            # CRITICAL SAFETY: Initialize circuit breaker with broker
+            if self.broker:
+                await self.circuit_breaker.initialize(self.broker)
+                self.logger.info(f"✅ Circuit breaker armed: max daily loss = {self.circuit_breaker.max_daily_loss:.1%}")
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error initializing strategy: {e}", exc_info=True)
             return False
@@ -46,7 +59,7 @@ class BaseStrategy(Strategy):
         """Initialize strategy-specific parameters. Override in subclass."""
         self.sentiment_threshold = self.parameters.get('sentiment_threshold', 0.6)
         self.position_size = self.parameters.get('position_size', 0.1)
-        self.max_position_size = self.parameters.get('max_position_size', 0.25)
+        self.max_position_size = self.parameters.get('max_position_size', 0.05)  # SAFETY: 5% max per position
         self.stop_loss_pct = self.parameters.get('stop_loss_pct', 0.02)
         self.take_profit_pct = self.parameters.get('take_profit_pct', 0.05)
         self.portfolio_risk_limit = self.parameters.get('portfolio_risk_limit', 0.02)
@@ -94,8 +107,134 @@ class BaseStrategy(Strategy):
         self._initialize_parameters()
 
     def on_bot_crash(self, error):
-        """Called when the bot crashes."""
+        """Called when the bot crashed."""
         self.logger.error(f"Bot crashed: {error}")
+
+    async def check_trading_allowed(self) -> bool:
+        """
+        CRITICAL SAFETY: Check if trading is allowed (circuit breaker not triggered).
+
+        ALL strategies must call this before executing any trades.
+
+        Returns:
+            True if trading is allowed, False if halted
+
+        Example:
+            if not await self.check_trading_allowed():
+                logger.warning("Trading halted by circuit breaker")
+                return
+        """
+        is_halted = await self.circuit_breaker.check_and_halt()
+        return not is_halted
+
+    async def enforce_position_size_limit(self, symbol, desired_position_value, current_price):
+        """
+        CRITICAL SAFETY: Enforce maximum position size limit.
+
+        Prevents over-concentration in a single position which could lead to
+        catastrophic losses. Default limit is 5% of portfolio value.
+
+        Args:
+            symbol: Stock symbol
+            desired_position_value: Dollar value of desired position
+            current_price: Current stock price
+
+        Returns:
+            Tuple of (capped_position_value, capped_quantity) that respects limits
+
+        Raises:
+            ValueError: If account information cannot be retrieved
+        """
+        try:
+            # Get current account value
+            account = await self.broker.get_account()
+            account_value = float(account.equity)
+
+            # Calculate maximum allowed position value
+            max_position_value = account_value * self.max_position_size
+
+            # Check if desired position exceeds limit
+            if desired_position_value > max_position_value:
+                self.logger.warning(
+                    f"POSITION SIZE LIMIT ENFORCED for {symbol}: "
+                    f"Requested ${desired_position_value:,.2f} exceeds "
+                    f"max ${max_position_value:,.2f} ({self.max_position_size:.1%} of ${account_value:,.2f})"
+                )
+                capped_value = max_position_value
+            else:
+                capped_value = desired_position_value
+
+            # Calculate capped quantity
+            capped_quantity = capped_value / current_price
+
+            self.logger.debug(
+                f"Position size check for {symbol}: "
+                f"${capped_value:,.2f} ({capped_quantity:.2f} shares) "
+                f"= {(capped_value/account_value):.1%} of portfolio"
+            )
+
+            return capped_value, capped_quantity
+
+        except Exception as e:
+            self.logger.error(f"Error enforcing position size limit for {symbol}: {e}")
+            # FAIL SAFE: Return 0 to prevent trading on error
+            return 0, 0
+
+    async def is_short_position(self, symbol):
+        """
+        Check if we currently have a short position in a symbol.
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            True if we have a short position (negative quantity), False otherwise
+        """
+        try:
+            positions = await self.broker.get_positions()
+            position = next((p for p in positions if p.symbol == symbol), None)
+
+            if position:
+                qty = float(position.qty)
+                return qty < 0
+
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error checking short position for {symbol}: {e}")
+            return False
+
+    async def get_position_pnl(self, symbol):
+        """
+        Get current P/L for a position (works for both long and short).
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Dict with unrealized_pl (dollar amount) and unrealized_plpc (percentage)
+            or None if no position exists
+        """
+        try:
+            positions = await self.broker.get_positions()
+            position = next((p for p in positions if p.symbol == symbol), None)
+
+            if position:
+                return {
+                    'unrealized_pl': float(position.unrealized_pl),
+                    'unrealized_plpc': float(position.unrealized_plpc),
+                    'qty': float(position.qty),
+                    'avg_entry_price': float(position.avg_entry_price),
+                    'current_price': float(position.current_price),
+                    'market_value': float(position.market_value),
+                    'is_short': float(position.qty) < 0
+                }
+
+            return None
+
+        except Exception as e:
+            self.logger.error(f"Error getting position P/L for {symbol}: {e}")
+            return None
 
     async def cleanup(self):
         """Cleanup resources."""

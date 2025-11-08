@@ -1,9 +1,17 @@
+#!/usr/bin/env python3
+"""
+Stock Scanner - Scans the market for tradable securities based on technical and sentiment analysis
+
+This utility provides methods to scan the market for potential trading opportunities
+based on technical indicators, sentiment analysis, and risk metrics.
+"""
+
 import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import logging
-from sentiment_analysis import analyze_sentiment
+from utils.sentiment_analysis import analyze_sentiment
 from concurrent.futures import ThreadPoolExecutor
 import talib
 from typing import List, Dict, Tuple

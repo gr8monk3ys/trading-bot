@@ -1,3 +1,93 @@
+# Environment variables and credentials
 .env
+.env.*
+
+# Python generated files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Data and logs
+data/historical/*
+data/results/*
+data/logs/*
+data/models/*
 logs/*
-venv
+!data/*/README.md
+!data/README.md
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# TA-Lib generated files
+ta-lib/*
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Type checking
+.mypy_cache/
+.pytype/
+.pyre/
+
+# Linting
+.ruff_cache/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Trading bot results
+results/
+backtest_results/
+live_trading_logs/
+performance_reports/
+
+# Model files
+*.pth
+*.pkl
+*.h5
+*.onnx
+
+# API credentials (CRITICAL - NEVER COMMIT!)
+credentials.json
+api_keys.json
+secrets.yaml
+*.key
+*.secret
