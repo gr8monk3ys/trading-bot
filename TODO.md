@@ -639,7 +639,7 @@ if result.filled_qty < result.qty:
 1. 🔄 Implement options strategies (framework complete, API integration pending)
 2. ⏳ Add market making with limit orders
 3. ✅ Add pairs trading (COMPLETE)
-4. ⏳ Add ML price prediction
+4. ✅ Add ML price prediction (LSTM complete - requires TensorFlow)
 5. ⏳ Add social sentiment
 
 **Expected Impact:** +20-30% annual returns (if done well)

@@ -326,6 +326,106 @@ await strategy.initialize()
 
 ---
 
+### 6. Machine Learning Price Prediction
+
+**File:** `strategies/ml_prediction_strategy.py` (600+ lines)
+
+**What It Does:**
+LSTM neural network-based price prediction using technical indicators and price patterns.
+
+**Risk Profile:** Experimental (requires extensive validation)
+
+**Model Architecture:**
+- LSTM (Long Short-Term Memory) for time series
+- 50-100 units with dropout for regularization
+- Early stopping to prevent overfitting
+- MinMax scaling for features
+
+**How It Works:**
+1. **Feature Engineering** (30+ features)
+   - Technical indicators: RSI, MACD, ADX, Bollinger Bands, ATR
+   - Volume indicators: VWAP, volume ratio, OBV
+   - Price patterns: gaps, day range, close position
+   - Multi-timeframe returns: 5-day, 10-day, 20-day
+
+2. **Model Training**
+   - Sequences of 60-90 bars as input
+   - Predicts next period return
+   - Train/validation split (80/20)
+   - Retrains weekly to adapt to market changes
+
+3. **Prediction & Confidence**
+   - Generates prediction for next period
+   - Estimates confidence score
+   - Only trades when confidence > 60%
+   - Adjusts position size by confidence level
+
+4. **Trading Rules**
+   - High confidence (75%+): Full position size
+   - Medium confidence (60-75%): Half position
+   - Low confidence (<60%): No trade
+   - Minimum 0.5% predicted move required
+
+**Usage:**
+```python
+from strategies.ml_prediction_strategy import MLPredictionStrategy
+
+# Conservative ML approach
+strategy = MLPredictionStrategy(
+    broker=broker,
+    symbols=['SPY', 'QQQ'],
+    parameters={
+        'position_size': 0.05,  # Small 5% positions
+        'model_type': 'lstm',
+        'sequence_length': 60,
+        'lstm_units': 50,
+        'epochs': 30,
+
+        # Trading rules - conservative
+        'min_prediction_confidence': 0.70,  # 70% confidence required
+        'directional_threshold': 0.01,  # 1% minimum predicted move
+
+        # Retraining
+        'retrain_every_n_days': 7,  # Weekly retraining
+
+        # Risk
+        'stop_loss': 0.02,
+        'take_profit': 0.04,
+    }
+)
+
+await strategy.initialize()
+# Automatically:
+# 1. Collects price data and builds history
+# 2. Engineers 30+ features from technical indicators
+# 3. Trains LSTM model (500+ bars required)
+# 4. Generates predictions with confidence scores
+# 5. Executes trades on high-confidence signals
+# 6. Retrains periodically to adapt to markets
+```
+
+**Important Notes:**
+- ⚠️ **EXPERIMENTAL** - ML strategies can easily overfit
+- Requires: TensorFlow (`pip install tensorflow`)
+- Minimum 500 bars of data for training
+- Must validate on out-of-sample data
+- Paper trade for 3+ months before live
+- Overfitting is the biggest risk
+- Performance varies significantly by market regime
+
+**Workflow:**
+1. Data collection (build 500+ bars)
+2. Feature engineering (calculate indicators)
+3. Model training (LSTM with early stopping)
+4. Prediction (generate next-period forecast)
+5. Signal generation (confidence-based)
+6. Execution (risk-managed trading)
+7. Periodic retraining (weekly)
+
+**Example:** `examples/ml_prediction_example.py`
+
+---
+
 ## 📁 New File Structure
 
 ```
@@ -333,7 +433,8 @@ trading-bot/
 ├── strategies/
 │   ├── ensemble_strategy.py          # ⭐ Multi-strategy combination
 │   ├── pairs_trading_strategy.py     # ⭐ Market-neutral stat arb
-│   └── options_strategy.py           # ⭐ Advanced options trading
+│   ├── options_strategy.py           # ⭐ Advanced options trading
+│   └── ml_prediction_strategy.py     # ⭐ LSTM price prediction
 ├── utils/
 │   ├── indicators.py                 # ⭐ 30+ technical indicators
 │   └── extended_hours.py             # ⭐ Pre-market & after-hours
@@ -341,6 +442,7 @@ trading-bot/
 │   ├── ensemble_strategy_example.py
 │   ├── pairs_trading_example.py
 │   ├── options_strategy_example.py
+│   ├── ml_prediction_example.py
 │   └── extended_hours_trading_example.py
 ├── ADVANCED_FEATURES.md              # ⭐ Complete guide
 ├── pyproject.toml                    # ⭐ UV package management
@@ -464,7 +566,7 @@ black .
 - ✅ Ensemble strategy
 - ✅ Pairs trading
 - 🔄 Options strategies (framework complete, API integration pending)
-- ⏳ ML price prediction
+- ✅ ML price prediction (LSTM implementation complete)
 - ⏳ Social sentiment
 
 ---
