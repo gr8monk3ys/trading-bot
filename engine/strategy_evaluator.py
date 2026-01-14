@@ -195,10 +195,11 @@ class StrategyEvaluator:
                 for pair in param_pairs:
                     key, value = pair.split('=')
                     param_dict[key.strip()] = self._convert_value(value.strip())
-                    
+
                 best_params = param_dict
-            except:
-                # If parsing fails, just use the original key
+            except (ValueError, AttributeError) as e:
+                # If parsing fails (malformed string), just use the original key
+                logger.debug(f"Could not parse params key '{best_params_key}': {e}")
                 best_params = best_params_key
                 
             return {

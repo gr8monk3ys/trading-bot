@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
 from brokers.order_builder import OrderBuilder
+from utils.multi_timeframe import MultiTimeframeAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,16 @@ class MeanReversionStrategy(BaseStrategy):
             # Risk management
             'max_correlation': 0.7,  # Maximum correlation between positions
             'max_sector_exposure': 0.3,  # Maximum exposure to any one sector
+
+            # Multi-timeframe analysis (NEW FEATURE)
+            'use_multi_timeframe': True,  # Enable multi-timeframe filtering
+            'mtf_timeframes': ['5Min', '15Min', '1Hour'],  # Timeframes to analyze
+            'mtf_require_alignment': False,  # If True, ALL timeframes must agree
+
+            # Short selling (NEW FEATURE - HIGH ROI)
+            'enable_short_selling': True,  # Enable short selling for extreme overbought
+            'short_position_size': 0.08,   # Smaller size for shorts (more conservative)
+            'short_stop_loss': 0.03,       # Tighter stop for shorts (3% vs 2% for longs)
         }
     
     async def initialize(self, **kwargs):
@@ -93,6 +104,27 @@ class MeanReversionStrategy(BaseStrategy):
             self.current_prices = {}
             self.price_history = {symbol: [] for symbol in self.symbols}
             
+            # Multi-timeframe analysis (NEW FEATURE)
+            self.use_multi_timeframe = self.parameters.get('use_multi_timeframe', True)
+            self.mtf_require_alignment = self.parameters.get('mtf_require_alignment', False)
+            self.mtf_analyzer = None
+
+            if self.use_multi_timeframe:
+                mtf_timeframes = self.parameters.get('mtf_timeframes', ['5Min', '15Min', '1Hour'])
+                self.mtf_analyzer = MultiTimeframeAnalyzer(
+                    timeframes=mtf_timeframes,
+                    history_length=200
+                )
+                logger.info(f"✅ Multi-timeframe filtering enabled: {', '.join(mtf_timeframes)}")
+
+            # Short selling parameters (NEW FEATURE)
+            self.enable_short_selling = self.parameters.get('enable_short_selling', True)
+            self.short_position_size = self.parameters.get('short_position_size', 0.08)
+            self.short_stop_loss = self.parameters.get('short_stop_loss', 0.03)
+
+            if self.enable_short_selling:
+                logger.info("✅ Short selling enabled - profit from extreme overbought conditions!")
+
             # Risk manager initialization
             self.risk_manager = RiskManager(
                 max_portfolio_risk=self.parameters['max_portfolio_risk'],
@@ -119,7 +151,11 @@ class MeanReversionStrategy(BaseStrategy):
                 
             # Store latest price
             self.current_prices[symbol] = close_price
-            
+
+            # Update multi-timeframe analyzer (if enabled)
+            if self.use_multi_timeframe and self.mtf_analyzer:
+                await self.mtf_analyzer.update(symbol, timestamp, close_price, volume)
+
             # Update price history
             self.price_history[symbol].append({
                 'timestamp': timestamp,
@@ -255,19 +291,47 @@ class MeanReversionStrategy(BaseStrategy):
             
             # Sell signal: Price is above upper Bollinger Band + RSI is overbought + far from mean
             sell_signal = (
-                close > upper_band and 
-                rsi > self.rsi_overbought and 
+                close > upper_band and
+                rsi > self.rsi_overbought and
                 z_score > self.std_threshold and
                 bb_position > 0.95 and  # Near top of BB
                 stoch_k > 80 and stoch_k < stoch_d  # Stoch turning down
             )
-            
+
+            # MULTI-TIMEFRAME FILTERING (NEW FEATURE)
+            # Mean reversion works best when price is extended in ranging markets
+            # Filter out mean reversion trades when higher timeframe has strong trend
+            if self.use_multi_timeframe and self.mtf_analyzer:
+                mtf_timeframes = self.parameters.get('mtf_timeframes', ['5Min', '15Min', '1Hour'])
+                highest_tf = mtf_timeframes[-1]  # Highest timeframe (e.g., 1Hour)
+                higher_tf_trend = self.mtf_analyzer.get_trend(symbol, highest_tf)
+
+                # Mean reversion works AGAINST trends, so we want ranging/neutral markets
+                # Reject mean reversion signals if there's a strong trend on higher timeframe
+                if buy_signal and higher_tf_trend == 'bearish':
+                    # Strong bearish trend: don't try to catch falling knife
+                    logger.info(f"MTF FILTER: {symbol} - Mean reversion BUY rejected ({highest_tf} strong downtrend)")
+                    return 'neutral'
+                elif sell_signal and higher_tf_trend == 'bullish':
+                    # Strong bullish trend: don't fight the trend
+                    logger.info(f"MTF FILTER: {symbol} - Mean reversion SELL rejected ({highest_tf} strong uptrend)")
+                    return 'neutral'
+
+                # Log when signal passes filter
+                if buy_signal or sell_signal:
+                    signal_dir = 'BUY' if buy_signal else 'SELL'
+                    logger.info(f"✅ MTF PASS: {symbol} - Mean reversion {signal_dir} (higher TF: {higher_tf_trend})")
+
             # Determine final signal
             if buy_signal:
                 return 'buy'
             elif sell_signal:
-                return 'sell'
-                
+                # SHORT SELLING FEATURE: Return 'short' for extreme overbought
+                if self.enable_short_selling:
+                    return 'short'  # Open short position (profit from mean reversion down)
+                else:
+                    return 'neutral'  # Skip if short selling disabled
+
             return 'neutral'
             
         except Exception as e:
@@ -368,9 +432,94 @@ class MeanReversionStrategy(BaseStrategy):
 
                     # Update last signal time
                     self.last_signal_time[symbol] = current_time
-                    
-            # Execute sell signal
-            elif signal == 'sell' and current_position:
+
+            # Execute SHORT signal (NEW FEATURE - SHORT SELLING)
+            elif signal == 'short' and not current_position and self.enable_short_selling:
+                # Check if we're already at max positions
+                if len(positions) >= self.max_positions:
+                    logger.info(f"Max positions reached ({self.max_positions}), skipping short for {symbol}")
+                    return
+
+                # Calculate position size (use smaller size for shorts - more conservative)
+                price = self.current_prices[symbol]
+                position_value = buying_power * self.short_position_size
+
+                # Risk-adjust position size
+                current_positions = {}
+                for pos in positions:
+                    pos_symbol = pos.symbol
+                    if pos_symbol in self.price_history:
+                        price_history = self.price_history[pos_symbol]
+                        close_prices = [bar['close'] for bar in price_history]
+                        current_positions[pos_symbol] = {
+                            'value': abs(float(pos.market_value)),
+                            'price_history': close_prices,
+                            'risk': None
+                        }
+
+                # Use risk manager to adjust position size
+                if len(self.price_history[symbol]) > 20:
+                    close_prices = [bar['close'] for bar in self.price_history[symbol]]
+                    adjusted_value = self.risk_manager.adjust_position_size(
+                        symbol,
+                        position_value,
+                        close_prices,
+                        current_positions
+                    )
+                    position_value = adjusted_value
+
+                if position_value <= 0:
+                    logger.info(f"Risk manager rejected SHORT position for {symbol}")
+                    return
+
+                # CRITICAL SAFETY: Enforce maximum position size limit
+                position_value, quantity = await self.enforce_position_size_limit(symbol, position_value, price)
+
+                # Allow fractional shares
+                if quantity < 0.01:
+                    logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
+                    return
+
+                # Calculate take-profit and stop-loss levels (INVERTED for shorts)
+                # For shorts: profit when price DROPS, loss when price RISES
+                take_profit_price = price * (1 - self.take_profit)  # Price drops 4%
+                stop_loss_price = price * (1 + self.short_stop_loss)  # Price rises 3% (STOP)
+
+                # Create bracket SHORT order
+                logger.info(f"🔻 Creating SHORT bracket order for {symbol} (mean reversion):")
+                logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
+                logger.info(f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)")
+                logger.info(f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)")
+
+                # Short = SELL without owning (profit from price drop back to mean)
+                order = (OrderBuilder(symbol, 'sell', quantity)  # SELL to open short
+                         .market()
+                         .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+                         .gtc()
+                         .build())
+
+                result = await self.broker.submit_order_advanced(order)
+
+                if result:
+                    logger.info(f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}")
+                    logger.info(f"   (Expect mean reversion: price will drop from extreme overbought)")
+
+                    # Store entry details
+                    self.position_entries[symbol] = {
+                        'time': current_time,
+                        'price': price,
+                        'quantity': quantity,
+                        'is_short': True  # Mark as short position
+                    }
+
+                    # Initialize trailing stop tracking (track LOWEST price for short positions)
+                    self.lowest_prices[symbol] = price
+
+                    # Update last signal time
+                    self.last_signal_time[symbol] = current_time
+
+            # Execute sell signal (close existing long position)
+            elif signal == 'sell' and current_position and float(current_position.qty) > 0:
                 # We have a position and should sell it
                 quantity = float(current_position.qty)
 

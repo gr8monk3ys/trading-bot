@@ -1,0 +1,93 @@
+/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/transformers/tokenization_utils_base.py:1601: FutureWarning: `clean_up_tokenization_spaces` was not set. It will be set to `True` by default. This behavior will be depracted in transformers v4.45, and will be then set to `False` by default. For more details check this issue: https://github.com/huggingface/transformers/issues/31884
+  warnings.warn(
+2025-11-10 23:33:39,918 - INFO - Starting live trading mode
+2025-11-10 23:33:39,918 - INFO - AlpacaBroker initialized with paper=True (type: <class 'bool'>)
+2025-11-10 23:33:39,918 - INFO - Using static symbol list: 5 symbols
+2025-11-10 23:33:39,918 - INFO - Trading universe: AAPL, MSFT, AMZN, META, TSLA
+2025-11-10 23:33:39,918 - INFO - Circuit Breaker initialized: max daily loss = 3.0%
+2025-11-10 23:33:40,186 - INFO - Circuit Breaker armed: Starting equity: $100,000.00, Will halt if equity drops below $97,000.00
+2025-11-10 23:33:40,186 - INFO - Circuit breaker initialized and armed
+2025-11-10 23:33:40,268 - INFO - Market status: {'is_open': False, 'next_open': datetime.datetime(2025, 11, 11, 9, 30, tzinfo=TzInfo(-05:00)), 'next_close': datetime.datetime(2025, 11, 11, 16, 0, tzinfo=TzInfo(-05:00)), 'timestamp': datetime.datetime(2025, 11, 11, 2, 33, 40, 416818, tzinfo=TzInfo(-05:00))}
+2025-11-10 23:33:40,269 - INFO - Loading strategies from: /Users/gr8monk3ys/code/trading-bot/strategies
+2025-11-10 23:33:40,272 - INFO - Loaded strategy: EnsembleStrategy
+2025-11-10 23:33:40,274 - INFO - Loaded strategy: ExtendedHoursStrategy
+2025-11-10 23:33:40,274 - INFO - Loaded strategy: MeanReversionStrategy
+2025-11-10 23:33:40,274 - INFO - Loaded strategy: MomentumStrategy
+2025-11-10 23:33:40,275 - ERROR - Error loading strategy module pairs_trading_strategy: No module named 'statsmodels'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 96, in _load_available_strategies
+    module = importlib.import_module(module_path)
+  File "/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/gr8monk3ys/code/trading-bot/strategies/pairs_trading_strategy.py", line 33, in <module>
+    from statsmodels.tsa.stattools import coint, adfuller
+ModuleNotFoundError: No module named 'statsmodels'
+2025-11-10 23:33:40,278 - INFO - Loaded strategy: BracketMomentumStrategy
+2025-11-10 23:33:40,279 - INFO - Loaded 5 strategies
+2025-11-10 23:33:40,279 - INFO - Available strategies: ['EnsembleStrategy', 'ExtendedHoursStrategy', 'MeanReversionStrategy', 'MomentumStrategy', 'BracketMomentumStrategy']
+2025-11-10 23:33:40,279 - INFO - Auto-selecting the best strategies...
+2025-11-10 23:33:40,279 - INFO - Evaluating all strategies from 2025-10-11 to 2025-11-10 for 5 symbols
+2025-11-10 23:33:40,279 - ERROR - Error evaluating strategy EnsembleStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,280 - ERROR - Error evaluating strategy ExtendedHoursStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,280 - ERROR - Error evaluating strategy MeanReversionStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,281 - ERROR - Error evaluating strategy MomentumStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,281 - ERROR - Error evaluating strategy BracketMomentumStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,281 - INFO - Evaluating all strategies from 2025-10-11 to 2025-11-10 for 5 symbols
+2025-11-10 23:33:40,281 - ERROR - Error evaluating strategy EnsembleStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,282 - ERROR - Error evaluating strategy ExtendedHoursStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,282 - ERROR - Error evaluating strategy MeanReversionStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,282 - ERROR - Error evaluating strategy MomentumStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,282 - ERROR - Error evaluating strategy BracketMomentumStrategy: 'BacktestEngine' object has no attribute 'run_backtest'
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/engine/strategy_manager.py", line 140, in evaluate_all_strategies
+    result = await self.backtest_engine.run_backtest(
+AttributeError: 'BacktestEngine' object has no attribute 'run_backtest'
+2025-11-10 23:33:40,282 - INFO - Selected top 0 strategies: 
+2025-11-10 23:33:40,282 - INFO - Selected strategies: []
+2025-11-10 23:33:40,282 - ERROR - Error in live trading mode: float division by zero
+Traceback (most recent call last):
+  File "/Users/gr8monk3ys/code/trading-bot/main.py", line 260, in run_live
+    equal_alloc = args.max_allocation / len(strategies_to_run)
+ZeroDivisionError: float division by zero

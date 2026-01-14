@@ -11,6 +11,7 @@ tqdm
 python-dotenv>=1.0.0
 ta-lib
 yfinance
+statsmodels>=0.14.0  # For pairs trading cointegration tests
 websockets>=11.0  # Updated websockets
 aiohttp>=3.8.0
 asyncio>=3.4.3

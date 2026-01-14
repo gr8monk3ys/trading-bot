@@ -1,0 +1,78 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+paper_trading.log
+
+# Data
+data/*.db
+data/*.sqlite
+data/*.csv
+*.pid
+
+# Documentation (build artifacts)
+docs/_build/
+docs/.doctrees/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# CI/CD
+.github/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+tmp/
+temp/
+
+# Environment files (IMPORTANT: Do not include in Docker image)
+.env
+.env.local
+.env.*.local
+
+# Backtest results
+results/
+backtest_*.json
+
+# Notebooks
+*.ipynb_checkpoints/
+
+# OS files
+Thumbs.db
+.DS_Store

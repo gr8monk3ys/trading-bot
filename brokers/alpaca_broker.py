@@ -1,8 +1,10 @@
 import os
 import logging
 import asyncio
+import random
 import signal
 from datetime import datetime, timedelta
+from functools import wraps
 from typing import Optional, Dict, List, Set, Any
 
 from alpaca.trading.client import TradingClient
@@ -22,42 +24,81 @@ from alpaca.trading.requests import (
 )
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderStatus, AssetClass, QueryOrderStatus
 
-from lumibot.brokers import Broker
-from lumibot.entities import Position
-
+# NOTE: Removed lumibot imports - they crash at import time due to
+# lumibot.credentials.py trying to instantiate Alpaca broker before config is ready
+# We don't actually need lumibot's Broker class - we built our own implementation
 from config import ALPACA_CREDS, SYMBOLS
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
-def retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10):
-    """Retry decorator with exponential backoff."""
+def retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10, jitter=0.1):
+    """
+    Retry decorator with exponential backoff and jitter.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay in seconds
+        max_delay: Maximum delay between retries
+        jitter: Jitter factor (0.0-1.0) to randomize delay and prevent thundering herd
+
+    The jitter adds randomness to prevent many clients from retrying simultaneously.
+    For example, with jitter=0.1 and base delay of 2s, actual delay will be 1.8s-2.2s.
+    """
     def decorator(func):
+        @wraps(func)
         async def wrapper(*args, **kwargs):
-            delay = initial_delay
             last_exception = None
-            
+
             for attempt in range(max_retries):
                 try:
                     return await func(*args, **kwargs)
-                except Exception as e:
+                except (ConnectionError, TimeoutError, OSError) as e:
+                    # Network-related errors are retryable
                     last_exception = e
-                    logger.warning(f"Attempt {attempt + 1} failed: {e}")
-                    
-                    if attempt < max_retries - 1:
-                        sleep_time = min(delay * (2 ** attempt), max_delay)
-                        logger.info(f"Retrying in {sleep_time} seconds...")
-                        await asyncio.sleep(sleep_time)
-            
-            logger.error(f"All {max_retries} attempts failed")
+                    logger.warning(f"Attempt {attempt + 1}/{max_retries} failed (network error): {e}")
+                except Exception as e:
+                    # For other exceptions, check if they seem transient
+                    error_str = str(e).lower()
+                    is_transient = any(term in error_str for term in [
+                        'timeout', 'connection', 'rate limit', '429', '503', '502', '504'
+                    ])
+
+                    if is_transient:
+                        last_exception = e
+                        logger.warning(f"Attempt {attempt + 1}/{max_retries} failed (transient): {e}")
+                    else:
+                        # Non-transient error, don't retry
+                        logger.error(f"Non-retryable error in {func.__name__}: {e}")
+                        raise
+
+                if attempt < max_retries - 1:
+                    # Calculate base delay with exponential backoff
+                    base_delay = min(initial_delay * (2 ** attempt), max_delay)
+
+                    # Add jitter to prevent thundering herd
+                    # Jitter range: [base * (1 - jitter), base * (1 + jitter)]
+                    jitter_range = base_delay * jitter
+                    sleep_time = base_delay + random.uniform(-jitter_range, jitter_range)
+                    sleep_time = max(0.1, sleep_time)  # Ensure minimum delay
+
+                    logger.info(f"Retrying {func.__name__} in {sleep_time:.2f}s...")
+                    await asyncio.sleep(sleep_time)
+
+            logger.error(f"All {max_retries} attempts failed for {func.__name__}")
             raise last_exception
-            
+
         return wrapper
     return decorator
 
-class AlpacaBroker(Broker):
-    """Alpaca broker implementation."""
-    
+class AlpacaBroker:
+    """
+    Alpaca broker implementation.
+
+    Direct implementation without lumibot dependency to avoid import-time crashes.
+    Provides all necessary broker functionality for live and paper trading.
+    """
+
     NAME = "alpaca"
     IS_BACKTESTING_BROKER = False
 
@@ -120,6 +161,11 @@ class AlpacaBroker(Broker):
         except Exception as e:
             logger.error(f"Error initializing AlpacaBroker: {e}", exc_info=True)
             raise
+
+    async def is_connected(self) -> bool:
+        """Thread-safe check if websocket is connected."""
+        async with self._ws_lock:
+            return self._connected
 
     def _add_subscriber(self, subscriber):
         """Add a subscriber for market data updates."""
@@ -228,103 +274,125 @@ class AlpacaBroker(Broker):
             logger.error(f"Error handling trade data: {e}", exc_info=True)
 
     async def _websocket_handler(self):
-        """Main websocket handler."""
+        """Main websocket handler with proper locking for thread safety."""
         while True:
             try:
                 logger.info("Starting websocket connection...")
-                
-                # Reset for new connection
-                self._connected = False
-                self._subscribed_symbols.clear()
-                
+
+                # Reset for new connection (with lock for thread safety)
+                async with self._ws_lock:
+                    self._connected = False
+                    self._subscribed_symbols.clear()
+
                 # Initialize and connect
                 self.stream.connect()
-                
+
                 # Register handlers
                 self.stream.add_trade_update_handler(self._handle_trade_updates)
                 self.stream.add_bars_handler(self._handle_bars)
                 self.stream.add_quotes_handler(self._handle_quotes)
                 self.stream.add_trades_handler(self._handle_trades)
-                
+
                 # Subscribe to trade updates (account activity)
                 self.stream.subscribe_trade_updates()
-                
-                # Mark as connected
-                self._connected = True
-                self._reconnect_attempts = 0
-                self._reconnect_delay = 1  # Reset delay
-                
+
+                # Mark as connected (with lock for thread safety)
+                async with self._ws_lock:
+                    self._connected = True
+                    self._reconnect_attempts = 0
+                    self._reconnect_delay = 1  # Reset delay
+
                 logger.info("Websocket connected successfully")
-                
+
                 # Subscribe to market data for all tracked symbols
                 await self._subscribe_to_symbols(SYMBOLS)
-                
+
                 # Keep connection alive
-                while self._connected:
+                while True:
+                    async with self._ws_lock:
+                        if not self._connected:
+                            break
                     await asyncio.sleep(1)
-                    
+
+            except asyncio.CancelledError:
+                logger.info("Websocket handler cancelled")
+                async with self._ws_lock:
+                    self._connected = False
+                raise
             except Exception as e:
                 logger.error(f"Websocket error: {e}", exc_info=True)
-                self._connected = False
-                
-                # Implement exponential backoff for reconnection
-                sleep_time = min(self._reconnect_delay * (2 ** self._reconnect_attempts), self._max_reconnect_delay)
-                self._reconnect_attempts += 1
-                
+
+                async with self._ws_lock:
+                    self._connected = False
+                    # Implement exponential backoff for reconnection
+                    sleep_time = min(self._reconnect_delay * (2 ** self._reconnect_attempts), self._max_reconnect_delay)
+                    self._reconnect_attempts += 1
+
                 logger.info(f"Attempting to reconnect in {sleep_time} seconds (attempt {self._reconnect_attempts})...")
                 await asyncio.sleep(sleep_time)
 
     async def _subscribe_to_symbols(self, symbols):
-        """Subscribe to market data for multiple symbols."""
-        if not self._connected:
-            logger.warning("Cannot subscribe to symbols: websocket not connected")
-            return False
-        
+        """Subscribe to market data for multiple symbols with proper locking."""
+        async with self._ws_lock:
+            if not self._connected:
+                logger.warning("Cannot subscribe to symbols: websocket not connected")
+                return False
+
         try:
             # Subscribe to bars (1-minute timeframe)
             self.stream.subscribe_bars(symbols)
-            
+
             # Subscribe to quotes
             self.stream.subscribe_quotes(symbols)
-            
+
             # Subscribe to trades
             self.stream.subscribe_trades(symbols)
-            
-            # Add symbols to subscribed set
-            for symbol in symbols:
-                self._subscribed_symbols.add(symbol)
-                
+
+            # Add symbols to subscribed set (with lock)
+            async with self._ws_lock:
+                for symbol in symbols:
+                    self._subscribed_symbols.add(symbol)
+
             logger.info(f"Subscribed to market data for: {', '.join(symbols)}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error subscribing to symbols: {e}", exc_info=True)
             return False
 
     async def start_websocket(self):
-        """Start the websocket connection."""
-        if self._ws_task is not None:
-            logger.info("Websocket already running")
-            return
-            
-        self._ws_task = asyncio.create_task(self._websocket_handler())
-        logger.info("Started websocket handler task")
+        """Start the websocket connection with proper locking."""
+        async with self._ws_lock:
+            if self._ws_task is not None:
+                logger.info("Websocket already running")
+                return
+
+            self._ws_task = asyncio.create_task(self._websocket_handler())
+            logger.info("Started websocket handler task")
 
     async def stop_websocket(self):
-        """Stop the websocket connection."""
-        if self._ws_task is None:
-            logger.info("No websocket running")
-            return
-            
-        if not self._ws_task.done():
-            self._connected = False
-            self._ws_task.cancel()
-            try:
-                await self._ws_task
-            except asyncio.CancelledError:
-                pass
-            
-        self._ws_task = None
+        """Stop the websocket connection with proper locking."""
+        async with self._ws_lock:
+            if self._ws_task is None:
+                logger.info("No websocket running")
+                return
+
+            if not self._ws_task.done():
+                self._connected = False
+                task = self._ws_task
+                self._ws_task = None
+            else:
+                self._ws_task = None
+                logger.info("Websocket task already completed")
+                return
+
+        # Cancel outside the lock to avoid deadlock
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
         logger.info("Stopped websocket handler task")
         
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -336,6 +404,21 @@ class AlpacaBroker(Broker):
         except Exception as e:
             logger.error(f"Error getting account info: {e}", exc_info=True)
             raise
+
+    async def get_market_status(self):
+        """Get current market status."""
+        try:
+            clock = self.trading_client.get_clock()
+            return {
+                'is_open': clock.is_open,
+                'next_open': clock.next_open,
+                'next_close': clock.next_close,
+                'timestamp': clock.timestamp
+            }
+        except Exception as e:
+            logger.error(f"Error getting market status: {e}", exc_info=True)
+            # Return safe default if error
+            return {'is_open': False}
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_positions(self):
@@ -575,12 +658,27 @@ class AlpacaBroker(Broker):
     async def get_bars(self, symbol, timeframe=TimeFrame.Day, limit=100, start=None, end=None):
         """Get historical bars for a symbol."""
         try:
+            # Convert string timeframe to TimeFrame object if needed
+            if isinstance(timeframe, str):
+                timeframe_map = {
+                    '1Min': TimeFrame.Minute,
+                    '5Min': TimeFrame(5, 'Min'),
+                    '15Min': TimeFrame(15, 'Min'),
+                    '1Hour': TimeFrame.Hour,
+                    '1Day': TimeFrame.Day,
+                    'Day': TimeFrame.Day,
+                    'Hour': TimeFrame.Hour,
+                    'Minute': TimeFrame.Minute
+                }
+                timeframe = timeframe_map.get(timeframe, TimeFrame.Day)
+                logger.debug(f"Converted timeframe string to TimeFrame object: {timeframe}")
+
             # Set default dates if not provided
             if end is None:
                 end = datetime.now().date()
             if start is None:
                 start = (datetime.now() - timedelta(days=limit)).date()
-                
+
             request_params = StockBarsRequest(
                 symbol_or_symbols=[symbol],
                 timeframe=timeframe,

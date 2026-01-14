@@ -1,532 +1,717 @@
-# Testing Guide for Trading Bot
+# Testing Documentation
 
-This guide provides comprehensive instructions for testing the trading bot components.
+**Comprehensive testing infrastructure for the trading bot**
 
-## Table of Contents
-- [Prerequisites](#prerequisites)
-- [Environment Setup](#environment-setup)
-- [Quick Start](#quick-start)
-- [Test Types](#test-types)
-- [Running Tests](#running-tests)
-- [Expected Output](#expected-output)
-- [Troubleshooting](#troubleshooting)
-- [Verifying in Alpaca Dashboard](#verifying-in-alpaca-dashboard)
+This document explains the testing strategy, infrastructure, and how to run tests.
 
 ---
 
-## Prerequisites
+## Overview
 
-### 1. Conda Environment
-Ensure you have a conda environment activated with Python 3.10+:
+**Testing Philosophy:**
+- **Unit Tests**: Fast, isolated tests for individual components
+- **Integration Tests**: End-to-end tests for complete workflows
+- **Performance Tests**: Ensure strategies meet performance criteria
+- **Mock Infrastructure**: Test without external API dependencies
 
-```bash
-conda activate trading-bot  # or your environment name
-python --version  # Should be 3.10 or higher
-```
-
-### 2. Dependencies
-All required packages must be installed:
-
-```bash
-pip install -r requirements.txt
-```
-
-Key dependencies:
-- `alpaca-py>=0.8.0` - Alpaca trading API
-- `pandas>=2.0.0` - Data manipulation
-- `numpy>=1.24.3` - Numerical computing
-- `ta-lib` - Technical analysis (optional but recommended)
-- `python-dotenv>=1.0.0` - Environment variable management
-- `pytest` - Testing framework
-
-### 3. Alpaca Paper Trading Account
-You need an Alpaca paper trading account:
-1. Sign up at [alpaca.markets](https://alpaca.markets)
-2. Navigate to Paper Trading section
-3. Generate API keys
-
-### 4. Environment Configuration
-Create a `.env` file in the project root with your Alpaca credentials:
-
-```bash
-ALPACA_API_KEY=your_paper_api_key_here
-ALPACA_SECRET_KEY=your_paper_secret_key_here
-PAPER=True
-```
-
-**Important:** Never commit the `.env` file to version control. It's already in `.gitignore`.
-
-You can reference `.env.example` for the template:
-```bash
-cp .env.example .env
-# Edit .env with your actual credentials
-```
+**Coverage Target:** >80% for critical modules (strategies/, brokers/, engine/, utils/)
 
 ---
 
 ## Quick Start
 
-Run the smoke test to verify everything is working:
+### Running Tests
 
-```bash
-python examples/smoke_test.py
-```
-
-If this passes, you're ready to run more comprehensive tests!
-
----
-
-## Test Types
-
-### 1. Smoke Test (`examples/smoke_test.py`)
-**Purpose:** Quick validation that core components work without errors.
-
-**What it tests:**
-- Environment variables are loaded correctly
-- All core modules can be imported
-- Broker instance can be created
-- Order objects can be built (market, limit, bracket)
-- Convenience functions work
-- Order objects have correct attributes
-
-**Does NOT test:**
-- Actual API connections to Alpaca
-- Real order submissions
-- WebSocket connections
-
-**Usage:**
-```bash
-python examples/smoke_test.py
-```
-
-**Expected runtime:** < 5 seconds
-
----
-
-### 2. Import Tests (`tests/test_imports.py`)
-**Purpose:** Verify all critical imports work (pytest-based).
-
-**What it tests:**
-- Broker imports (AlpacaBroker, OrderBuilder, BacktestBroker)
-- Strategy imports (all strategy classes)
-- Configuration imports
-- External dependency imports (pandas, numpy, alpaca-py)
-- Enum imports (OrderSide, TimeInForce, etc.)
-- Order builder instantiation
-
-**Usage:**
-```bash
-# Run all import tests
-pytest tests/test_imports.py -v
-
-# Run specific test class
-pytest tests/test_imports.py::TestBrokerImports -v
-
-# Run specific test
-pytest tests/test_imports.py::TestBrokerImports::test_alpaca_broker_import -v
-```
-
-**Expected runtime:** < 10 seconds
-
----
-
-### 3. Advanced Order Tests (`examples/test_advanced_orders.py`)
-**Purpose:** Comprehensive testing of all order types with Alpaca API.
-
-**What it tests:**
-- Account information retrieval
-- Market data fetching
-- All order types (market, limit, stop, trailing stop, bracket, OCO, OTO)
-- Order management features
-- Convenience functions
-
-**Important:** By default, order submissions are **commented out** for safety.
-
-**Usage:**
-```bash
-# Run without submitting orders (safe)
-python examples/test_advanced_orders.py
-
-# To enable real paper trading orders:
-# 1. Edit examples/test_advanced_orders.py
-# 2. Uncomment the submit lines in each test function
-# 3. Run the script
-python examples/test_advanced_orders.py
-```
-
-**Expected runtime:** 30-60 seconds (with API calls)
-
----
-
-### 4. Unit Tests (`tests/`)
-**Purpose:** Test individual components in isolation.
-
-**Available tests:**
-- `tests/test_imports.py` - Import validation
-- `tests/test_connection.py` - Alpaca connection tests
-- `tests/test_momentum_strategy.py` - Momentum strategy tests
-- `tests/test_backtest_engine.py` - Backtesting engine tests
-
-**Usage:**
 ```bash
 # Run all tests
 pytest tests/ -v
 
-# Run with coverage
-pytest tests/ --cov=. --cov-report=html
+# Run specific test category
+pytest tests/ -m unit -v
+pytest tests/ -m integration -v
+pytest tests/ -m performance -v
 
 # Run specific test file
-pytest tests/test_connection.py -v
+pytest tests/unit/test_momentum_strategy.py -v
 
-# Run and show print statements
-pytest tests/ -v -s
+# Run with coverage
+pytest tests/ --cov=strategies --cov=brokers --cov=engine --cov-report=html
+
+# View coverage report
+open htmlcov/index.html
 ```
 
----
+### Test Markers
 
-## Running Tests
+Tests are organized using pytest markers:
 
-### Step 1: Verify Environment
+| Marker | Description | Speed | Example |
+|--------|-------------|-------|---------|
+| `unit` | Unit tests (isolated) | Fast (<1s) | Test indicator calculation |
+| `integration` | Integration tests | Medium (1-10s) | Test complete trading workflow |
+| `performance` | Performance tests | Slow (10s+) | Test backtest performance |
+| `strategy` | Strategy-specific | Varies | Test momentum strategy signals |
+| `broker` | Broker-specific | Fast | Test order submission |
+| `engine` | Engine tests | Medium | Test strategy manager |
+| `risk` | Risk management | Fast | Test position sizing |
+| `requires_api` | Needs external API | Slow | Test Alpaca connection |
+| `slow` | Slow running tests | Slow | Optimization tests |
+
+**Running by marker:**
 ```bash
-# Check Python version
-python --version
+# Run only fast unit tests
+pytest -m unit -v
 
-# Verify dependencies
-pip list | grep -E "alpaca-py|pandas|numpy|pytest"
+# Run strategy tests but skip slow ones
+pytest -m "strategy and not slow" -v
 
-# Check .env file exists
-ls -la .env
-```
-
-### Step 2: Run Smoke Test
-```bash
-python examples/smoke_test.py
-```
-
-**Expected output:**
-```
-================================================================================
-TRADING BOT SMOKE TEST
-================================================================================
-Started at: 2025-11-07 10:30:45
-
-Test 1: Checking environment variables...
-✅ PASSED: Environment loaded
-   API Key: PKxxxxxx... (hidden)
-   Paper Trading: True
-
-Test 2: Importing core modules...
-✅ PASSED: All core modules imported successfully
-   - AlpacaBroker
-   - OrderBuilder
-   - Convenience functions (market_order, limit_order, bracket_order)
-   - Config (SYMBOLS: ['AAPL', 'MSFT', 'AMZN']...)
-
-Test 3: Creating broker instance...
-✅ PASSED: Broker instance created (paper trading mode)
-   Broker type: AlpacaBroker
-
-Test 4: Building simple market order...
-✅ PASSED: Market order created
-   Symbol: AAPL
-   Side: OrderSide.BUY
-   Quantity: 1.0
-   Type: MARKET
-   Time in Force: TimeInForce.DAY
-
-Test 5: Building limit order...
-✅ PASSED: Limit order created
-   Symbol: MSFT
-   Side: OrderSide.BUY
-   Quantity: 2.0
-   Limit Price: $350.0
-   Time in Force: TimeInForce.GTC
-
-Test 6: Building bracket order...
-✅ PASSED: Bracket order created
-   Symbol: TSLA
-   Side: OrderSide.BUY
-   Quantity: 1.0
-   Order Class: OrderClass.BRACKET
-   Take-Profit: $262.50
-   Stop-Loss: $242.50
-   Stop-Limit: $241.25
-
-Test 7: Testing convenience functions...
-✅ PASSED: market_order() function works
-✅ PASSED: limit_order() function works
-✅ PASSED: bracket_order() function works
-
-Test 8: Verifying order object attributes...
-✅ PASSED: All required order attributes present
-   Order has: symbol, qty, side, time_in_force
-
-================================================================================
-SMOKE TEST SUMMARY
-================================================================================
-✅ All tests passed!
-
-What was tested:
-  1. Environment variables loaded correctly
-  2. Core modules can be imported
-  3. Broker instance can be created
-  4. Simple market orders can be built
-  5. Limit orders can be built
-  6. Bracket orders can be built
-  7. Convenience functions work
-  8. Order objects have correct attributes
-
-⚠️  NOTE: This test does NOT submit actual orders to Alpaca
-   To test real order submission, use examples/test_advanced_orders.py
-   and uncomment the submit lines
-
-Next steps:
-  1. Run: python examples/test_advanced_orders.py
-  2. Check Alpaca paper trading dashboard for orders
-  3. Run: pytest tests/ for unit tests
-================================================================================
-```
-
-### Step 3: Run Import Tests
-```bash
-pytest tests/test_imports.py -v
-```
-
-**Expected output:**
-```
-========================== test session starts ===========================
-collected 25 items
-
-tests/test_imports.py::TestBrokerImports::test_alpaca_broker_import PASSED    [  4%]
-tests/test_imports.py::TestBrokerImports::test_order_builder_import PASSED    [  8%]
-tests/test_imports.py::TestBrokerImports::test_order_builder_convenience_functions PASSED [ 12%]
-tests/test_imports.py::TestBrokerImports::test_backtest_broker_import PASSED  [ 16%]
-tests/test_imports.py::TestStrategyImports::test_base_strategy_import PASSED  [ 20%]
-tests/test_imports.py::TestStrategyImports::test_bracket_momentum_strategy_import PASSED [ 24%]
-...
-========================== 25 passed in 2.35s ============================
-```
-
-### Step 4: Run Advanced Order Tests (Optional)
-```bash
-python examples/test_advanced_orders.py
-```
-
-This will test API connectivity and order building without submitting orders (by default).
-
----
-
-## Expected Output
-
-### Success Indicators
-- ✅ Green checkmarks for passed tests
-- Clear descriptions of what was tested
-- Relevant details (symbols, prices, quantities)
-- Final summary showing all tests passed
-
-### Failure Indicators
-- ❌ Red X marks for failed tests
-- Error messages with details
-- Exit code 1 (for smoke test)
-
----
-
-## Troubleshooting
-
-### Problem: Missing .env file
-**Error:** `❌ FAILED: Missing Alpaca credentials in .env file`
-
-**Solution:**
-1. Copy the example: `cp .env.example .env`
-2. Edit `.env` with your actual Alpaca credentials
-3. Ensure `PAPER=True` for paper trading
-
----
-
-### Problem: Import errors
-**Error:** `ImportError: No module named 'alpaca'`
-
-**Solution:**
-```bash
-# Reinstall dependencies
-pip install -r requirements.txt
-
-# If specific package is missing
-pip install alpaca-py pandas numpy python-dotenv
+# Run integration tests excluding API tests
+pytest -m "integration and not requires_api" -v
 ```
 
 ---
 
-### Problem: TA-Lib import error
-**Error:** `ImportError: No module named 'talib'`
+## Test Infrastructure
 
-**Solution:**
-TA-Lib requires system-level installation:
+### Directory Structure
 
-**macOS:**
-```bash
-brew install ta-lib
-pip install TA-Lib
+```
+tests/
+├── __init__.py
+├── conftest.py              # Shared fixtures and configuration
+├── fixtures/                # Mock objects and test data
+│   ├── __init__.py
+│   ├── mock_broker.py       # MockAlpacaBroker for testing
+│   ├── mock_data.py         # Price data generators
+│   └── test_helpers.py      # Helper functions and assertions
+├── unit/                    # Unit tests
+│   ├── __init__.py
+│   ├── test_momentum_strategy.py
+│   ├── test_mean_reversion_strategy.py
+│   ├── test_alpaca_broker.py
+│   ├── test_strategy_manager.py
+│   └── test_backtest_engine.py
+├── integration/             # Integration tests
+│   ├── __init__.py
+│   ├── test_live_trading.py
+│   ├── test_backtest_workflow.py
+│   └── test_multi_strategy.py
+└── performance/             # Performance tests
+    ├── __init__.py
+    ├── test_strategy_performance.py
+    └── test_optimization.py
 ```
 
-**Linux:**
-```bash
-wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-tar -xzf ta-lib-0.4.0-src.tar.gz
-cd ta-lib/
-./configure --prefix=/usr
-make
-sudo make install
-pip install TA-Lib
+### Configuration Files
+
+**pytest.ini** - Main pytest configuration:
+```ini
+[pytest]
+# Test discovery
+python_files = test_*.py *_test.py
+python_classes = Test*
+python_functions = test_*
+
+# Test paths
+testpaths = tests
+
+# Coverage
+addopts =
+    --cov=strategies
+    --cov=brokers
+    --cov=engine
+    --cov=utils
+    --cov-report=term-missing
+    --cov-report=html:htmlcov
+    --cov-fail-under=70
+
+# Markers
+markers =
+    unit: Unit tests (fast, isolated)
+    integration: Integration tests
+    performance: Performance tests
+    strategy: Strategy-specific tests
+    broker: Broker-specific tests
 ```
 
-**Note:** The import tests will skip TA-Lib tests if not installed.
+**.coveragerc** - Coverage configuration:
+```ini
+[run]
+source = .
+omit =
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */venv/*
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+```
 
 ---
 
-### Problem: Alpaca API connection errors
-**Error:** `401 Unauthorized` or `403 Forbidden`
+## Mock Infrastructure
 
-**Solution:**
-1. Verify API keys in `.env` are correct
-2. Ensure you're using **Paper Trading** keys (not live)
-3. Check keys haven't expired
-4. Regenerate keys in Alpaca dashboard if needed
+### MockAlpacaBroker
+
+**Purpose**: Simulate Alpaca API without external dependencies
+
+**Features:**
+- Realistic market simulation
+- Configurable slippage (default: 0.1%)
+- Multiple market regimes (bull, bear, sideways, volatile)
+- Order execution and fill simulation
+- Position and cash tracking
+- Historical price data generation
+
+**Usage:**
+```python
+from tests.fixtures.mock_broker import MockAlpacaBroker
+
+# Create mock broker
+broker = MockAlpacaBroker(paper=True, initial_capital=100000.0)
+
+# Get account
+account = await broker.get_account()
+print(f"Equity: ${account.equity}")
+
+# Submit order
+order = await broker.submit_order(
+    symbol='AAPL',
+    qty=10,
+    side='buy',
+    type='market'
+)
+
+# Check positions
+positions = await broker.get_positions()
+```
+
+**Market Regime Simulation:**
+```python
+# Set different market conditions for testing
+broker.set_market_regime('AAPL', 'bull')     # Uptrend
+broker.set_market_regime('TSLA', 'bear')     # Downtrend
+broker.set_market_regime('SPY', 'sideways')  # Ranging
+broker.set_market_regime('NVDA', 'volatile') # High volatility
+```
+
+### Mock Data Generators
+
+**Purpose**: Generate realistic test data for various scenarios
+
+**Available Functions:**
+
+**1. Price Series Generation:**
+```python
+from tests.fixtures.mock_data import generate_price_series
+
+# Generate uptrend
+prices = generate_price_series(
+    start_price=100.0,
+    days=100,
+    trend="up",
+    volatility=0.02
+)
+```
+
+**2. OHLCV Data:**
+```python
+from tests.fixtures.mock_data import generate_ohlcv_data
+
+# Generate full OHLCV data
+df = generate_ohlcv_data(
+    symbol='TEST',
+    days=100,
+    start_price=100.0,
+    trend='up',
+    volatility=0.02
+)
+```
+
+**3. Scenario-Specific Data:**
+```python
+from tests.fixtures.mock_data import (
+    generate_momentum_scenario,      # Strong uptrend
+    generate_mean_reversion_scenario, # Oscillating pattern
+    generate_volatile_scenario,       # High volatility
+    generate_sideways_scenario        # Ranging market
+)
+
+# Create momentum test data
+df = generate_momentum_scenario(days=100)
+```
+
+**4. Multi-Symbol Data:**
+```python
+from tests.fixtures.mock_data import generate_multi_symbol_data
+
+# Generate data for multiple symbols
+data = generate_multi_symbol_data(
+    symbols=['AAPL', 'TSLA', 'SPY'],
+    days=100
+)
+```
+
+### Test Helpers
+
+**Purpose**: Common assertions and utilities for tests
+
+**Assertion Functions:**
+```python
+from tests.fixtures.test_helpers import (
+    assert_approximately_equal,
+    assert_in_range,
+    assert_valid_signal,
+    assert_valid_order,
+    assert_valid_position
+)
+
+# Test float equality with tolerance
+assert_approximately_equal(actual=101.5, expected=100.0, tolerance=0.02)
+
+# Test value in range
+assert_in_range(value=50, min_val=0, max_val=100)
+
+# Validate trading signal
+assert_valid_signal({'action': 'buy', 'confidence': 0.8})
+
+# Validate order structure
+assert_valid_order({
+    'symbol': 'AAPL',
+    'qty': 10,
+    'side': 'buy',
+    'type': 'market'
+})
+```
+
+**Calculation Helpers:**
+```python
+from tests.fixtures.test_helpers import (
+    calculate_expected_pnl,
+    calculate_expected_return,
+    calculate_sharpe_ratio,
+    calculate_max_drawdown
+)
+
+# Calculate expected P&L
+pnl = calculate_expected_pnl(
+    qty=10,
+    entry_price=100.0,
+    exit_price=105.0,
+    side='long'
+)  # Returns 50.0
+
+# Calculate Sharpe ratio
+sharpe = calculate_sharpe_ratio(returns_series)
+```
 
 ---
 
-### Problem: Broker initialization fails
-**Error:** `❌ FAILED: Error creating broker: ...`
+## Writing Tests
 
-**Solution:**
-1. Check internet connection
-2. Verify Alpaca service status: https://status.alpaca.markets/
-3. Ensure `PAPER=True` in `.env` file
-4. Try regenerating API keys
+### Unit Test Example
 
----
+```python
+import pytest
+from tests.fixtures.mock_broker import MockAlpacaBroker
+from tests.fixtures.mock_data import generate_momentum_scenario
+from strategies.momentum_strategy import MomentumStrategy
 
-## Verifying in Alpaca Dashboard
 
-After running tests that submit orders (with submit lines uncommented):
+@pytest.mark.unit
+@pytest.mark.strategy
+@pytest.mark.asyncio
+class TestMomentumStrategy:
+    """Unit tests for MomentumStrategy"""
 
-### Step 1: Log in to Alpaca
-Visit: https://app.alpaca.markets/paper/dashboard/overview
+    @pytest.fixture
+    async def broker(self):
+        """Create mock broker"""
+        return MockAlpacaBroker(paper=True, initial_capital=100000)
 
-### Step 2: Navigate to Orders
-Click on "Orders" in the left sidebar
+    @pytest.fixture
+    async def strategy(self, broker):
+        """Create strategy instance"""
+        strategy = MomentumStrategy(
+            broker=broker,
+            symbols=['TEST']
+        )
+        await strategy.initialize()
+        return strategy
 
-### Step 3: Verify Orders
-You should see:
-- **Open Orders:** Pending limit orders, bracket orders
-- **Filled Orders:** Executed market orders
-- **Canceled Orders:** Orders that were canceled
+    async def test_indicator_calculation(self, strategy):
+        """Test technical indicators are calculated correctly"""
+        symbol = 'TEST'
 
-### Step 4: Check Account
-- **Portfolio Value:** Should reflect any filled orders
-- **Positions:** Any open positions from filled buy orders
-- **Buying Power:** Reduced if orders were filled
+        # Generate test data
+        df = generate_momentum_scenario(days=100)
 
-### Step 5: Clean Up (Optional)
-To reset your paper account:
-1. Cancel all open orders
-2. Close all positions
-3. Or reset the entire paper account in settings
+        # Populate price history
+        for _, row in df.iterrows():
+            strategy.price_history[symbol].append({
+                'timestamp': row['timestamp'],
+                'open': row['open'],
+                'high': row['high'],
+                'low': row['low'],
+                'close': row['close'],
+                'volume': row['volume']
+            })
+
+        # Update indicators
+        await strategy._update_indicators(symbol)
+
+        # Verify indicators
+        assert strategy.indicators[symbol]['rsi'] is not None
+        assert 0 <= strategy.indicators[symbol]['rsi'] <= 100
+        assert strategy.indicators[symbol]['macd'] is not None
+        assert strategy.indicators[symbol]['adx'] is not None
+
+    async def test_buy_signal_generation(self, strategy):
+        """Test buy signal is generated correctly"""
+        symbol = 'TEST'
+
+        # Set up indicators for buy signal
+        strategy.indicators[symbol] = {
+            'rsi': 25,              # Oversold
+            'macd': 0.5,
+            'macd_signal': 0.3,     # Bullish MACD
+            'macd_hist': 0.2,
+            'adx': 30,              # Strong trend
+            'fast_ma': 105,
+            'medium_ma': 103,
+            'slow_ma': 100,         # Bullish MA alignment
+            'volume': 5_000_000,
+            'volume_ma': 2_000_000  # High volume
+        }
+
+        # Generate signal
+        signal = await strategy._generate_signal(symbol)
+
+        # Assert buy signal
+        assert signal == 'buy'
+```
+
+### Integration Test Example
+
+```python
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_complete_trading_workflow():
+    """Test complete buy -> hold -> sell workflow"""
+    # Create broker and strategy
+    broker = MockAlpacaBroker(paper=True, initial_capital=100000)
+    strategy = MomentumStrategy(broker=broker, symbols=['TEST'])
+    await strategy.initialize()
+
+    # Generate bullish data
+    df = generate_momentum_scenario(days=100)
+
+    # Simulate trading day
+    for _, row in df.iterrows():
+        await strategy.on_bar(
+            symbol='TEST',
+            open_price=row['open'],
+            high_price=row['high'],
+            low_price=row['low'],
+            close_price=row['close'],
+            volume=row['volume'],
+            timestamp=row['timestamp']
+        )
+
+    # Verify position was opened
+    positions = await broker.get_positions()
+    assert len(positions) > 0
+    assert positions[0].symbol == 'TEST'
+```
+
+### Performance Test Example
+
+```python
+@pytest.mark.performance
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_strategy_performance_criteria():
+    """Test strategy meets performance criteria"""
+    from engine.backtest_engine import BacktestEngine
+
+    # Create backtest engine
+    engine = BacktestEngine(
+        strategy_class=MomentumStrategy,
+        symbols=['AAPL', 'TSLA'],
+        start_date='2024-01-01',
+        end_date='2024-03-01',
+        initial_capital=100000
+    )
+
+    # Run backtest
+    results = await engine.run()
+
+    # Verify performance criteria
+    assert results['sharpe_ratio'] > 1.0, "Sharpe ratio should exceed 1.0"
+    assert results['total_return'] > 0.0, "Should have positive returns"
+    assert results['max_drawdown'] < 0.20, "Max drawdown should be < 20%"
+    assert results['win_rate'] > 0.50, "Win rate should exceed 50%"
+```
 
 ---
 
 ## Best Practices
 
-### 1. Always Test in Paper Mode First
-- Never use live credentials for testing
-- Always set `PAPER=True` in `.env`
-- Verify you're connected to paper environment
+### 1. Use Fixtures
 
-### 2. Start with Smoke Tests
-- Run `smoke_test.py` before more complex tests
-- Fix any import or configuration issues first
-- Progress to API tests only after smoke tests pass
+**Good:**
+```python
+@pytest.fixture
+async def strategy(self):
+    broker = MockAlpacaBroker(paper=True)
+    strategy = MomentumStrategy(broker=broker, symbols=['TEST'])
+    await strategy.initialize()
+    return strategy
 
-### 3. Use Small Quantities
-- Test with 1-2 shares
-- Verify order logic before scaling up
-- Paper trading accounts have limited buying power
+async def test_something(self, strategy):
+    # Use strategy fixture
+    result = await strategy.analyze_symbol('TEST')
+```
 
-### 4. Monitor Orders
-- Check Alpaca dashboard after submitting orders
-- Verify orders are created correctly
-- Cancel test orders when done
+**Bad:**
+```python
+async def test_something(self):
+    # Recreate everything in each test
+    broker = MockAlpacaBroker(paper=True)
+    strategy = MomentumStrategy(broker=broker, symbols=['TEST'])
+    await strategy.initialize()
+```
 
-### 5. Clean Up Test Orders
-- Don't leave stale open orders
-- Close test positions regularly
-- Reset paper account if needed
+### 2. Test One Thing Per Test
+
+**Good:**
+```python
+async def test_rsi_calculation(self, strategy):
+    """Test RSI is calculated correctly"""
+    # ... test only RSI
+
+async def test_macd_calculation(self, strategy):
+    """Test MACD is calculated correctly"""
+    # ... test only MACD
+```
+
+**Bad:**
+```python
+async def test_all_indicators(self, strategy):
+    """Test RSI, MACD, ADX, MAs, volume..."""
+    # Tests too many things - hard to debug
+```
+
+### 3. Use Descriptive Names
+
+**Good:**
+```python
+async def test_buy_signal_generated_when_rsi_oversold_and_macd_bullish(self):
+    """Test buy signal is generated when RSI oversold and MACD bullish"""
+```
+
+**Bad:**
+```python
+async def test_signal(self):
+    """Test signal"""
+```
+
+### 4. Test Edge Cases
+
+```python
+async def test_handles_none_indicators_gracefully(self, strategy):
+    """Test strategy handles None indicators without crashing"""
+    symbol = 'TEST'
+    signal = await strategy._generate_signal(symbol)
+    assert signal == 'neutral'  # Should return neutral, not crash
+
+async def test_handles_insufficient_data(self, strategy):
+    """Test strategy handles insufficient price history"""
+    symbol = 'TEST'
+    # Add only 2 bars (not enough for indicators)
+    strategy.price_history[symbol] = [
+        {'close': 100.0, 'volume': 1000000},
+        {'close': 101.0, 'volume': 1000000}
+    ]
+    await strategy._update_indicators(symbol)
+    # Should not crash, indicators should be None
+    assert strategy.indicators[symbol].get('rsi') is None
+```
+
+### 5. Use Mocks for External Dependencies
+
+```python
+# Mock Alpaca API calls
+@patch('brokers.alpaca_broker.AlpacaBroker.get_account')
+async def test_with_mocked_api(self, mock_get_account):
+    mock_get_account.return_value = MockAccount(
+        equity=100000,
+        cash=50000,
+        buying_power=200000
+    )
+    # ... test code
+```
 
 ---
 
-## Test Coverage
+## Coverage
 
-Current test coverage:
+### Generating Coverage Reports
 
-| Component | Coverage |
-|-----------|----------|
-| Order Building | ✅ Full |
-| Broker Imports | ✅ Full |
-| Strategy Imports | ✅ Full |
-| API Connection | ⚠️ Partial |
-| Order Submission | ⚠️ Manual |
-| WebSocket | ❌ Not covered |
-| Backtesting | ⚠️ Partial |
+```bash
+# Generate HTML coverage report
+pytest tests/ --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=html
 
----
+# View report
+open htmlcov/index.html
 
-## Next Steps
+# Generate XML for CI/CD
+pytest tests/ --cov=strategies --cov=brokers --cov-report=xml
 
-After successful testing:
+# Show missing lines in terminal
+pytest tests/ --cov=strategies --cov-report=term-missing
+```
 
-1. **Run Backtests**
-   ```bash
-   python simple_backtest.py
-   python smart_backtest.py
-   ```
+### Coverage Targets
 
-2. **Test Strategies**
-   ```bash
-   python tests/strategy_tester.py
-   ```
-
-3. **Live Paper Trading**
-   ```bash
-   python main.py
-   ```
-
-4. **Review Results**
-   - Check `results/` directory for backtest results
-   - Analyze performance metrics
-   - Adjust strategy parameters
+| Module | Target | Current | Status |
+|--------|--------|---------|--------|
+| strategies/ | 80% | - | 🟡 In Progress |
+| brokers/ | 75% | - | 🟡 Planned |
+| engine/ | 80% | - | 🟡 Planned |
+| utils/ | 70% | - | 🟡 Planned |
 
 ---
 
-## Additional Resources
+## Continuous Integration
 
-- **Alpaca API Docs:** https://docs.alpaca.markets/
-- **Alpaca Python SDK:** https://github.com/alpacahq/alpaca-py
-- **Project README:** See `README.md` for overall architecture
-- **Strategy Docs:** See `docs/` directory for strategy details
+### GitHub Actions Integration
+
+Tests run automatically on:
+- Push to `main` or `develop` branches
+- Pull requests to `main` or `develop`
+
+**Workflow:** `.github/workflows/ci.yml`
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run tests
+        run: pytest tests/ --cov=strategies --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+```
+
+### Local CI Simulation
+
+```bash
+# Run same commands as CI
+pytest tests/ -v --cov=strategies --cov=brokers --cov=engine --cov-report=xml
+
+# Check coverage threshold
+pytest tests/ --cov-fail-under=70
+```
 
 ---
 
-## Support
+## Troubleshooting
 
-If you encounter issues:
+### Common Issues
 
-1. Check this troubleshooting guide
-2. Review error messages carefully
-3. Verify all prerequisites are met
-4. Check Alpaca service status
-5. Consult Alpaca API documentation
+**1. Import Errors**
+```bash
+# Ensure Python path includes project root
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+
+# Or add to pytest.ini (already configured)
+pythonpath = .
+```
+
+**2. Async Test Failures**
+```python
+# Ensure test is marked as async
+@pytest.mark.asyncio
+async def test_something(self):
+    result = await some_async_function()
+```
+
+**3. Fixture Not Found**
+```python
+# Ensure fixture is defined before test
+@pytest.fixture
+async def my_fixture(self):
+    return something
+
+async def test_something(self, my_fixture):
+    # Use fixture
+```
+
+**4. Mock Broker Issues**
+```python
+# Ensure mock broker is awaited
+broker = MockAlpacaBroker(paper=True)
+account = await broker.get_account()  # Must use await
+```
+
+### Debug Mode
+
+```bash
+# Run with verbose output
+pytest tests/ -vv
+
+# Show print statements
+pytest tests/ -s
+
+# Stop on first failure
+pytest tests/ -x
+
+# Run specific test with full traceback
+pytest tests/unit/test_momentum_strategy.py::TestMomentumStrategy::test_initialization -vv --tb=long
+```
 
 ---
 
-**Last Updated:** 2025-11-07
-**Version:** 1.0.0
+## Future Enhancements
+
+**Planned:**
+1. Property-based testing with Hypothesis
+2. Mutation testing for code quality
+3. Performance benchmarking suite
+4. Visual regression testing for plots
+5. Automated test generation
+6. Contract testing for API interactions
+7. Chaos engineering tests for resilience
+
+---
+
+## Resources
+
+**Pytest Documentation:**
+- https://docs.pytest.org/
+- https://pytest-asyncio.readthedocs.io/
+
+**Coverage Documentation:**
+- https://coverage.readthedocs.io/
+
+**Testing Best Practices:**
+- [Testing Strategies for Algorithmic Trading](https://www.quantstart.com/articles/testing-trading-strategies)
+- [Python Testing Best Practices](https://realpython.com/python-testing/)
+
+---
+
+**Updated:** 2025-11-10
+**Status:** Testing infrastructure complete and documented
+**Next:** Run full test suite and achieve coverage targets
+

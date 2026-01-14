@@ -1,20 +1,34 @@
 from abc import ABC, abstractmethod
 import logging
 import asyncio
-from lumibot.strategies import Strategy
+from typing import Optional, Dict, List
+# NOTE: Removed lumibot.strategies.Strategy import - it crashes at import time
+# We don't actually need it - we'll create our own simple base class
 import numpy as np
+from datetime import datetime
 from utils.circuit_breaker import CircuitBreaker
+from utils.kelly_criterion import KellyCriterion, Trade
+from utils.volatility_regime import VolatilityRegimeDetector
+from utils.streak_sizing import StreakSizer
+from utils.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 
 logger = logging.getLogger(__name__)
 
-class BaseStrategy(Strategy):
+class BaseStrategy(ABC):
+    """
+    Base class for all trading strategies.
+
+    This is a simplified version that doesn't depend on lumibot's Strategy class,
+    which has import-time initialization issues that crash the bot.
+    """
     def __init__(self, name=None, broker=None, parameters=None):
         """Initialize the strategy."""
-        name = name or self.__class__.__name__
+        # Basic attributes
+        self.name = name or self.__class__.__name__
+        self.broker = broker
         parameters = parameters or {}
 
-        # Initialize parent class with broker
-        super().__init__(name=name, broker=broker)
+        # No parent class to initialize anymore - we're independent!
 
         # Initialize our parameters
         self.parameters = parameters
@@ -30,6 +44,57 @@ class BaseStrategy(Strategy):
             max_daily_loss=max_daily_loss,
             auto_close_positions=True
         )
+
+        # KELLY CRITERION: Initialize for optimal position sizing
+        use_kelly = parameters.get('use_kelly_criterion', False)
+        if use_kelly:
+            kelly_fraction = parameters.get('kelly_fraction', 0.5)  # Half Kelly by default
+            self.kelly = KellyCriterion(
+                kelly_fraction=kelly_fraction,
+                min_trades_required=parameters.get('kelly_min_trades', 30),
+                max_position_size=parameters.get('max_position_size', 0.20),
+                min_position_size=parameters.get('min_position_size', 0.01),
+                lookback_trades=parameters.get('kelly_lookback', 50)
+            )
+            self.logger.info(f"✅ Kelly Criterion enabled: {kelly_fraction} Kelly fraction")
+        else:
+            self.kelly = None
+
+        # Track closed positions for Kelly Criterion
+        self.closed_positions = {}  # {symbol: {'entry_price': float, 'entry_time': datetime}}
+
+        # VOLATILITY REGIME: Initialize for adaptive risk management
+        use_volatility_regime = parameters.get('use_volatility_regime', False)
+        if use_volatility_regime:
+            self.volatility_regime = None  # Initialized in async initialize()
+            self.logger.info("✅ Volatility Regime Detection enabled")
+        else:
+            self.volatility_regime = None
+
+        # STREAK SIZING: Initialize for dynamic position sizing based on recent performance
+        use_streak_sizing = parameters.get('use_streak_sizing', False)
+        if use_streak_sizing:
+            self.streak_sizer = StreakSizer(
+                lookback_trades=parameters.get('streak_lookback', 10),
+                hot_streak_threshold=parameters.get('hot_streak_threshold', 7),
+                cold_streak_threshold=parameters.get('cold_streak_threshold', 3),
+                hot_multiplier=parameters.get('hot_multiplier', 1.2),
+                cold_multiplier=parameters.get('cold_multiplier', 0.7),
+                reset_after_trades=parameters.get('streak_reset_after', 5)
+            )
+            self.logger.info(f"✅ Streak-based position sizing enabled: lookback={parameters.get('streak_lookback', 10)} trades")
+        else:
+            self.streak_sizer = None
+
+        # MULTI-TIMEFRAME ANALYSIS: Initialize for trend confirmation across timeframes
+        use_multi_timeframe = parameters.get('use_multi_timeframe', False)
+        if use_multi_timeframe:
+            self.multi_timeframe = None  # Initialized in async initialize()
+            self.mtf_min_confidence = parameters.get('mtf_min_confidence', 0.70)
+            self.mtf_require_daily = parameters.get('mtf_require_daily_alignment', True)
+            self.logger.info(f"✅ Multi-timeframe analysis enabled: min_confidence={self.mtf_min_confidence:.0%}")
+        else:
+            self.multi_timeframe = None
 
     async def initialize(self, **kwargs):
         """Initialize strategy parameters."""
@@ -48,6 +113,25 @@ class BaseStrategy(Strategy):
             if self.broker:
                 await self.circuit_breaker.initialize(self.broker)
                 self.logger.info(f"✅ Circuit breaker armed: max daily loss = {self.circuit_breaker.max_daily_loss:.1%}")
+
+            # VOLATILITY REGIME: Initialize detector with broker
+            if self.parameters.get('use_volatility_regime', False) and self.broker:
+                self.volatility_regime = VolatilityRegimeDetector(self.broker)
+                regime, adjustments = await self.volatility_regime.get_current_regime()
+                self.logger.info(
+                    f"✅ Volatility regime detector initialized: "
+                    f"{regime.upper()} (Position: {adjustments['pos_mult']:.1f}x, "
+                    f"Stop: {adjustments['stop_mult']:.1f}x)"
+                )
+
+            # MULTI-TIMEFRAME ANALYSIS: Initialize analyzer with broker
+            if self.parameters.get('use_multi_timeframe', False) and self.broker:
+                self.multi_timeframe = MultiTimeframeAnalyzer(self.broker)
+                self.logger.info(
+                    f"✅ Multi-timeframe analyzer initialized: "
+                    f"min_confidence={self.mtf_min_confidence:.0%}, "
+                    f"require_daily_alignment={self.mtf_require_daily}"
+                )
 
             return True
 
@@ -180,6 +264,274 @@ class BaseStrategy(Strategy):
             # FAIL SAFE: Return 0 to prevent trading on error
             return 0, 0
 
+    async def calculate_kelly_position_size(self, symbol, current_price):
+        """
+        Calculate optimal position size using Kelly Criterion.
+
+        If Kelly is enabled and we have sufficient trade history, uses Kelly formula
+        for optimal position sizing. Otherwise falls back to fixed position_size parameter.
+
+        Args:
+            symbol: Stock symbol
+            current_price: Current stock price
+
+        Returns:
+            Tuple of (position_value, position_fraction, quantity)
+        """
+        try:
+            # Get current account value
+            account = await self.broker.get_account()
+            account_value = float(account.equity)
+
+            # If Kelly not enabled, use fixed position sizing
+            if not self.kelly:
+                position_fraction = self.position_size
+                position_value = account_value * position_fraction
+                quantity = position_value / current_price
+                self.logger.debug(
+                    f"Fixed position sizing: {position_fraction:.1%} = ${position_value:,.2f}"
+                )
+                return position_value, position_fraction, quantity
+
+            # Use Kelly Criterion for optimal sizing
+            position_value, position_fraction = self.kelly.calculate_position_size(
+                current_capital=account_value,
+                current_price=current_price
+            )
+
+            quantity = position_value / current_price
+
+            self.logger.info(
+                f"📊 Kelly position size for {symbol}: "
+                f"{position_fraction:.1%} = ${position_value:,.2f} ({quantity:.2f} shares) "
+                f"[Win rate: {self.kelly.win_rate:.1%}, Profit factor: {self.kelly.profit_factor:.2f}]"
+            )
+
+            return position_value, position_fraction, quantity
+
+        except Exception as e:
+            self.logger.error(f"Error calculating Kelly position size: {e}")
+            # Fallback to minimum position size on error
+            fallback_fraction = 0.01
+            fallback_value = account_value * fallback_fraction
+            fallback_quantity = fallback_value / current_price
+            return fallback_value, fallback_fraction, fallback_quantity
+
+    def track_position_entry(self, symbol, entry_price, entry_time=None):
+        """
+        Track position entry for Kelly Criterion trade recording.
+
+        Call this when opening a position. Will be used to calculate P/L when position closes.
+
+        Args:
+            symbol: Stock symbol
+            entry_price: Entry price
+            entry_time: Entry timestamp (defaults to now)
+        """
+        if entry_time is None:
+            entry_time = datetime.now()
+
+        self.closed_positions[symbol] = {
+            'entry_price': entry_price,
+            'entry_time': entry_time
+        }
+
+        self.logger.debug(f"Tracking entry for {symbol} at ${entry_price:.2f}")
+
+    def record_completed_trade(self, symbol, exit_price, exit_time, quantity, side='long'):
+        """
+        Record a completed trade for Kelly Criterion analysis.
+
+        Call this when closing a position. Calculates P/L and adds to Kelly trade history.
+
+        Args:
+            symbol: Stock symbol
+            exit_price: Exit price
+            exit_time: Exit timestamp
+            quantity: Number of shares traded
+            side: 'long' or 'short'
+        """
+        if not self.kelly:
+            return  # Kelly not enabled
+
+        # Check if we tracked the entry
+        if symbol not in self.closed_positions:
+            self.logger.warning(f"No entry tracked for {symbol}, cannot record trade for Kelly")
+            return
+
+        entry_info = self.closed_positions[symbol]
+        entry_price = entry_info['entry_price']
+        entry_time = entry_info['entry_time']
+
+        # Calculate P/L
+        if side == 'long':
+            pnl = (exit_price - entry_price) * quantity
+            pnl_pct = (exit_price - entry_price) / entry_price
+        else:  # short
+            pnl = (entry_price - exit_price) * quantity
+            pnl_pct = (entry_price - exit_price) / entry_price
+
+        is_winner = pnl > 0
+
+        # Create Trade object
+        trade = Trade(
+            symbol=symbol,
+            entry_time=entry_time,
+            exit_time=exit_time,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            quantity=quantity,
+            pnl=pnl,
+            pnl_pct=pnl_pct,
+            is_winner=is_winner
+        )
+
+        # Add to Kelly history
+        self.kelly.add_trade(trade)
+
+        # Add to streak sizer history
+        if self.streak_sizer:
+            self.streak_sizer.record_trade(is_winner=is_winner, pnl_pct=pnl_pct, symbol=symbol)
+
+        self.logger.info(
+            f"📈 Trade recorded: {symbol} {side.upper()} "
+            f"{'WIN' if is_winner else 'LOSS'} {pnl_pct:+.2%} "
+            f"(Total trades: {len(self.kelly.trades)})"
+        )
+
+        # Remove from tracking
+        del self.closed_positions[symbol]
+
+    async def apply_volatility_adjustments(self, base_position_size: float, base_stop_loss: float):
+        """
+        Apply volatility regime adjustments to position sizing and stop-loss.
+
+        If volatility regime detection is enabled, adjusts parameters based on current market conditions.
+        Otherwise, returns base values unchanged.
+
+        Args:
+            base_position_size: Base position size (e.g., 0.10 for 10%)
+            base_stop_loss: Base stop-loss (e.g., 0.03 for 3%)
+
+        Returns:
+            Tuple of (adjusted_position_size, adjusted_stop_loss, regime_name)
+        """
+        if not self.volatility_regime:
+            return base_position_size, base_stop_loss, 'normal'
+
+        try:
+            # Get current regime
+            regime, adjustments = await self.volatility_regime.get_current_regime()
+
+            # Apply adjustments
+            adjusted_position_size = self.volatility_regime.adjust_position_size(
+                base_position_size,
+                adjustments['pos_mult']
+            )
+
+            adjusted_stop_loss = self.volatility_regime.adjust_stop_loss(
+                base_stop_loss,
+                adjustments['stop_mult']
+            )
+
+            self.logger.debug(
+                f"Volatility adjustments ({regime.upper()}): "
+                f"Position: {base_position_size:.1%} → {adjusted_position_size:.1%}, "
+                f"Stop: {base_stop_loss:.1%} → {adjusted_stop_loss:.1%}"
+            )
+
+            return adjusted_position_size, adjusted_stop_loss, regime
+
+        except Exception as e:
+            self.logger.error(f"Error applying volatility adjustments: {e}", exc_info=True)
+            return base_position_size, base_stop_loss, 'normal'
+
+    def apply_streak_adjustments(self, base_position_size: float) -> float:
+        """
+        Apply streak-based adjustments to position sizing.
+
+        If streak sizing is enabled, adjusts position size based on recent win/loss performance.
+        Otherwise, returns base value unchanged.
+
+        Args:
+            base_position_size: Base position size (e.g., 0.10 for 10%)
+
+        Returns:
+            Adjusted position size
+        """
+        if not self.streak_sizer:
+            return base_position_size
+
+        try:
+            # Get adjusted size based on streak
+            adjusted_position_size = self.streak_sizer.adjust_for_streak(base_position_size)
+
+            if adjusted_position_size != base_position_size:
+                self.logger.debug(
+                    f"Streak adjustments ({self.streak_sizer.current_streak.upper()}): "
+                    f"Position: {base_position_size:.1%} → {adjusted_position_size:.1%}"
+                )
+
+            return adjusted_position_size
+
+        except Exception as e:
+            self.logger.error(f"Error applying streak adjustments: {e}", exc_info=True)
+            return base_position_size
+
+    async def check_multi_timeframe_signal(self, symbol: str) -> Optional[str]:
+        """
+        Check multi-timeframe analysis before entering a trade.
+
+        Professional standard: ALL timeframes should align before entering trades.
+        This dramatically reduces false signals and improves win rate.
+
+        Args:
+            symbol: Stock symbol to analyze
+
+        Returns:
+            'buy', 'sell', or None (skip trade)
+
+        Usage in strategies:
+            # In analyze_symbol() or execute_trade():
+            if self.multi_timeframe:
+                mtf_signal = await self.check_multi_timeframe_signal(symbol)
+                if not mtf_signal:
+                    return 'neutral'  # Skip trade
+                # mtf_signal is 'buy' or 'sell', proceed with trade
+        """
+        if not self.multi_timeframe:
+            # Multi-timeframe not enabled, allow trade
+            return None  # Means "no opinion", let strategy decide
+
+        try:
+            analysis = await self.multi_timeframe.analyze(
+                symbol,
+                min_confidence=self.mtf_min_confidence,
+                require_daily_alignment=self.mtf_require_daily
+            )
+
+            if not analysis:
+                self.logger.warning(f"Multi-timeframe analysis failed for {symbol}")
+                return None  # Skip trade on analysis failure
+
+            if analysis['should_enter']:
+                self.logger.info(
+                    f"✅ Multi-timeframe CONFIRMS {analysis['signal'].upper()} signal for {symbol} "
+                    f"(Confidence: {analysis['confidence']:.0%})"
+                )
+                return analysis['signal']  # 'buy' or 'sell'
+            else:
+                self.logger.info(
+                    f"⏭️  Multi-timeframe REJECTS trade for {symbol} "
+                    f"(Confidence: {analysis['confidence']:.0%}, "
+                    f"Signal: {analysis['signal']})"
+                )
+                return None  # Skip trade
+
+        except Exception as e:
+            self.logger.error(f"Error in multi-timeframe check for {symbol}: {e}", exc_info=True)
+            return None  # Skip trade on error
+
     async def is_short_position(self, symbol):
         """
         Check if we currently have a short position in a symbol.
@@ -277,15 +629,19 @@ class BaseStrategy(Strategy):
         """Run backtesting."""
         try:
             self.running = True
-            await super().backtest(*args, **kwargs)
+            # NOTE: Removed super().backtest() call - we no longer inherit from lumibot.Strategy
+            # Backtesting is now handled by engine/backtest_engine.py instead
+            raise NotImplementedError("Backtesting should be done via BacktestEngine, not directly on strategies")
         except Exception as e:
             logger.error(f"Error in backtesting {self.name}: {e}")
             raise
         finally:
             await self.cleanup()
 
-    def initialize(self, symbols=None, cash_at_risk=0.5, max_positions=3, 
-                  stop_loss_pct=0.05, take_profit_pct=0.20, max_drawdown=0.15):
+    def _legacy_initialize(self, symbols=None, cash_at_risk=0.5, max_positions=3,
+                           stop_loss_pct=0.05, take_profit_pct=0.20, max_drawdown=0.15):
+        """Legacy synchronous initialize for backward compatibility with old scripts.
+        DEPRECATED: Use async initialize() instead."""
         self.symbols = symbols or []
         self.cash_at_risk = cash_at_risk
         self.max_positions = max_positions

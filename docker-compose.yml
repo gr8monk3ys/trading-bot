@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  # Trading bot - Paper trading
+  trading-bot-paper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading-bot-paper
+    restart: unless-stopped
+    environment:
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - PAPER=True
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    volumes:
+      # Persist logs
+      - ./logs:/app/logs
+      # Persist data
+      - ./data:/app/data
+      # Mount config (read-only for safety)
+      - ./config.py:/app/config.py:ro
+    command: ["python", "main.py", "live", "--strategy", "MomentumStrategy", "--force"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; exit(0 if os.path.exists('bot.pid') else 1)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - trading-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Trading bot - Live trading (DISABLED by default)
+  # Uncomment only after successful paper trading validation
+  # trading-bot-live:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: trading-bot-live
+  #   restart: unless-stopped
+  #   environment:
+  #     - ALPACA_API_KEY=${ALPACA_API_KEY_LIVE}
+  #     - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY_LIVE}
+  #     - PAPER=False
+  #     - LOG_LEVEL=INFO
+  #   env_file:
+  #     - .env.live
+  #   volumes:
+  #     - ./logs:/app/logs
+  #     - ./data:/app/data
+  #     - ./config.py:/app/config.py:ro
+  #   command: ["python", "main.py", "live", "--strategy", "MomentumStrategy"]
+  #   networks:
+  #     - trading-net
+  #   depends_on:
+  #     - trading-bot-paper
+
+  # Backtest runner (on-demand)
+  backtest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading-bot-backtest
+    environment:
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - PAPER=True
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./results:/app/results
+      - ./config.py:/app/config.py:ro
+    command: ["python", "simple_backtest.py"]
+    networks:
+      - trading-net
+    profiles:
+      - tools
+
+  # Optional: Monitoring dashboard (future enhancement)
+  # dashboard:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: trading-bot-dashboard
+  #   restart: unless-stopped
+  #   environment:
+  #     - ALPACA_API_KEY=${ALPACA_API_KEY}
+  #     - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+  #     - PAPER=True
+  #   env_file:
+  #     - .env
+  #   command: ["python", "dashboard.py"]
+  #   ports:
+  #     - "8050:8050"
+  #   networks:
+  #     - trading-net
+  #   depends_on:
+  #     - trading-bot-paper
+
+  # Optional: Prometheus metrics (future enhancement)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: prometheus
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus-data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #   ports:
+  #     - "9090:9090"
+  #   networks:
+  #     - trading-net
+  #   profiles:
+  #     - monitoring
+
+  # Optional: Grafana dashboards (future enhancement)
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: grafana
+  #   restart: unless-stopped
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+  #   volumes:
+  #     - grafana-data:/var/lib/grafana
+  #     - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - trading-net
+  #   depends_on:
+  #     - prometheus
+  #   profiles:
+  #     - monitoring
+
+networks:
+  trading-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

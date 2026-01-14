@@ -285,16 +285,21 @@ class StrategyManager:
         # Create strategy instance
         try:
             strategy_class = self.available_strategies[strategy_name]
-            strategy = strategy_class(broker=self.broker, symbols=symbols)
-            
+
             # Merge default parameters with provided parameters
-            merged_params = strategy.default_parameters()
+            merged_params = {}
+            if hasattr(strategy_class, 'default_parameters'):
+                merged_params = strategy_class.default_parameters(strategy_class)
             if parameters:
                 merged_params.update(parameters)
-                
-            # Add allocation to parameters
+
+            # Add symbols and allocation to parameters
+            merged_params['symbols'] = symbols
             merged_params['allocation'] = allocation
-            
+
+            # Create strategy with broker and parameters
+            strategy = strategy_class(broker=self.broker, parameters=merged_params)
+
             # Initialize the strategy
             logger.info(f"Initializing strategy {strategy_name} with allocation {allocation:.2%}")
             success = await strategy.initialize(**merged_params)

@@ -1,0 +1,51 @@
+[run]
+source = .
+omit =
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */site-packages/*
+    */venv/*
+    */env/*
+    */ENV/*
+    */.venv/*
+    setup.py
+    */examples/*
+    */docs/*
+
+[report]
+precision = 2
+skip_covered = False
+show_missing = True
+sort = Cover
+
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+
+    # Don't complain about missing debug-only code:
+    def __repr__
+    def __str__
+
+    # Don't complain if tests don't hit defensive assertion code:
+    raise AssertionError
+    raise NotImplementedError
+
+    # Don't complain if non-runnable code isn't run:
+    if 0:
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+
+    # Don't complain about abstract methods
+    @abstractmethod
+    @abc.abstractmethod
+
+    # Don't complain about pass statements
+    pass
+
+[html]
+directory = htmlcov
+title = Trading Bot Test Coverage
+
+[xml]
+output = coverage.xml

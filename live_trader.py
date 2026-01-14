@@ -29,6 +29,7 @@ from brokers.alpaca_broker import AlpacaBroker
 from strategies.momentum_strategy import MomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 from strategies.bracket_momentum_strategy import BracketMomentumStrategy
+from utils.circuit_breaker import CircuitBreaker
 from config import SYMBOLS
 
 # Set up logging
@@ -71,6 +72,7 @@ class LiveTrader:
 
         self.broker = None
         self.strategy = None
+        self.circuit_breaker = None
         self.running = False
 
         # Performance tracking
@@ -99,6 +101,17 @@ class LiveTrader:
             logger.info(f"✅ Connected to account: {account.id}")
             logger.info(f"   Starting Capital: ${self.start_equity:,.2f}")
             logger.info(f"   Buying Power: ${float(account.buying_power):,.2f}\n")
+
+            # Initialize circuit breaker (CRITICAL SAFETY FEATURE)
+            logger.info("1.5. Initializing circuit breaker...")
+            self.circuit_breaker = CircuitBreaker(
+                max_daily_loss=0.03,  # 3% max daily loss
+                auto_close_positions=True  # Automatically close positions on trigger
+            )
+            await self.circuit_breaker.initialize(self.broker)
+            logger.info(f"✅ Circuit breaker armed")
+            logger.info(f"   Max Daily Loss: 3%")
+            logger.info(f"   Auto-close enabled: YES\n")
 
             # Initialize strategy
             logger.info(f"2. Initializing {self.strategy_name} strategy...")
@@ -188,6 +201,20 @@ class LiveTrader:
         try:
             while self.running:
                 await asyncio.sleep(60)  # Check every minute
+
+                # CRITICAL: Check circuit breaker FIRST
+                if await self.circuit_breaker.check_and_halt():
+                    logger.critical("=" * 80)
+                    logger.critical("🚨 CIRCUIT BREAKER TRIGGERED 🚨")
+                    logger.critical("Daily loss limit exceeded!")
+                    logger.critical("All positions will be closed automatically.")
+                    logger.critical("Trading will HALT for the rest of the day.")
+                    logger.critical("=" * 80)
+
+                    # Trigger shutdown
+                    self.running = False
+                    self.shutdown_event.set()
+                    break
 
                 # Get current account state
                 account = await self.broker.get_account()

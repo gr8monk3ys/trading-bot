@@ -12,7 +12,13 @@ from matplotlib.figure import Figure
 from datetime import datetime, timedelta
 
 # Set styling for plots
-plt.style.use('seaborn-v0_8-darkgrid')
+# NOTE: seaborn-v0_8-darkgrid was removed in matplotlib 3.6+
+# Using a modern equivalent that works across versions
+try:
+    plt.style.use('seaborn-v0_8-darkgrid')
+except OSError:
+    # Fallback for newer matplotlib versions
+    plt.style.use('seaborn-darkgrid' if 'seaborn-darkgrid' in plt.style.available else 'default')
 sns.set_palette("deep")
 
 def plot_equity_curve(equity_curve: pd.DataFrame, benchmark_data: Optional[pd.DataFrame] = None) -> Figure:

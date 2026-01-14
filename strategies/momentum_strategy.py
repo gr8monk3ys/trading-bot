@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
 from brokers.order_builder import OrderBuilder
+from utils.multi_timeframe import MultiTimeframeAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +23,27 @@ class MomentumStrategy(BaseStrategy):
     NAME = "MomentumStrategy"
     
     def default_parameters(self):
-        """Return default parameters for the strategy."""
+        """
+        Return default parameters for the strategy.
+
+        SIMPLIFIED FOR INITIAL TESTING (per TODO.md Week 2 goals):
+        - DISABLED: Kelly Criterion, Multi-timeframe, Volatility regime, Streak sizing
+        - DISABLED: Short selling (too risky for initial validation)
+        - KEEP ONLY: Basic momentum indicators (RSI, MACD, MAs)
+        - KEEP ONLY: Fixed position sizing (10%)
+        - KEEP ONLY: Simple stop-loss (3%) and take-profit (5%)
+
+        Goal: Prove ONE simple strategy works before adding complexity.
+        """
         return {
-            # Basic parameters
-            'position_size': 0.1,  # 10% of available capital per position
-            'max_positions': 5,    # Maximum number of concurrent positions
+            # === BASIC PARAMETERS (ENABLED) ===
+            'position_size': 0.10,  # 10% of available capital per position (FIXED)
+            'max_positions': 3,     # Maximum 3 concurrent positions (conservative)
             'max_portfolio_risk': 0.02,  # Maximum portfolio risk (2%)
-            'stop_loss': 0.03,     # 3% stop loss
-            'take_profit': 0.06,   # 6% take profit
-            
-            # Momentum parameters
+            'stop_loss': 0.03,      # 3% stop loss
+            'take_profit': 0.05,    # 5% take profit (reduced from 6% for faster exits)
+
+            # === MOMENTUM INDICATORS (ENABLED - CORE STRATEGY) ===
             'rsi_period': 14,
             'rsi_overbought': 70,
             'rsi_oversold': 30,
@@ -40,23 +52,37 @@ class MomentumStrategy(BaseStrategy):
             'macd_signal_period': 9,
             'adx_period': 14,
             'adx_threshold': 25,   # ADX above this indicates strong trend
-            
-            # Volume parameters
-            'volume_ma_period': 20,  # Volume moving average period
-            'volume_factor': 1.5,    # Volume must be this times the average to consider
-            
-            # Price MA parameters
+
+            # === VOLUME PARAMETERS (ENABLED) ===
+            'volume_ma_period': 20,
+            'volume_factor': 1.5,
+
+            # === PRICE MA PARAMETERS (ENABLED) ===
             'fast_ma_period': 10,
-            'medium_ma_period': 30,
+            'medium_ma_period': 20,  # Changed from 30 to standard 20
             'slow_ma_period': 50,
-            
-            # Volatility parameters
+
+            # === VOLATILITY PARAMETERS (ENABLED) ===
             'atr_period': 14,
-            'atr_multiplier': 2.0,  # For trailing stops
-            
-            # Risk management
-            'max_correlation': 0.7,  # Maximum correlation between positions
-            'max_sector_exposure': 0.3,  # Maximum exposure to any one sector
+            'atr_multiplier': 2.0,
+
+            # === RISK MANAGEMENT (BASIC) ===
+            'max_correlation': 0.7,
+            'max_sector_exposure': 0.3,
+
+            # === ADVANCED FEATURES (ALL DISABLED FOR INITIAL TESTING) ===
+            'use_multi_timeframe': False,      # DISABLED - test basic strategy first
+            'mtf_timeframes': ['5Min', '15Min', '1Hour'],
+            'mtf_require_alignment': False,
+
+            'enable_short_selling': False,     # DISABLED - long-only for initial validation
+            'short_position_size': 0.08,
+            'short_stop_loss': 0.04,
+
+            # BaseStrategy advanced features (set to False to override global config)
+            'use_kelly_criterion': False,      # DISABLED - use fixed 10% sizing
+            'use_volatility_regime': False,    # DISABLED - no dynamic adjustments
+            'use_streak_sizing': False,        # DISABLED - no performance-based sizing
         }
     
     async def initialize(self, **kwargs):
@@ -98,6 +124,27 @@ class MomentumStrategy(BaseStrategy):
             self.signals = {symbol: 'neutral' for symbol in self.symbols}
             self.last_signal_time = {symbol: None for symbol in self.symbols}
             self.stop_prices = {}
+
+            # Short selling parameters (NEW FEATURE)
+            self.enable_short_selling = self.parameters.get('enable_short_selling', True)
+            self.short_position_size = self.parameters.get('short_position_size', 0.08)
+            self.short_stop_loss = self.parameters.get('short_stop_loss', 0.04)
+
+            if self.enable_short_selling:
+                logger.info("✅ Short selling enabled - can profit from bear markets!")
+
+            # Multi-timeframe analysis (NEW FEATURE)
+            self.use_multi_timeframe = self.parameters.get('use_multi_timeframe', True)
+            self.mtf_require_alignment = self.parameters.get('mtf_require_alignment', False)
+            self.mtf_analyzer = None
+
+            if self.use_multi_timeframe:
+                mtf_timeframes = self.parameters.get('mtf_timeframes', ['5Min', '15Min', '1Hour'])
+                self.mtf_analyzer = MultiTimeframeAnalyzer(
+                    timeframes=mtf_timeframes,
+                    history_length=200
+                )
+                logger.info(f"✅ Multi-timeframe filtering enabled: {', '.join(mtf_timeframes)}")
             self.target_prices = {}
             self.current_prices = {}
             self.price_history = {symbol: [] for symbol in self.symbols}
@@ -128,7 +175,11 @@ class MomentumStrategy(BaseStrategy):
                 
             # Store latest price
             self.current_prices[symbol] = close_price
-            
+
+            # Update multi-timeframe analyzer (if enabled)
+            if self.use_multi_timeframe and self.mtf_analyzer:
+                await self.mtf_analyzer.update(symbol, timestamp, close_price, volume)
+
             # Update price history
             self.price_history[symbol].append({
                 'timestamp': timestamp,
@@ -156,8 +207,9 @@ class MomentumStrategy(BaseStrategy):
             # Check for signals
             signal = await self._generate_signal(symbol)
             self.signals[symbol] = signal
-            
+
             # Execute trades if needed
+            # Note: 'buy', 'short', and 'sell' are all valid signals
             if signal != 'neutral':
                 await self._execute_signal(symbol, signal)
                 
@@ -276,13 +328,52 @@ class MomentumStrategy(BaseStrategy):
                 
             # Volume confirmation
             volume_confirmation = volume > (volume_ma * self.volume_factor)
-            
+
+            # MULTI-TIMEFRAME FILTERING (NEW FEATURE)
+            # Only take trades that align with higher timeframe trends
+            if self.use_multi_timeframe and self.mtf_analyzer:
+                if self.mtf_require_alignment:
+                    # STRICT: All timeframes must align
+                    mtf_signal = self.mtf_analyzer.get_aligned_signal(symbol)
+                    if mtf_signal == 'neutral':
+                        logger.debug(f"MTF: {symbol} - timeframes not aligned, signal filtered out")
+                        return 'neutral'
+                    elif mtf_signal == 'bearish' and momentum_score > 0:
+                        logger.debug(f"MTF: {symbol} - bullish signal rejected (higher TFs bearish)")
+                        return 'neutral'
+                    elif mtf_signal == 'bullish' and momentum_score < 0:
+                        logger.debug(f"MTF: {symbol} - bearish signal rejected (higher TFs bullish)")
+                        return 'neutral'
+                else:
+                    # SOFT: Just check if higher timeframe trend agrees
+                    # Get highest timeframe trend (e.g., 1Hour)
+                    mtf_timeframes = self.parameters.get('mtf_timeframes', ['5Min', '15Min', '1Hour'])
+                    highest_tf = mtf_timeframes[-1]  # Last one is highest
+                    higher_tf_trend = self.mtf_analyzer.get_trend(symbol, highest_tf)
+
+                    # Filter signals that go against higher timeframe trend
+                    if higher_tf_trend == 'bearish' and momentum_score > 0:
+                        logger.info(f"MTF FILTER: {symbol} - BUY signal rejected (1Hour trend: {higher_tf_trend})")
+                        return 'neutral'
+                    elif higher_tf_trend == 'bullish' and momentum_score < 0:
+                        logger.info(f"MTF FILTER: {symbol} - SELL signal rejected (1Hour trend: {higher_tf_trend})")
+                        return 'neutral'
+
+                    # Log when signal passes multi-timeframe filter
+                    if momentum_score >= 2 or momentum_score <= -2:
+                        signal_dir = 'BUY' if momentum_score > 0 else 'SELL'
+                        logger.info(f"✅ MTF PASS: {symbol} - {signal_dir} signal aligns with {highest_tf} trend ({higher_tf_trend})")
+
             # Determine final signal
             if momentum_score >= 2 and trend_strength and volume_confirmation:
                 return 'buy'
             elif momentum_score <= -2 and trend_strength and volume_confirmation:
-                return 'sell'
-                
+                # SHORT SELLING FEATURE: Return 'short' instead of 'sell' for new positions
+                if self.enable_short_selling:
+                    return 'short'  # Open short position (profit from price drop)
+                else:
+                    return 'neutral'  # Skip if short selling disabled
+
             return 'neutral'
             
         except Exception as e:
@@ -381,9 +472,87 @@ class MomentumStrategy(BaseStrategy):
 
                     # Update last signal time
                     self.last_signal_time[symbol] = current_time
-                    
-            # Execute sell signal
-            elif signal == 'sell' and current_position:
+
+            # Execute SHORT signal (NEW FEATURE - SHORT SELLING)
+            elif signal == 'short' and not current_position and self.enable_short_selling:
+                # Check if we're already at max positions
+                if len(positions) >= self.max_positions:
+                    logger.info(f"Max positions reached ({self.max_positions}), skipping short for {symbol}")
+                    return
+
+                # Calculate position size (use smaller size for shorts - more conservative)
+                price = self.current_prices[symbol]
+                position_value = buying_power * self.short_position_size
+
+                # Risk-adjust position size
+                current_positions = {}
+                for pos in positions:
+                    pos_symbol = pos.symbol
+                    if pos_symbol in self.price_history:
+                        price_history = self.price_history[pos_symbol]
+                        close_prices = [bar['close'] for bar in price_history]
+                        current_positions[pos_symbol] = {
+                            'value': abs(float(pos.market_value)),
+                            'price_history': close_prices,
+                            'risk': None
+                        }
+
+                # Use risk manager to adjust position size
+                if len(self.price_history[symbol]) > 20:
+                    close_prices = [bar['close'] for bar in self.price_history[symbol]]
+                    adjusted_value = self.risk_manager.adjust_position_size(
+                        symbol,
+                        position_value,
+                        close_prices,
+                        current_positions
+                    )
+                    position_value = adjusted_value
+
+                if position_value <= 0:
+                    logger.info(f"Risk manager rejected SHORT position for {symbol}")
+                    return
+
+                # CRITICAL SAFETY: Enforce maximum position size limit
+                position_value, quantity = await self.enforce_position_size_limit(symbol, position_value, price)
+
+                # Allow fractional shares
+                if quantity < 0.01:
+                    logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
+                    return
+
+                # Calculate take-profit and stop-loss levels (INVERTED for shorts)
+                # For shorts: profit when price DROPS, loss when price RISES
+                take_profit_price = price * (1 - self.take_profit)  # Price drops 6%
+                stop_loss_price = price * (1 + self.short_stop_loss)  # Price rises 4% (STOP)
+
+                # Create bracket SHORT order using OrderBuilder
+                logger.info(f"🔻 Creating SHORT bracket order for {symbol}:")
+                logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
+                logger.info(f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)")
+                logger.info(f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)")
+
+                # Short = SELL without owning (Alpaca handles the borrowing)
+                order = (OrderBuilder(symbol, 'sell', quantity)  # SELL to open short
+                         .market()
+                         .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+                         .gtc()
+                         .build())
+
+                result = await self.broker.submit_order_advanced(order)
+
+                if result:
+                    logger.info(f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}")
+                    logger.info(f"   (Will profit if price drops below ${take_profit_price:.2f})")
+
+                    # Store stop loss and take profit levels for tracking
+                    self.stop_prices[symbol] = stop_loss_price
+                    self.target_prices[symbol] = take_profit_price
+
+                    # Update last signal time
+                    self.last_signal_time[symbol] = current_time
+
+            # Execute sell signal (close existing long position)
+            elif signal == 'sell' and current_position and float(current_position.qty) > 0:
                 # We have a position and should sell it
                 quantity = float(current_position.qty)
                 price = self.current_prices[symbol]

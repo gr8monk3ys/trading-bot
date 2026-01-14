@@ -24,7 +24,9 @@ from engine.performance_metrics import PerformanceMetrics
 from engine.backtest_engine import BacktestEngine
 from brokers.alpaca_broker import AlpacaBroker
 from utils.stock_scanner import StockScanner
-from config import SYMBOLS, ALPACA_CREDS
+from utils.simple_symbol_selector import SimpleSymbolSelector
+from utils.circuit_breaker import CircuitBreaker
+from config import SYMBOLS, SYMBOL_SELECTION, ALPACA_CREDS
 
 # Set up logging
 logging.basicConfig(
@@ -160,24 +162,64 @@ async def run_backtest(args):
     except Exception as e:
         logger.error(f"Error in backtest mode: {e}", exc_info=True)
 
+async def select_trading_symbols(broker):
+    """
+    Select symbols for trading - either dynamic or static.
+
+    Returns list of symbols to trade.
+    """
+    if SYMBOL_SELECTION.get('USE_DYNAMIC_SELECTION', False):
+        logger.info("🔍 Using dynamic symbol selection...")
+        try:
+            selector = SimpleSymbolSelector(
+                api_key=ALPACA_CREDS['API_KEY'],
+                secret_key=ALPACA_CREDS['API_SECRET'],
+                paper=ALPACA_CREDS['PAPER']
+            )
+            symbols = selector.select_top_symbols(
+                top_n=SYMBOL_SELECTION.get('TOP_N_SYMBOLS', 20),
+                min_score=SYMBOL_SELECTION.get('MIN_MOMENTUM_SCORE', 1.0)
+            )
+            logger.info(f"✅ Dynamic selection: {len(symbols)} symbols selected")
+            return symbols
+        except Exception as e:
+            logger.error(f"Dynamic selection failed, falling back to static list: {e}")
+            return SYMBOLS
+    else:
+        logger.info(f"Using static symbol list: {len(SYMBOLS)} symbols")
+        return SYMBOLS
+
 async def run_live(args):
     """Run live trading mode."""
     try:
         logger.info("Starting live trading mode")
-        
+
         # Initialize broker
         paper = not args.real
         broker = AlpacaBroker(paper=paper)
-        
+
+        # Select symbols for trading (dynamic or static)
+        trading_symbols = await select_trading_symbols(broker)
+        logger.info(f"Trading universe: {', '.join(trading_symbols[:10])}" +
+                   (f" ... and {len(trading_symbols)-10} more" if len(trading_symbols) > 10 else ""))
+
+        # Initialize circuit breaker (CRITICAL SAFETY FEATURE)
+        circuit_breaker = CircuitBreaker(
+            max_daily_loss=0.03,  # 3% max daily loss
+            auto_close_positions=True  # Automatically close positions on trigger
+        )
+        await circuit_breaker.initialize(broker)
+        logger.info("Circuit breaker initialized and armed")
+
         # Check if market is open
         market_status = await broker.get_market_status()
         logger.info(f"Market status: {market_status}")
-        
+
         if not market_status.get('is_open', False) and not args.force:
             logger.warning("Market is closed. Use --force to run anyway.")
             print("Market is closed. Use --force to run anyway.")
             return
-            
+
         # Initialize strategy manager
         strategy_manager = StrategyManager(
             broker=broker, 
@@ -223,10 +265,12 @@ async def run_live(args):
         started = []
         for strategy_name in strategies_to_run:
             allocation = allocations.get(strategy_name, 0.1)
+            # Use command-line symbols if provided, otherwise use dynamically selected symbols
+            symbols_to_use = args.symbols.split(',') if args.symbols else trading_symbols
             success = await strategy_manager.start_strategy(
                 strategy_name=strategy_name,
                 allocation=allocation,
-                symbols=args.symbols.split(',') if args.symbols else SYMBOLS
+                symbols=symbols_to_use
             )
             if success:
                 started.append(strategy_name)
@@ -273,8 +317,43 @@ async def run_live(args):
         # Keep running until interrupted
         try:
             logger.info("Trading bot running. Press Ctrl+C to stop.")
+            check_counter = 0
+            rebalance_counter = 0
+            last_rebalance_hour = datetime.now().hour
+
             while True:
                 await asyncio.sleep(1)
+
+                # Check circuit breaker every 60 seconds
+                check_counter += 1
+                if check_counter >= 60:
+                    check_counter = 0
+
+                    # CRITICAL: Check if circuit breaker triggered
+                    if await circuit_breaker.check_and_halt():
+                        logger.critical("=" * 80)
+                        logger.critical("CIRCUIT BREAKER TRIGGERED - TRADING HALTED")
+                        logger.critical("Daily loss limit exceeded. Stopping all strategies.")
+                        logger.critical("=" * 80)
+
+                        # Stop all strategies immediately
+                        await strategy_manager.stop_all_strategies(liquidate=True)
+                        logger.critical("All strategies stopped and positions liquidated")
+
+                        # Exit the trading loop
+                        break
+
+                # Portfolio rebalancing every 4 hours
+                current_hour = datetime.now().hour
+                if len(started) > 1 and current_hour % 4 == 0 and current_hour != last_rebalance_hour:
+                    last_rebalance_hour = current_hour
+                    try:
+                        logger.info("⚖️  Running portfolio rebalancing...")
+                        await strategy_manager.rebalance_strategies()
+                        logger.info("✅ Portfolio rebalanced successfully")
+                    except Exception as e:
+                        logger.error(f"Error during rebalancing: {e}")
+
         except KeyboardInterrupt:
             logger.info("Received interrupt, shutting down...")
         finally:
