@@ -7,9 +7,7 @@ using synthetic data and does not require external libraries like TA-Lib.
 """
 
 import os
-import sys
 import logging
-import json
 import random
 import math
 import numpy as np

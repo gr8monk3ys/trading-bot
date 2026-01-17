@@ -7,7 +7,6 @@ It creates a simulated environment for evaluating strategy performance using his
 """
 
 import os
-import sys
 import logging
 import asyncio
 import argparse
@@ -17,7 +16,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 
-from engine.performance_metrics import PerformanceMetrics
 from strategies.momentum_strategy import MomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 

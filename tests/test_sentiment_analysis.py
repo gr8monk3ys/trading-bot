@@ -35,27 +35,27 @@ class TestSentimentAnalysis(unittest.TestCase):
         for text in self.positive_texts:
             probability, sentiment = analyze_sentiment([text])
             self.assertEqual(sentiment, "positive", 
-                           f"Failed to detect positive sentiment in: {text}")
+                           "Failed to detect positive sentiment in: " + text)
             self.assertGreater(probability, 0, 
-                             f"Probability should be > 0 for positive sentiment")
+                             "Probability should be > 0 for positive sentiment")
 
     def test_negative_sentiment(self):
         """Test negative sentiment detection."""
         for text in self.negative_texts:
             probability, sentiment = analyze_sentiment([text])
             self.assertEqual(sentiment, "negative", 
-                           f"Failed to detect negative sentiment in: {text}")
+                           "Failed to detect negative sentiment in: " + text)
             self.assertGreater(probability, 0, 
-                             f"Probability should be > 0 for negative sentiment")
+                             "Probability should be > 0 for negative sentiment")
 
     def test_neutral_sentiment(self):
         """Test neutral sentiment detection."""
         for text in self.neutral_texts:
             probability, sentiment = analyze_sentiment([text])
             self.assertIn(sentiment, ["neutral", "positive", "negative"], 
-                         f"Invalid sentiment value for neutral text: {text}")
+                         "Invalid sentiment value for neutral text: " + text)
             self.assertGreater(probability, 0, 
-                             f"Probability should be > 0 for neutral sentiment")
+                             "Probability should be > 0 for neutral sentiment")
 
     def test_empty_input(self):
         """Test empty input handling."""

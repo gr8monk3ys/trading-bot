@@ -1,8 +1,5 @@
 import pytest
-import asyncio
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
 
 from engine.backtest_engine import BacktestEngine
 from engine.performance_metrics import PerformanceMetrics

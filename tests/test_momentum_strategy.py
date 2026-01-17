@@ -1,11 +1,6 @@
 import pytest
-import asyncio
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
-
-from strategies.momentum_strategy import MomentumStrategy
-from engine.backtest_engine import BacktestEngine
 
 @pytest.mark.asyncio
 async def test_momentum_strategy_initialization(momentum_strategy, test_symbols):
@@ -82,8 +77,6 @@ async def test_risk_management(momentum_strategy, test_symbols, mock_broker):
     # Create mock position
     symbol = test_symbols[0]
     entry_price = 100.0
-    position_size = 10
-    
     # Test stop loss calculation
     stop_price = momentum_strategy.calculate_stop_loss(symbol, entry_price, "long")
     expected_stop = entry_price * (1 - momentum_strategy.parameters['stop_loss'])

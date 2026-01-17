@@ -8,7 +8,6 @@ import numpy as np
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from brokers.alpaca_broker import AlpacaBroker
 from strategies.momentum_strategy import MomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 
