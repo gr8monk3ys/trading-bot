@@ -22,15 +22,12 @@ Usage:
 """
 
 import logging
-import asyncio
 import numpy as np
-import pandas as pd
 import talib
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, Optional
 
 from strategies.base_strategy import BaseStrategy
-from strategies.risk_manager import RiskManager
 from brokers.order_builder import OrderBuilder
 
 logger = logging.getLogger(__name__)

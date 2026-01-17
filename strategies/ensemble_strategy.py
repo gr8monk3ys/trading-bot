@@ -15,17 +15,12 @@ Expected Sharpe Ratio: 0.95-1.25 (research target)
 """
 
 import logging
-import asyncio
 import numpy as np
-import pandas as pd
-import talib
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
-
+from datetime import datetime
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
 from brokers.order_builder import OrderBuilder
-from utils.indicators import TechnicalIndicators, analyze_trend, analyze_momentum, analyze_volatility
+from utils.indicators import TechnicalIndicators
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +124,7 @@ class EnsembleStrategy(BaseStrategy):
                 self.broker._add_subscriber(self)
 
             logger.info(f"Initialized {self.NAME} with {len(self.symbols)} symbols")
-            logger.info(f"  Sub-strategies: Mean Reversion, Momentum, Trend Following")
+            logger.info("  Sub-strategies: Mean Reversion, Momentum, Trend Following")
             logger.info(f"  Min agreement: {self.parameters['min_agreement_pct']:.0%}")
 
             return True
@@ -233,7 +228,8 @@ class EnsembleStrategy(BaseStrategy):
             # Volume indicators
             try:
                 vwap = ind.vwap()
-            except:
+            except Exception as e:
+                logger.debug(f"VWAP calculation failed, using closes as fallback: {e}")
                 vwap = closes  # Fallback if VWAP fails
 
             volume_sma = ind.volume_sma(period=20)
@@ -320,13 +316,8 @@ class EnsembleStrategy(BaseStrategy):
             close = ind['close']
             bb_upper = ind['bb_upper']
             bb_lower = ind['bb_lower']
-            bb_middle = ind['bb_middle']
             rsi = ind['rsi']
             stoch_k = ind['stoch_k']
-
-            # Calculate BB position
-            bb_range = bb_upper - bb_lower
-            bb_position = (close - bb_lower) / bb_range if bb_range > 0 else 0.5
 
             # Mean reversion: buy oversold, sell overbought
             mr_score = 0

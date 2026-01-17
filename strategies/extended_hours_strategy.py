@@ -34,10 +34,8 @@ Usage:
 """
 
 import logging
-import asyncio
-from datetime import datetime, time, timedelta
-from typing import Optional, List, Dict
-import pytz
+from datetime import datetime
+from typing import Optional, Dict
 
 from strategies.base_strategy import BaseStrategy
 from utils.extended_hours import ExtendedHoursManager

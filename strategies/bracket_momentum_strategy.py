@@ -15,8 +15,7 @@ import logging
 import asyncio
 import numpy as np
 import talib
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from datetime import datetime
 
 from strategies.base_strategy import BaseStrategy
 from brokers.order_builder import OrderBuilder

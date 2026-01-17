@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import logging
 import asyncio
-from typing import Optional, Dict, List
+from typing import Optional
 # NOTE: Removed lumibot.strategies.Strategy import - it crashes at import time
 # We don't actually need it - we'll create our own simple base class
 import numpy as np
@@ -36,7 +36,11 @@ class BaseStrategy(ABC):
         self.symbols = parameters.get('symbols', [])
         self._shutdown_event = asyncio.Event()
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.price_history = {} #added
+        self.price_history = {}
+
+        # P1 FIX: Initialize running flag and tasks list for cleanup()
+        self.running = False
+        self.tasks = []
 
         # CRITICAL SAFETY: Initialize circuit breaker for daily loss protection
         max_daily_loss = parameters.get('max_daily_loss', 0.03)  # Default 3%
@@ -229,6 +233,14 @@ class BaseStrategy(ABC):
         Raises:
             ValueError: If account information cannot be retrieved
         """
+        # P0 FIX: Validate current_price to prevent division by zero
+        if not current_price or current_price <= 0:
+            self.logger.error(
+                f"SAFETY: Invalid current_price for {symbol}: {current_price}. "
+                "Returning 0 to prevent division by zero."
+            )
+            return 0, 0
+
         try:
             # Get current account value
             account = await self.broker.get_account()
@@ -278,6 +290,14 @@ class BaseStrategy(ABC):
         Returns:
             Tuple of (position_value, position_fraction, quantity)
         """
+        # P0 FIX: Validate current_price to prevent division by zero
+        if not current_price or current_price <= 0:
+            self.logger.error(
+                f"SAFETY: Invalid current_price for {symbol}: {current_price}. "
+                "Returning 0 position size to prevent division by zero."
+            )
+            return 0, 0, 0
+
         try:
             # Get current account value
             account = await self.broker.get_account()
@@ -311,11 +331,9 @@ class BaseStrategy(ABC):
 
         except Exception as e:
             self.logger.error(f"Error calculating Kelly position size: {e}")
-            # Fallback to minimum position size on error
-            fallback_fraction = 0.01
-            fallback_value = account_value * fallback_fraction
-            fallback_quantity = fallback_value / current_price
-            return fallback_value, fallback_fraction, fallback_quantity
+            # P0 FIX: Safe fallback - return zeros if we can't calculate
+            # account_value may not be defined if error occurred early
+            return 0, 0, 0
 
     def track_position_entry(self, symbol, entry_price, entry_time=None):
         """
@@ -663,8 +681,11 @@ class BaseStrategy(ABC):
         pass
 
     @abstractmethod
-    def execute_trade(self, symbol, signal):
-        """Execute a trade based on the signal."""
+    async def execute_trade(self, symbol, signal):
+        """Execute a trade based on the signal.
+
+        P1 FIX: Added async to match implementations in subclasses.
+        """
         pass
 
     def create_order(self, symbol, quantity, side, type="market", limit_price=None, stop_price=None):

@@ -25,13 +25,10 @@ Common Stock Pairs:
 """
 
 import logging
-import asyncio
 import numpy as np
-import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
+from typing import Tuple
 from statsmodels.tsa.stattools import coint, adfuller
-from scipy import stats
 
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager

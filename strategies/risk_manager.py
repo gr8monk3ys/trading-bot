@@ -1,7 +1,6 @@
 import numpy as np
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +21,15 @@ class RiskManager:
         drawdown_threshold=0.3,
         strict_correlation_enforcement=True,  # NEW: Reject instead of just adjusting
     ):
+        # P2 FIX: Validate all thresholds to prevent invalid risk calculations
+        self._validate_threshold("max_portfolio_risk", max_portfolio_risk, 0, 1)
+        self._validate_threshold("max_position_risk", max_position_risk, 0, 1)
+        self._validate_threshold("max_correlation", max_correlation, -1, 1)
+        self._validate_threshold("volatility_threshold", volatility_threshold, 0.001, 10)
+        self._validate_threshold("var_threshold", var_threshold, 0.001, 1)
+        self._validate_threshold("es_threshold", es_threshold, 0.001, 1)
+        self._validate_threshold("drawdown_threshold", drawdown_threshold, 0.001, 1)
+
         self.max_portfolio_risk = max_portfolio_risk
         self.max_position_risk = max_position_risk
         self.max_correlation = max_correlation
@@ -32,6 +40,16 @@ class RiskManager:
         self.strict_correlation_enforcement = strict_correlation_enforcement
         self.position_sizes = {}
         self.position_correlations = {}
+
+    @staticmethod
+    def _validate_threshold(name: str, value: float, min_val: float, max_val: float):
+        """P2 FIX: Validate that threshold values are within acceptable bounds."""
+        if not isinstance(value, (int, float)):
+            raise ValueError(f"{name} must be numeric, got {type(value)}")
+        if value < min_val or value > max_val:
+            raise ValueError(f"{name} must be between {min_val} and {max_val}, got {value}")
+        if value == 0 and name.endswith("_threshold"):
+            raise ValueError(f"{name} cannot be zero (would cause division by zero)")
 
     def _calculate_volatility(self, price_history):
         """Calculate annualized volatility."""
@@ -110,12 +128,20 @@ class RiskManager:
             es_95 = self._calculate_expected_shortfall(price_history)
             max_drawdown = self._calculate_max_drawdown(price_history)
 
+            # P2 FIX: Safe division with fallback to max risk if thresholds are invalid
+            def safe_divide(numerator, denominator, default=1.0):
+                """Safely divide, returning default if denominator is zero or invalid."""
+                if denominator is None or denominator == 0:
+                    logger.warning("Division by zero prevented in risk calculation")
+                    return default
+                return numerator / denominator
+
             # Combine metrics into a risk score (0 to 1)
             risk_score = (
-                0.3 * (daily_vol / self.volatility_threshold)
-                + 0.3 * (abs(var_95) / self.var_threshold)
-                + 0.2 * (abs(es_95) / self.es_threshold)
-                + 0.2 * (abs(max_drawdown) / self.drawdown_threshold)
+                0.3 * safe_divide(daily_vol, self.volatility_threshold)
+                + 0.3 * safe_divide(abs(var_95), self.var_threshold)
+                + 0.2 * safe_divide(abs(es_95), self.es_threshold)
+                + 0.2 * safe_divide(abs(max_drawdown), self.drawdown_threshold)
             )
 
             return min(risk_score, 1.0)

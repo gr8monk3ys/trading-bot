@@ -1,10 +1,7 @@
 import logging
-import asyncio
 import numpy as np
-import pandas as pd
 import talib
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
 
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
@@ -199,8 +196,7 @@ class MeanReversionStrategy(BaseStrategy):
             closes = np.array([bar['close'] for bar in self.price_history[symbol]])
             highs = np.array([bar['high'] for bar in self.price_history[symbol]])
             lows = np.array([bar['low'] for bar in self.price_history[symbol]])
-            volumes = np.array([bar['volume'] for bar in self.price_history[symbol]])
-            
+
             # Calculate Bollinger Bands
             upper, middle, lower = talib.BBANDS(
                 closes, 
@@ -273,7 +269,6 @@ class MeanReversionStrategy(BaseStrategy):
             close = ind['close']
             upper_band = ind['upper_band']
             lower_band = ind['lower_band']
-            middle_band = ind['middle_band']
             rsi = ind['rsi']
             z_score = ind['z_score']
             bb_position = ind['bb_position']
@@ -502,7 +497,7 @@ class MeanReversionStrategy(BaseStrategy):
 
                 if result:
                     logger.info(f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}")
-                    logger.info(f"   (Expect mean reversion: price will drop from extreme overbought)")
+                    logger.info("   (Expect mean reversion: price will drop from extreme overbought)")
 
                     # Store entry details
                     self.position_entries[symbol] = {
