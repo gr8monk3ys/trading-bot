@@ -1,31 +1,136 @@
-name: Run Trading Bot
+name: Scheduled Trading Operations
 
 on:
   schedule:
-    - cron: "0 0 * * *" # This will run the workflow daily at midnight
-  workflow_dispatch: # Allows you to manually trigger the workflow from the GitHub interface
+    # Run backtest daily at 6 AM UTC (before US market open)
+    - cron: "0 6 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Operation to run'
+        required: true
+        default: 'backtest'
+        type: choice
+        options:
+          - backtest
+          - health-check
+
+env:
+  PYTHON_VERSION: '3.10'
 
 jobs:
-  run-trading-bot:
+  daily-backtest:
     runs-on: ubuntu-latest
+    if: github.event.inputs.operation == 'backtest' || github.event_name == 'schedule'
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.8' # Specify the Python version you need
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install TA-Lib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential wget
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          ./configure --prefix=/usr
+          make
+          sudo make install
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Trading Bot
+      - name: Run Daily Backtest
         env:
-          API_KEY: ${{ secrets.API_KEY }}
-          API_SECRET: ${{ secrets.API_SECRET }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+          PAPER: "True"
+          TESTING: "True"
         run: |
-          python trading_bot.py
+          python simple_backtest.py 2>&1 | tee backtest_results.txt
+
+      - name: Upload Backtest Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-results-${{ github.run_id }}
+          path: backtest_results.txt
+          retention-days: 30
+
+      - name: Check for Performance Degradation
+        run: |
+          # Extract key metrics from backtest
+          RETURN=$(grep "Total Return:" backtest_results.txt | grep -oP '[+-]?\d+\.\d+' || echo "0")
+          SHARPE=$(grep "Sharpe Ratio:" backtest_results.txt | grep -oP '\d+\.\d+' || echo "0")
+
+          echo "📊 Backtest Results:"
+          echo "  Return: ${RETURN}%"
+          echo "  Sharpe: ${SHARPE}"
+
+          # Alert if return is negative
+          if (( $(echo "$RETURN < 0" | bc -l) )); then
+            echo "⚠️ WARNING: Strategy showing negative returns!"
+            exit 1
+          fi
+
+  health-check:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.operation == 'health-check'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install alpaca-py python-dotenv
+
+      - name: Check Alpaca Connection
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+          PAPER: "True"
+        run: |
+          python -c "
+          import os
+          from alpaca.trading.client import TradingClient
+
+          client = TradingClient(
+              os.environ['ALPACA_API_KEY'],
+              os.environ['ALPACA_SECRET_KEY'],
+              paper=True
+          )
+
+          account = client.get_account()
+          print(f'✅ Connection successful')
+          print(f'   Account: {account.id}')
+          print(f'   Equity: \${float(account.equity):,.2f}')
+          print(f'   Buying Power: \${float(account.buying_power):,.2f}')
+          "
+
+      - name: Verify Strategy Imports
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+
+          from strategies.momentum_strategy import MomentumStrategy
+          from config import TRADING_PARAMS, RISK_PARAMS
+
+          print('✅ All imports successful')
+          print(f'   Kelly Criterion: {TRADING_PARAMS[\"USE_KELLY_CRITERION\"]}')
+          print(f'   Volatility Regime: {TRADING_PARAMS[\"USE_VOLATILITY_REGIME\"]}')
+          "
