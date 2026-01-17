@@ -13,17 +13,13 @@ import asyncio
 import argparse
 import json
 from datetime import datetime, timedelta
-import numpy as np
 import pandas as pd
 
 # Add project root to path to allow imports from project modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from engine.strategy_manager import StrategyManager
-from engine.performance_metrics import PerformanceMetrics
-from engine.backtest_engine import BacktestEngine
 from brokers.alpaca_broker import AlpacaBroker
-from utils.stock_scanner import StockScanner
 from utils.simple_symbol_selector import SimpleSymbolSelector
 from utils.circuit_breaker import CircuitBreaker
 from config import SYMBOLS, SYMBOL_SELECTION, ALPACA_CREDS
@@ -194,8 +190,35 @@ async def run_live(args):
     try:
         logger.info("Starting live trading mode")
 
-        # Initialize broker
+        # P0 FIX: Safety confirmation for live trading with real money
         paper = not args.real
+        if not paper:  # Real money trading
+            print("\n" + "=" * 60)
+            print("⚠️  WARNING: LIVE TRADING WITH REAL MONEY")
+            print("=" * 60)
+            print("\nYou are about to start trading with REAL MONEY.")
+            print("This will execute actual trades on your Alpaca account.")
+            print("\nBefore proceeding, confirm you understand:")
+            print("  1. Losses can occur and are your responsibility")
+            print("  2. The bot will trade autonomously")
+            print("  3. This is NOT paper trading mode")
+            print("\n" + "=" * 60)
+
+            confirmation = input("\nType 'CONFIRM LIVE TRADING' to proceed: ")
+            if confirmation != "CONFIRM LIVE TRADING":
+                print("\n❌ Live trading cancelled. Use paper trading for testing.")
+                print("   Run without --real flag for paper trading mode.")
+                logger.warning("Live trading cancelled by user - confirmation not provided")
+                return
+
+            print("\n✅ Confirmation received. Starting live trading...")
+            logger.warning("=" * 40)
+            logger.warning("LIVE TRADING MODE ACTIVATED - REAL MONEY AT RISK")
+            logger.warning("=" * 40)
+        else:
+            logger.info("Paper trading mode - no real money at risk")
+
+        # Initialize broker
         broker = AlpacaBroker(paper=paper)
 
         # Select symbols for trading (dynamic or static)
@@ -318,7 +341,6 @@ async def run_live(args):
         try:
             logger.info("Trading bot running. Press Ctrl+C to stop.")
             check_counter = 0
-            rebalance_counter = 0
             last_rebalance_hour = datetime.now().hour
 
             while True:

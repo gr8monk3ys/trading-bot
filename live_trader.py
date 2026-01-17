@@ -22,7 +22,6 @@ import logging
 import signal
 import argparse
 from datetime import datetime
-from typing import Optional
 import sys
 
 from brokers.alpaca_broker import AlpacaBroker
@@ -109,9 +108,9 @@ class LiveTrader:
                 auto_close_positions=True  # Automatically close positions on trigger
             )
             await self.circuit_breaker.initialize(self.broker)
-            logger.info(f"✅ Circuit breaker armed")
-            logger.info(f"   Max Daily Loss: 3%")
-            logger.info(f"   Auto-close enabled: YES\n")
+            logger.info("✅ Circuit breaker armed")
+            logger.info("   Max Daily Loss: 3%")
+            logger.info("   Auto-close enabled: YES\n")
 
             # Initialize strategy
             logger.info(f"2. Initializing {self.strategy_name} strategy...")
@@ -130,7 +129,7 @@ class LiveTrader:
             if not success:
                 raise RuntimeError("Strategy initialization failed")
 
-            logger.info(f"✅ Strategy initialized")
+            logger.info("✅ Strategy initialized")
             logger.info(f"   Trading: {', '.join(self.symbols)}")
             logger.info(f"   Parameters: {self.parameters}\n")
 

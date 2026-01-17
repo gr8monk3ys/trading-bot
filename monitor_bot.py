@@ -42,7 +42,7 @@ def print_dashboard(stats, iteration):
     print("=" * 100)
 
     # Account Overview
-    print(f"\n💰  ACCOUNT OVERVIEW")
+    print("\n💰  ACCOUNT OVERVIEW")
     print(f"    Portfolio Value:  ${stats['portfolio_value']:>12,.2f}")
     print(f"    Cash Available:   ${stats['cash']:>12,.2f}")
     print(f"    Buying Power:     ${stats['buying_power']:>12,.2f}")

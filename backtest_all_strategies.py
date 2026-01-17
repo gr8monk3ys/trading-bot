@@ -3,8 +3,6 @@
 Backtest all strategies to compare performance
 """
 import asyncio
-import sys
-from datetime import datetime
 from brokers.alpaca_broker import AlpacaBroker
 from strategies.momentum_strategy import MomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
@@ -33,9 +31,9 @@ async def backtest_strategy(strategy_class, name):
         engine = BacktestEngine(broker=broker)
 
         # Convert date strings to datetime objects
-        from datetime import datetime
-        start = datetime.strptime(START_DATE, "%Y-%m-%d")
-        end = datetime.strptime(END_DATE, "%Y-%m-%d")
+        from datetime import datetime as dt
+        start = dt.strptime(START_DATE, "%Y-%m-%d")
+        end = dt.strptime(END_DATE, "%Y-%m-%d")
 
         # Run backtest
         results_list = await engine.run(
