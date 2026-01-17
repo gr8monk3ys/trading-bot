@@ -16,9 +16,9 @@ Stores everything in SQLite database for persistence.
 import logging
 import sqlite3
 import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, asdict
+from datetime import datetime
+from typing import List, Tuple
+from dataclasses import dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)

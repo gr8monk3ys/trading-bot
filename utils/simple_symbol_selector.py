@@ -12,7 +12,7 @@ KISS principle: Keep it simple, make it work FIRST.
 """
 
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import GetAssetsRequest
 from alpaca.trading.enums import AssetClass, AssetStatus

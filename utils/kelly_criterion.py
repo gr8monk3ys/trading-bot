@@ -105,7 +105,7 @@ class KellyCriterion:
         self.avg_loss = None
         self.profit_factor = None
 
-        logger.info(f"Kelly Criterion initialized:")
+        logger.info("Kelly Criterion initialized:")
         logger.info(f"  Kelly fraction: {kelly_fraction} ({self._get_kelly_name()})")
         logger.info(f"  Max position size: {max_position_size:.1%}")
         logger.info(f"  Min trades required: {min_trades_required}")
@@ -299,7 +299,7 @@ class KellyCriterion:
         if current_price and current_price > 0:
             shares = position_value / current_price
 
-        logger.info(f"Kelly position sizing:")
+        logger.info("Kelly position sizing:")
         logger.info(f"  Win rate: {(win_rate or self.win_rate or 0):.1%}")
         logger.info(f"  Profit factor: {(profit_factor or self.profit_factor or 0):.2f}")
         logger.info(f"  Kelly fraction: {position_fraction:.1%}")

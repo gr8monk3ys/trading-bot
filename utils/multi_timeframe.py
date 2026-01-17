@@ -22,7 +22,7 @@ Example usage:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Literal
+from typing import Dict, List, Optional
 from collections import deque
 import numpy as np
 

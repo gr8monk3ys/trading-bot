@@ -231,8 +231,9 @@ class VolatilityRegimeDetector:
             try:
                 quote = await self.broker.get_latest_quote('VIX')
                 vix_value = float(quote.ask_price)  # Use ask price for VIX
-            except:
-                # Try alternative symbol
+            except Exception as e:
+                # Try alternative symbol (VIX symbol varies by broker)
+                logger.debug(f"VIX quote failed, trying $VIX: {e}")
                 quote = await self.broker.get_latest_quote('$VIX')
                 vix_value = float(quote.ask_price)
 
@@ -441,13 +442,13 @@ if __name__ == "__main__":
 
         print(f"Current Regime: {regime.upper()}")
         print(f"Description: {adjustments['description']}")
-        print(f"\nAdjustments:")
+        print("\nAdjustments:")
         print(f"  Position Size Multiplier: {adjustments['pos_mult']:.1f}x")
         print(f"  Stop-Loss Multiplier: {adjustments['stop_mult']:.1f}x")
         print(f"  Max Positions: {adjustments['max_positions']}")
         print(f"  Trading Allowed: {'YES' if adjustments['trade'] else 'NO'}")
 
-        print(f"\nExample Calculations:")
+        print("\nExample Calculations:")
         base_position = 0.10  # 10%
         base_stop = 0.03      # 3%
 
@@ -462,7 +463,7 @@ if __name__ == "__main__":
         # Get statistics
         stats = detector.get_vix_statistics()
         if stats['avg_30d']:
-            print(f"\n30-Day VIX Statistics:")
+            print("\n30-Day VIX Statistics:")
             print(f"  Current: {stats['current']:.1f}")
             print(f"  Average: {stats['avg_30d']:.1f}")
             print(f"  Range: {stats['min_30d']:.1f} - {stats['max_30d']:.1f}")

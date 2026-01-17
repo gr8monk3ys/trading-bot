@@ -99,7 +99,7 @@ class StreakSizer:
         self.streak_started = None
         self.trades_in_streak = 0
 
-        logger.info(f"StreakSizer initialized:")
+        logger.info("StreakSizer initialized:")
         logger.info(f"  Lookback: {lookback_trades} trades")
         logger.info(f"  Hot streak: {hot_streak_threshold}+ wins → {hot_multiplier:.1f}x position")
         logger.info(f"  Cold streak: ≤{cold_streak_threshold} wins → {cold_multiplier:.1f}x position")
@@ -344,7 +344,7 @@ if __name__ == "__main__":
     print(f"\nRecent Performance ({stats['recent_trades']} trades):")
     print(f"  Win Rate: {stats['recent_win_rate']:.1%}")
     print(f"  Wins: {stats['recent_wins']}/{stats['recent_trades']}")
-    print(f"\nOverall Performance:")
+    print("\nOverall Performance:")
     print(f"  Total Trades: {stats['total_trades']}")
     print(f"  Overall Win Rate: {stats['overall_win_rate']:.1%}")
 

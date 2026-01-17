@@ -9,7 +9,6 @@ based on technical indicators, sentiment analysis, and risk metrics.
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
 import logging
 from utils.sentiment_analysis import analyze_sentiment
 from concurrent.futures import ThreadPoolExecutor
@@ -82,14 +81,11 @@ class StockScanner:
             sma_20 = talib.SMA(close, timeperiod=20)
             sma_50 = talib.SMA(close, timeperiod=50)
             sma_200 = talib.SMA(close, timeperiod=200)
-            ema_20 = talib.EMA(close, timeperiod=20)
-            
+
             # Volatility Indicators
             upper, middle, lower = talib.BBANDS(close, timeperiod=20)
-            atr = talib.ATR(high, low, close, timeperiod=14)
-            
+
             # Volume and Momentum
-            obv = talib.OBV(close, volume)
             mfi = talib.MFI(high, low, close, volume, timeperiod=14)
             adx = talib.ADX(high, low, close, timeperiod=14)
             aroon_up, aroon_down = talib.AROON(high, low, timeperiod=14)

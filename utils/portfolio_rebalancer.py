@@ -27,8 +27,7 @@ Example usage:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
-from decimal import Decimal
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +90,7 @@ class PortfolioRebalancer:
         self.last_rebalance = None
         self.rebalance_history = []
 
-        logger.info(f"Portfolio rebalancer initialized:")
+        logger.info("Portfolio rebalancer initialized:")
         logger.info(f"  Target allocations: {self.target_allocations}")
         logger.info(f"  Threshold: {self.rebalance_threshold:.1%}")
         logger.info(f"  Frequency: {self.rebalance_frequency}")
@@ -292,9 +291,9 @@ class PortfolioRebalancer:
                 logger.info("No rebalancing orders to execute")
                 return {'status': 'no_action', 'orders_executed': 0}
 
-            logger.info(f"\n{'='*80}")
-            logger.info(f"🔄 PORTFOLIO REBALANCING")
-            logger.info(f"{'='*80}")
+            logger.info("\n" + "="*80)
+            logger.info("🔄 PORTFOLIO REBALANCING")
+            logger.info("="*80)
             logger.info(f"Rebalancing {len(orders)} positions:")
 
             for order in orders:
@@ -373,7 +372,7 @@ class PortfolioRebalancer:
         report.append("PORTFOLIO REBALANCING REPORT")
         report.append("="*80)
 
-        report.append(f"\nTarget Allocations:")
+        report.append("\nTarget Allocations:")
         for symbol, target in self.target_allocations.items():
             current_weight = current.get(symbol, 0.0)
             symbol_drift = drift.get(symbol, 0.0)

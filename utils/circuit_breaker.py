@@ -15,8 +15,7 @@ Usage:
 """
 
 import logging
-from datetime import datetime, time
-from typing import Optional
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -265,14 +264,69 @@ class CircuitBreaker:
             else None,
         }
 
-    async def manual_reset(self):
-        """Manually reset the circuit breaker (use with extreme caution!)."""
-        logger.warning("Manual circuit breaker reset requested")
+    async def manual_reset(self, confirmation_token: str = None, force: bool = False):
+        """
+        Manually reset the circuit breaker (use with extreme caution!).
 
-        if self.trading_halted:
-            logger.warning(
-                f"Resetting circuit breaker that was triggered at {self.halt_triggered_at}"
+        P0 FIX: Added safety controls to prevent accidental resets.
+
+        Args:
+            confirmation_token: Must be "CONFIRM_RESET" to proceed
+            force: If True, bypasses cooldown (still requires token)
+
+        Returns:
+            bool: True if reset successful, False if rejected
+
+        Raises:
+            ValueError: If confirmation token is invalid
+        """
+        # P0 SAFETY: Require explicit confirmation token
+        if confirmation_token != "CONFIRM_RESET":
+            logger.error(
+                "CIRCUIT BREAKER RESET REJECTED: Invalid confirmation token. "
+                "Use confirmation_token='CONFIRM_RESET' to confirm."
+            )
+            raise ValueError(
+                "Manual reset requires confirmation_token='CONFIRM_RESET' to proceed. "
+                "This is a safety measure to prevent accidental resets."
             )
 
+        # P0 SAFETY: Rate limiting - prevent multiple resets within 5 minutes
+        if hasattr(self, '_last_manual_reset') and self._last_manual_reset:
+            cooldown_seconds = 300  # 5 minutes
+            time_since_last = (datetime.now() - self._last_manual_reset).total_seconds()
+            if time_since_last < cooldown_seconds and not force:
+                remaining = int(cooldown_seconds - time_since_last)
+                logger.error(
+                    f"CIRCUIT BREAKER RESET REJECTED: Cooldown active. "
+                    f"Wait {remaining} seconds or use force=True."
+                )
+                return False
+
+        # P0 SAFETY: Audit logging with full context
+        logger.warning("=" * 60)
+        logger.warning("MANUAL CIRCUIT BREAKER RESET INITIATED")
+        logger.warning(f"  Timestamp: {datetime.now().isoformat()}")
+        logger.warning(f"  Was halted: {self.trading_halted}")
+        if self.halt_triggered_at:
+            logger.warning(f"  Halt triggered at: {self.halt_triggered_at.isoformat()}")
+        if self.starting_equity and self.broker:
+            try:
+                account = await self.broker.get_account()
+                current_equity = float(account.equity)
+                loss_pct = (self.starting_equity - current_equity) / self.starting_equity
+                logger.warning(f"  Current loss: {loss_pct:.2%}")
+            except Exception as e:
+                logger.warning(f"  Could not determine current loss: {e}")
+        logger.warning("=" * 60)
+
+        # Perform the reset
         await self._reset_for_new_day()
-        logger.warning("Circuit breaker manually reset - trading re-enabled")
+
+        # Track reset time for rate limiting
+        self._last_manual_reset = datetime.now()
+
+        logger.warning("CIRCUIT BREAKER MANUALLY RESET - TRADING RE-ENABLED")
+        logger.warning("Monitor closely for continued losses!")
+
+        return True

@@ -7,9 +7,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 from matplotlib.figure import Figure
-from datetime import datetime, timedelta
 
 # Set styling for plots
 # NOTE: seaborn-v0_8-darkgrid was removed in matplotlib 3.6+
@@ -191,8 +190,8 @@ def plot_monthly_returns(returns: pd.Series) -> Figure:
     
     # Create heatmap
     fig, ax = plt.subplots(figsize=(12, 8))
-    heatmap = sns.heatmap(returns_matrix, annot=True, fmt='.2%', cmap='RdYlGn', 
-                           center=0, linewidths=1, ax=ax, cbar_kws={'label': 'Return'})
+    sns.heatmap(returns_matrix, annot=True, fmt='.2%', cmap='RdYlGn',
+                center=0, linewidths=1, ax=ax, cbar_kws={'label': 'Return'})
     
     # Format plot
     ax.set_title('Monthly Returns (%)', fontsize=16)

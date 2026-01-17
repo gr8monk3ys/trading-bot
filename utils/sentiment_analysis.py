@@ -9,7 +9,6 @@ for use in trading strategies.
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import numpy as np
-import os
 import re
 import logging
 

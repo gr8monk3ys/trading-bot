@@ -26,7 +26,7 @@ Usage in Strategy:
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from datetime import datetime
 import asyncio
 
@@ -310,7 +310,7 @@ class MultiTimeframeAnalyzer:
 
         summary_lines.append(f"  Overall: {signal.upper()} (conf={confidence:.0%})")
         if daily_conflicts:
-            summary_lines.append(f"  ⚠️  DAILY VETO: Trade blocked")
+            summary_lines.append("  ⚠️  DAILY VETO: Trade blocked")
 
         return {
             'symbol': symbol,

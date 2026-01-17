@@ -26,7 +26,6 @@ import logging
 from datetime import datetime, time
 from typing import Optional, Dict, Tuple
 import pytz
-from alpaca.trading.enums import OrderSide, TimeInForce
 
 from brokers.order_builder import OrderBuilder
 
@@ -73,7 +72,7 @@ class ExtendedHoursManager:
             'min_volume': 10000,          # Minimum daily volume to trade
         }
 
-        logger.info(f"ExtendedHoursManager initialized:")
+        logger.info("ExtendedHoursManager initialized:")
         logger.info(f"  Pre-market: {'ENABLED' if enable_pre_market else 'DISABLED'}")
         logger.info(f"  After-hours: {'ENABLED' if enable_after_hours else 'DISABLED'}")
 
@@ -468,13 +467,13 @@ def format_session_info(info: Dict) -> str:
     output.append(f"Session Hours: {info['start_time']} - {info['end_time']}")
 
     if info['is_extended']:
-        output.append(f"\n⚠️  EXTENDED HOURS TRADING")
+        output.append("\n⚠️  EXTENDED HOURS TRADING")
         output.append(f"Liquidity: {info['liquidity']} | Volatility: {info['volatility']}")
         output.append(f"Position Size: {info['position_size_adj']}")
         output.append(f"Strategy: {info['recommended_strategy']}")
     else:
-        output.append(f"\n✅ Regular Market Hours")
-        output.append(f"Full liquidity and normal strategies available")
+        output.append("\n✅ Regular Market Hours")
+        output.append("Full liquidity and normal strategies available")
 
     output.append("=" * 80)
 
