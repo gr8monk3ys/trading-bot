@@ -2,23 +2,16 @@
 Unit tests for MomentumStrategy
 """
 import pytest
-import numpy as np
-import pandas as pd
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
 
 from strategies.momentum_strategy import MomentumStrategy
 from tests.fixtures.mock_broker import MockAlpacaBroker
 from tests.fixtures.mock_data import (
     generate_momentum_scenario,
     generate_mean_reversion_scenario,
-    generate_volatile_scenario
 )
 from tests.fixtures.test_helpers import (
     assert_approximately_equal,
-    assert_in_range,
-    assert_valid_signal,
-    create_mock_strategy_params
 )
 
 

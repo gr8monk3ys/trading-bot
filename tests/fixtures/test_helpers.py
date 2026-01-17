@@ -1,8 +1,7 @@
 """
 Test helper functions and utilities
 """
-import asyncio
-from typing import Any, Callable, Coroutine
+from typing import Any, Coroutine
 from datetime import datetime
 import pandas as pd
 

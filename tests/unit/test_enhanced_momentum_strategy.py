@@ -15,9 +15,6 @@ Tests cover:
 import pytest
 import sys
 import os
-import numpy as np
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -195,7 +192,7 @@ class TestRSI2SignalGeneration:
         # Disable MTF to test RSI-2 only
         strategy.use_mtf = False
 
-        signal = await strategy.analyze_symbol('AAPL')
+        await strategy.analyze_symbol('AAPL')
 
         # Should generate buy signal on extreme oversold
         assert strategy.indicators['AAPL']['rsi'] is not None
@@ -214,7 +211,7 @@ class TestRSI2SignalGeneration:
         await strategy.initialize()
         strategy.use_mtf = False
 
-        signal = await strategy.analyze_symbol('AAPL')
+        await strategy.analyze_symbol('AAPL')
 
         # Neutral RSI should not generate signal
         # RSI should be around 50 with flat prices
