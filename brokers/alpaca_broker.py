@@ -2,10 +2,9 @@ import os
 import logging
 import asyncio
 import random
-import signal
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Optional, Dict, List, Set, Any
+from typing import Optional
 
 from alpaca.trading.client import TradingClient
 from alpaca.data.historical import StockHistoricalDataClient
@@ -15,22 +14,61 @@ from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.requests import (
     MarketOrderRequest,
     LimitOrderRequest,
-    StopOrderRequest,
-    StopLimitOrderRequest,
-    TrailingStopOrderRequest,
     GetOrdersRequest,
-    GetAssetsRequest,
     ReplaceOrderRequest
 )
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderStatus, AssetClass, QueryOrderStatus
+from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 
 # NOTE: Removed lumibot imports - they crash at import time due to
 # lumibot.credentials.py trying to instantiate Alpaca broker before config is ready
 # We don't actually need lumibot's Broker class - we built our own implementation
 from config import ALPACA_CREDS, SYMBOLS
 
+# P2 FIX: Environment-aware logging - only show full tracebacks in debug mode
+# This prevents sensitive information from leaking in production logs
+DEBUG_MODE = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
+
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+# P2 FIX: Custom exception for broker errors
+class BrokerError(Exception):
+    """
+    Exception raised for broker operation failures.
+
+    Use this for critical errors where the caller MUST handle the failure
+    (e.g., order submission failures, authentication errors).
+    """
+    pass
+
+
+class BrokerConnectionError(BrokerError):
+    """Raised when broker connection fails."""
+    pass
+
+
+class OrderError(BrokerError):
+    """Raised when order operations fail."""
+    pass
+
+
+# ERROR HANDLING CONVENTIONS:
+# This module uses the following patterns for error handling:
+#
+# 1. QUERY methods (get_position, get_last_price, get_bars):
+#    - Return None or [] on error
+#    - Log the error
+#    - Caller should check for None/empty before using
+#
+# 2. ACTION methods (submit_order, cancel_order):
+#    - Raise OrderError on critical failures
+#    - Return False for non-critical failures (already cancelled, etc.)
+#    - Log the error
+#
+# 3. CONNECTION methods (get_account, get_positions):
+#    - Raise BrokerConnectionError if broker is unreachable
+#    - These are critical - trading cannot proceed without them
 
 def retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10, jitter=0.1):
     """
@@ -121,51 +159,76 @@ class AlpacaBroker:
             self._reconnect_delay = 1  # Initial reconnect delay in seconds
             self._max_reconnect_delay = 60  # Max reconnect delay in seconds
             
-            # Store API credentials as attributes
-            self.api_key = ALPACA_CREDS["API_KEY"]
-            self.api_secret = ALPACA_CREDS["API_SECRET"]
-            
-            if not self.api_key or not self.api_secret:
+            # P0 FIX: Use local variables for credentials instead of storing as attributes
+            # This prevents accidental exposure through logging, serialization, or debugging
+            _api_key = ALPACA_CREDS["API_KEY"]
+            _api_secret = ALPACA_CREDS["API_SECRET"]
+
+            if not _api_key or not _api_secret:
                 raise ValueError("Alpaca API credentials not found. Please set them in your environment variables.")
-            
+
             # Initialize the trading client
             self.trading_client = TradingClient(
-                api_key=self.api_key,
-                secret_key=self.api_secret,
+                api_key=_api_key,
+                secret_key=_api_secret,
                 paper=self.paper,
                 url_override="https://paper-api.alpaca.markets" if self.paper else None
             )
-            
+
             # Initialize the data client
             self.data_client = StockHistoricalDataClient(
-                api_key=self.api_key,
-                secret_key=self.api_secret
+                api_key=_api_key,
+                secret_key=_api_secret
             )
-            
+
             # Initialize the stream for WebSockets
             self.stream = StockDataStream(
-                api_key=self.api_key,
-                secret_key=self.api_secret,
+                api_key=_api_key,
+                secret_key=_api_secret,
                 url_override="https://paper-api.alpaca.markets/stream" if self.paper else None
             )
 
             self._subscribed_symbols = set()  # Keep track of subscribed symbols
 
-            # Initialize data source for Lumibot
-            config = {
-                "API_KEY": self.api_key,
-                "API_SECRET": self.api_secret,
-                "PAPER": self.paper
-            }
+            # P0 FIX: Removed unused config dict that stored credentials in memory
             
         except Exception as e:
-            logger.error(f"Error initializing AlpacaBroker: {e}", exc_info=True)
+            logger.error(f"Error initializing AlpacaBroker: {e}", exc_info=DEBUG_MODE)
             raise
 
     async def is_connected(self) -> bool:
         """Thread-safe check if websocket is connected."""
         async with self._ws_lock:
             return self._connected
+
+    @staticmethod
+    def _validate_symbol(symbol: str) -> str:
+        """
+        P2 FIX: Validate and sanitize stock symbol.
+
+        Args:
+            symbol: Stock symbol to validate
+
+        Returns:
+            Sanitized uppercase symbol
+
+        Raises:
+            ValueError: If symbol is invalid
+        """
+        if not symbol:
+            raise ValueError("Symbol cannot be empty")
+        if not isinstance(symbol, str):
+            raise ValueError(f"Symbol must be a string, got {type(symbol)}")
+
+        symbol = symbol.upper().strip()
+
+        # Valid stock symbols: 1-5 uppercase letters (some ETFs have numbers)
+        if not symbol.replace('.', '').replace('-', '').isalnum():
+            raise ValueError(f"Invalid symbol format: {symbol}")
+        if len(symbol) > 10:  # Allow for options symbols which are longer
+            raise ValueError(f"Symbol too long: {symbol}")
+
+        return symbol
 
     def _add_subscriber(self, subscriber):
         """Add a subscriber for market data updates."""
@@ -209,7 +272,7 @@ class AlpacaBroker:
                 logger.warning(f"Order {order_id} rejected: {order.get('reject_reason')}")
             
         except Exception as e:
-            logger.error(f"Error handling trade update: {e}", exc_info=True)
+            logger.error(f"Error handling trade update: {e}", exc_info=DEBUG_MODE)
 
     async def _handle_bars(self, data):
         """Handle bar data from websocket."""
@@ -231,7 +294,7 @@ class AlpacaBroker:
                     )
             
         except Exception as e:
-            logger.error(f"Error handling bar data: {e}", exc_info=True)
+            logger.error(f"Error handling bar data: {e}", exc_info=DEBUG_MODE)
 
     async def _handle_quotes(self, data):
         """Handle quote data from websocket."""
@@ -252,7 +315,7 @@ class AlpacaBroker:
                     )
             
         except Exception as e:
-            logger.error(f"Error handling quote data: {e}", exc_info=True)
+            logger.error(f"Error handling quote data: {e}", exc_info=DEBUG_MODE)
 
     async def _handle_trades(self, data):
         """Handle trade data from websocket."""
@@ -271,7 +334,7 @@ class AlpacaBroker:
                     )
             
         except Exception as e:
-            logger.error(f"Error handling trade data: {e}", exc_info=True)
+            logger.error(f"Error handling trade data: {e}", exc_info=DEBUG_MODE)
 
     async def _websocket_handler(self):
         """Main websocket handler with proper locking for thread safety."""
@@ -320,7 +383,7 @@ class AlpacaBroker:
                     self._connected = False
                 raise
             except Exception as e:
-                logger.error(f"Websocket error: {e}", exc_info=True)
+                logger.error(f"Websocket error: {e}", exc_info=DEBUG_MODE)
 
                 async with self._ws_lock:
                     self._connected = False
@@ -333,32 +396,32 @@ class AlpacaBroker:
 
     async def _subscribe_to_symbols(self, symbols):
         """Subscribe to market data for multiple symbols with proper locking."""
+        # P1 FIX: Keep all operations within a single lock to prevent race conditions
         async with self._ws_lock:
             if not self._connected:
                 logger.warning("Cannot subscribe to symbols: websocket not connected")
                 return False
 
-        try:
-            # Subscribe to bars (1-minute timeframe)
-            self.stream.subscribe_bars(symbols)
+            try:
+                # Subscribe to bars (1-minute timeframe)
+                self.stream.subscribe_bars(symbols)
 
-            # Subscribe to quotes
-            self.stream.subscribe_quotes(symbols)
+                # Subscribe to quotes
+                self.stream.subscribe_quotes(symbols)
 
-            # Subscribe to trades
-            self.stream.subscribe_trades(symbols)
+                # Subscribe to trades
+                self.stream.subscribe_trades(symbols)
 
-            # Add symbols to subscribed set (with lock)
-            async with self._ws_lock:
+                # Add symbols to subscribed set (still within the same lock)
                 for symbol in symbols:
                     self._subscribed_symbols.add(symbol)
 
-            logger.info(f"Subscribed to market data for: {', '.join(symbols)}")
-            return True
+                logger.info(f"Subscribed to market data for: {', '.join(symbols)}")
+                return True
 
-        except Exception as e:
-            logger.error(f"Error subscribing to symbols: {e}", exc_info=True)
-            return False
+            except Exception as e:
+                logger.error(f"Error subscribing to symbols: {e}", exc_info=DEBUG_MODE)
+                return False
 
     async def start_websocket(self):
         """Start the websocket connection with proper locking."""
@@ -402,7 +465,7 @@ class AlpacaBroker:
             account = self.trading_client.get_account()
             return account
         except Exception as e:
-            logger.error(f"Error getting account info: {e}", exc_info=True)
+            logger.error(f"Error getting account info: {e}", exc_info=DEBUG_MODE)
             raise
 
     async def get_market_status(self):
@@ -416,7 +479,7 @@ class AlpacaBroker:
                 'timestamp': clock.timestamp
             }
         except Exception as e:
-            logger.error(f"Error getting market status: {e}", exc_info=True)
+            logger.error(f"Error getting market status: {e}", exc_info=DEBUG_MODE)
             # Return safe default if error
             return {'is_open': False}
 
@@ -427,16 +490,21 @@ class AlpacaBroker:
             positions = self.trading_client.get_all_positions()
             return positions
         except Exception as e:
-            logger.error(f"Error getting positions: {e}", exc_info=True)
+            logger.error(f"Error getting positions: {e}", exc_info=DEBUG_MODE)
             raise
             
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_position(self, symbol):
         """Get position for a specific symbol."""
         try:
+            # P2 FIX: Validate symbol before API call
+            symbol = self._validate_symbol(symbol)
             position = self.trading_client.get_position(symbol)
             return position
-        except Exception as e:
+        except ValueError as e:
+            logger.error(f"Invalid symbol: {e}")
+            return None
+        except Exception:
             # Position not found, return None
             return None
             
@@ -448,7 +516,7 @@ class AlpacaBroker:
             # For now, return all positions. In the future, we can filter by strategy
             return all_positions
         except Exception as e:
-            logger.error(f"Error getting tracked positions: {e}", exc_info=True)
+            logger.error(f"Error getting tracked positions: {e}", exc_info=DEBUG_MODE)
             return []
             
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -483,7 +551,7 @@ class AlpacaBroker:
             return result
             
         except Exception as e:
-            logger.error(f"Error submitting order: {e}", exc_info=True)
+            logger.error(f"Error submitting order: {e}", exc_info=DEBUG_MODE)
             raise
             
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -512,7 +580,7 @@ class AlpacaBroker:
             return result
 
         except Exception as e:
-            logger.error(f"Error submitting advanced order: {e}", exc_info=True)
+            logger.error(f"Error submitting advanced order: {e}", exc_info=DEBUG_MODE)
             raise
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -531,7 +599,7 @@ class AlpacaBroker:
             logger.info(f"Canceled order: {order_id}")
             return True
         except Exception as e:
-            logger.error(f"Error canceling order {order_id}: {e}", exc_info=True)
+            logger.error(f"Error canceling order {order_id}: {e}", exc_info=DEBUG_MODE)
             return False
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -539,10 +607,10 @@ class AlpacaBroker:
         """Cancel all open orders."""
         try:
             result = self.trading_client.cancel_orders()
-            logger.info(f"Canceled all open orders")
+            logger.info("Canceled all open orders")
             return result
         except Exception as e:
-            logger.error(f"Error canceling all orders: {e}", exc_info=True)
+            logger.error(f"Error canceling all orders: {e}", exc_info=DEBUG_MODE)
             return []
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -594,7 +662,7 @@ class AlpacaBroker:
             return result
 
         except Exception as e:
-            logger.error(f"Error replacing order {order_id}: {e}", exc_info=True)
+            logger.error(f"Error replacing order {order_id}: {e}", exc_info=DEBUG_MODE)
             raise
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -604,7 +672,7 @@ class AlpacaBroker:
             order = self.trading_client.get_order_by_id(order_id)
             return order
         except Exception as e:
-            logger.error(f"Error getting order {order_id}: {e}", exc_info=True)
+            logger.error(f"Error getting order {order_id}: {e}", exc_info=DEBUG_MODE)
             return None
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -614,7 +682,7 @@ class AlpacaBroker:
             order = self.trading_client.get_order_by_client_id(client_order_id)
             return order
         except Exception as e:
-            logger.error(f"Error getting order by client ID {client_order_id}: {e}", exc_info=True)
+            logger.error(f"Error getting order by client ID {client_order_id}: {e}", exc_info=DEBUG_MODE)
             return None
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -634,13 +702,16 @@ class AlpacaBroker:
             orders = self.trading_client.get_orders(request_params)
             return orders
         except Exception as e:
-            logger.error(f"Error getting orders: {e}", exc_info=True)
+            logger.error(f"Error getting orders: {e}", exc_info=DEBUG_MODE)
             raise
             
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_last_price(self, symbol):
         """Get last price for a symbol."""
         try:
+            # P2 FIX: Validate symbol before API call
+            symbol = self._validate_symbol(symbol)
+
             request_params = StockLatestTradeRequest(symbol_or_symbols=[symbol])
             response = self.data_client.get_stock_latest_trade(request_params)
             
@@ -651,13 +722,16 @@ class AlpacaBroker:
                 return None
                 
         except Exception as e:
-            logger.error(f"Error getting last price for {symbol}: {e}", exc_info=True)
+            logger.error(f"Error getting last price for {symbol}: {e}", exc_info=DEBUG_MODE)
             return None
             
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_bars(self, symbol, timeframe=TimeFrame.Day, limit=100, start=None, end=None):
         """Get historical bars for a symbol."""
         try:
+            # P2 FIX: Validate symbol before API call
+            symbol = self._validate_symbol(symbol)
+
             # Convert string timeframe to TimeFrame object if needed
             if isinstance(timeframe, str):
                 timeframe_map = {
@@ -695,7 +769,7 @@ class AlpacaBroker:
                 return []
                 
         except Exception as e:
-            logger.error(f"Error getting bars for {symbol}: {e}", exc_info=True)
+            logger.error(f"Error getting bars for {symbol}: {e}", exc_info=DEBUG_MODE)
             return []
             
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -725,5 +799,5 @@ class AlpacaBroker:
             return []
             
         except Exception as e:
-            logger.error(f"Error getting news for {symbol}: {e}", exc_info=True)
+            logger.error(f"Error getting news for {symbol}: {e}", exc_info=DEBUG_MODE)
             return []

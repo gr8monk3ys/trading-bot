@@ -1,12 +1,6 @@
 import os
 import logging
-import json
-import asyncio
-import numpy as np
-import pandas as pd
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple, Set, Union
-
 from strategies.base_strategy import BaseStrategy
 from engine.performance_metrics import PerformanceMetrics
 from engine.strategy_evaluator import StrategyEvaluator
@@ -497,13 +491,7 @@ class StrategyManager:
                 strategy_value = sum(float(p.market_value) for p in tracked_positions)
                 position_values[name] = strategy_value
                 
-            # Calculate realized and unrealized P&L
-            today_date = datetime.now().date()
-            yesterday_date = today_date - timedelta(days=1)
-            
-            # Get positions and trades
-            daily_pnl = {}
-            
+            # Return portfolio stats
             return {
                 "portfolio_value": portfolio_value,
                 "cash": cash,

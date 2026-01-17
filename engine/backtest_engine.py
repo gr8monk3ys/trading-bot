@@ -1,12 +1,6 @@
-import asyncio
 import logging
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta, date
-from typing import Dict, List, Any, Optional, Tuple, Type, Union
-import copy
-
-from config import ALPACA_CREDS
+from datetime import timedelta
 
 # Set up logging
 logger = logging.getLogger(__name__)

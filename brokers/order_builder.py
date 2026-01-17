@@ -8,7 +8,6 @@ bracket orders, OCO (One-Cancels-Other), OTO (One-Triggers-Other), and trailing 
 
 import logging
 from typing import Optional, Dict, Any, Literal
-from decimal import Decimal
 from alpaca.trading.requests import (
     MarketOrderRequest,
     LimitOrderRequest,
@@ -42,6 +41,9 @@ class OrderBuilder:
                  .build())
     """
 
+    # P1 FIX: Maximum allowed quantity to prevent accidental large orders
+    MAX_QUANTITY = 1_000_000
+
     def __init__(self, symbol: str, side: Literal['buy', 'sell'], qty: float):
         """
         Initialize order builder.
@@ -50,10 +52,33 @@ class OrderBuilder:
             symbol: Stock symbol (e.g., 'AAPL')
             side: 'buy' or 'sell'
             qty: Quantity of shares (can be fractional)
+
+        Raises:
+            ValueError: If symbol, side, or quantity is invalid
         """
-        self.symbol = symbol.upper()
+        # P1 FIX: Validate symbol
+        if not symbol or not isinstance(symbol, str):
+            raise ValueError("Symbol must be a non-empty string")
+        symbol = symbol.upper().strip()
+        if not symbol.isalpha() or len(symbol) > 5:
+            raise ValueError(f"Invalid symbol format: {symbol}. Must be 1-5 letters.")
+        self.symbol = symbol
+
+        # P1 FIX: Validate side
+        if not side or side.lower() not in ('buy', 'sell'):
+            raise ValueError(f"Side must be 'buy' or 'sell', got: {side}")
         self.side = OrderSide.BUY if side.lower() == 'buy' else OrderSide.SELL
-        self.qty = float(qty)
+
+        # P1 FIX: Validate quantity
+        try:
+            self.qty = float(qty)
+        except (TypeError, ValueError):
+            raise ValueError(f"Quantity must be numeric, got: {qty}")
+
+        if self.qty <= 0:
+            raise ValueError(f"Quantity must be positive, got: {self.qty}")
+        if self.qty > self.MAX_QUANTITY:
+            raise ValueError(f"Quantity {self.qty} exceeds maximum allowed ({self.MAX_QUANTITY})")
 
         # Order parameters
         self._order_type: Optional[OrderType] = None
@@ -398,7 +423,7 @@ class OrderBuilder:
 
             # Trailing stops only support DAY or GTC
             if self._time_in_force not in [TimeInForce.DAY, TimeInForce.GTC]:
-                logger.warning(f"Trailing stop only supports DAY/GTC, using GTC")
+                logger.warning("Trailing stop only supports DAY/GTC, using GTC")
                 trailing_kwargs['time_in_force'] = TimeInForce.GTC
 
             return TrailingStopOrderRequest(**trailing_kwargs)
