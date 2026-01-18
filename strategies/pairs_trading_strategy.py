@@ -27,8 +27,10 @@ Common Stock Pairs:
 import logging
 import numpy as np
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Optional
 from statsmodels.tsa.stattools import coint, adfuller
+from statsmodels.regression.linear_model import OLS
+from statsmodels.tools import add_constant
 
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
@@ -73,9 +75,12 @@ class PairsTradingStrategy(BaseStrategy):
 
             # Position management
             'hedge_ratio_recalc_days': 7,  # Recalculate hedge ratio weekly
-            'max_holding_days': 10,  # Maximum days to hold pair
+            'max_holding_days': 10,  # Maximum days to hold pair (fallback)
+            'use_half_life_exit': True,  # Use half-life for dynamic holding period
+            'half_life_multiplier': 3.0,  # Exit after 3x half-life (99% mean reversion)
             'take_profit_pct': 0.04,  # 4% profit target on pair
             'stop_loss_pct': 0.03,  # 3% stop loss on pair
+            'min_hurst_threshold': 0.5,  # Maximum Hurst exponent (must be < this)
 
             # Risk management
             'max_correlation': 0.7,
@@ -187,11 +192,124 @@ class PairsTradingStrategy(BaseStrategy):
         except Exception as e:
             logger.error(f"Error in on_bar for {symbol}: {e}", exc_info=True)
 
+    def _calculate_hurst_exponent(self, prices: np.ndarray) -> float:
+        """
+        Calculate Hurst exponent to measure mean reversion.
+
+        H < 0.5: Mean-reverting (good for pairs trading)
+        H = 0.5: Random walk (no edge)
+        H > 0.5: Trending (bad for pairs trading)
+
+        Uses R/S analysis method.
+        """
+        try:
+            if len(prices) < 20:
+                return 0.5  # Not enough data, assume random walk
+
+            # Calculate returns
+            returns = np.diff(np.log(prices))
+
+            # R/S analysis for different lag sizes
+            lags = range(2, min(len(returns) // 2, 20))
+            rs_values = []
+
+            for lag in lags:
+                # Split into subseries
+                n_subseries = len(returns) // lag
+                if n_subseries < 2:
+                    continue
+
+                rs_subseries = []
+                for i in range(n_subseries):
+                    subseries = returns[i * lag:(i + 1) * lag]
+                    if len(subseries) < 2:
+                        continue
+
+                    # Calculate R/S for this subseries
+                    mean_ret = np.mean(subseries)
+                    cumsum = np.cumsum(subseries - mean_ret)
+                    r = max(cumsum) - min(cumsum)  # Range
+                    s = np.std(subseries)  # Standard deviation
+
+                    if s > 0:
+                        rs_subseries.append(r / s)
+
+                if rs_subseries:
+                    rs_values.append((lag, np.mean(rs_subseries)))
+
+            if len(rs_values) < 3:
+                return 0.5
+
+            # Log-log regression to find H
+            log_lags = np.log([x[0] for x in rs_values])
+            log_rs = np.log([x[1] for x in rs_values])
+
+            # Hurst exponent is the slope
+            hurst = np.polyfit(log_lags, log_rs, 1)[0]
+
+            # Bound to reasonable range
+            return max(0.0, min(1.0, hurst))
+
+        except Exception as e:
+            logger.debug(f"Error calculating Hurst exponent: {e}")
+            return 0.5
+
+    def _calculate_half_life(self, spread: np.ndarray) -> Optional[float]:
+        """
+        Calculate half-life of mean reversion for optimal holding period.
+
+        Half-life = time for spread to revert halfway to mean.
+        Uses Ornstein-Uhlenbeck model: spread_t = α + β * spread_{t-1} + ε
+        Half-life = -ln(2) / ln(β)
+
+        Returns:
+            Half-life in periods (bars), or None if not mean-reverting
+        """
+        try:
+            if len(spread) < 10:
+                return None
+
+            # Lag the spread
+            spread_lag = spread[:-1]
+            spread_current = spread[1:]
+
+            # Add constant for regression
+            spread_lag_const = add_constant(spread_lag)
+
+            # OLS regression: spread_t = α + β * spread_{t-1}
+            model = OLS(spread_current, spread_lag_const)
+            result = model.fit()
+
+            # β coefficient (how much spread reverts each period)
+            beta = result.params[1]
+
+            # Half-life calculation
+            if beta <= 0 or beta >= 1:
+                # Not mean-reverting
+                return None
+
+            half_life = -np.log(2) / np.log(beta)
+
+            # Sanity check
+            if half_life <= 0 or half_life > 100:
+                return None
+
+            return half_life
+
+        except Exception as e:
+            logger.debug(f"Error calculating half-life: {e}")
+            return None
+
     async def _check_cointegration(self, pair: Tuple[str, str]):
         """
         Test if pair is cointegrated (has stable long-run relationship).
 
-        Uses Engle-Granger two-step method.
+        Uses Engle-Granger two-step method with additional validation:
+        1. Correlation check
+        2. Cointegration test (Engle-Granger)
+        3. Stationarity test (ADF)
+        4. Hurst exponent (mean reversion confirmation)
+        5. Half-life calculation (optimal holding period)
         """
         try:
             symbol1, symbol2 = pair
@@ -246,12 +364,24 @@ class PairsTradingStrategy(BaseStrategy):
             adf_pvalue = adf_result[1]
             is_stationary = adf_pvalue < 0.05
 
+            # Calculate Hurst exponent for mean reversion confirmation
+            hurst = self._calculate_hurst_exponent(spread)
+            is_mean_reverting = hurst < 0.5  # H < 0.5 = mean reverting
+
+            # Calculate half-life for optimal holding period
+            half_life = self._calculate_half_life(spread)
+
+            # All conditions must be met for trading
+            is_tradeable = is_cointegrated and is_stationary and is_mean_reverting
+
             self.cointegration_results[pair] = {
-                'cointegrated': is_cointegrated and is_stationary,
+                'cointegrated': is_tradeable,
                 'correlation': correlation,
                 'hedge_ratio': hedge_ratio,
                 'coint_pvalue': pvalue,
                 'adf_pvalue': adf_pvalue,
+                'hurst_exponent': hurst,
+                'half_life': half_life,
                 'spread_mean': np.mean(spread),
                 'spread_std': np.std(spread),
                 'timestamp': datetime.now()
@@ -259,14 +389,25 @@ class PairsTradingStrategy(BaseStrategy):
 
             self.last_coint_check[pair] = datetime.now()
 
-            if is_cointegrated and is_stationary:
-                logger.info(f"✅ {pair} is COINTEGRATED:")
+            if is_tradeable:
+                logger.info(f"✅ {pair} is COINTEGRATED and MEAN-REVERTING:")
                 logger.info(f"   Correlation: {correlation:.3f}")
                 logger.info(f"   Hedge Ratio: {hedge_ratio:.4f}")
                 logger.info(f"   Coint p-value: {pvalue:.4f}")
+                logger.info(f"   ADF p-value: {adf_pvalue:.4f}")
+                logger.info(f"   Hurst exponent: {hurst:.3f} (< 0.5 = mean-reverting)")
+                if half_life:
+                    logger.info(f"   Half-life: {half_life:.1f} bars")
                 logger.info(f"   Spread std: {np.std(spread):.4f}")
             else:
-                logger.debug(f"❌ {pair} NOT cointegrated (p={pvalue:.3f}, adf={adf_pvalue:.3f})")
+                reasons = []
+                if not is_cointegrated:
+                    reasons.append(f"coint p={pvalue:.3f}")
+                if not is_stationary:
+                    reasons.append(f"adf p={adf_pvalue:.3f}")
+                if not is_mean_reverting:
+                    reasons.append(f"hurst={hurst:.3f}")
+                logger.debug(f"❌ {pair} NOT tradeable: {', '.join(reasons)}")
 
         except Exception as e:
             logger.error(f"Error checking cointegration for {pair}: {e}", exc_info=True)
@@ -446,6 +587,10 @@ class PairsTradingStrategy(BaseStrategy):
             if result1 and result2:
                 logger.info(f"✅ Pair trade executed: {pair}")
 
+                # Get half-life for exit timing
+                coint_result = self.cointegration_results.get(pair, {})
+                half_life = coint_result.get('half_life')
+
                 # Track position
                 self.pair_positions[pair] = {
                     'entry_time': datetime.now(),
@@ -459,7 +604,8 @@ class PairsTradingStrategy(BaseStrategy):
                     'side1': side1,
                     'side2': side2,
                     'entry_z_score': stats['z_score'],
-                    'hedge_ratio': hedge_ratio
+                    'hedge_ratio': hedge_ratio,
+                    'half_life': half_life
                 }
             else:
                 logger.error(f"❌ Failed to execute pair trade for {pair}")
@@ -501,12 +647,23 @@ class PairsTradingStrategy(BaseStrategy):
                 should_exit = True
                 exit_reason = f"z-score diverged ({z_score:.2f})"
 
-            # 3. Max holding period
+            # 3. Max holding period (use half-life if available)
             entry_time = position['entry_time']
-            holding_days = (datetime.now() - entry_time).days
-            if holding_days >= self.parameters['max_holding_days']:
+            holding_hours = (datetime.now() - entry_time).total_seconds() / 3600
+            holding_days = holding_hours / 24
+
+            # Determine max holding period
+            half_life = position.get('half_life')
+            if self.parameters.get('use_half_life_exit') and half_life:
+                # Exit after 3x half-life (99.5% mean reversion expected)
+                max_holding = half_life * self.parameters.get('half_life_multiplier', 3.0)
+                max_holding_hours = max_holding  # half-life is in bars, assume hourly
+                if holding_hours >= max_holding_hours:
+                    should_exit = True
+                    exit_reason = f"half-life exit ({holding_hours:.1f}h > {max_holding_hours:.1f}h)"
+            elif holding_days >= self.parameters['max_holding_days']:
                 should_exit = True
-                exit_reason = f"max holding period ({holding_days} days)"
+                exit_reason = f"max holding period ({holding_days:.1f} days)"
 
             # 4. P/L check
             symbol1 = position['symbol1']
