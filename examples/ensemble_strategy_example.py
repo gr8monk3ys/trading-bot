@@ -17,7 +17,6 @@ Usage:
 
 import asyncio
 import logging
-from datetime import datetime
 
 from brokers.alpaca_broker import AlpacaBroker
 from strategies.ensemble_strategy import EnsembleStrategy
@@ -51,10 +50,10 @@ async def main():
 
     print("📊 Strategy Configuration:")
     print(f"   Symbols: {', '.join(symbols)}")
-    print(f"   Sub-strategies: Mean Reversion, Momentum, Trend Following")
-    print(f"   Min Agreement: 60% (need 60% of strategies to agree)")
-    print(f"   Regime Detection: Automatic (trending/ranging/volatile)")
-    print(f"   Position Size: 10% per position")
+    print("   Sub-strategies: Mean Reversion, Momentum, Trend Following")
+    print("   Min Agreement: 60% (need 60% of strategies to agree)")
+    print("   Regime Detection: Automatic (trending/ranging/volatile)")
+    print("   Position Size: 10% per position")
     print("\n")
 
     # Initialize strategy with custom parameters

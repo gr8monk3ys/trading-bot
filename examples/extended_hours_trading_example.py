@@ -20,7 +20,6 @@ Usage:
 
 import asyncio
 import logging
-from datetime import datetime
 
 from brokers.alpaca_broker import AlpacaBroker
 from utils.extended_hours import ExtendedHoursManager, GapTradingStrategy, EarningsReactionStrategy, format_session_info
@@ -64,8 +63,8 @@ async def main():
     print(f"   Pre-Market Trading: {'ENABLED' if ext_hours.enable_pre_market else 'DISABLED'}")
     print(f"   After-Hours Trading: {'ENABLED' if ext_hours.enable_after_hours else 'DISABLED'}")
     print(f"   Monitored Symbols: {', '.join(symbols)}")
-    print(f"   Position Size: 50% of regular (more conservative)")
-    print(f"   Order Type: LIMIT only (safer for low liquidity)")
+    print("   Position Size: 50% of regular (more conservative)")
+    print("   Order Type: LIMIT only (safer for low liquidity)")
     print("\n")
 
     print("⚠️  Extended Hours Safety Features:")
@@ -120,7 +119,7 @@ async def main():
                     # gap_signal = await gap_strategy.analyze_gap(symbol, prev_close, current_price)
 
                     print(f"\n   {symbol}:")
-                    print(f"      Checking for overnight gaps...")
+                    print("      Checking for overnight gaps...")
                     # if gap_signal:
                     #     print(f"      GAP DETECTED: {gap_signal['reason']}")
                     #     if gap_signal['signal'] == 'buy':
@@ -136,7 +135,7 @@ async def main():
                 # Example: Monitor earnings reactions
                 for symbol in symbols:
                     print(f"\n   {symbol}:")
-                    print(f"      Monitoring for earnings announcements...")
+                    print("      Monitoring for earnings announcements...")
                     # In real implementation:
                     # if has_earnings_today(symbol):
                     #     close_price = await get_close_price(symbol)
@@ -212,8 +211,8 @@ async def example_gap_trade():
     print(f"   Gap: {gap_pct:.2%} 🚀")
 
     if gap_pct > 0.02:  # 2% gap
-        print(f"\n✅ Gap threshold met - executing FADE trade")
-        print(f"   Strategy: Sell the gap (expect reversion to mean)")
+        print("\n✅ Gap threshold met - executing FADE trade")
+        print("   Strategy: Sell the gap (expect reversion to mean)")
 
         # Calculate position size (reduced for extended hours)
         account = await broker.get_account()
@@ -235,9 +234,9 @@ async def example_gap_trade():
         )
 
         if result:
-            print(f"\n✅ Extended hours order submitted!")
+            print("\n✅ Extended hours order submitted!")
         else:
-            print(f"\n❌ Order failed (likely spread too wide or liquidity too low)")
+            print("\n❌ Order failed (likely spread too wide or liquidity too low)")
 
 
 if __name__ == "__main__":

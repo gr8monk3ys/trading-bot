@@ -23,8 +23,6 @@ This example shows:
 """
 
 import logging
-import asyncio
-import numpy as np
 from datetime import datetime, timedelta
 from utils.kelly_criterion import KellyCriterion, Trade
 

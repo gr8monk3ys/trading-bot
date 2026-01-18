@@ -22,7 +22,6 @@ Usage:
 
 import asyncio
 import logging
-from datetime import datetime
 
 from brokers.alpaca_broker import AlpacaBroker
 from strategies.pairs_trading_strategy import PairsTradingStrategy
@@ -57,10 +56,10 @@ async def main():
     print(f"   Pairs to trade: {len(pairs)}")
     for pair in pairs:
         print(f"      {pair[0]} / {pair[1]}")
-    print(f"\n   Entry Z-Score: ±2.0 (enter when spread is 2 std devs from mean)")
-    print(f"   Exit Z-Score: ±0.5 (exit when spread reverts)")
-    print(f"   Market-Neutral: Yes (long + short = hedged)")
-    print(f"   Position Size: 10% per pair (split between both stocks)")
+    print("\n   Entry Z-Score: ±2.0 (enter when spread is 2 std devs from mean)")
+    print("   Exit Z-Score: ±0.5 (exit when spread reverts)")
+    print("   Market-Neutral: Yes (long + short = hedged)")
+    print("   Position Size: 10% per pair (split between both stocks)")
     print("\n")
 
     # Initialize strategy with custom parameters

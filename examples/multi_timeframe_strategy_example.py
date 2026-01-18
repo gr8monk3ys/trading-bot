@@ -14,7 +14,6 @@ Only enters trades when all timeframes are aligned (multi-timeframe confirmation
 
 import logging
 import asyncio
-from datetime import datetime
 from strategies.base_strategy import BaseStrategy
 from brokers.order_builder import OrderBuilder
 from utils.multi_timeframe import MultiTimeframeAnalyzer
@@ -76,7 +75,7 @@ class MultiTimeframeStrategy(BaseStrategy):
             if hasattr(self.broker, '_add_subscriber'):
                 self.broker._add_subscriber(self)
 
-            logger.info(f"Multi-timeframe strategy initialized")
+            logger.info("Multi-timeframe strategy initialized")
             logger.info(f"Timeframes: {', '.join(self.parameters['timeframes'])}")
             logger.info(f"Require full alignment: {self.require_full_alignment}")
 
@@ -161,7 +160,7 @@ class MultiTimeframeStrategy(BaseStrategy):
             logger.info(f"All timeframes aligned: {mtf_status['aligned_signal']}")
             for tf, data in mtf_status['timeframes'].items():
                 logger.info(f"  {tf}: {data['trend']} ({data['momentum']:+.2f}%)")
-            logger.info(f"\nOrder Details:")
+            logger.info("\nOrder Details:")
             logger.info(f"  Quantity: {quantity:.4f} shares")
             logger.info(f"  Entry: ${price:.2f}")
             logger.info(f"  Take Profit: ${take_profit_price:.2f} (+{self.take_profit*100:.1f}%)")

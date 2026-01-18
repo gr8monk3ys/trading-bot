@@ -143,7 +143,7 @@ class VWAPExecutor:
 
             # Validate
             if total_qty < self.min_slice_qty:
-                logger.warning(f"Order too small for VWAP, executing as single order")
+                logger.warning("Order too small for VWAP, executing as single order")
                 return await self._execute_single_order(symbol, side, total_qty)
 
             # Determine number of slices
@@ -343,7 +343,6 @@ class VWAPExecutor:
 
         # Fall back to default profile
         now = datetime.now()
-        current_time = now.strftime('%H:%M')
 
         weights = []
         interval = duration_minutes / num_slices

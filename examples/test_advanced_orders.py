@@ -84,7 +84,7 @@ async def test_simple_market_order(broker, symbol='AAPL'):
         order = OrderBuilder(symbol, 'buy', 1).market().day().build()
 
         logger.info(f"📝 Market order created: Buy 1 share of {symbol}")
-        logger.info(f"   Would submit order (commented out for safety)")
+        logger.info("   Would submit order (commented out for safety)")
 
         # Uncomment to actually submit:
         # result = await broker.submit_order_advanced(order)
@@ -118,8 +118,8 @@ async def test_limit_order(broker, symbol='AAPL', limit_price=None):
         )
 
         logger.info(f"📝 Limit order created: Buy 1 share of {symbol} at ${limit_price:.2f}")
-        logger.info(f"   Time in force: GTC (Good-Till-Canceled)")
-        logger.info(f"   Would submit order (commented out for safety)")
+        logger.info("   Time in force: GTC (Good-Till-Canceled)")
+        logger.info("   Would submit order (commented out for safety)")
 
         # Uncomment to actually submit:
         # result = await broker.submit_order_advanced(order)
@@ -152,7 +152,7 @@ async def test_stop_order(broker, symbol='AAPL'):
 
         logger.info(f"📝 Stop order created: Buy 1 share of {symbol} when price hits ${stop_price:.2f}")
         logger.info(f"   Current price: ${current_price:.2f}")
-        logger.info(f"   Would submit order (commented out for safety)")
+        logger.info("   Would submit order (commented out for safety)")
 
         return True
     except Exception as e:
@@ -176,8 +176,8 @@ async def test_trailing_stop_order(broker, symbol='AAPL'):
         )
 
         logger.info(f"📝 Trailing stop order created: Sell 1 share of {symbol}")
-        logger.info(f"   Trail: 2.5% below highest price")
-        logger.info(f"   Would submit order (commented out for safety)")
+        logger.info("   Trail: 2.5% below highest price")
+        logger.info("   Would submit order (commented out for safety)")
 
         return True
     except Exception as e:
@@ -218,8 +218,8 @@ async def test_bracket_order(broker, symbol='AAPL'):
         logger.info(f"   Take-Profit: ${take_profit_price:.2f} (+5%)")
         logger.info(f"   Stop-Loss: ${stop_loss_price:.2f} (-3%)")
         logger.info(f"   Stop-Limit: ${stop_limit_price:.2f}")
-        logger.info(f"   Risk/Reward: 3% / 5% = 1:1.67")
-        logger.info(f"   Would submit order (commented out for safety)")
+        logger.info("   Risk/Reward: 3% / 5% = 1:1.67")
+        logger.info("   Would submit order (commented out for safety)")
 
         # Uncomment to actually submit:
         # result = await broker.submit_order_advanced(order)
@@ -260,8 +260,8 @@ async def test_oco_order(broker, symbol='AAPL'):
         logger.info(f"📝 OCO order created: Sell 1 share of {symbol}")
         logger.info(f"   Take-Profit: ${take_profit:.2f}")
         logger.info(f"   Stop-Loss: ${stop_loss:.2f}")
-        logger.info(f"   Note: Assumes you already have a position")
-        logger.info(f"   Would submit order (commented out for safety)")
+        logger.info("   Note: Assumes you already have a position")
+        logger.info("   Would submit order (commented out for safety)")
 
         return True
     except Exception as e:
@@ -303,11 +303,11 @@ async def test_convenience_functions(symbol='AAPL'):
     try:
         # Simple market order
         order1 = market_order(symbol, 'buy', 1, gtc=True)
-        logger.info(f"✅ market_order() created successfully")
+        logger.info("✅ market_order() created successfully")
 
         # Simple limit order
         order2 = limit_order(symbol, 'sell', 1, 200.00, gtc=True)
-        logger.info(f"✅ limit_order() created successfully")
+        logger.info("✅ limit_order() created successfully")
 
         # Bracket order
         order3 = bracket_order(
@@ -317,7 +317,7 @@ async def test_convenience_functions(symbol='AAPL'):
             stop_loss=190.00,
             stop_limit=189.50
         )
-        logger.info(f"✅ bracket_order() created successfully")
+        logger.info("✅ bracket_order() created successfully")
 
         return True
     except Exception as e:

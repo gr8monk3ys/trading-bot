@@ -45,7 +45,7 @@ try:
         print("   PAPER=True")
         sys.exit(1)
 
-    print(f"✅ PASSED: Environment loaded")
+    print("✅ PASSED: Environment loaded")
     print(f"   API Key: {api_key[:8]}... (hidden)")
     print(f"   Paper Trading: {paper_mode}")
     print()
@@ -58,12 +58,12 @@ print("Test 2: Importing core modules...")
 try:
     from brokers.alpaca_broker import AlpacaBroker
     from brokers.order_builder import OrderBuilder, market_order, limit_order, bracket_order
-    from config import SYMBOLS, ALPACA_CREDS
+    from config import SYMBOLS
 
     print("✅ PASSED: All core modules imported successfully")
-    print(f"   - AlpacaBroker")
-    print(f"   - OrderBuilder")
-    print(f"   - Convenience functions (market_order, limit_order, bracket_order)")
+    print("   - AlpacaBroker")
+    print("   - OrderBuilder")
+    print("   - Convenience functions (market_order, limit_order, bracket_order)")
     print(f"   - Config (SYMBOLS: {SYMBOLS[:3]}...)")
     print()
 except ImportError as e:
@@ -93,7 +93,7 @@ try:
     # Using OrderBuilder
     order = OrderBuilder(symbol, 'buy', qty).market().day().build()
 
-    print(f"✅ PASSED: Market order created")
+    print("✅ PASSED: Market order created")
     print(f"   Symbol: {order.symbol}")
     print(f"   Side: {order.side}")
     print(f"   Quantity: {order.qty}")
@@ -113,7 +113,7 @@ try:
 
     order = OrderBuilder(symbol, 'buy', qty).limit(limit_price).gtc().build()
 
-    print(f"✅ PASSED: Limit order created")
+    print("✅ PASSED: Limit order created")
     print(f"   Symbol: {order.symbol}")
     print(f"   Side: {order.side}")
     print(f"   Quantity: {order.qty}")
@@ -146,7 +146,7 @@ try:
         .build()
     )
 
-    print(f"✅ PASSED: Bracket order created")
+    print("✅ PASSED: Bracket order created")
     print(f"   Symbol: {order.symbol}")
     print(f"   Side: {order.side}")
     print(f"   Quantity: {order.qty}")
@@ -165,11 +165,11 @@ print("Test 7: Testing convenience functions...")
 try:
     # market_order convenience function
     order1 = market_order("AAPL", "buy", 1, gtc=True)
-    print(f"✅ PASSED: market_order() function works")
+    print("✅ PASSED: market_order() function works")
 
     # limit_order convenience function
     order2 = limit_order("MSFT", "sell", 2, 400.00, gtc=True)
-    print(f"✅ PASSED: limit_order() function works")
+    print("✅ PASSED: limit_order() function works")
 
     # bracket_order convenience function
     order3 = bracket_order(
@@ -179,7 +179,7 @@ try:
         stop_loss=450.00,
         stop_limit=448.00
     )
-    print(f"✅ PASSED: bracket_order() function works")
+    print("✅ PASSED: bracket_order() function works")
     print()
 except Exception as e:
     print(f"❌ FAILED: Error with convenience functions: {e}")
@@ -198,7 +198,7 @@ try:
         print(f"❌ FAILED: Missing attributes: {missing_attrs}")
         sys.exit(1)
 
-    print(f"✅ PASSED: All required order attributes present")
+    print("✅ PASSED: All required order attributes present")
     print(f"   Order has: {', '.join(required_attrs)}")
     print()
 except Exception as e:
