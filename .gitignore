@@ -36,8 +36,13 @@ data/results/*
 data/logs/*
 data/models/*
 logs/*
+*.log
 !data/*/README.md
 !data/README.md
+
+# Runtime files
+*.pid
+bot.pid
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -56,6 +61,7 @@ ta-lib/*
 # Testing
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 *.cover
 .hypothesis/
