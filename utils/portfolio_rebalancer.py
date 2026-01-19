@@ -48,10 +48,10 @@ class PortfolioRebalancer:
         broker,
         target_allocations: Optional[Dict[str, float]] = None,
         rebalance_threshold: float = 0.05,
-        rebalance_frequency: str = 'weekly',
+        rebalance_frequency: str = "weekly",
         equal_weight_symbols: Optional[List[str]] = None,
         min_trade_size: float = 100.0,  # Minimum dollar value to trade
-        dry_run: bool = False
+        dry_run: bool = False,
     ):
         """
         Initialize portfolio rebalancer.
@@ -76,7 +76,7 @@ class PortfolioRebalancer:
         if equal_weight_symbols:
             # Equal weight: divide portfolio equally
             n = len(equal_weight_symbols)
-            self.target_allocations = {sym: 1.0 / n for sym in equal_weight_symbols}
+            self.target_allocations = dict.fromkeys(equal_weight_symbols, 1.0 / n)
         elif target_allocations:
             # Validate allocations sum to 1.0
             total = sum(target_allocations.values())
@@ -169,7 +169,9 @@ class PortfolioRebalancer:
         max_drift = max(abs(d) for d in drift.values())
 
         if max_drift > self.rebalance_threshold:
-            logger.info(f"Rebalancing needed: max drift = {max_drift:.1%} (threshold = {self.rebalance_threshold:.1%})")
+            logger.info(
+                f"Rebalancing needed: max drift = {max_drift:.1%} (threshold = {self.rebalance_threshold:.1%})"
+            )
             return True
 
         logger.debug(f"No rebalancing needed: max drift = {max_drift:.1%}")
@@ -183,11 +185,11 @@ class PortfolioRebalancer:
         now = datetime.now()
         time_since_rebalance = now - self.last_rebalance
 
-        if self.rebalance_frequency == 'daily':
+        if self.rebalance_frequency == "daily":
             return time_since_rebalance >= timedelta(days=1)
-        elif self.rebalance_frequency == 'weekly':
+        elif self.rebalance_frequency == "weekly":
             return time_since_rebalance >= timedelta(weeks=1)
-        elif self.rebalance_frequency == 'monthly':
+        elif self.rebalance_frequency == "monthly":
             return time_since_rebalance >= timedelta(days=30)
         else:
             return True
@@ -241,7 +243,9 @@ class PortfolioRebalancer:
 
                 # Skip if adjustment is too small
                 if abs(adjustment_value) < self.min_trade_size:
-                    logger.debug(f"Skipping {symbol}: adjustment ${adjustment_value:.2f} < min ${self.min_trade_size:.2f}")
+                    logger.debug(
+                        f"Skipping {symbol}: adjustment ${adjustment_value:.2f} < min ${self.min_trade_size:.2f}"
+                    )
                     continue
 
                 # Calculate quantity to trade
@@ -249,26 +253,28 @@ class PortfolioRebalancer:
 
                 # Determine side
                 if adjustment_value > 0:
-                    side = 'buy'
-                    action = 'underweight'
+                    side = "buy"
+                    action = "underweight"
                 else:
-                    side = 'sell'
-                    action = 'overweight'
+                    side = "sell"
+                    action = "overweight"
 
-                orders.append({
-                    'symbol': symbol,
-                    'side': side,
-                    'quantity': quantity,
-                    'price': prices[symbol],
-                    'value': abs(adjustment_value),
-                    'current_weight': current_weight,
-                    'target_weight': target_weight,
-                    'drift': symbol_drift,
-                    'reason': f"{action} ({symbol_drift:+.1%} drift)"
-                })
+                orders.append(
+                    {
+                        "symbol": symbol,
+                        "side": side,
+                        "quantity": quantity,
+                        "price": prices[symbol],
+                        "value": abs(adjustment_value),
+                        "current_weight": current_weight,
+                        "target_weight": target_weight,
+                        "drift": symbol_drift,
+                        "reason": f"{action} ({symbol_drift:+.1%} drift)",
+                    }
+                )
 
             # Sort by absolute drift (rebalance biggest drifts first)
-            orders.sort(key=lambda x: abs(x['drift']), reverse=True)
+            orders.sort(key=lambda x: abs(x["drift"]), reverse=True)
 
             return orders
 
@@ -289,25 +295,29 @@ class PortfolioRebalancer:
         try:
             if not orders:
                 logger.info("No rebalancing orders to execute")
-                return {'status': 'no_action', 'orders_executed': 0}
+                return {"status": "no_action", "orders_executed": 0}
 
-            logger.info("\n" + "="*80)
+            logger.info("\n" + "=" * 80)
             logger.info("🔄 PORTFOLIO REBALANCING")
-            logger.info("="*80)
+            logger.info("=" * 80)
             logger.info(f"Rebalancing {len(orders)} positions:")
 
             for order in orders:
                 logger.info(f"\n  {order['symbol']}:")
-                logger.info(f"    Current: {order['current_weight']:.1%} → Target: {order['target_weight']:.1%}")
+                logger.info(
+                    f"    Current: {order['current_weight']:.1%} → Target: {order['target_weight']:.1%}"
+                )
                 logger.info(f"    Drift: {order['drift']:+.1%}")
-                logger.info(f"    Action: {order['side'].upper()} {order['quantity']:.4f} shares (${order['value']:.2f})")
+                logger.info(
+                    f"    Action: {order['side'].upper()} {order['quantity']:.4f} shares (${order['value']:.2f})"
+                )
                 logger.info(f"    Reason: {order['reason']}")
 
             logger.info(f"{'='*80}\n")
 
             if self.dry_run:
                 logger.info("DRY RUN MODE - Orders not executed")
-                return {'status': 'dry_run', 'orders_generated': len(orders)}
+                return {"status": "dry_run", "orders_generated": len(orders)}
 
             # Execute orders
             from brokers.order_builder import OrderBuilder
@@ -318,15 +328,19 @@ class PortfolioRebalancer:
             for order in orders:
                 try:
                     # Create market order
-                    alpaca_order = (OrderBuilder(order['symbol'], order['side'], order['quantity'])
-                                   .market()
-                                   .day()
-                                   .build())
+                    alpaca_order = (
+                        OrderBuilder(order["symbol"], order["side"], order["quantity"])
+                        .market()
+                        .day()
+                        .build()
+                    )
 
                     result = await self.broker.submit_order_advanced(alpaca_order)
 
                     if result:
-                        logger.info(f"✅ Rebalance order executed: {order['side']} {order['quantity']:.4f} {order['symbol']}")
+                        logger.info(
+                            f"✅ Rebalance order executed: {order['side']} {order['quantity']:.4f} {order['symbol']}"
+                        )
                         executed += 1
                     else:
                         logger.error(f"❌ Failed to execute: {order['symbol']}")
@@ -338,24 +352,26 @@ class PortfolioRebalancer:
 
             # Update tracking
             self.last_rebalance = datetime.now()
-            self.rebalance_history.append({
-                'timestamp': self.last_rebalance,
-                'orders_executed': executed,
-                'orders_failed': failed
-            })
+            self.rebalance_history.append(
+                {
+                    "timestamp": self.last_rebalance,
+                    "orders_executed": executed,
+                    "orders_failed": failed,
+                }
+            )
 
             logger.info(f"\n✅ Rebalancing complete: {executed} orders executed, {failed} failed")
 
             return {
-                'status': 'success',
-                'orders_executed': executed,
-                'orders_failed': failed,
-                'timestamp': self.last_rebalance
+                "status": "success",
+                "orders_executed": executed,
+                "orders_failed": failed,
+                "timestamp": self.last_rebalance,
             }
 
         except Exception as e:
             logger.error(f"Error executing rebalancing: {e}", exc_info=True)
-            return {'status': 'error', 'error': str(e)}
+            return {"status": "error", "error": str(e)}
 
     async def get_rebalance_report(self) -> str:
         """
@@ -368,9 +384,9 @@ class PortfolioRebalancer:
         drift = await self.calculate_drift()
 
         report = []
-        report.append("\n" + "="*80)
+        report.append("\n" + "=" * 80)
         report.append("PORTFOLIO REBALANCING REPORT")
-        report.append("="*80)
+        report.append("=" * 80)
 
         report.append("\nTarget Allocations:")
         for symbol, target in self.target_allocations.items():
@@ -393,6 +409,6 @@ class PortfolioRebalancer:
         else:
             report.append("Last rebalanced: Never")
 
-        report.append("="*80)
+        report.append("=" * 80)
 
         return "\n".join(report)

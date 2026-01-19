@@ -7,9 +7,10 @@ Tests cover:
 - Standard mode vs aggressive mode differences
 """
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -25,10 +26,10 @@ class TestRSI2Mode:
         strategy = MomentumStrategy()
         params = strategy.default_parameters()
 
-        assert params['rsi_mode'] == 'standard'
-        assert params['rsi_period'] == 14
-        assert params['rsi_overbought'] == 70
-        assert params['rsi_oversold'] == 30
+        assert params["rsi_mode"] == "standard"
+        assert params["rsi_period"] == 14
+        assert params["rsi_overbought"] == 70
+        assert params["rsi_oversold"] == 30
 
     def test_aggressive_mode_params_in_defaults(self):
         """Aggressive mode should be documented in defaults."""
@@ -38,8 +39,8 @@ class TestRSI2Mode:
         params = strategy.default_parameters()
 
         # rsi_mode should exist as a parameter
-        assert 'rsi_mode' in params
-        assert params['rsi_mode'] in ['standard', 'aggressive']
+        assert "rsi_mode" in params
+        assert params["rsi_mode"] in ["standard", "aggressive"]
 
     def test_aggressive_mode_overrides_rsi_params(self):
         """When aggressive mode is set, RSI params should be overridden to RSI-2."""
@@ -48,19 +49,19 @@ class TestRSI2Mode:
         # Create strategy with aggressive mode
         strategy = MomentumStrategy()
         strategy.parameters = strategy.default_parameters()
-        strategy.parameters['rsi_mode'] = 'aggressive'
+        strategy.parameters["rsi_mode"] = "aggressive"
 
         # Simulate the initialization logic
-        rsi_mode = strategy.parameters.get('rsi_mode', 'standard')
+        rsi_mode = strategy.parameters.get("rsi_mode", "standard")
 
-        if rsi_mode == 'aggressive':
+        if rsi_mode == "aggressive":
             rsi_period = 2
             rsi_overbought = 90
             rsi_oversold = 10
         else:
-            rsi_period = strategy.parameters['rsi_period']
-            rsi_overbought = strategy.parameters['rsi_overbought']
-            rsi_oversold = strategy.parameters['rsi_oversold']
+            rsi_period = strategy.parameters["rsi_period"]
+            rsi_overbought = strategy.parameters["rsi_overbought"]
+            rsi_oversold = strategy.parameters["rsi_oversold"]
 
         # Verify aggressive mode uses RSI-2 settings
         assert rsi_period == 2, "RSI period should be 2 in aggressive mode"
@@ -73,18 +74,18 @@ class TestRSI2Mode:
 
         strategy = MomentumStrategy()
         strategy.parameters = strategy.default_parameters()
-        strategy.parameters['rsi_mode'] = 'standard'
+        strategy.parameters["rsi_mode"] = "standard"
 
-        rsi_mode = strategy.parameters.get('rsi_mode', 'standard')
+        rsi_mode = strategy.parameters.get("rsi_mode", "standard")
 
-        if rsi_mode == 'aggressive':
+        if rsi_mode == "aggressive":
             rsi_period = 2
             rsi_overbought = 90
             rsi_oversold = 10
         else:
-            rsi_period = strategy.parameters['rsi_period']
-            rsi_overbought = strategy.parameters['rsi_overbought']
-            rsi_oversold = strategy.parameters['rsi_oversold']
+            rsi_period = strategy.parameters["rsi_period"]
+            rsi_overbought = strategy.parameters["rsi_overbought"]
+            rsi_oversold = strategy.parameters["rsi_oversold"]
 
         assert rsi_period == 14, "RSI period should be 14 in standard mode"
         assert rsi_overbought == 70, "RSI overbought should be 70 in standard mode"
@@ -98,8 +99,8 @@ class TestRSI2Mode:
         params = strategy.default_parameters()
 
         # Standard thresholds
-        std_oversold = params['rsi_oversold']
-        std_overbought = params['rsi_overbought']
+        std_oversold = params["rsi_oversold"]
+        std_overbought = params["rsi_overbought"]
 
         # RSI-2 aggressive thresholds
         agg_oversold = 10

@@ -17,28 +17,28 @@ Usage:
     python live_trader.py --strategy mean_reversion --capital 50000
 """
 
+import argparse
 import asyncio
 import logging
 import signal
-import argparse
-from datetime import datetime
 import sys
+from datetime import datetime
 
 from brokers.alpaca_broker import AlpacaBroker
-from strategies.momentum_strategy import MomentumStrategy
-from strategies.mean_reversion_strategy import MeanReversionStrategy
-from strategies.bracket_momentum_strategy import BracketMomentumStrategy
-from utils.circuit_breaker import CircuitBreaker
 from config import SYMBOLS
+from strategies.bracket_momentum_strategy import BracketMomentumStrategy
+from strategies.mean_reversion_strategy import MeanReversionStrategy
+from strategies.momentum_strategy import MomentumStrategy
+from utils.circuit_breaker import CircuitBreaker
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(f'logs/trading_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
-    ]
+        logging.FileHandler(f'logs/trading_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'),
+    ],
 )
 
 logger = logging.getLogger(__name__)
@@ -85,9 +85,9 @@ class LiveTrader:
     async def initialize(self):
         """Initialize broker and strategy."""
         try:
-            logger.info("="*80)
+            logger.info("=" * 80)
             logger.info("🚀 LIVE TRADING INITIALIZATION")
-            logger.info("="*80)
+            logger.info("=" * 80)
 
             # Initialize broker
             logger.info("1. Connecting to Alpaca (Paper Trading)...")
@@ -105,7 +105,7 @@ class LiveTrader:
             logger.info("1.5. Initializing circuit breaker...")
             self.circuit_breaker = CircuitBreaker(
                 max_daily_loss=0.03,  # 3% max daily loss
-                auto_close_positions=True  # Automatically close positions on trigger
+                auto_close_positions=True,  # Automatically close positions on trigger
             )
             await self.circuit_breaker.initialize(self.broker)
             logger.info("✅ Circuit breaker armed")
@@ -117,11 +117,7 @@ class LiveTrader:
 
             strategy_class = self._get_strategy_class()
             self.strategy = strategy_class(
-                broker=self.broker,
-                parameters={
-                    'symbols': self.symbols,
-                    **self.parameters
-                }
+                broker=self.broker, parameters={"symbols": self.symbols, **self.parameters}
             )
 
             # Initialize strategy
@@ -140,9 +136,9 @@ class LiveTrader:
             logger.info(f"   Next Open: {clock.next_open}")
             logger.info(f"   Next Close: {clock.next_close}\n")
 
-            logger.info("="*80)
+            logger.info("=" * 80)
             logger.info("✅ INITIALIZATION COMPLETE - READY TO TRADE")
-            logger.info("="*80 + "\n")
+            logger.info("=" * 80 + "\n")
 
             return True
 
@@ -153,13 +149,15 @@ class LiveTrader:
     def _get_strategy_class(self):
         """Get strategy class by name."""
         strategies = {
-            'momentum': MomentumStrategy,
-            'mean_reversion': MeanReversionStrategy,
-            'bracket_momentum': BracketMomentumStrategy,
+            "momentum": MomentumStrategy,
+            "mean_reversion": MeanReversionStrategy,
+            "bracket_momentum": BracketMomentumStrategy,
         }
 
         if self.strategy_name not in strategies:
-            raise ValueError(f"Unknown strategy: {self.strategy_name}. Available: {list(strategies.keys())}")
+            raise ValueError(
+                f"Unknown strategy: {self.strategy_name}. Available: {list(strategies.keys())}"
+            )
 
         return strategies[self.strategy_name]
 
@@ -169,14 +167,14 @@ class LiveTrader:
             self.running = True
             self.start_time = datetime.now()
 
-            logger.info("\n" + "="*80)
+            logger.info("\n" + "=" * 80)
             logger.info("📈 STARTING LIVE TRADING")
-            logger.info("="*80)
+            logger.info("=" * 80)
             logger.info(f"Strategy: {self.strategy_name}")
             logger.info(f"Symbols: {', '.join(self.symbols)}")
             logger.info(f"Start Time: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info("\nPress Ctrl+C to stop trading gracefully")
-            logger.info("="*80 + "\n")
+            logger.info("=" * 80 + "\n")
 
             # Start WebSocket for real-time data
             await self.broker.start_websocket()
@@ -229,9 +227,9 @@ class LiveTrader:
                 # Log status
                 runtime = datetime.now() - self.start_time
 
-                logger.info("\n" + "-"*80)
+                logger.info("\n" + "-" * 80)
                 logger.info(f"📊 PERFORMANCE UPDATE - Runtime: {str(runtime).split('.')[0]}")
-                logger.info("-"*80)
+                logger.info("-" * 80)
                 logger.info(f"Equity: ${current_equity:,.2f} (P/L: ${pnl:+,.2f} / {pnl_pct:+.2f}%)")
                 logger.info(f"Positions: {len(positions)}")
 
@@ -244,7 +242,7 @@ class LiveTrader:
                             f"P/L: ${float(pos.unrealized_pl):+,.2f} / {float(pos.unrealized_plpc)*100:+.2f}%)"
                         )
 
-                logger.info("-"*80 + "\n")
+                logger.info("-" * 80 + "\n")
 
         except asyncio.CancelledError:
             logger.info("Performance monitoring stopped")
@@ -254,9 +252,9 @@ class LiveTrader:
     async def shutdown(self):
         """Graceful shutdown."""
         try:
-            logger.info("\n" + "="*80)
+            logger.info("\n" + "=" * 80)
             logger.info("🛑 SHUTTING DOWN LIVE TRADING")
-            logger.info("="*80)
+            logger.info("=" * 80)
 
             self.running = False
 
@@ -285,7 +283,7 @@ class LiveTrader:
                     )
 
             logger.info("\n✅ Shutdown complete")
-            logger.info("="*80 + "\n")
+            logger.info("=" * 80 + "\n")
 
         except Exception as e:
             logger.error(f"Error during shutdown: {e}", exc_info=True)
@@ -300,18 +298,29 @@ async def main():
     """Main entry point for live trading."""
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Live Trading Bot')
-    parser.add_argument('--strategy', type=str, default='momentum',
-                       choices=['momentum', 'mean_reversion', 'bracket_momentum'],
-                       help='Strategy to run')
-    parser.add_argument('--symbols', nargs='+', default=None,
-                       help='Symbols to trade (default: from config)')
-    parser.add_argument('--position-size', type=float, default=0.10,
-                       help='Position size as fraction of capital (default: 0.10)')
-    parser.add_argument('--stop-loss', type=float, default=0.02,
-                       help='Stop loss percentage (default: 0.02)')
-    parser.add_argument('--take-profit', type=float, default=0.05,
-                       help='Take profit percentage (default: 0.05)')
+    parser = argparse.ArgumentParser(description="Live Trading Bot")
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        default="momentum",
+        choices=["momentum", "mean_reversion", "bracket_momentum"],
+        help="Strategy to run",
+    )
+    parser.add_argument(
+        "--symbols", nargs="+", default=None, help="Symbols to trade (default: from config)"
+    )
+    parser.add_argument(
+        "--position-size",
+        type=float,
+        default=0.10,
+        help="Position size as fraction of capital (default: 0.10)",
+    )
+    parser.add_argument(
+        "--stop-loss", type=float, default=0.02, help="Stop loss percentage (default: 0.02)"
+    )
+    parser.add_argument(
+        "--take-profit", type=float, default=0.05, help="Take profit percentage (default: 0.05)"
+    )
 
     args = parser.parse_args()
 
@@ -320,17 +329,13 @@ async def main():
 
     # Strategy parameters
     parameters = {
-        'position_size': args.position_size,
-        'stop_loss': args.stop_loss,
-        'take_profit': args.take_profit,
+        "position_size": args.position_size,
+        "stop_loss": args.stop_loss,
+        "take_profit": args.take_profit,
     }
 
     # Create live trader
-    trader = LiveTrader(
-        strategy_name=args.strategy,
-        symbols=symbols,
-        parameters=parameters
-    )
+    trader = LiveTrader(strategy_name=args.strategy, symbols=symbols, parameters=parameters)
 
     # Set up signal handler for graceful shutdown
     signal.signal(signal.SIGINT, trader.handle_shutdown_signal)
@@ -350,7 +355,8 @@ async def main():
 if __name__ == "__main__":
     # Create logs directory if needed
     import os
-    os.makedirs('logs', exist_ok=True)
+
+    os.makedirs("logs", exist_ok=True)
 
     # Run
     exit_code = asyncio.run(main())

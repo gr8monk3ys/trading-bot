@@ -3,14 +3,16 @@
 Quick script to check current paper trading positions and account status
 """
 import asyncio
+
 from brokers.alpaca_broker import AlpacaBroker
+
 
 async def main():
     broker = AlpacaBroker(paper=True)
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("PAPER TRADING ACCOUNT STATUS")
-    print("="*80)
+    print("=" * 80)
 
     # Get account info
     account = await broker.get_account()
@@ -28,7 +30,7 @@ async def main():
         print(f"CURRENT POSITIONS ({len(positions)})")
         print(f"{'='*80}")
         print(f"{'Symbol':<10} {'Qty':<10} {'Entry':<12} {'Current':<12} {'P&L':<12} {'P&L %':<10}")
-        print("-"*80)
+        print("-" * 80)
 
         total_pl = 0
         for pos in positions:
@@ -40,15 +42,17 @@ async def main():
             pl_pct = float(pos.unrealized_plpc) * 100
             total_pl += pl
 
-            print(f"{symbol:<10} {qty:<10.2f} ${entry:<11.2f} ${current:<11.2f} ${pl:<11.2f} {pl_pct:>8.2f}%")
+            print(
+                f"{symbol:<10} {qty:<10.2f} ${entry:<11.2f} ${current:<11.2f} ${pl:<11.2f} {pl_pct:>8.2f}%"
+            )
 
-        print("-"*80)
+        print("-" * 80)
         print(f"{'TOTAL':<44} ${total_pl:<11.2f}")
     else:
         print("\n✓ No open positions")
 
     # Get open orders
-    orders = await broker.get_orders(status='open')
+    orders = await broker.get_orders(status="open")
 
     if orders:
         print(f"\n{'='*80}")
@@ -59,7 +63,8 @@ async def main():
     else:
         print("\n✓ No open orders")
 
-    print("\n" + "="*80 + "\n")
+    print("\n" + "=" * 80 + "\n")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

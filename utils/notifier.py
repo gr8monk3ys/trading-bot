@@ -22,11 +22,12 @@ Usage:
 import logging
 import os
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import Optional
-import aiohttp
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Optional
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +38,15 @@ class Notifier:
     def __init__(self):
         """Initialize notifier with environment config."""
         # Slack
-        self.slack_webhook_url = os.getenv('SLACK_WEBHOOK_URL')
+        self.slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
 
         # Email
-        self.email_enabled = os.getenv('EMAIL_NOTIFICATIONS', 'false').lower() == 'true'
-        self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-        self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
-        self.smtp_user = os.getenv('SMTP_USER')
-        self.smtp_password = os.getenv('SMTP_PASSWORD')
-        self.email_to = os.getenv('EMAIL_TO')
+        self.email_enabled = os.getenv("EMAIL_NOTIFICATIONS", "false").lower() == "true"
+        self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        self.smtp_user = os.getenv("SMTP_USER")
+        self.smtp_password = os.getenv("SMTP_PASSWORD")
+        self.email_to = os.getenv("EMAIL_TO")
 
         # Check what's enabled
         self.slack_enabled = bool(self.slack_webhook_url)
@@ -58,8 +59,9 @@ class Notifier:
         if not self.slack_enabled and not self.email_enabled:
             logger.info("📝 Notifications disabled (console only)")
 
-    async def send_trade_notification(self, symbol: str, side: str, quantity: float,
-                                     price: float, pnl: Optional[float] = None):
+    async def send_trade_notification(
+        self, symbol: str, side: str, quantity: float, price: float, pnl: Optional[float] = None
+    ):
         """
         Send notification for trade execution.
 
@@ -165,32 +167,23 @@ class Notifier:
             slack_message = {
                 "text": f"*{title}*",
                 "blocks": [
-                    {
-                        "type": "header",
-                        "text": {
-                            "type": "plain_text",
-                            "text": title
-                        }
-                    },
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": message
-                        }
-                    }
-                ]
+                    {"type": "header", "text": {"type": "plain_text", "text": title}},
+                    {"type": "section", "text": {"type": "mrkdwn", "text": message}},
+                ],
             }
 
             # Add urgency indicator
             if urgent:
-                slack_message["blocks"].insert(0, {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": ":rotating_light: *URGENT* :rotating_light:"
-                    }
-                })
+                slack_message["blocks"].insert(
+                    0,
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": ":rotating_light: *URGENT* :rotating_light:",
+                        },
+                    },
+                )
 
             # Send via webhook
             async with aiohttp.ClientSession() as session:
@@ -208,9 +201,9 @@ class Notifier:
         try:
             # Create message
             msg = MIMEMultipart()
-            msg['From'] = self.smtp_user
-            msg['To'] = self.email_to
-            msg['Subject'] = f"{'[URGENT] ' if urgent else ''}{title}"
+            msg["From"] = self.smtp_user
+            msg["To"] = self.email_to
+            msg["Subject"] = f"{'[URGENT] ' if urgent else ''}{title}"
 
             # Format message
             body = f"""
@@ -223,7 +216,7 @@ Trading Bot Notification
 Sent at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             """
 
-            msg.attach(MIMEText(body, 'plain'))
+            msg.attach(MIMEText(body, "plain"))
 
             # Send via SMTP
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
@@ -245,40 +238,31 @@ async def test_notifier():
     print("\n🔔 Testing notification system...")
 
     # Test trade notification
-    await notifier.send_trade_notification(
-        symbol="AAPL",
-        side="buy",
-        quantity=10,
-        price=150.50
-    )
+    await notifier.send_trade_notification(symbol="AAPL", side="buy", quantity=10, price=150.50)
 
     # Test trade with P/L
     await notifier.send_trade_notification(
-        symbol="MSFT",
-        side="sell",
-        quantity=5,
-        price=300.00,
-        pnl=150.50
+        symbol="MSFT", side="sell", quantity=5, price=300.00, pnl=150.50
     )
 
     # Test circuit breaker alert
-    await notifier.send_circuit_breaker_alert(
-        daily_loss=0.035,
-        max_loss=0.03
-    )
+    await notifier.send_circuit_breaker_alert(daily_loss=0.035, max_loss=0.03)
 
     # Test daily summary
-    await notifier.send_daily_summary({
-        'total_trades': 10,
-        'win_rate': 0.60,
-        'total_pnl': 1250.50,
-        'sharpe_ratio': 1.85,
-        'max_drawdown_pct': 0.08
-    })
+    await notifier.send_daily_summary(
+        {
+            "total_trades": 10,
+            "win_rate": 0.60,
+            "total_pnl": 1250.50,
+            "sharpe_ratio": 1.85,
+            "max_drawdown_pct": 0.08,
+        }
+    )
 
     print("✅ Notification tests complete!")
 
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(test_notifier())

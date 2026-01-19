@@ -9,10 +9,11 @@ Tests cover:
 - Indicator calculations
 """
 
-import pytest
-import numpy as np
-import sys
 import os
+import sys
+
+import numpy as np
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -83,41 +84,41 @@ class TestMultiTimeframeFilter:
     def test_bullish_signal_rejected_on_bearish_higher_tf(self):
         """Bullish signal should be rejected if higher TF is bearish."""
         momentum_score = 2  # Bullish
-        higher_tf_trend = 'bearish'
+        higher_tf_trend = "bearish"
 
         # MTF filter logic
-        if higher_tf_trend == 'bearish' and momentum_score > 0:
-            signal = 'neutral'  # Reject
+        if higher_tf_trend == "bearish" and momentum_score > 0:
+            signal = "neutral"  # Reject
         else:
-            signal = 'buy'
+            signal = "buy"
 
-        assert signal == 'neutral'
+        assert signal == "neutral"
 
     def test_bearish_signal_rejected_on_bullish_higher_tf(self):
         """Bearish signal should be rejected if higher TF is bullish."""
         momentum_score = -2  # Bearish
-        higher_tf_trend = 'bullish'
+        higher_tf_trend = "bullish"
 
         # MTF filter logic
-        if higher_tf_trend == 'bullish' and momentum_score < 0:
-            signal = 'neutral'  # Reject
+        if higher_tf_trend == "bullish" and momentum_score < 0:
+            signal = "neutral"  # Reject
         else:
-            signal = 'short'
+            signal = "short"
 
-        assert signal == 'neutral'
+        assert signal == "neutral"
 
     def test_aligned_signal_passes(self):
         """Signal should pass when aligned with higher TF."""
         momentum_score = 2  # Bullish
-        higher_tf_trend = 'bullish'
+        higher_tf_trend = "bullish"
 
         # MTF filter logic
-        if higher_tf_trend == 'bearish' and momentum_score > 0:
-            signal = 'neutral'
+        if higher_tf_trend == "bearish" and momentum_score > 0:
+            signal = "neutral"
         else:
-            signal = 'buy'
+            signal = "buy"
 
-        assert signal == 'buy'
+        assert signal == "buy"
 
 
 class TestShortSelling:
@@ -130,11 +131,11 @@ class TestShortSelling:
 
         if momentum_score <= -2:
             if enable_short_selling:
-                signal = 'short'
+                signal = "short"
             else:
-                signal = 'neutral'
+                signal = "neutral"
 
-        assert signal == 'short'
+        assert signal == "short"
 
     def test_neutral_when_short_disabled(self):
         """Should return 'neutral' when short selling disabled."""
@@ -143,11 +144,11 @@ class TestShortSelling:
 
         if momentum_score <= -2:
             if enable_short_selling:
-                signal = 'short'
+                signal = "short"
             else:
-                signal = 'neutral'
+                signal = "neutral"
 
-        assert signal == 'neutral'
+        assert signal == "neutral"
 
     def test_short_stop_loss_inverted(self):
         """Short stop-loss should trigger when price RISES."""
@@ -230,11 +231,11 @@ class TestMomentumScoreCalculation:
         volume_confirmation = True
 
         if momentum_score >= 2 and trend_strength and volume_confirmation:
-            signal = 'buy'
+            signal = "buy"
         else:
-            signal = 'neutral'
+            signal = "neutral"
 
-        assert signal == 'buy'
+        assert signal == "buy"
 
     def test_no_signal_without_confirmation(self):
         """No signal if missing trend or volume confirmation."""
@@ -243,11 +244,11 @@ class TestMomentumScoreCalculation:
         volume_confirmation = False  # No volume confirmation
 
         if momentum_score >= 2 and trend_strength and volume_confirmation:
-            signal = 'buy'
+            signal = "buy"
         else:
-            signal = 'neutral'
+            signal = "neutral"
 
-        assert signal == 'neutral'
+        assert signal == "neutral"
 
 
 class TestIndicatorCalculations:
@@ -258,9 +259,31 @@ class TestIndicatorCalculations:
         import talib
 
         # Create sample price data
-        prices = np.array([44, 44.34, 44.09, 43.61, 44.33, 44.83, 45.10,
-                          45.42, 45.84, 46.08, 45.89, 46.03, 45.61, 46.28,
-                          46.28, 46.00, 46.03, 46.41, 46.22, 45.64], dtype=float)
+        prices = np.array(
+            [
+                44,
+                44.34,
+                44.09,
+                43.61,
+                44.33,
+                44.83,
+                45.10,
+                45.42,
+                45.84,
+                46.08,
+                45.89,
+                46.03,
+                45.61,
+                46.28,
+                46.28,
+                46.00,
+                46.03,
+                46.41,
+                46.22,
+                45.64,
+            ],
+            dtype=float,
+        )
 
         rsi = talib.RSI(prices, timeperiod=14)
 
@@ -276,10 +299,7 @@ class TestIndicatorCalculations:
 
         # MACD histogram should equal MACD - signal
         valid_idx = ~np.isnan(hist)
-        np.testing.assert_array_almost_equal(
-            hist[valid_idx],
-            macd[valid_idx] - signal[valid_idx]
-        )
+        np.testing.assert_array_almost_equal(hist[valid_idx], macd[valid_idx] - signal[valid_idx])
 
     def test_bollinger_bands_calculation(self):
         """Test Bollinger Bands calculation."""
@@ -377,31 +397,40 @@ class TestDefaultParameters:
         """Test default_parameters returns expected structure."""
         # These are the expected default values from the strategy
         expected_keys = [
-            'position_size', 'max_positions', 'stop_loss', 'take_profit',
-            'rsi_period', 'rsi_overbought', 'rsi_oversold',
-            'macd_fast_period', 'macd_slow_period', 'macd_signal_period',
-            'use_multi_timeframe', 'enable_short_selling',
-            'use_kelly_criterion', 'use_volatility_regime',
-            'use_bollinger_filter'
+            "position_size",
+            "max_positions",
+            "stop_loss",
+            "take_profit",
+            "rsi_period",
+            "rsi_overbought",
+            "rsi_oversold",
+            "macd_fast_period",
+            "macd_slow_period",
+            "macd_signal_period",
+            "use_multi_timeframe",
+            "enable_short_selling",
+            "use_kelly_criterion",
+            "use_volatility_regime",
+            "use_bollinger_filter",
         ]
 
         # Mock the default parameters check
         defaults = {
-            'position_size': 0.10,
-            'max_positions': 3,
-            'stop_loss': 0.03,
-            'take_profit': 0.05,
-            'rsi_period': 14,
-            'rsi_overbought': 70,
-            'rsi_oversold': 30,
-            'macd_fast_period': 12,
-            'macd_slow_period': 26,
-            'macd_signal_period': 9,
-            'use_multi_timeframe': False,
-            'enable_short_selling': False,
-            'use_kelly_criterion': False,
-            'use_volatility_regime': False,
-            'use_bollinger_filter': False,
+            "position_size": 0.10,
+            "max_positions": 3,
+            "stop_loss": 0.03,
+            "take_profit": 0.05,
+            "rsi_period": 14,
+            "rsi_overbought": 70,
+            "rsi_oversold": 30,
+            "macd_fast_period": 12,
+            "macd_slow_period": 26,
+            "macd_signal_period": 9,
+            "use_multi_timeframe": False,
+            "enable_short_selling": False,
+            "use_kelly_criterion": False,
+            "use_volatility_regime": False,
+            "use_bollinger_filter": False,
         }
 
         for key in expected_keys:
@@ -410,12 +439,12 @@ class TestDefaultParameters:
     def test_advanced_features_disabled_by_default(self):
         """Advanced features should be disabled by default."""
         defaults = {
-            'use_multi_timeframe': False,
-            'enable_short_selling': False,
-            'use_kelly_criterion': False,
-            'use_volatility_regime': False,
-            'use_streak_sizing': False,
-            'use_bollinger_filter': False,
+            "use_multi_timeframe": False,
+            "enable_short_selling": False,
+            "use_kelly_criterion": False,
+            "use_volatility_regime": False,
+            "use_streak_sizing": False,
+            "use_bollinger_filter": False,
         }
 
         for feature, enabled in defaults.items():

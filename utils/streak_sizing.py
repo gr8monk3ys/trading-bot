@@ -32,9 +32,9 @@ Usage:
 """
 
 import logging
-from typing import List, Dict, Optional
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradeResult:
     """Record of a trade outcome."""
+
     timestamp: datetime
     is_winner: bool
     pnl_pct: float
@@ -67,11 +68,11 @@ class StreakSizer:
     def __init__(
         self,
         lookback_trades: int = 10,
-        hot_streak_threshold: int = 7,   # 7+ wins out of 10
+        hot_streak_threshold: int = 7,  # 7+ wins out of 10
         cold_streak_threshold: int = 3,  # 3 or fewer wins out of 10
-        hot_multiplier: float = 1.2,     # +20% on hot streaks
-        cold_multiplier: float = 0.7,    # -30% on cold streaks
-        reset_after_trades: int = 5      # Reset to baseline after 5 trades
+        hot_multiplier: float = 1.2,  # +20% on hot streaks
+        cold_multiplier: float = 0.7,  # -30% on cold streaks
+        reset_after_trades: int = 5,  # Reset to baseline after 5 trades
     ):
         """
         Initialize streak-based position sizer.
@@ -95,14 +96,16 @@ class StreakSizer:
         self.trades: List[TradeResult] = []
 
         # Current streak state
-        self.current_streak = 'normal'
+        self.current_streak = "normal"
         self.streak_started = None
         self.trades_in_streak = 0
 
         logger.info("StreakSizer initialized:")
         logger.info(f"  Lookback: {lookback_trades} trades")
         logger.info(f"  Hot streak: {hot_streak_threshold}+ wins → {hot_multiplier:.1f}x position")
-        logger.info(f"  Cold streak: ≤{cold_streak_threshold} wins → {cold_multiplier:.1f}x position")
+        logger.info(
+            f"  Cold streak: ≤{cold_streak_threshold} wins → {cold_multiplier:.1f}x position"
+        )
 
     def record_trade(self, is_winner: bool, pnl_pct: float, symbol: Optional[str] = None):
         """
@@ -114,10 +117,7 @@ class StreakSizer:
             symbol: Optional symbol for tracking
         """
         trade = TradeResult(
-            timestamp=datetime.now(),
-            is_winner=is_winner,
-            pnl_pct=pnl_pct,
-            symbol=symbol
+            timestamp=datetime.now(), is_winner=is_winner, pnl_pct=pnl_pct, symbol=symbol
         )
 
         self.trades.append(trade)
@@ -144,13 +144,17 @@ class StreakSizer:
             Adjusted position size
         """
         # Determine multiplier based on streak
-        if self.current_streak == 'hot':
+        if self.current_streak == "hot":
             multiplier = self.hot_multiplier
-            logger.debug(f"🔥 HOT STREAK: Increasing position {base_size:.1%} → {base_size * multiplier:.1%}")
+            logger.debug(
+                f"🔥 HOT STREAK: Increasing position {base_size:.1%} → {base_size * multiplier:.1%}"
+            )
 
-        elif self.current_streak == 'cold':
+        elif self.current_streak == "cold":
             multiplier = self.cold_multiplier
-            logger.debug(f"❄️  COLD STREAK: Decreasing position {base_size:.1%} → {base_size * multiplier:.1%}")
+            logger.debug(
+                f"❄️  COLD STREAK: Decreasing position {base_size:.1%} → {base_size * multiplier:.1%}"
+            )
 
         else:
             multiplier = 1.0
@@ -167,22 +171,22 @@ class StreakSizer:
         """Update current streak status based on recent trades."""
         if len(self.trades) < self.lookback_trades:
             # Not enough data yet
-            self.current_streak = 'normal'
+            self.current_streak = "normal"
             return
 
         # Get recent trades
-        recent_trades = self.trades[-self.lookback_trades:]
+        recent_trades = self.trades[-self.lookback_trades :]
         wins = sum(1 for t in recent_trades if t.is_winner)
 
         # Determine streak
         previous_streak = self.current_streak
 
         if wins >= self.hot_streak_threshold:
-            new_streak = 'hot'
+            new_streak = "hot"
         elif wins <= self.cold_streak_threshold:
-            new_streak = 'cold'
+            new_streak = "cold"
         else:
-            new_streak = 'normal'
+            new_streak = "normal"
 
         # Check for streak change
         if new_streak != previous_streak:
@@ -195,12 +199,12 @@ class StreakSizer:
             self.trades_in_streak = 0
 
         # Reset to normal after prolonged streak
-        elif self.trades_in_streak >= self.reset_after_trades and new_streak != 'normal':
+        elif self.trades_in_streak >= self.reset_after_trades and new_streak != "normal":
             logger.info(
                 f"↩️  STREAK RESET: {self.current_streak.upper()} → NORMAL "
                 f"(after {self.trades_in_streak} trades)"
             )
-            self.current_streak = 'normal'
+            self.current_streak = "normal"
             self.streak_started = None
             self.trades_in_streak = 0
 
@@ -209,7 +213,7 @@ class StreakSizer:
         if not self.trades:
             return 0.0
 
-        recent = self.trades[-self.lookback_trades:]
+        recent = self.trades[-self.lookback_trades :]
         wins = sum(1 for t in recent if t.is_winner)
         return wins / len(recent)
 
@@ -222,17 +226,21 @@ class StreakSizer:
         """
         if not self.trades:
             return {
-                'current_streak': 'normal',
-                'trades_in_streak': 0,
-                'recent_win_rate': 0.0,
-                'total_trades': 0,
-                'overall_win_rate': 0.0,
-                'hot_streaks': 0,
-                'cold_streaks': 0,
+                "current_streak": "normal",
+                "trades_in_streak": 0,
+                "recent_win_rate": 0.0,
+                "total_trades": 0,
+                "overall_win_rate": 0.0,
+                "hot_streaks": 0,
+                "cold_streaks": 0,
             }
 
         # Recent performance
-        recent_trades = self.trades[-self.lookback_trades:] if len(self.trades) >= self.lookback_trades else self.trades
+        recent_trades = (
+            self.trades[-self.lookback_trades :]
+            if len(self.trades) >= self.lookback_trades
+            else self.trades
+        )
         recent_wins = sum(1 for t in recent_trades if t.is_winner)
         recent_win_rate = recent_wins / len(recent_trades) if recent_trades else 0.0
 
@@ -241,34 +249,38 @@ class StreakSizer:
         overall_win_rate = total_wins / len(self.trades)
 
         # Count streak occurrences (simplified - just count transitions)
-        hot_streaks = sum(1 for t in self.trades[-50:] if hasattr(t, 'streak') and t.streak == 'hot')
-        cold_streaks = sum(1 for t in self.trades[-50:] if hasattr(t, 'streak') and t.streak == 'cold')
+        hot_streaks = sum(
+            1 for t in self.trades[-50:] if hasattr(t, "streak") and t.streak == "hot"
+        )
+        cold_streaks = sum(
+            1 for t in self.trades[-50:] if hasattr(t, "streak") and t.streak == "cold"
+        )
 
         # Current multiplier
-        if self.current_streak == 'hot':
+        if self.current_streak == "hot":
             current_multiplier = self.hot_multiplier
-        elif self.current_streak == 'cold':
+        elif self.current_streak == "cold":
             current_multiplier = self.cold_multiplier
         else:
             current_multiplier = 1.0
 
         return {
-            'current_streak': self.current_streak,
-            'current_multiplier': current_multiplier,
-            'trades_in_streak': self.trades_in_streak,
-            'recent_win_rate': recent_win_rate,
-            'recent_wins': recent_wins,
-            'recent_trades': len(recent_trades),
-            'total_trades': len(self.trades),
-            'overall_win_rate': overall_win_rate,
-            'hot_streaks': hot_streaks,
-            'cold_streaks': cold_streaks,
+            "current_streak": self.current_streak,
+            "current_multiplier": current_multiplier,
+            "trades_in_streak": self.trades_in_streak,
+            "recent_win_rate": recent_win_rate,
+            "recent_wins": recent_wins,
+            "recent_trades": len(recent_trades),
+            "total_trades": len(self.trades),
+            "overall_win_rate": overall_win_rate,
+            "hot_streaks": hot_streaks,
+            "cold_streaks": cold_streaks,
         }
 
     def reset(self):
         """Reset all streak data."""
         self.trades = []
-        self.current_streak = 'normal'
+        self.current_streak = "normal"
         self.streak_started = None
         self.trades_in_streak = 0
         logger.info("StreakSizer reset")
@@ -276,14 +288,11 @@ class StreakSizer:
 
 if __name__ == "__main__":
     # Example usage
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("📊 STREAK-BASED POSITION SIZING - EXAMPLE")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     sizer = StreakSizer()
 
@@ -293,27 +302,27 @@ if __name__ == "__main__":
 
     # Start with some wins (hot streak)
     trades = [
-        (True, 0.05),   # Win +5%
-        (True, 0.03),   # Win +3%
-        (True, 0.04),   # Win +4%
-        (True, 0.06),   # Win +6%
-        (False, -0.02), # Loss -2%
-        (True, 0.05),   # Win +5%
-        (True, 0.04),   # Win +4%
-        (True, 0.03),   # Win +3%
-        (True, 0.07),   # Win +7%
-        (True, 0.04),   # Win +4% → HOT STREAK (8/10 wins)
+        (True, 0.05),  # Win +5%
+        (True, 0.03),  # Win +3%
+        (True, 0.04),  # Win +4%
+        (True, 0.06),  # Win +6%
+        (False, -0.02),  # Loss -2%
+        (True, 0.05),  # Win +5%
+        (True, 0.04),  # Win +4%
+        (True, 0.03),  # Win +3%
+        (True, 0.07),  # Win +7%
+        (True, 0.04),  # Win +4% → HOT STREAK (8/10 wins)
         # Now some losses (cold streak)
-        (False, -0.02), # Loss -2%
-        (False, -0.03), # Loss -3%
-        (False, -0.02), # Loss -2%
-        (False, -0.01), # Loss -1%
-        (False, -0.02), # Loss -2%
-        (False, -0.03), # Loss -3%
-        (True, 0.02),   # Win +2%
-        (False, -0.02), # Loss -2%
-        (False, -0.01), # Loss -1%
-        (False, -0.02), # Loss -2% → COLD STREAK (2/10 wins)
+        (False, -0.02),  # Loss -2%
+        (False, -0.03),  # Loss -3%
+        (False, -0.02),  # Loss -2%
+        (False, -0.01),  # Loss -1%
+        (False, -0.02),  # Loss -2%
+        (False, -0.03),  # Loss -3%
+        (True, 0.02),  # Win +2%
+        (False, -0.02),  # Loss -2%
+        (False, -0.01),  # Loss -1%
+        (False, -0.02),  # Loss -2% → COLD STREAK (2/10 wins)
     ]
 
     base_position_size = 0.10  # 10%
@@ -333,9 +342,9 @@ if __name__ == "__main__":
         print()
 
     # Final statistics
-    print("="*80)
+    print("=" * 80)
     print("📈 FINAL STATISTICS")
-    print("="*80)
+    print("=" * 80)
 
     stats = sizer.get_streak_statistics()
     print(f"\nCurrent Streak: {stats['current_streak'].upper()}")
@@ -348,10 +357,10 @@ if __name__ == "__main__":
     print(f"  Total Trades: {stats['total_trades']}")
     print(f"  Overall Win Rate: {stats['overall_win_rate']:.1%}")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("💡 KEY INSIGHTS:")
     print("  - Hot streaks increase position size by 20% (compound wins)")
     print("  - Cold streaks decrease position size by 30% (preserve capital)")
     print("  - Automatic adaptation to changing market conditions")
     print("  - Expected ROI: +4-7% annual returns")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")

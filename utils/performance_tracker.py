@@ -15,11 +15,12 @@ Stores everything in SQLite database for persistence.
 
 import logging
 import sqlite3
-import numpy as np
-from datetime import datetime
-from typing import List, Tuple
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import List, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Trade:
     """Record of a completed trade."""
+
     trade_id: str
     strategy: str
     symbol: str
@@ -47,6 +49,7 @@ class Trade:
 @dataclass
 class PerformanceMetrics:
     """Comprehensive performance metrics."""
+
     # Returns
     total_return: float
     total_return_pct: float
@@ -126,7 +129,8 @@ class PerformanceTracker:
         cursor = conn.cursor()
 
         # Trades table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS trades (
                 trade_id TEXT PRIMARY KEY,
                 strategy TEXT NOT NULL,
@@ -145,20 +149,24 @@ class PerformanceTracker:
                 tags TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
+        """
+        )
 
         # Equity curve table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS equity_curve (
                 timestamp TIMESTAMP PRIMARY KEY,
                 equity REAL NOT NULL,
                 daily_pnl REAL,
                 daily_pnl_pct REAL
             )
-        """)
+        """
+        )
 
         # Performance snapshots (daily rollup)
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS performance_snapshots (
                 date DATE PRIMARY KEY,
                 total_trades INTEGER,
@@ -168,7 +176,8 @@ class PerformanceTracker:
                 max_drawdown_pct REAL,
                 equity REAL
             )
-        """)
+        """
+        )
 
         conn.commit()
         conn.close()
@@ -178,10 +187,12 @@ class PerformanceTracker:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT * FROM trades
             ORDER BY exit_time
-        """)
+        """
+        )
 
         rows = cursor.fetchall()
         conn.close()
@@ -202,7 +213,7 @@ class PerformanceTracker:
                 fees=row[11],
                 holding_period_seconds=row[12],
                 is_winner=bool(row[13]),
-                tags=row[14] or ""
+                tags=row[14] or "",
             )
             self.trades.append(trade)
 
@@ -220,25 +231,28 @@ class PerformanceTracker:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO trades VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            trade.trade_id,
-            trade.strategy,
-            trade.symbol,
-            trade.side,
-            trade.entry_time.isoformat(),
-            trade.exit_time.isoformat(),
-            trade.entry_price,
-            trade.exit_price,
-            trade.quantity,
-            trade.pnl,
-            trade.pnl_pct,
-            trade.fees,
-            trade.holding_period_seconds,
-            trade.is_winner,
-            trade.tags
-        ))
+        """,
+            (
+                trade.trade_id,
+                trade.strategy,
+                trade.symbol,
+                trade.side,
+                trade.entry_time.isoformat(),
+                trade.exit_time.isoformat(),
+                trade.entry_price,
+                trade.exit_price,
+                trade.quantity,
+                trade.pnl,
+                trade.pnl_pct,
+                trade.fees,
+                trade.holding_period_seconds,
+                trade.is_winner,
+                trade.tags,
+            ),
+        )
 
         conn.commit()
         conn.close()
@@ -269,10 +283,13 @@ class PerformanceTracker:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT OR REPLACE INTO equity_curve (timestamp, equity, daily_pnl, daily_pnl_pct)
             VALUES (?, ?, ?, ?)
-        """, (timestamp.isoformat(), equity, daily_pnl, daily_pnl_pct))
+        """,
+            (timestamp.isoformat(), equity, daily_pnl, daily_pnl_pct),
+        )
 
         conn.commit()
         conn.close()
@@ -290,19 +307,35 @@ class PerformanceTracker:
         if not self.trades:
             # Return zero metrics
             return PerformanceMetrics(
-                total_return=0, total_return_pct=0, annualized_return=0,
-                sharpe_ratio=0, sortino_ratio=0, calmar_ratio=0,
-                max_drawdown=0, max_drawdown_pct=0, current_drawdown_pct=0,
-                recovery_factor=0, total_trades=0, winning_trades=0,
-                losing_trades=0, win_rate=0, profit_factor=0,
-                avg_win=0, avg_loss=0, avg_win_pct=0, avg_loss_pct=0,
-                largest_win=0, largest_loss=0, avg_holding_period_hours=0,
-                total_fees=0, trading_days=0
+                total_return=0,
+                total_return_pct=0,
+                annualized_return=0,
+                sharpe_ratio=0,
+                sortino_ratio=0,
+                calmar_ratio=0,
+                max_drawdown=0,
+                max_drawdown_pct=0,
+                current_drawdown_pct=0,
+                recovery_factor=0,
+                total_trades=0,
+                winning_trades=0,
+                losing_trades=0,
+                win_rate=0,
+                profit_factor=0,
+                avg_win=0,
+                avg_loss=0,
+                avg_win_pct=0,
+                avg_loss_pct=0,
+                largest_win=0,
+                largest_loss=0,
+                avg_holding_period_hours=0,
+                total_fees=0,
+                trading_days=0,
             )
 
         # Calculate returns
         total_pnl = sum(t.pnl for t in self.trades)
-        total_return_pct = (total_pnl / starting_equity)
+        total_return_pct = total_pnl / starting_equity
 
         # Calculate annualized return
         first_trade = min(t.entry_time for t in self.trades)
@@ -328,13 +361,17 @@ class PerformanceTracker:
         downside_returns = [r for r in returns if r < 0]
         if downside_returns:
             downside_std = np.std(downside_returns)
-            sortino_ratio = (np.mean(returns) / downside_std) * np.sqrt(252) if downside_std > 0 else 0
+            sortino_ratio = (
+                (np.mean(returns) / downside_std) * np.sqrt(252) if downside_std > 0 else 0
+            )
         else:
             sortino_ratio = sharpe_ratio
 
         # Calculate drawdown
         equity_values = self._calculate_equity_curve(starting_equity)
-        max_drawdown, max_drawdown_pct, current_drawdown_pct = self._calculate_drawdown(equity_values)
+        max_drawdown, max_drawdown_pct, current_drawdown_pct = self._calculate_drawdown(
+            equity_values
+        )
 
         # Calmar ratio
         calmar_ratio = abs(annualized_return / max_drawdown_pct) if max_drawdown_pct != 0 else 0
@@ -394,7 +431,7 @@ class PerformanceTracker:
             largest_loss=largest_loss,
             avg_holding_period_hours=avg_holding_hours,
             total_fees=total_fees,
-            trading_days=trading_days
+            trading_days=trading_days,
         )
 
     def _calculate_equity_curve(self, starting_equity: float) -> List[float]:
@@ -437,12 +474,14 @@ class PerformanceTracker:
         metrics = self.calculate_metrics(starting_equity)
 
         report = []
-        report.append("\n" + "="*80)
+        report.append("\n" + "=" * 80)
         report.append("📊 PERFORMANCE REPORT")
-        report.append("="*80)
+        report.append("=" * 80)
 
         report.append("\n💰 RETURNS:")
-        report.append(f"   Total Return: ${metrics.total_return:+,.2f} ({metrics.total_return_pct:+.2%})")
+        report.append(
+            f"   Total Return: ${metrics.total_return:+,.2f} ({metrics.total_return_pct:+.2%})"
+        )
         report.append(f"   Annualized Return: {metrics.annualized_return:+.2%}")
         report.append(f"   Trading Days: {metrics.trading_days}")
 
@@ -452,7 +491,9 @@ class PerformanceTracker:
         report.append(f"   Calmar Ratio: {metrics.calmar_ratio:.2f}")
 
         report.append("\n📉 DRAWDOWN:")
-        report.append(f"   Max Drawdown: ${metrics.max_drawdown:,.2f} ({metrics.max_drawdown_pct:.2%})")
+        report.append(
+            f"   Max Drawdown: ${metrics.max_drawdown:,.2f} ({metrics.max_drawdown_pct:.2%})"
+        )
         report.append(f"   Current Drawdown: {metrics.current_drawdown_pct:.2%}")
         report.append(f"   Recovery Factor: {metrics.recovery_factor:.2f}")
 
@@ -472,6 +513,6 @@ class PerformanceTracker:
         report.append(f"   Avg Holding Period: {metrics.avg_holding_period_hours:.1f} hours")
         report.append(f"   Total Fees: ${metrics.total_fees:,.2f}")
 
-        report.append("="*80 + "\n")
+        report.append("=" * 80 + "\n")
 
         return "\n".join(report)

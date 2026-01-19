@@ -10,27 +10,28 @@ Tests cover:
 5. News fetcher caching
 """
 
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
 from unittest.mock import patch
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from utils.sentiment_analysis import (
-    clean_text,
-    preprocess_text,
-    get_keyword_sentiment_score,
-    check_keyword_combinations,
-    analyze_sentiment,
+    NEGATIVE_COMBINATIONS,
+    NEGATIVE_KEYWORDS,
+    POSITIVE_COMBINATIONS,
+    POSITIVE_KEYWORDS,
     NewsArticle,
     NewsFetcher,
     SentimentAnalyzer,
-    POSITIVE_KEYWORDS,
-    NEGATIVE_KEYWORDS,
-    POSITIVE_COMBINATIONS,
-    NEGATIVE_COMBINATIONS
+    analyze_sentiment,
+    check_keyword_combinations,
+    clean_text,
+    get_keyword_sentiment_score,
+    preprocess_text,
 )
 
 
@@ -142,7 +143,7 @@ class TestFinBERTAnalysis:
         confidence, sentiment = analyze_sentiment(texts)
 
         # Should be positive or at least not negative
-        assert sentiment in ['positive', 'neutral']
+        assert sentiment in ["positive", "neutral"]
 
     def test_negative_text_negative_sentiment(self):
         """Test negative text gets negative sentiment."""
@@ -150,7 +151,7 @@ class TestFinBERTAnalysis:
         confidence, sentiment = analyze_sentiment(texts)
 
         # Should be negative or neutral
-        assert sentiment in ['negative', 'neutral']
+        assert sentiment in ["negative", "neutral"]
 
     def test_empty_input_returns_neutral(self):
         """Test empty input returns neutral."""
@@ -163,7 +164,7 @@ class TestFinBERTAnalysis:
         """Test string input is accepted (not just list)."""
         confidence, sentiment = analyze_sentiment("This is a test")
 
-        assert sentiment in ['positive', 'negative', 'neutral']
+        assert sentiment in ["positive", "negative", "neutral"]
 
     def test_returns_confidence_value(self):
         """Test that confidence is returned."""
@@ -183,7 +184,7 @@ class TestNewsArticle:
             source="Test source",
             published=datetime.now(),
             url="https://test.com",
-            symbol="AAPL"
+            symbol="AAPL",
         )
 
         assert article.headline == "Test headline"
@@ -195,14 +196,13 @@ class TestNewsFetcher:
 
     def test_fetcher_initialization(self):
         """Test fetcher initializes with env vars."""
-        with patch.dict(os.environ, {
-            'FINNHUB_API_KEY': 'test_key',
-            'ALPHA_VANTAGE_API_KEY': 'av_key'
-        }):
+        with patch.dict(
+            os.environ, {"FINNHUB_API_KEY": "test_key", "ALPHA_VANTAGE_API_KEY": "av_key"}
+        ):
             fetcher = NewsFetcher()
 
-            assert fetcher.finnhub_key == 'test_key'
-            assert fetcher.alpha_vantage_key == 'av_key'
+            assert fetcher.finnhub_key == "test_key"
+            assert fetcher.alpha_vantage_key == "av_key"
 
     def test_cache_duration_set(self):
         """Test cache duration is set."""
@@ -216,19 +216,22 @@ class TestNewsFetcher:
         fetcher = NewsFetcher()
 
         # Manually add to cache
-        fetcher._cache['AAPL_3'] = (datetime.now(), [
-            NewsArticle(
-                headline="Cached article",
-                summary="Summary",
-                source="Cache",
-                published=datetime.now(),
-                url="https://test.com",
-                symbol="AAPL"
-            )
-        ])
+        fetcher._cache["AAPL_3"] = (
+            datetime.now(),
+            [
+                NewsArticle(
+                    headline="Cached article",
+                    summary="Summary",
+                    source="Cache",
+                    published=datetime.now(),
+                    url="https://test.com",
+                    symbol="AAPL",
+                )
+            ],
+        )
 
         # Should return cached result
-        articles = await fetcher.fetch_news('AAPL', days_back=3)
+        articles = await fetcher.fetch_news("AAPL", days_back=3)
 
         assert len(articles) == 1
         assert articles[0].headline == "Cached article"
@@ -241,57 +244,41 @@ class TestSentimentAnalyzer:
         """Test bullish signal generation."""
         analyzer = SentimentAnalyzer()
 
-        result = {
-            'sentiment': 'positive',
-            'score': 0.5,
-            'confidence': 0.8
-        }
+        result = {"sentiment": "positive", "score": 0.5, "confidence": 0.8}
 
         signal = analyzer.get_trading_signal(result)
 
-        assert signal == 'bullish'
+        assert signal == "bullish"
 
     def test_trading_signal_bearish(self):
         """Test bearish signal generation."""
         analyzer = SentimentAnalyzer()
 
-        result = {
-            'sentiment': 'negative',
-            'score': -0.5,
-            'confidence': 0.8
-        }
+        result = {"sentiment": "negative", "score": -0.5, "confidence": 0.8}
 
         signal = analyzer.get_trading_signal(result)
 
-        assert signal == 'bearish'
+        assert signal == "bearish"
 
     def test_trading_signal_neutral_low_confidence(self):
         """Test neutral signal for low confidence."""
         analyzer = SentimentAnalyzer()
 
-        result = {
-            'sentiment': 'positive',
-            'score': 0.5,
-            'confidence': 0.3  # Below threshold
-        }
+        result = {"sentiment": "positive", "score": 0.5, "confidence": 0.3}  # Below threshold
 
         signal = analyzer.get_trading_signal(result, min_confidence=0.5)
 
-        assert signal == 'neutral'
+        assert signal == "neutral"
 
     def test_trading_signal_neutral_score(self):
         """Test neutral signal for neutral score."""
         analyzer = SentimentAnalyzer()
 
-        result = {
-            'sentiment': 'neutral',
-            'score': 0.1,  # Within neutral range
-            'confidence': 0.8
-        }
+        result = {"sentiment": "neutral", "score": 0.1, "confidence": 0.8}  # Within neutral range
 
         signal = analyzer.get_trading_signal(result)
 
-        assert signal == 'neutral'
+        assert signal == "neutral"
 
     def test_cache_initialization(self):
         """Test analyzer cache is initialized."""
@@ -322,5 +309,5 @@ class TestKeywordConstants:
         assert len(NEGATIVE_COMBINATIONS) > 0
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

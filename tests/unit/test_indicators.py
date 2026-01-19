@@ -12,9 +12,10 @@ Tests cover:
 - Quick analysis functions
 """
 
-import pytest
-import numpy as np
 from datetime import datetime, timedelta
+
+import numpy as np
+import pytest
 
 
 class TestTechnicalIndicatorsInitialization:
@@ -30,15 +31,15 @@ class TestTechnicalIndicatorsInitialization:
         low = close - np.abs(np.random.randn(n) * 0.3)
         open_ = close + np.random.randn(n) * 0.2
         volume = np.random.randint(100000, 1000000, n).astype(np.float64)
-        timestamps = [datetime.now() - timedelta(minutes=100-i) for i in range(n)]
+        timestamps = [datetime.now() - timedelta(minutes=100 - i) for i in range(n)]
 
         return {
-            'high': high.astype(np.float64),
-            'low': low.astype(np.float64),
-            'close': close.astype(np.float64),
-            'open_': open_.astype(np.float64),
-            'volume': volume,
-            'timestamps': timestamps
+            "high": high.astype(np.float64),
+            "low": low.astype(np.float64),
+            "close": close.astype(np.float64),
+            "open_": open_.astype(np.float64),
+            "volume": volume,
+            "timestamps": timestamps,
         }
 
     def test_initialization_with_all_data(self, sample_data):
@@ -46,12 +47,12 @@ class TestTechnicalIndicatorsInitialization:
         from utils.indicators import TechnicalIndicators
 
         ind = TechnicalIndicators(
-            high=sample_data['high'],
-            low=sample_data['low'],
-            close=sample_data['close'],
-            open_=sample_data['open_'],
-            volume=sample_data['volume'],
-            timestamps=sample_data['timestamps']
+            high=sample_data["high"],
+            low=sample_data["low"],
+            close=sample_data["close"],
+            open_=sample_data["open_"],
+            volume=sample_data["volume"],
+            timestamps=sample_data["timestamps"],
         )
 
         assert ind.high is not None
@@ -66,7 +67,7 @@ class TestTechnicalIndicatorsInitialization:
         """Test initialization with only close prices."""
         from utils.indicators import TechnicalIndicators
 
-        ind = TechnicalIndicators(close=sample_data['close'])
+        ind = TechnicalIndicators(close=sample_data["close"])
 
         assert ind.close is not None
         assert ind.high is None
@@ -97,9 +98,7 @@ class TestTrendIndicators:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return TechnicalIndicators(
-            high=high.astype(np.float64),
-            low=low.astype(np.float64),
-            close=close.astype(np.float64)
+            high=high.astype(np.float64), low=low.astype(np.float64), close=close.astype(np.float64)
         )
 
     def test_sma_default_period(self, indicators):
@@ -121,8 +120,8 @@ class TestTrendIndicators:
 
     def test_sma_different_prices(self, indicators):
         """Test SMA with different price types."""
-        sma_close = indicators.sma(price='close')
-        sma_high = indicators.sma(price='high')
+        sma_close = indicators.sma(price="close")
+        sma_high = indicators.sma(price="high")
 
         # High prices should produce higher SMA
         valid_idx = ~np.isnan(sma_close) & ~np.isnan(sma_high)
@@ -154,17 +153,12 @@ class TestTrendIndicators:
         # Histogram should be MACD - Signal
         valid_idx = ~np.isnan(macd) & ~np.isnan(signal)
         np.testing.assert_array_almost_equal(
-            histogram[valid_idx],
-            macd[valid_idx] - signal[valid_idx]
+            histogram[valid_idx], macd[valid_idx] - signal[valid_idx]
         )
 
     def test_macd_custom_periods(self, indicators):
         """Test MACD with custom periods."""
-        macd, signal, histogram = indicators.macd(
-            fast_period=8,
-            slow_period=17,
-            signal_period=9
-        )
+        macd, signal, histogram = indicators.macd(fast_period=8, slow_period=17, signal_period=9)
 
         assert len(macd) == len(indicators.close)
 
@@ -217,9 +211,7 @@ class TestMomentumIndicators:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return TechnicalIndicators(
-            high=high.astype(np.float64),
-            low=low.astype(np.float64),
-            close=close.astype(np.float64)
+            high=high.astype(np.float64), low=low.astype(np.float64), close=close.astype(np.float64)
         )
 
     def test_rsi_default_period(self, indicators):
@@ -305,9 +297,7 @@ class TestVolatilityIndicators:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return TechnicalIndicators(
-            high=high.astype(np.float64),
-            low=low.astype(np.float64),
-            close=close.astype(np.float64)
+            high=high.astype(np.float64), low=low.astype(np.float64), close=close.astype(np.float64)
         )
 
     def test_bollinger_bands(self, indicators):
@@ -384,7 +374,7 @@ class TestVolumeIndicators:
             if i < 50:
                 ts = base_date + timedelta(minutes=i)
             else:
-                ts = base_date + timedelta(days=1, minutes=i-50)
+                ts = base_date + timedelta(days=1, minutes=i - 50)
             timestamps.append(ts)
 
         return TechnicalIndicators(
@@ -392,7 +382,7 @@ class TestVolumeIndicators:
             low=low.astype(np.float64),
             close=close.astype(np.float64),
             volume=volume,
-            timestamps=timestamps
+            timestamps=timestamps,
         )
 
     @pytest.fixture
@@ -407,9 +397,7 @@ class TestVolumeIndicators:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return TechnicalIndicators(
-            high=high.astype(np.float64),
-            low=low.astype(np.float64),
-            close=close.astype(np.float64)
+            high=high.astype(np.float64), low=low.astype(np.float64), close=close.astype(np.float64)
         )
 
     def test_vwap_with_timestamps(self, indicators_with_volume):
@@ -435,7 +423,7 @@ class TestVolumeIndicators:
             high=high.astype(np.float64),
             low=low.astype(np.float64),
             close=close.astype(np.float64),
-            volume=volume
+            volume=volume,
         )
 
         vwap = ind.vwap()
@@ -500,55 +488,53 @@ class TestSupportResistance:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return TechnicalIndicators(
-            high=high.astype(np.float64),
-            low=low.astype(np.float64),
-            close=close.astype(np.float64)
+            high=high.astype(np.float64), low=low.astype(np.float64), close=close.astype(np.float64)
         )
 
     def test_pivot_points(self, indicators):
         """Test pivot point calculation."""
         pivots = indicators.pivot_points()
 
-        assert 'PP' in pivots
-        assert 'R1' in pivots
-        assert 'R2' in pivots
-        assert 'R3' in pivots
-        assert 'S1' in pivots
-        assert 'S2' in pivots
-        assert 'S3' in pivots
+        assert "PP" in pivots
+        assert "R1" in pivots
+        assert "R2" in pivots
+        assert "R3" in pivots
+        assert "S1" in pivots
+        assert "S2" in pivots
+        assert "S3" in pivots
 
         # R levels should be above PP, S levels should be below
-        assert pivots['R1'] >= pivots['PP']
-        assert pivots['S1'] <= pivots['PP']
-        assert pivots['R2'] >= pivots['R1']
-        assert pivots['S2'] <= pivots['S1']
+        assert pivots["R1"] >= pivots["PP"]
+        assert pivots["S1"] <= pivots["PP"]
+        assert pivots["R2"] >= pivots["R1"]
+        assert pivots["S2"] <= pivots["S1"]
 
     def test_fibonacci_retracement(self, indicators):
         """Test Fibonacci retracement levels."""
         fib = indicators.fibonacci_retracement()
 
-        assert '0.0%' in fib
-        assert '23.6%' in fib
-        assert '38.2%' in fib
-        assert '50.0%' in fib
-        assert '61.8%' in fib
-        assert '78.6%' in fib
-        assert '100.0%' in fib
+        assert "0.0%" in fib
+        assert "23.6%" in fib
+        assert "38.2%" in fib
+        assert "50.0%" in fib
+        assert "61.8%" in fib
+        assert "78.6%" in fib
+        assert "100.0%" in fib
 
         # Levels should be in descending order
-        assert fib['0.0%'] >= fib['23.6%']
-        assert fib['23.6%'] >= fib['38.2%']
-        assert fib['38.2%'] >= fib['50.0%']
-        assert fib['50.0%'] >= fib['61.8%']
-        assert fib['61.8%'] >= fib['100.0%']
+        assert fib["0.0%"] >= fib["23.6%"]
+        assert fib["23.6%"] >= fib["38.2%"]
+        assert fib["38.2%"] >= fib["50.0%"]
+        assert fib["50.0%"] >= fib["61.8%"]
+        assert fib["61.8%"] >= fib["100.0%"]
 
     def test_fibonacci_custom_swings(self, indicators):
         """Test Fibonacci with custom swing high/low."""
         fib = indicators.fibonacci_retracement(swing_high=110.0, swing_low=90.0)
 
-        assert fib['0.0%'] == 110.0
-        assert fib['100.0%'] == 90.0
-        assert fib['50.0%'] == pytest.approx(100.0, rel=0.01)
+        assert fib["0.0%"] == 110.0
+        assert fib["100.0%"] == 90.0
+        assert fib["50.0%"] == pytest.approx(100.0, rel=0.01)
 
 
 class TestHelperMethods:
@@ -566,37 +552,32 @@ class TestHelperMethods:
         low = close - 1
         open_ = close + 0.5
 
-        return TechnicalIndicators(
-            high=high,
-            low=low,
-            close=close,
-            open_=open_
-        )
+        return TechnicalIndicators(high=high, low=low, close=close, open_=open_)
 
     def test_get_price_array_close(self, indicators):
         """Test getting close price array."""
-        prices = indicators._get_price_array('close')
+        prices = indicators._get_price_array("close")
         np.testing.assert_array_equal(prices, indicators.close)
 
     def test_get_price_array_high(self, indicators):
         """Test getting high price array."""
-        prices = indicators._get_price_array('high')
+        prices = indicators._get_price_array("high")
         np.testing.assert_array_equal(prices, indicators.high)
 
     def test_get_price_array_low(self, indicators):
         """Test getting low price array."""
-        prices = indicators._get_price_array('low')
+        prices = indicators._get_price_array("low")
         np.testing.assert_array_equal(prices, indicators.low)
 
     def test_get_price_array_open(self, indicators):
         """Test getting open price array."""
-        prices = indicators._get_price_array('open')
+        prices = indicators._get_price_array("open")
         np.testing.assert_array_equal(prices, indicators.open)
 
     def test_get_price_array_invalid(self, indicators):
         """Test invalid price type raises error."""
         with pytest.raises(ValueError, match="Invalid price type"):
-            indicators._get_price_array('invalid')
+            indicators._get_price_array("invalid")
 
 
 class TestCompositeIndicators:
@@ -614,45 +595,43 @@ class TestCompositeIndicators:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return TechnicalIndicators(
-            high=high.astype(np.float64),
-            low=low.astype(np.float64),
-            close=close.astype(np.float64)
+            high=high.astype(np.float64), low=low.astype(np.float64), close=close.astype(np.float64)
         )
 
     def test_all_momentum_indicators(self, indicators):
         """Test all momentum indicators at once."""
         momentum = indicators.all_momentum_indicators()
 
-        assert 'rsi' in momentum
-        assert 'stochastic' in momentum
-        assert 'cci' in momentum
-        assert 'williams_r' in momentum
-        assert 'roc' in momentum
-        assert 'macd' in momentum
+        assert "rsi" in momentum
+        assert "stochastic" in momentum
+        assert "cci" in momentum
+        assert "williams_r" in momentum
+        assert "roc" in momentum
+        assert "macd" in momentum
 
     def test_all_trend_indicators(self, indicators):
         """Test all trend indicators at once."""
         trend = indicators.all_trend_indicators()
 
-        assert 'sma_20' in trend
-        assert 'sma_50' in trend
-        assert 'sma_200' in trend
-        assert 'ema_20' in trend
-        assert 'ema_50' in trend
-        assert 'macd' in trend
-        assert 'adx' in trend
-        assert 'plus_di' in trend
-        assert 'minus_di' in trend
-        assert 'parabolic_sar' in trend
+        assert "sma_20" in trend
+        assert "sma_50" in trend
+        assert "sma_200" in trend
+        assert "ema_20" in trend
+        assert "ema_50" in trend
+        assert "macd" in trend
+        assert "adx" in trend
+        assert "plus_di" in trend
+        assert "minus_di" in trend
+        assert "parabolic_sar" in trend
 
     def test_all_volatility_indicators(self, indicators):
         """Test all volatility indicators at once."""
         volatility = indicators.all_volatility_indicators()
 
-        assert 'bollinger_bands' in volatility
-        assert 'atr' in volatility
-        assert 'keltner_channels' in volatility
-        assert 'stddev' in volatility
+        assert "bollinger_bands" in volatility
+        assert "atr" in volatility
+        assert "keltner_channels" in volatility
+        assert "stddev" in volatility
 
 
 class TestAnalyzeTrend:
@@ -668,54 +647,42 @@ class TestAnalyzeTrend:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return {
-            'close': close.astype(np.float64),
-            'high': high.astype(np.float64),
-            'low': low.astype(np.float64)
+            "close": close.astype(np.float64),
+            "high": high.astype(np.float64),
+            "low": low.astype(np.float64),
         }
 
     def test_analyze_trend_returns_expected_keys(self, price_data):
         """Test analyze_trend returns all expected keys."""
         from utils.indicators import analyze_trend
 
-        result = analyze_trend(
-            price_data['close'],
-            price_data['high'],
-            price_data['low']
-        )
+        result = analyze_trend(price_data["close"], price_data["high"], price_data["low"])
 
-        assert 'direction' in result
-        assert 'strength' in result
-        assert 'adx' in result
-        assert 'plus_di' in result
-        assert 'minus_di' in result
-        assert 'sma_50' in result
-        assert 'sma_200' in result
-        assert 'price_vs_sma_50' in result
-        assert 'price_vs_sma_200' in result
+        assert "direction" in result
+        assert "strength" in result
+        assert "adx" in result
+        assert "plus_di" in result
+        assert "minus_di" in result
+        assert "sma_50" in result
+        assert "sma_200" in result
+        assert "price_vs_sma_50" in result
+        assert "price_vs_sma_200" in result
 
     def test_analyze_trend_direction_values(self, price_data):
         """Test analyze_trend returns valid direction."""
         from utils.indicators import analyze_trend
 
-        result = analyze_trend(
-            price_data['close'],
-            price_data['high'],
-            price_data['low']
-        )
+        result = analyze_trend(price_data["close"], price_data["high"], price_data["low"])
 
-        assert result['direction'] in ['bullish', 'bearish', 'neutral']
+        assert result["direction"] in ["bullish", "bearish", "neutral"]
 
     def test_analyze_trend_strength_values(self, price_data):
         """Test analyze_trend returns valid strength."""
         from utils.indicators import analyze_trend
 
-        result = analyze_trend(
-            price_data['close'],
-            price_data['high'],
-            price_data['low']
-        )
+        result = analyze_trend(price_data["close"], price_data["high"], price_data["low"])
 
-        assert result['strength'] in ['very_strong', 'strong', 'weak', 'no_trend']
+        assert result["strength"] in ["very_strong", "strong", "weak", "no_trend"]
 
 
 class TestAnalyzeMomentum:
@@ -731,37 +698,29 @@ class TestAnalyzeMomentum:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return {
-            'close': close.astype(np.float64),
-            'high': high.astype(np.float64),
-            'low': low.astype(np.float64)
+            "close": close.astype(np.float64),
+            "high": high.astype(np.float64),
+            "low": low.astype(np.float64),
         }
 
     def test_analyze_momentum_returns_expected_keys(self, price_data):
         """Test analyze_momentum returns all expected keys."""
         from utils.indicators import analyze_momentum
 
-        result = analyze_momentum(
-            price_data['close'],
-            price_data['high'],
-            price_data['low']
-        )
+        result = analyze_momentum(price_data["close"], price_data["high"], price_data["low"])
 
-        assert 'condition' in result
-        assert 'rsi' in result
-        assert 'stochastic_k' in result
-        assert 'stochastic_d' in result
+        assert "condition" in result
+        assert "rsi" in result
+        assert "stochastic_k" in result
+        assert "stochastic_d" in result
 
     def test_analyze_momentum_condition_values(self, price_data):
         """Test analyze_momentum returns valid condition."""
         from utils.indicators import analyze_momentum
 
-        result = analyze_momentum(
-            price_data['close'],
-            price_data['high'],
-            price_data['low']
-        )
+        result = analyze_momentum(price_data["close"], price_data["high"], price_data["low"])
 
-        assert result['condition'] in ['overbought', 'oversold', 'neutral']
+        assert result["condition"] in ["overbought", "oversold", "neutral"]
 
 
 class TestAnalyzeVolatility:
@@ -777,53 +736,41 @@ class TestAnalyzeVolatility:
         low = close - np.abs(np.random.randn(n) * 0.3)
 
         return {
-            'close': close.astype(np.float64),
-            'high': high.astype(np.float64),
-            'low': low.astype(np.float64)
+            "close": close.astype(np.float64),
+            "high": high.astype(np.float64),
+            "low": low.astype(np.float64),
         }
 
     def test_analyze_volatility_returns_expected_keys(self, price_data):
         """Test analyze_volatility returns all expected keys."""
         from utils.indicators import analyze_volatility
 
-        result = analyze_volatility(
-            price_data['close'],
-            price_data['high'],
-            price_data['low']
-        )
+        result = analyze_volatility(price_data["close"], price_data["high"], price_data["low"])
 
-        assert 'state' in result
-        assert 'atr' in result
-        assert 'bb_upper' in result
-        assert 'bb_middle' in result
-        assert 'bb_lower' in result
-        assert 'bb_width_pct' in result
-        assert 'price_position' in result
+        assert "state" in result
+        assert "atr" in result
+        assert "bb_upper" in result
+        assert "bb_middle" in result
+        assert "bb_lower" in result
+        assert "bb_width_pct" in result
+        assert "price_position" in result
 
     def test_analyze_volatility_state_values(self, price_data):
         """Test analyze_volatility returns valid state."""
         from utils.indicators import analyze_volatility
 
-        result = analyze_volatility(
-            price_data['close'],
-            price_data['high'],
-            price_data['low']
-        )
+        result = analyze_volatility(price_data["close"], price_data["high"], price_data["low"])
 
-        assert result['state'] in ['squeeze', 'expansion', 'normal']
+        assert result["state"] in ["squeeze", "expansion", "normal"]
 
     def test_analyze_volatility_price_position_range(self, price_data):
         """Test price_position is in valid range."""
         from utils.indicators import analyze_volatility
 
-        result = analyze_volatility(
-            price_data['close'],
-            price_data['high'],
-            price_data['low']
-        )
+        result = analyze_volatility(price_data["close"], price_data["high"], price_data["low"])
 
         # Price position should be between 0 and 1 (or close)
-        assert 0 <= result['price_position'] <= 1.5
+        assert 0 <= result["price_position"] <= 1.5
 
 
 class TestEdgeCases:
@@ -857,7 +804,7 @@ class TestEdgeCases:
             high=high.astype(np.float64),
             low=low.astype(np.float64),
             close=close.astype(np.float64),
-            volume=volume.astype(np.float64)
+            volume=volume.astype(np.float64),
         )
 
         # Should not raise
@@ -866,8 +813,9 @@ class TestEdgeCases:
 
     def test_vwap_with_date_objects(self):
         """Test VWAP with date objects instead of datetime."""
-        from utils.indicators import TechnicalIndicators
         from datetime import date
+
+        from utils.indicators import TechnicalIndicators
 
         np.random.seed(42)
         n = 50
@@ -884,7 +832,7 @@ class TestEdgeCases:
             low=low.astype(np.float64),
             close=close.astype(np.float64),
             volume=volume,
-            timestamps=timestamps
+            timestamps=timestamps,
         )
 
         # Should not raise

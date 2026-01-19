@@ -9,9 +9,10 @@ before running more complex integration tests.
 Run with: pytest tests/test_imports.py -v
 """
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,18 +24,21 @@ class TestBrokerImports:
     def test_alpaca_broker_import(self):
         """Test that AlpacaBroker can be imported"""
         from brokers.alpaca_broker import AlpacaBroker
+
         assert AlpacaBroker is not None
         assert callable(AlpacaBroker)
 
     def test_order_builder_import(self):
         """Test that OrderBuilder can be imported"""
         from brokers.order_builder import OrderBuilder
+
         assert OrderBuilder is not None
         assert callable(OrderBuilder)
 
     def test_order_builder_convenience_functions(self):
         """Test that convenience functions can be imported"""
-        from brokers.order_builder import market_order, limit_order, bracket_order
+        from brokers.order_builder import bracket_order, limit_order, market_order
+
         assert market_order is not None
         assert limit_order is not None
         assert bracket_order is not None
@@ -45,6 +49,7 @@ class TestBrokerImports:
     def test_backtest_broker_import(self):
         """Test that BacktestBroker can be imported"""
         from brokers.backtest_broker import BacktestBroker
+
         assert BacktestBroker is not None
         assert callable(BacktestBroker)
 
@@ -55,36 +60,42 @@ class TestStrategyImports:
     def test_base_strategy_import(self):
         """Test that BaseStrategy can be imported"""
         from strategies.base_strategy import BaseStrategy
+
         assert BaseStrategy is not None
         assert callable(BaseStrategy)
 
     def test_bracket_momentum_strategy_import(self):
         """Test that BracketMomentumStrategy can be imported"""
         from strategies.bracket_momentum_strategy import BracketMomentumStrategy
+
         assert BracketMomentumStrategy is not None
         assert callable(BracketMomentumStrategy)
 
     def test_momentum_strategy_import(self):
         """Test that MomentumStrategy can be imported"""
         from strategies.momentum_strategy import MomentumStrategy
+
         assert MomentumStrategy is not None
         assert callable(MomentumStrategy)
 
     def test_mean_reversion_strategy_import(self):
         """Test that MeanReversionStrategy can be imported"""
         from strategies.mean_reversion_strategy import MeanReversionStrategy
+
         assert MeanReversionStrategy is not None
         assert callable(MeanReversionStrategy)
 
     def test_sentiment_strategy_import(self):
         """Test that SentimentStrategy can be imported"""
         from strategies.sentiment_strategy import SentimentStrategy
+
         assert SentimentStrategy is not None
         assert callable(SentimentStrategy)
 
     def test_risk_manager_import(self):
         """Test that RiskManager can be imported"""
         from strategies.risk_manager import RiskManager
+
         assert RiskManager is not None
         assert callable(RiskManager)
 
@@ -95,11 +106,13 @@ class TestConfigImports:
     def test_config_import(self):
         """Test that config module can be imported"""
         import config
+
         assert config is not None
 
     def test_config_constants(self):
         """Test that config constants are defined"""
-        from config import SYMBOLS, ALPACA_CREDS, TRADING_PARAMS
+        from config import ALPACA_CREDS, SYMBOLS, TRADING_PARAMS
+
         assert SYMBOLS is not None
         assert isinstance(SYMBOLS, list)
         assert len(SYMBOLS) > 0
@@ -115,8 +128,9 @@ class TestDependencyImports:
     def test_alpaca_trade_api_import(self):
         """Test that alpaca-py can be imported"""
         from alpaca.trading.client import TradingClient
-        from alpaca.trading.requests import MarketOrderRequest
         from alpaca.trading.enums import OrderSide, TimeInForce
+        from alpaca.trading.requests import MarketOrderRequest
+
         assert TradingClient is not None
         assert MarketOrderRequest is not None
         assert OrderSide is not None
@@ -125,17 +139,20 @@ class TestDependencyImports:
     def test_pandas_import(self):
         """Test that pandas can be imported"""
         import pandas as pd
+
         assert pd is not None
 
     def test_numpy_import(self):
         """Test that numpy can be imported"""
         import numpy as np
+
         assert np is not None
 
     def test_talib_import(self):
         """Test that TA-Lib can be imported"""
         try:
             import talib
+
             assert talib is not None
         except ImportError:
             pytest.skip("TA-Lib not installed - optional dependency")
@@ -143,11 +160,13 @@ class TestDependencyImports:
     def test_dotenv_import(self):
         """Test that python-dotenv can be imported"""
         from dotenv import load_dotenv
+
         assert load_dotenv is not None
 
     def test_asyncio_import(self):
         """Test that asyncio can be imported"""
         import asyncio
+
         assert asyncio is not None
 
 
@@ -157,6 +176,7 @@ class TestOrderBuilderInstantiation:
     def test_create_order_builder(self):
         """Test that OrderBuilder can be instantiated"""
         from brokers.order_builder import OrderBuilder
+
         builder = OrderBuilder("AAPL", "buy", 1)
         assert builder is not None
         assert builder.symbol == "AAPL"
@@ -165,24 +185,27 @@ class TestOrderBuilderInstantiation:
     def test_build_market_order(self):
         """Test that a market order can be built"""
         from brokers.order_builder import OrderBuilder
+
         order = OrderBuilder("AAPL", "buy", 1).market().day().build()
         assert order is not None
-        assert hasattr(order, 'symbol')
-        assert hasattr(order, 'qty')
-        assert hasattr(order, 'side')
-        assert hasattr(order, 'time_in_force')
+        assert hasattr(order, "symbol")
+        assert hasattr(order, "qty")
+        assert hasattr(order, "side")
+        assert hasattr(order, "time_in_force")
 
     def test_build_limit_order(self):
         """Test that a limit order can be built"""
         from brokers.order_builder import OrderBuilder
+
         order = OrderBuilder("AAPL", "buy", 1).limit(150.00).gtc().build()
         assert order is not None
-        assert hasattr(order, 'limit_price')
+        assert hasattr(order, "limit_price")
         assert order.limit_price == 150.00
 
     def test_build_bracket_order(self):
         """Test that a bracket order can be built"""
         from brokers.order_builder import OrderBuilder
+
         order = (
             OrderBuilder("AAPL", "buy", 1)
             .market()
@@ -191,9 +214,9 @@ class TestOrderBuilderInstantiation:
             .build()
         )
         assert order is not None
-        assert hasattr(order, 'order_class')
-        assert hasattr(order, 'take_profit')
-        assert hasattr(order, 'stop_loss')
+        assert hasattr(order, "order_class")
+        assert hasattr(order, "take_profit")
+        assert hasattr(order, "stop_loss")
 
 
 class TestEnumImports:
@@ -202,12 +225,14 @@ class TestEnumImports:
     def test_order_side_enum(self):
         """Test that OrderSide enum can be imported"""
         from alpaca.trading.enums import OrderSide
+
         assert OrderSide.BUY is not None
         assert OrderSide.SELL is not None
 
     def test_time_in_force_enum(self):
         """Test that TimeInForce enum can be imported"""
         from alpaca.trading.enums import TimeInForce
+
         assert TimeInForce.DAY is not None
         assert TimeInForce.GTC is not None
         assert TimeInForce.IOC is not None
@@ -216,6 +241,7 @@ class TestEnumImports:
     def test_order_class_enum(self):
         """Test that OrderClass enum can be imported"""
         from alpaca.trading.enums import OrderClass
+
         assert OrderClass.SIMPLE is not None
         assert OrderClass.BRACKET is not None
         assert OrderClass.OCO is not None
@@ -224,6 +250,7 @@ class TestEnumImports:
     def test_order_type_enum(self):
         """Test that OrderType enum can be imported"""
         from alpaca.trading.enums import OrderType
+
         assert OrderType.MARKET is not None
         assert OrderType.LIMIT is not None
         assert OrderType.STOP is not None

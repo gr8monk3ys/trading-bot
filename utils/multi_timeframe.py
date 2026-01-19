@@ -21,9 +21,10 @@ Example usage:
 """
 
 import logging
+from collections import deque
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from collections import deque
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -57,13 +58,13 @@ class TimeframeData:
 
     def _parse_timeframe(self, timeframe: str) -> timedelta:
         """Parse timeframe string to timedelta."""
-        if timeframe.endswith('Min'):
+        if timeframe.endswith("Min"):
             minutes = int(timeframe[:-3])
             return timedelta(minutes=minutes)
-        elif timeframe.endswith('Hour'):
+        elif timeframe.endswith("Hour"):
             hours = int(timeframe[:-4])
             return timedelta(hours=hours)
-        elif timeframe.endswith('Day'):
+        elif timeframe.endswith("Day"):
             days = int(timeframe[:-3])
             return timedelta(days=days)
         else:
@@ -84,7 +85,7 @@ class TimeframeData:
             return
 
         # Check if we need to close current bar and start new one
-        bar_end_time = self.current_bar['start_time'] + self.bar_duration
+        bar_end_time = self.current_bar["start_time"] + self.bar_duration
 
         if timestamp >= bar_end_time:
             # Close current bar
@@ -93,31 +94,31 @@ class TimeframeData:
             self._start_new_bar(timestamp, price, volume)
         else:
             # Update current bar
-            self.current_bar['high'] = max(self.current_bar['high'], price)
-            self.current_bar['low'] = min(self.current_bar['low'], price)
-            self.current_bar['close'] = price
-            self.current_bar['volume'] += volume
+            self.current_bar["high"] = max(self.current_bar["high"], price)
+            self.current_bar["low"] = min(self.current_bar["low"], price)
+            self.current_bar["close"] = price
+            self.current_bar["volume"] += volume
 
     def _start_new_bar(self, timestamp: datetime, price: float, volume: float):
         """Start a new bar."""
         self.current_bar = {
-            'start_time': timestamp,
-            'open': price,
-            'high': price,
-            'low': price,
-            'close': price,
-            'volume': volume
+            "start_time": timestamp,
+            "open": price,
+            "high": price,
+            "low": price,
+            "close": price,
+            "volume": volume,
         }
 
     def _close_current_bar(self):
         """Close current bar and add to history."""
         if self.current_bar:
-            self.timestamps.append(self.current_bar['start_time'])
-            self.opens.append(self.current_bar['open'])
-            self.highs.append(self.current_bar['high'])
-            self.lows.append(self.current_bar['low'])
-            self.closes.append(self.current_bar['close'])
-            self.volumes.append(self.current_bar['volume'])
+            self.timestamps.append(self.current_bar["start_time"])
+            self.opens.append(self.current_bar["open"])
+            self.highs.append(self.current_bar["high"])
+            self.lows.append(self.current_bar["low"])
+            self.closes.append(self.current_bar["close"])
+            self.volumes.append(self.current_bar["volume"])
 
     def get_closes(self, count: Optional[int] = None) -> np.ndarray:
         """Get close prices as numpy array."""
@@ -181,11 +182,11 @@ class MultiTimeframeAnalyzer:
 
     def _timeframe_to_minutes(self, timeframe: str) -> int:
         """Convert timeframe to minutes for sorting."""
-        if timeframe.endswith('Min'):
+        if timeframe.endswith("Min"):
             return int(timeframe[:-3])
-        elif timeframe.endswith('Hour'):
+        elif timeframe.endswith("Hour"):
             return int(timeframe[:-4]) * 60
-        elif timeframe.endswith('Day'):
+        elif timeframe.endswith("Day"):
             return int(timeframe[:-3]) * 1440
         return 0
 
@@ -202,8 +203,7 @@ class MultiTimeframeAnalyzer:
         # Initialize symbol if needed
         if symbol not in self.data:
             self.data[symbol] = {
-                tf: TimeframeData(tf, self.history_length)
-                for tf in self.timeframes
+                tf: TimeframeData(tf, self.history_length) for tf in self.timeframes
             }
 
         # Update all timeframes
@@ -223,12 +223,12 @@ class MultiTimeframeAnalyzer:
             'bullish', 'bearish', or 'neutral'
         """
         if symbol not in self.data or timeframe not in self.data[symbol]:
-            return 'neutral'
+            return "neutral"
 
         tf_data = self.data[symbol][timeframe]
 
         if len(tf_data) < period + 1:
-            return 'neutral'
+            return "neutral"
 
         closes = tf_data.get_closes()
 
@@ -241,11 +241,11 @@ class MultiTimeframeAnalyzer:
 
         # Strong trend thresholds
         if price_above_sma > 0.01:  # 1% above SMA
-            return 'bullish'
+            return "bullish"
         elif price_above_sma < -0.01:  # 1% below SMA
-            return 'bearish'
+            return "bearish"
         else:
-            return 'neutral'
+            return "neutral"
 
     def get_aligned_signal(self, symbol: str) -> str:
         """
@@ -257,7 +257,7 @@ class MultiTimeframeAnalyzer:
             'neutral' - Mixed or neutral signals
         """
         if symbol not in self.data:
-            return 'neutral'
+            return "neutral"
 
         trends = []
         for tf in self.timeframes:
@@ -265,12 +265,12 @@ class MultiTimeframeAnalyzer:
             trends.append(trend)
 
         # Check for alignment
-        if all(t == 'bullish' for t in trends):
-            return 'bullish'
-        elif all(t == 'bearish' for t in trends):
-            return 'bearish'
+        if all(t == "bullish" for t in trends):
+            return "bullish"
+        elif all(t == "bearish" for t in trends):
+            return "bearish"
         else:
-            return 'neutral'
+            return "neutral"
 
     def get_timeframe_momentum(self, symbol: str, timeframe: str, period: int = 14) -> float:
         """
@@ -322,10 +322,10 @@ class MultiTimeframeAnalyzer:
         long_trend = self.get_trend(symbol, long_tf)
 
         # Detect divergences
-        if short_trend == 'bearish' and long_trend == 'bullish':
-            return 'bullish_divergence'  # Short-term pullback in long-term uptrend
-        elif short_trend == 'bullish' and long_trend == 'bearish':
-            return 'bearish_divergence'  # Short-term rally in long-term downtrend
+        if short_trend == "bearish" and long_trend == "bullish":
+            return "bullish_divergence"  # Short-term pullback in long-term uptrend
+        elif short_trend == "bullish" and long_trend == "bearish":
+            return "bearish_divergence"  # Short-term rally in long-term downtrend
 
         return None
 
@@ -343,19 +343,19 @@ class MultiTimeframeAnalyzer:
             Dict with trends, alignment, and divergences
         """
         if symbol not in self.data:
-            return {'error': 'No data for symbol'}
+            return {"error": "No data for symbol"}
 
         status = {
-            'timeframes': {},
-            'aligned_signal': self.get_aligned_signal(symbol),
-            'divergence': self.detect_divergence(symbol)
+            "timeframes": {},
+            "aligned_signal": self.get_aligned_signal(symbol),
+            "divergence": self.detect_divergence(symbol),
         }
 
         for tf in self.timeframes:
-            status['timeframes'][tf] = {
-                'trend': self.get_trend(symbol, tf),
-                'momentum': self.get_timeframe_momentum(symbol, tf),
-                'bar_count': len(self.data[symbol][tf])
+            status["timeframes"][tf] = {
+                "trend": self.get_trend(symbol, tf),
+                "momentum": self.get_timeframe_momentum(symbol, tf),
+                "bar_count": len(self.data[symbol][tf]),
             }
 
         return status

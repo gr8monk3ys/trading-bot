@@ -32,7 +32,8 @@ Usage:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -50,26 +51,26 @@ class VolumeFilter:
     """
 
     # Score thresholds and boundaries
-    MIN_SCORE = 0.0                          # Minimum volume score
-    MAX_SCORE = 1.0                          # Maximum volume score
-    DEFAULT_SCORE = 0.5                      # Score when insufficient data
-    LOW_VOLUME_THRESHOLD = 0.8               # Below this ratio = low volume
-    LOW_VOLUME_MAX_SCORE = 0.5               # Max score for low volume
+    MIN_SCORE = 0.0  # Minimum volume score
+    MAX_SCORE = 1.0  # Maximum volume score
+    DEFAULT_SCORE = 0.5  # Score when insufficient data
+    LOW_VOLUME_THRESHOLD = 0.8  # Below this ratio = low volume
+    LOW_VOLUME_MAX_SCORE = 0.5  # Max score for low volume
 
     # Trend change thresholds
-    INCREASING_TREND_THRESHOLD = 0.2         # 20% increase = increasing trend
-    DECREASING_TREND_THRESHOLD = -0.2        # 20% decrease = decreasing trend
+    INCREASING_TREND_THRESHOLD = 0.2  # 20% increase = increasing trend
+    DECREASING_TREND_THRESHOLD = -0.2  # 20% decrease = decreasing trend
 
     # Divergence thresholds
-    PRICE_DIVERGENCE_THRESHOLD = 0.02        # 2% price change for divergence
-    VOLUME_DIVERGENCE_THRESHOLD = 0.15       # 15% volume change for divergence
+    PRICE_DIVERGENCE_THRESHOLD = 0.02  # 2% price change for divergence
+    VOLUME_DIVERGENCE_THRESHOLD = 0.15  # 15% volume change for divergence
 
     def __init__(
         self,
-        min_volume_ratio: float = 1.2,      # Min ratio to average for confirmation
+        min_volume_ratio: float = 1.2,  # Min ratio to average for confirmation
         breakout_volume_ratio: float = 1.5,  # Required ratio for breakouts
-        lookback_days: int = 20,             # Days for average volume calc
-        use_relative_volume: bool = True,    # Compare to same time of day
+        lookback_days: int = 20,  # Days for average volume calc
+        use_relative_volume: bool = True,  # Compare to same time of day
     ):
         """
         Initialize volume filter.
@@ -90,11 +91,7 @@ class VolumeFilter:
             f"breakout_ratio={breakout_volume_ratio}"
         )
 
-    def calculate_volume_ratio(
-        self,
-        current_volume: float,
-        volume_history: List[float]
-    ) -> float:
+    def calculate_volume_ratio(self, current_volume: float, volume_history: List[float]) -> float:
         """
         Calculate current volume as ratio of average.
 
@@ -108,18 +105,14 @@ class VolumeFilter:
         if not volume_history or len(volume_history) < 5:
             return 1.0  # Assume average if not enough data
 
-        avg_volume = np.mean(volume_history[-self.lookback_days:])
+        avg_volume = np.mean(volume_history[-self.lookback_days :])
 
         if avg_volume <= 0:
             return 1.0
 
         return current_volume / avg_volume
 
-    def calculate_volume_trend(
-        self,
-        volume_history: List[float],
-        periods: int = 5
-    ) -> str:
+    def calculate_volume_trend(self, volume_history: List[float], periods: int = 5) -> str:
         """
         Calculate volume trend (increasing, decreasing, stable).
 
@@ -127,28 +120,25 @@ class VolumeFilter:
             'increasing', 'decreasing', or 'stable'
         """
         if len(volume_history) < periods * 2:
-            return 'stable'
+            return "stable"
 
         recent = np.mean(volume_history[-periods:])
-        previous = np.mean(volume_history[-periods*2:-periods])
+        previous = np.mean(volume_history[-periods * 2 : -periods])
 
         if previous <= 0:
-            return 'stable'
+            return "stable"
 
         change = (recent - previous) / previous
 
         if change > self.INCREASING_TREND_THRESHOLD:
-            return 'increasing'
+            return "increasing"
         elif change < self.DECREASING_TREND_THRESHOLD:
-            return 'decreasing'
+            return "decreasing"
         else:
-            return 'stable'
+            return "stable"
 
     def check_volume_divergence(
-        self,
-        price_history: List[float],
-        volume_history: List[float],
-        periods: int = 5
+        self, price_history: List[float], volume_history: List[float], periods: int = 5
     ) -> Tuple[bool, str]:
         """
         Check for price-volume divergence (warning signal).
@@ -161,31 +151,34 @@ class VolumeFilter:
             Tuple of (has_divergence, divergence_type)
         """
         if len(price_history) < periods * 2 or len(volume_history) < periods * 2:
-            return False, 'none'
+            return False, "none"
 
         # Price trend
         recent_price = np.mean(price_history[-periods:])
-        prev_price = np.mean(price_history[-periods*2:-periods])
+        prev_price = np.mean(price_history[-periods * 2 : -periods])
         price_change = (recent_price - prev_price) / prev_price if prev_price > 0 else 0
 
         # Volume trend
         recent_vol = np.mean(volume_history[-periods:])
-        prev_vol = np.mean(volume_history[-periods*2:-periods])
+        prev_vol = np.mean(volume_history[-periods * 2 : -periods])
         vol_change = (recent_vol - prev_vol) / prev_vol if prev_vol > 0 else 0
 
         # Check for divergence
-        if price_change > self.PRICE_DIVERGENCE_THRESHOLD and vol_change < -self.VOLUME_DIVERGENCE_THRESHOLD:
-            return True, 'bearish'  # Price up, volume down
-        elif price_change < -self.PRICE_DIVERGENCE_THRESHOLD and vol_change > self.VOLUME_DIVERGENCE_THRESHOLD:
-            return True, 'bullish'  # Price down, volume up
+        if (
+            price_change > self.PRICE_DIVERGENCE_THRESHOLD
+            and vol_change < -self.VOLUME_DIVERGENCE_THRESHOLD
+        ):
+            return True, "bearish"  # Price up, volume down
+        elif (
+            price_change < -self.PRICE_DIVERGENCE_THRESHOLD
+            and vol_change > self.VOLUME_DIVERGENCE_THRESHOLD
+        ):
+            return True, "bullish"  # Price down, volume up
 
-        return False, 'none'
+        return False, "none"
 
     def is_volume_confirmed(
-        self,
-        current_volume: float,
-        volume_history: List[float],
-        signal_type: str = 'normal'
+        self, current_volume: float, volume_history: List[float], signal_type: str = "normal"
     ) -> Tuple[bool, Dict]:
         """
         Check if current volume confirms a trade signal.
@@ -202,9 +195,9 @@ class VolumeFilter:
         volume_trend = self.calculate_volume_trend(volume_history)
 
         # Determine required ratio based on signal type
-        if signal_type == 'breakout':
+        if signal_type == "breakout":
             required_ratio = self.breakout_volume_ratio
-        elif signal_type == 'reversal':
+        elif signal_type == "reversal":
             required_ratio = self.min_volume_ratio * 1.3  # Need more confirmation
         else:
             required_ratio = self.min_volume_ratio
@@ -213,18 +206,17 @@ class VolumeFilter:
         is_confirmed = volume_ratio >= required_ratio
 
         analysis = {
-            'volume_ratio': volume_ratio,
-            'required_ratio': required_ratio,
-            'volume_trend': volume_trend,
-            'is_confirmed': is_confirmed,
-            'signal_type': signal_type,
-            'confidence': min(volume_ratio / required_ratio, 1.5),
+            "volume_ratio": volume_ratio,
+            "required_ratio": required_ratio,
+            "volume_trend": volume_trend,
+            "is_confirmed": is_confirmed,
+            "signal_type": signal_type,
+            "confidence": min(volume_ratio / required_ratio, 1.5),
         }
 
         if not is_confirmed:
             logger.debug(
-                f"Volume not confirmed: ratio={volume_ratio:.2f}, "
-                f"required={required_ratio:.2f}"
+                f"Volume not confirmed: ratio={volume_ratio:.2f}, " f"required={required_ratio:.2f}"
             )
 
         return is_confirmed, analysis
@@ -235,7 +227,7 @@ class VolumeFilter:
         current_volume: float,
         volume_history: List[float],
         price_history: List[float] = None,
-        is_breakout: bool = False
+        is_breakout: bool = False,
     ) -> Tuple[bool, Dict]:
         """
         Check if volume confirms a trading signal.
@@ -250,47 +242,38 @@ class VolumeFilter:
         Returns:
             Tuple of (is_confirmed, analysis_dict)
         """
-        if signal == 'neutral':
-            return True, {'reason': 'No signal to confirm'}
+        if signal == "neutral":
+            return True, {"reason": "No signal to confirm"}
 
         # Determine signal type
-        signal_type = 'breakout' if is_breakout else 'normal'
+        signal_type = "breakout" if is_breakout else "normal"
 
         # Check volume confirmation
         is_confirmed, analysis = self.is_volume_confirmed(
-            current_volume,
-            volume_history,
-            signal_type
+            current_volume, volume_history, signal_type
         )
 
         # Check for divergence if price history available
         if price_history and len(price_history) >= 10:
-            has_divergence, div_type = self.check_volume_divergence(
-                price_history,
-                volume_history
-            )
+            has_divergence, div_type = self.check_volume_divergence(price_history, volume_history)
 
-            analysis['has_divergence'] = has_divergence
-            analysis['divergence_type'] = div_type
+            analysis["has_divergence"] = has_divergence
+            analysis["divergence_type"] = div_type
 
             # Divergence is a warning - reduce confidence
             if has_divergence:
-                if (signal == 'long' and div_type == 'bearish') or \
-                   (signal == 'short' and div_type == 'bullish'):
-                    analysis['warning'] = f"{div_type} divergence detected"
-                    analysis['confidence'] *= 0.7
+                if (signal == "long" and div_type == "bearish") or (
+                    signal == "short" and div_type == "bullish"
+                ):
+                    analysis["warning"] = f"{div_type} divergence detected"
+                    analysis["confidence"] *= 0.7
                     # Don't reject, but warn
-                    logger.warning(
-                        f"Volume divergence warning for {signal} signal: {div_type}"
-                    )
+                    logger.warning(f"Volume divergence warning for {signal} signal: {div_type}")
 
         return is_confirmed, analysis
 
     def get_volume_score(
-        self,
-        current_volume: float,
-        volume_history: List[float],
-        price_history: List[float] = None
+        self, current_volume: float, volume_history: List[float], price_history: List[float] = None
     ) -> float:
         """
         Get a volume quality score (0-1).
@@ -315,9 +298,9 @@ class VolumeFilter:
             score = volume_ratio * (self.LOW_VOLUME_MAX_SCORE / self.LOW_VOLUME_THRESHOLD)
 
         # Adjust for trend
-        if volume_trend == 'increasing':
+        if volume_trend == "increasing":
             score *= 1.1
-        elif volume_trend == 'decreasing':
+        elif volume_trend == "decreasing":
             score *= 0.9
 
         # Check divergence
@@ -329,11 +312,7 @@ class VolumeFilter:
         return max(self.MIN_SCORE, min(self.MAX_SCORE, score))
 
     def calculate_accumulation_distribution(
-        self,
-        high: float,
-        low: float,
-        close: float,
-        volume: float
+        self, high: float, low: float, close: float, volume: float
     ) -> float:
         """
         Calculate Accumulation/Distribution indicator value.
@@ -347,11 +326,7 @@ class VolumeFilter:
         clv = ((close - low) - (high - close)) / (high - low)
         return clv * volume
 
-    def get_ad_trend(
-        self,
-        bars: List[Dict],
-        periods: int = 10
-    ) -> str:
+    def get_ad_trend(self, bars: List[Dict], periods: int = 10) -> str:
         """
         Get Accumulation/Distribution trend.
 
@@ -362,25 +337,25 @@ class VolumeFilter:
             'accumulation', 'distribution', or 'neutral'
         """
         if len(bars) < periods:
-            return 'neutral'
+            return "neutral"
 
         ad_values = []
         for bar in bars[-periods:]:
             ad = self.calculate_accumulation_distribution(
-                bar['high'], bar['low'], bar['close'], bar['volume']
+                bar["high"], bar["low"], bar["close"], bar["volume"]
             )
             ad_values.append(ad)
 
         # Check trend
-        first_half = sum(ad_values[:len(ad_values)//2])
-        second_half = sum(ad_values[len(ad_values)//2:])
+        first_half = sum(ad_values[: len(ad_values) // 2])
+        second_half = sum(ad_values[len(ad_values) // 2 :])
 
         if second_half > first_half * 1.2:
-            return 'accumulation'
+            return "accumulation"
         elif second_half < first_half * 0.8:
-            return 'distribution'
+            return "distribution"
         else:
-            return 'neutral'
+            return "neutral"
 
 
 class VolumeAnalyzer:
@@ -408,13 +383,13 @@ class VolumeAnalyzer:
 
             bars = await self.broker.get_bars(
                 symbol,
-                start_date.strftime('%Y-%m-%d'),
-                end_date.strftime('%Y-%m-%d'),
-                timeframe='1Day'
+                start_date.strftime("%Y-%m-%d"),
+                end_date.strftime("%Y-%m-%d"),
+                timeframe="1Day",
             )
 
             if bars is None or len(bars) < 10:
-                return {'error': 'Insufficient data'}
+                return {"error": "Insufficient data"}
 
             # Extract data
             volumes = [float(b.volume) for b in bars]
@@ -428,13 +403,11 @@ class VolumeAnalyzer:
             volume_trend = self.filter.calculate_volume_trend(volumes)
 
             # Divergence check
-            has_divergence, div_type = self.filter.check_volume_divergence(
-                prices, volumes
-            )
+            has_divergence, div_type = self.filter.check_volume_divergence(prices, volumes)
 
             # A/D trend
             bar_dicts = [
-                {'high': h, 'low': l, 'close': c, 'volume': v}
+                {"high": h, "low": l, "close": c, "volume": v}
                 for h, l, c, v in zip(highs, lows, prices, volumes)
             ]
             ad_trend = self.filter.get_ad_trend(bar_dicts)
@@ -443,33 +416,29 @@ class VolumeAnalyzer:
             score = self.filter.get_volume_score(current_volume, volumes[:-1], prices)
 
             return {
-                'symbol': symbol,
-                'current_volume': current_volume,
-                'avg_volume': np.mean(volumes[:-1]),
-                'volume_ratio': volume_ratio,
-                'volume_trend': volume_trend,
-                'has_divergence': has_divergence,
-                'divergence_type': div_type,
-                'ad_trend': ad_trend,
-                'volume_score': score,
-                'recommendation': self._get_recommendation(
+                "symbol": symbol,
+                "current_volume": current_volume,
+                "avg_volume": np.mean(volumes[:-1]),
+                "volume_ratio": volume_ratio,
+                "volume_trend": volume_trend,
+                "has_divergence": has_divergence,
+                "divergence_type": div_type,
+                "ad_trend": ad_trend,
+                "volume_score": score,
+                "recommendation": self._get_recommendation(
                     volume_ratio, volume_trend, has_divergence, ad_trend
-                )
+                ),
             }
 
         except Exception as e:
             logger.error(f"Error analyzing volume for {symbol}: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def _get_recommendation(
-        self,
-        ratio: float,
-        trend: str,
-        has_divergence: bool,
-        ad_trend: str
+        self, ratio: float, trend: str, has_divergence: bool, ad_trend: str
     ) -> str:
         """Get volume-based recommendation."""
-        if ratio >= 1.5 and trend == 'increasing' and not has_divergence:
+        if ratio >= 1.5 and trend == "increasing" and not has_divergence:
             return "Strong volume confirmation - high confidence"
         elif ratio >= 1.2 and not has_divergence:
             return "Good volume confirmation"
@@ -477,9 +446,9 @@ class VolumeAnalyzer:
             return "Caution: Volume divergence detected"
         elif ratio < 0.8:
             return "Low volume - weak signal, consider waiting"
-        elif ad_trend == 'distribution' and ratio < 1.0:
+        elif ad_trend == "distribution" and ratio < 1.0:
             return "Distribution pattern - bearish pressure"
-        elif ad_trend == 'accumulation' and ratio >= 1.0:
+        elif ad_trend == "accumulation" and ratio >= 1.0:
             return "Accumulation pattern - bullish support"
         else:
             return "Neutral volume conditions"
@@ -487,30 +456,33 @@ class VolumeAnalyzer:
 
 if __name__ == "__main__":
     """Test volume filter."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("VOLUME FILTER TEST")
-    print("="*60)
+    print("=" * 60)
 
     filter = VolumeFilter()
 
     # Simulated data
-    volume_history = [1000000, 1100000, 950000, 1050000, 1000000,
-                      1200000, 1150000, 1000000, 1100000, 1050000]
+    volume_history = [
+        1000000,
+        1100000,
+        950000,
+        1050000,
+        1000000,
+        1200000,
+        1150000,
+        1000000,
+        1100000,
+        1050000,
+    ]
     price_history = [100, 101, 100.5, 102, 103, 104, 103.5, 105, 106, 107]
 
     # Test normal signal
     print("\n1. Normal Signal Test (current vol = 1.3M)")
     confirmed, analysis = filter.confirms_signal(
-        'long',
-        1300000,
-        volume_history,
-        price_history,
-        is_breakout=False
+        "long", 1300000, volume_history, price_history, is_breakout=False
     )
     print(f"   Confirmed: {confirmed}")
     print(f"   Volume Ratio: {analysis['volume_ratio']:.2f}")
@@ -519,11 +491,7 @@ if __name__ == "__main__":
     # Test breakout signal
     print("\n2. Breakout Signal Test (current vol = 1.3M)")
     confirmed, analysis = filter.confirms_signal(
-        'long',
-        1300000,
-        volume_history,
-        price_history,
-        is_breakout=True
+        "long", 1300000, volume_history, price_history, is_breakout=True
     )
     print(f"   Confirmed: {confirmed} (requires {filter.breakout_volume_ratio}x)")
     print(f"   Volume Ratio: {analysis['volume_ratio']:.2f}")
@@ -531,11 +499,7 @@ if __name__ == "__main__":
     # Test low volume
     print("\n3. Low Volume Test (current vol = 800K)")
     confirmed, analysis = filter.confirms_signal(
-        'long',
-        800000,
-        volume_history,
-        price_history,
-        is_breakout=False
+        "long", 800000, volume_history, price_history, is_breakout=False
     )
     print(f"   Confirmed: {confirmed}")
     print(f"   Volume Ratio: {analysis['volume_ratio']:.2f}")
@@ -547,4 +511,4 @@ if __name__ == "__main__":
         ratio = filter.calculate_volume_ratio(vol, volume_history)
         print(f"   {vol/1e6:.1f}M vol -> ratio: {ratio:.2f}, score: {score:.2f}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)

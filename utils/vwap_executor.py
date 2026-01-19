@@ -24,10 +24,11 @@ Usage:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Optional, Dict, List
-import numpy as np
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +36,18 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VWAPSlice:
     """Represents a single execution slice."""
+
     scheduled_time: datetime
     target_qty: float
     executed_qty: float = 0.0
     avg_price: float = 0.0
-    status: str = 'pending'  # pending, executing, filled, cancelled
+    status: str = "pending"  # pending, executing, filled, cancelled
 
 
 @dataclass
 class VWAPResult:
     """Result of VWAP execution."""
+
     symbol: str
     side: str
     total_qty: float
@@ -72,19 +75,19 @@ class VWAPExecutor:
     # Default intraday volume profile (% of daily volume by 30-min bucket)
     # Based on typical US equity market patterns
     DEFAULT_VOLUME_PROFILE = {
-        '09:30': 0.08,  # Opening high volume
-        '10:00': 0.06,
-        '10:30': 0.05,
-        '11:00': 0.04,
-        '11:30': 0.04,
-        '12:00': 0.03,  # Lunch lull
-        '12:30': 0.03,
-        '13:00': 0.04,
-        '13:30': 0.04,
-        '14:00': 0.05,
-        '14:30': 0.06,
-        '15:00': 0.08,  # Closing ramp
-        '15:30': 0.10,  # Heavy closing
+        "09:30": 0.08,  # Opening high volume
+        "10:00": 0.06,
+        "10:30": 0.05,
+        "11:00": 0.04,
+        "11:30": 0.04,
+        "12:00": 0.03,  # Lunch lull
+        "12:30": 0.03,
+        "13:00": 0.04,
+        "13:30": 0.04,
+        "14:00": 0.05,
+        "14:30": 0.06,
+        "15:00": 0.08,  # Closing ramp
+        "15:30": 0.10,  # Heavy closing
     }
 
     def __init__(
@@ -92,7 +95,7 @@ class VWAPExecutor:
         broker,
         default_slices: int = 10,
         min_slice_qty: float = 1.0,
-        max_participation_rate: float = 0.10
+        max_participation_rate: float = 0.10,
     ):
         """
         Initialize VWAP executor.
@@ -120,7 +123,7 @@ class VWAPExecutor:
         duration_minutes: int = 60,
         num_slices: Optional[int] = None,
         participation_rate: Optional[float] = None,
-        use_volume_profile: bool = True
+        use_volume_profile: bool = True,
     ) -> VWAPResult:
         """
         Execute an order using VWAP algorithm.
@@ -151,7 +154,7 @@ class VWAPExecutor:
                 num_slices = min(
                     self.default_slices,
                     int(total_qty / self.min_slice_qty),
-                    duration_minutes // 5  # At least 5 min between slices
+                    duration_minutes // 5,  # At least 5 min between slices
                 )
                 num_slices = max(2, num_slices)  # Minimum 2 slices
 
@@ -168,7 +171,9 @@ class VWAPExecutor:
 
             logger.info(f"  Created {len(slices)} slices")
             for i, s in enumerate(slices):
-                logger.debug(f"    Slice {i+1}: {s.target_qty:.2f} @ {s.scheduled_time.strftime('%H:%M:%S')}")
+                logger.debug(
+                    f"    Slice {i+1}: {s.target_qty:.2f} @ {s.scheduled_time.strftime('%H:%M:%S')}"
+                )
 
             # Track benchmark VWAP
             benchmark_start_price = await self._get_current_price(symbol)
@@ -198,31 +203,33 @@ class VWAPExecutor:
                     slice_qty = slice_order.target_qty
 
                 if slice_qty < self.min_slice_qty:
-                    logger.debug(f"Skipping slice {i+1}: qty too small after participation adjustment")
-                    slice_order.status = 'cancelled'
+                    logger.debug(
+                        f"Skipping slice {i+1}: qty too small after participation adjustment"
+                    )
+                    slice_order.status = "cancelled"
                     continue
 
                 # Execute slice
-                slice_order.status = 'executing'
+                slice_order.status = "executing"
                 result = await self._execute_slice(symbol, side, slice_qty)
 
                 if result:
-                    slice_order.executed_qty = result['qty']
-                    slice_order.avg_price = result['price']
-                    slice_order.status = 'filled'
+                    slice_order.executed_qty = result["qty"]
+                    slice_order.avg_price = result["price"]
+                    slice_order.status = "filled"
 
-                    executed_qty += result['qty']
-                    executed_value += result['qty'] * result['price']
+                    executed_qty += result["qty"]
+                    executed_value += result["qty"] * result["price"]
 
-                    vwap_prices.append(result['price'])
-                    vwap_volumes.append(result['qty'])
+                    vwap_prices.append(result["price"])
+                    vwap_volumes.append(result["qty"])
 
                     logger.info(
                         f"  Slice {i+1}/{len(slices)}: {result['qty']:.2f} @ ${result['price']:.2f} "
                         f"(total: {executed_qty:.2f}/{total_qty:.2f})"
                     )
                 else:
-                    slice_order.status = 'cancelled'
+                    slice_order.status = "cancelled"
                     logger.warning(f"  Slice {i+1} failed to execute")
 
             # Calculate results
@@ -231,7 +238,7 @@ class VWAPExecutor:
                 vwap_benchmark = self._calculate_vwap(vwap_prices, vwap_volumes)
 
                 # Slippage in basis points (bps)
-                if side == 'buy':
+                if side == "buy":
                     slippage_bps = ((avg_price - vwap_benchmark) / vwap_benchmark) * 10000
                 else:
                     slippage_bps = ((vwap_benchmark - avg_price) / vwap_benchmark) * 10000
@@ -242,11 +249,11 @@ class VWAPExecutor:
 
             # Determine status
             if executed_qty >= total_qty * 0.99:
-                status = 'completed'
+                status = "completed"
             elif executed_qty > 0:
-                status = 'partial'
+                status = "partial"
             else:
-                status = 'cancelled'
+                status = "cancelled"
 
             result = VWAPResult(
                 symbol=symbol,
@@ -258,15 +265,17 @@ class VWAPExecutor:
                 slippage_bps=slippage_bps,
                 duration_minutes=duration_minutes,
                 num_slices=len(slices),
-                slices_filled=sum(1 for s in slices if s.status == 'filled'),
-                status=status
+                slices_filled=sum(1 for s in slices if s.status == "filled"),
+                status=status,
             )
 
             self.execution_history.append(result)
             del self.active_orders[symbol]
 
             logger.info(f"VWAP execution {status}:")
-            logger.info(f"  Executed: {executed_qty:.2f}/{total_qty:.2f} ({executed_qty/total_qty:.1%})")
+            logger.info(
+                f"  Executed: {executed_qty:.2f}/{total_qty:.2f} ({executed_qty/total_qty:.1%})"
+            )
             logger.info(f"  Avg Price: ${avg_price:.2f}")
             logger.info(f"  VWAP Benchmark: ${vwap_benchmark:.2f}")
             logger.info(f"  Slippage: {slippage_bps:.1f} bps")
@@ -284,7 +293,7 @@ class VWAPExecutor:
         total_qty: float,
         duration_minutes: int,
         num_slices: int,
-        weights: List[float]
+        weights: List[float],
     ) -> List[VWAPSlice]:
         """Create execution slices based on weights."""
         slices = []
@@ -309,18 +318,12 @@ class VWAPExecutor:
 
             remaining_qty -= slice_qty
 
-            slices.append(VWAPSlice(
-                scheduled_time=scheduled_time,
-                target_qty=slice_qty
-            ))
+            slices.append(VWAPSlice(scheduled_time=scheduled_time, target_qty=slice_qty))
 
         return slices
 
     async def _get_volume_weights(
-        self,
-        symbol: str,
-        num_slices: int,
-        duration_minutes: int
+        self, symbol: str, num_slices: int, duration_minutes: int
     ) -> List[float]:
         """
         Get volume-based weights for slices.
@@ -329,7 +332,7 @@ class VWAPExecutor:
         """
         try:
             # Try to get historical volume data
-            bars = await self.broker.get_bars(symbol, '30Min', limit=20)
+            bars = await self.broker.get_bars(symbol, "30Min", limit=20)
 
             if bars and len(bars) >= 5:
                 # Use recent volume pattern
@@ -349,7 +352,7 @@ class VWAPExecutor:
 
         for i in range(num_slices):
             slice_time = now + timedelta(minutes=i * interval)
-            time_key = slice_time.strftime('%H:') + ('00' if slice_time.minute < 30 else '30')
+            time_key = slice_time.strftime("%H:") + ("00" if slice_time.minute < 30 else "30")
 
             weight = self.DEFAULT_VOLUME_PROFILE.get(time_key, 0.05)
             weights.append(weight)
@@ -357,10 +360,7 @@ class VWAPExecutor:
         return weights
 
     async def _adjust_for_participation(
-        self,
-        symbol: str,
-        target_qty: float,
-        participation_rate: float
+        self, symbol: str, target_qty: float, participation_rate: float
     ) -> float:
         """
         Adjust quantity based on recent volume and participation rate.
@@ -369,7 +369,7 @@ class VWAPExecutor:
         """
         try:
             # Get recent volume
-            bars = await self.broker.get_bars(symbol, '1Min', limit=5)
+            bars = await self.broker.get_bars(symbol, "1Min", limit=5)
 
             if bars:
                 avg_volume = np.mean([bar.volume for bar in bars])
@@ -387,20 +387,12 @@ class VWAPExecutor:
 
         return target_qty
 
-    async def _execute_slice(
-        self,
-        symbol: str,
-        side: str,
-        qty: float
-    ) -> Optional[Dict]:
+    async def _execute_slice(self, symbol: str, side: str, qty: float) -> Optional[Dict]:
         """Execute a single slice order."""
         try:
             from brokers.order_builder import OrderBuilder
 
-            order = (OrderBuilder(symbol, side, qty)
-                    .market()
-                    .ioc()  # Immediate-or-Cancel
-                    .build())
+            order = OrderBuilder(symbol, side, qty).market().ioc().build()  # Immediate-or-Cancel
 
             result = await self.broker.submit_order_advanced(order)
 
@@ -408,9 +400,9 @@ class VWAPExecutor:
                 # Get fill price
                 filled_price = await self._get_current_price(symbol)
                 return {
-                    'qty': qty,
-                    'price': filled_price,
-                    'order_id': result.id if hasattr(result, 'id') else None
+                    "qty": qty,
+                    "price": filled_price,
+                    "order_id": result.id if hasattr(result, "id") else None,
                 }
 
         except Exception as e:
@@ -429,21 +421,13 @@ class VWAPExecutor:
             except Exception:
                 return 0.0
 
-    async def _execute_single_order(
-        self,
-        symbol: str,
-        side: str,
-        qty: float
-    ) -> VWAPResult:
+    async def _execute_single_order(self, symbol: str, side: str, qty: float) -> VWAPResult:
         """Execute as single market order (for small orders)."""
         from brokers.order_builder import OrderBuilder
 
         price = await self._get_current_price(symbol)
 
-        order = (OrderBuilder(symbol, side, qty)
-                .market()
-                .day()
-                .build())
+        order = OrderBuilder(symbol, side, qty).market().day().build()
 
         result = await self.broker.submit_order_advanced(order)
 
@@ -459,7 +443,7 @@ class VWAPExecutor:
                 duration_minutes=0,
                 num_slices=1,
                 slices_filled=1,
-                status='completed'
+                status="completed",
             )
         else:
             return VWAPResult(
@@ -473,14 +457,10 @@ class VWAPExecutor:
                 duration_minutes=0,
                 num_slices=1,
                 slices_filled=0,
-                status='cancelled'
+                status="cancelled",
             )
 
-    def _calculate_vwap(
-        self,
-        prices: List[float],
-        volumes: List[float]
-    ) -> float:
+    def _calculate_vwap(self, prices: List[float], volumes: List[float]) -> float:
         """Calculate VWAP from prices and volumes."""
         if not prices or not volumes:
             return 0.0
@@ -496,30 +476,26 @@ class VWAPExecutor:
     def get_execution_stats(self) -> Dict:
         """Get execution statistics."""
         if not self.execution_history:
-            return {
-                'total_executions': 0,
-                'avg_slippage_bps': 0,
-                'completion_rate': 0
-            }
+            return {"total_executions": 0, "avg_slippage_bps": 0, "completion_rate": 0}
 
         slippages = [r.slippage_bps for r in self.execution_history]
-        completed = sum(1 for r in self.execution_history if r.status == 'completed')
+        completed = sum(1 for r in self.execution_history if r.status == "completed")
 
         return {
-            'total_executions': len(self.execution_history),
-            'avg_slippage_bps': np.mean(slippages),
-            'min_slippage_bps': min(slippages),
-            'max_slippage_bps': max(slippages),
-            'completion_rate': completed / len(self.execution_history),
-            'total_volume': sum(r.executed_qty for r in self.execution_history)
+            "total_executions": len(self.execution_history),
+            "avg_slippage_bps": np.mean(slippages),
+            "min_slippage_bps": min(slippages),
+            "max_slippage_bps": max(slippages),
+            "completion_rate": completed / len(self.execution_history),
+            "total_volume": sum(r.executed_qty for r in self.execution_history),
         }
 
     def cancel_active_order(self, symbol: str) -> bool:
         """Cancel an active VWAP order."""
         if symbol in self.active_orders:
             for slice_order in self.active_orders[symbol]:
-                if slice_order.status == 'pending':
-                    slice_order.status = 'cancelled'
+                if slice_order.status == "pending":
+                    slice_order.status = "cancelled"
             logger.info(f"Cancelled pending slices for {symbol}")
             return True
         return False
@@ -527,11 +503,7 @@ class VWAPExecutor:
 
 # Convenience functions
 async def execute_vwap(
-    broker,
-    symbol: str,
-    side: str,
-    qty: float,
-    duration_minutes: int = 60
+    broker, symbol: str, side: str, qty: float, duration_minutes: int = 60
 ) -> VWAPResult:
     """
     Convenience function for VWAP execution.

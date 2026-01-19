@@ -14,13 +14,11 @@ Tests cover:
 - Edge cases and error handling
 """
 
-import pytest
 import numpy as np
-from unittest.mock import patch
+import pytest
 
 # Module-level imports - DRY principle
-from strategies.risk_manager import RiskManager, RiskCalculationError
-
+from strategies.risk_manager import RiskCalculationError, RiskManager
 
 # =============================================================================
 # Constants - No magic numbers
@@ -106,8 +104,9 @@ class TestRiskManagerInitialization:
         """Test RiskManager with default parameters."""
         rm = RiskManager()
 
-        assert rm.max_portfolio_risk == DEFAULT_MAX_PORTFOLIO_RISK, \
-            f"Expected {DEFAULT_MAX_PORTFOLIO_RISK}, got {rm.max_portfolio_risk}"
+        assert (
+            rm.max_portfolio_risk == DEFAULT_MAX_PORTFOLIO_RISK
+        ), f"Expected {DEFAULT_MAX_PORTFOLIO_RISK}, got {rm.max_portfolio_risk}"
         assert rm.max_position_risk == DEFAULT_MAX_POSITION_RISK
         assert rm.max_correlation == DEFAULT_MAX_CORRELATION
         assert rm.volatility_threshold == DEFAULT_VOLATILITY_THRESHOLD
@@ -126,7 +125,7 @@ class TestRiskManagerInitialization:
             var_threshold=0.05,
             es_threshold=0.06,
             drawdown_threshold=0.2,
-            strict_correlation_enforcement=False
+            strict_correlation_enforcement=False,
         )
 
         assert rm.max_portfolio_risk == 0.05
@@ -149,24 +148,30 @@ class TestRiskManagerInitialization:
 class TestValidateThreshold:
     """Tests for _validate_threshold static method."""
 
-    @pytest.mark.parametrize("value,min_val,max_val", [
-        (0.5, 0, 1),   # Middle of range
-        (0.0, 0, 1),   # At minimum
-        (1.0, 0, 1),   # At maximum
-        (0.001, 0, 1), # Near minimum
-        (0.999, 0, 1), # Near maximum
-    ])
+    @pytest.mark.parametrize(
+        "value,min_val,max_val",
+        [
+            (0.5, 0, 1),  # Middle of range
+            (0.0, 0, 1),  # At minimum
+            (1.0, 0, 1),  # At maximum
+            (0.001, 0, 1),  # Near minimum
+            (0.999, 0, 1),  # Near maximum
+        ],
+    )
     def test_valid_thresholds(self, value, min_val, max_val):
         """Test validation passes for valid thresholds."""
         # Should not raise
         RiskManager._validate_threshold("test", value, min_val, max_val)
 
-    @pytest.mark.parametrize("value,min_val,max_val,error_match", [
-        (-0.1, 0, 1, "must be between"),   # Below minimum
-        (1.5, 0, 1, "must be between"),    # Above maximum
-        (-1, 0, 1, "must be between"),     # Negative
-        (2.0, 0, 1, "must be between"),    # Way above
-    ])
+    @pytest.mark.parametrize(
+        "value,min_val,max_val,error_match",
+        [
+            (-0.1, 0, 1, "must be between"),  # Below minimum
+            (1.5, 0, 1, "must be between"),  # Above maximum
+            (-1, 0, 1, "must be between"),  # Negative
+            (2.0, 0, 1, "must be between"),  # Way above
+        ],
+    )
     def test_invalid_thresholds_raise(self, value, min_val, max_val, error_match):
         """Test validation fails for out-of-range values."""
         with pytest.raises(ValueError, match=error_match):
@@ -207,8 +212,9 @@ class TestCalculateVolatility:
         prices = np.array([100, 0, 102])
         vol = risk_manager._calculate_volatility(prices)
 
-        assert vol == ZERO_PRICE_VOLATILITY, \
-            f"Expected {ZERO_PRICE_VOLATILITY} for zero prices, got {vol}"
+        assert (
+            vol == ZERO_PRICE_VOLATILITY
+        ), f"Expected {ZERO_PRICE_VOLATILITY} for zero prices, got {vol}"
 
     def test_volatility_with_constant_prices(self, risk_manager):
         """Test volatility with constant prices returns 0."""
@@ -243,8 +249,7 @@ class TestCalculateVaR:
         prices = np.array([100, 0, 102])
         var = risk_manager._calculate_var(prices)
 
-        assert var == ZERO_PRICE_VAR, \
-            f"Expected {ZERO_PRICE_VAR} for zero prices, got {var}"
+        assert var == ZERO_PRICE_VAR, f"Expected {ZERO_PRICE_VAR} for zero prices, got {var}"
 
 
 # =============================================================================
@@ -272,8 +277,7 @@ class TestCalculateExpectedShortfall:
         prices = np.array([100, 0, 102])
         es = risk_manager._calculate_expected_shortfall(prices)
 
-        assert es == ZERO_PRICE_ES, \
-            f"Expected {ZERO_PRICE_ES} for zero prices, got {es}"
+        assert es == ZERO_PRICE_ES, f"Expected {ZERO_PRICE_ES} for zero prices, got {es}"
 
 
 # =============================================================================
@@ -289,8 +293,7 @@ class TestCalculateMaxDrawdown:
 
         assert dd < 0, f"Expected negative drawdown, got {dd}"
         # From peak of 115 to low of 90: (90-115)/115 = -0.217
-        assert dd == pytest.approx(-0.217, rel=0.01), \
-            f"Expected approx -0.217 drawdown, got {dd}"
+        assert dd == pytest.approx(-0.217, rel=0.01), f"Expected approx -0.217 drawdown, got {dd}"
 
     def test_drawdown_with_insufficient_data(self, risk_manager):
         """Test drawdown with insufficient data returns 0."""
@@ -310,8 +313,9 @@ class TestCalculateMaxDrawdown:
         prices = [0, 100, 102]
         dd = risk_manager._calculate_max_drawdown(prices)
 
-        assert dd == ZERO_ROLLING_MAX_DRAWDOWN, \
-            f"Expected {ZERO_ROLLING_MAX_DRAWDOWN} for zero rolling max, got {dd}"
+        assert (
+            dd == ZERO_ROLLING_MAX_DRAWDOWN
+        ), f"Expected {ZERO_ROLLING_MAX_DRAWDOWN} for zero rolling max, got {dd}"
 
 
 # =============================================================================
@@ -322,27 +326,32 @@ class TestCalculatePositionRisk:
 
     def test_position_risk_with_valid_data(self, risk_manager, sample_prices):
         """Test position risk calculation returns value in [0, 1]."""
-        risk = risk_manager.calculate_position_risk('AAPL', sample_prices)
+        risk = risk_manager.calculate_position_risk("AAPL", sample_prices)
 
         assert 0 <= risk <= 1, f"Risk should be in [0, 1], got {risk}"
 
-    @pytest.mark.parametrize("invalid_input,expected_risk", [
-        ([DEFAULT_STARTING_PRICE], 1.0),  # Insufficient data
-        ([], 1.0),                         # Empty data
-        (None, 1.0),                       # None data
-        ("not a list", 1.0),              # Invalid type
-    ])
+    @pytest.mark.parametrize(
+        "invalid_input,expected_risk",
+        [
+            ([DEFAULT_STARTING_PRICE], 1.0),  # Insufficient data
+            ([], 1.0),  # Empty data
+            (None, 1.0),  # None data
+            ("not a list", 1.0),  # Invalid type
+        ],
+    )
     def test_position_risk_with_invalid_data(self, risk_manager, invalid_input, expected_risk):
         """Test position risk returns max risk for invalid inputs."""
-        risk = risk_manager.calculate_position_risk('AAPL', invalid_input)
+        risk = risk_manager.calculate_position_risk("AAPL", invalid_input)
 
         # Allow for 0.0 or 1.0 depending on how the code handles edge cases
-        assert risk in [0.0, expected_risk], \
-            f"Expected 0.0 or {expected_risk} for invalid input, got {risk}"
+        assert risk in [
+            0.0,
+            expected_risk,
+        ], f"Expected 0.0 or {expected_risk} for invalid input, got {risk}"
 
     def test_position_risk_capped_at_one(self, risk_manager, volatile_prices):
         """Test that position risk is capped at 1.0."""
-        risk = risk_manager.calculate_position_risk('AAPL', volatile_prices)
+        risk = risk_manager.calculate_position_risk("AAPL", volatile_prices)
 
         assert risk <= 1.0, f"Risk should be capped at 1.0, got {risk}"
 
@@ -356,26 +365,30 @@ class TestCalculatePositionCorrelation:
     def test_correlation_with_identical_data(self, risk_manager):
         """Test correlation with identical price series is 1.0."""
         prices = [100, 101, 102, 103, 104, 105]
-        corr = risk_manager.calculate_position_correlation('AAPL', 'MSFT', prices, prices.copy())
+        corr = risk_manager.calculate_position_correlation("AAPL", "MSFT", prices, prices.copy())
 
-        assert corr == pytest.approx(1.0, rel=0.01), \
-            f"Expected correlation ~1.0 for identical series, got {corr}"
+        assert corr == pytest.approx(
+            1.0, rel=0.01
+        ), f"Expected correlation ~1.0 for identical series, got {corr}"
 
     def test_correlation_with_inversely_correlated(self, risk_manager):
         """Test correlation with inversely correlated data is high (absolute)."""
         prices1 = [100, 101, 102, 103, 104, 105]
         prices2 = [100, 99, 98, 97, 96, 95]
-        corr = risk_manager.calculate_position_correlation('AAPL', 'MSFT', prices1, prices2)
+        corr = risk_manager.calculate_position_correlation("AAPL", "MSFT", prices1, prices2)
 
         assert corr > 0.9, f"Expected high absolute correlation, got {corr}"
 
-    @pytest.mark.parametrize("prices1,prices2,expected", [
-        ([100], [100], 1.0),  # Insufficient data
-        ([], [], 1.0),        # Empty data
-    ])
+    @pytest.mark.parametrize(
+        "prices1,prices2,expected",
+        [
+            ([100], [100], 1.0),  # Insufficient data
+            ([], [], 1.0),  # Empty data
+        ],
+    )
     def test_correlation_with_invalid_data(self, risk_manager, prices1, prices2, expected):
         """Test correlation returns max for invalid inputs."""
-        corr = risk_manager.calculate_position_correlation('AAPL', 'MSFT', prices1, prices2)
+        corr = risk_manager.calculate_position_correlation("AAPL", "MSFT", prices1, prices2)
 
         assert corr == expected, f"Expected {expected} for invalid input, got {corr}"
 
@@ -383,15 +396,15 @@ class TestCalculatePositionCorrelation:
         """Test correlation handles different length arrays."""
         prices1 = [100, 101, 102, 103, 104, 105, 106, 107]
         prices2 = [100, 101, 102, 103]
-        corr = risk_manager.calculate_position_correlation('AAPL', 'MSFT', prices1, prices2)
+        corr = risk_manager.calculate_position_correlation("AAPL", "MSFT", prices1, prices2)
 
         assert 0 <= corr <= 1, f"Correlation should be in [0, 1], got {corr}"
 
     def test_correlation_with_zero_variance(self, risk_manager):
         """Test correlation with zero variance returns 1.0 (NaN handled)."""
         prices1 = [100.0] * 5  # Constant - zero variance
-        prices2 = [50.0] * 5   # Constant - zero variance
-        corr = risk_manager.calculate_position_correlation('AAPL', 'MSFT', prices1, prices2)
+        prices2 = [50.0] * 5  # Constant - zero variance
+        corr = risk_manager.calculate_position_correlation("AAPL", "MSFT", prices1, prices2)
 
         assert corr == 1.0, f"Expected 1.0 for zero variance, got {corr}"
 
@@ -405,8 +418,8 @@ class TestCalculatePortfolioRisk:
     def test_portfolio_risk_with_positions(self, risk_manager):
         """Test portfolio risk calculation with positions."""
         positions = {
-            'AAPL': {'value': DEFAULT_POSITION_VALUE, 'risk': HIGH_RISK_VALUE},
-            'MSFT': {'value': DEFAULT_POSITION_VALUE * 1.5, 'risk': LOW_RISK_VALUE}
+            "AAPL": {"value": DEFAULT_POSITION_VALUE, "risk": HIGH_RISK_VALUE},
+            "MSFT": {"value": DEFAULT_POSITION_VALUE * 1.5, "risk": LOW_RISK_VALUE},
         }
         risk = risk_manager.calculate_portfolio_risk(positions)
 
@@ -416,16 +429,17 @@ class TestCalculatePortfolioRisk:
         """Test portfolio risk with empty positions."""
         risk = risk_manager.calculate_portfolio_risk({})
 
-        assert risk == 0 or risk == risk_manager.max_portfolio_risk, \
-            f"Expected 0 or max risk for empty portfolio, got {risk}"
+        assert (
+            risk == 0 or risk == risk_manager.max_portfolio_risk
+        ), f"Expected 0 or max risk for empty portfolio, got {risk}"
 
     def test_portfolio_risk_with_correlations(self, risk_manager):
         """Test portfolio risk includes correlation impact."""
         positions = {
-            'AAPL': {'value': DEFAULT_POSITION_VALUE, 'risk': HIGH_RISK_VALUE},
-            'MSFT': {'value': DEFAULT_POSITION_VALUE, 'risk': HIGH_RISK_VALUE}
+            "AAPL": {"value": DEFAULT_POSITION_VALUE, "risk": HIGH_RISK_VALUE},
+            "MSFT": {"value": DEFAULT_POSITION_VALUE, "risk": HIGH_RISK_VALUE},
         }
-        risk_manager.position_correlations[('AAPL', 'MSFT')] = HIGH_CORRELATION
+        risk_manager.position_correlations[("AAPL", "MSFT")] = HIGH_CORRELATION
         risk = risk_manager.calculate_portfolio_risk(positions)
 
         assert risk >= 0, f"Portfolio risk should be non-negative, got {risk}"
@@ -440,30 +454,31 @@ class TestAdjustPositionSize:
     def test_adjust_size_with_no_positions(self, risk_manager_strict, stable_prices):
         """Test size adjustment with no existing positions."""
         adjusted = risk_manager_strict.adjust_position_size(
-            'AAPL', DEFAULT_POSITION_VALUE, stable_prices, {}
+            "AAPL", DEFAULT_POSITION_VALUE, stable_prices, {}
         )
 
-        assert 0 <= adjusted <= DEFAULT_POSITION_VALUE, \
-            f"Adjusted size should be in [0, {DEFAULT_POSITION_VALUE}], got {adjusted}"
+        assert (
+            0 <= adjusted <= DEFAULT_POSITION_VALUE
+        ), f"Adjusted size should be in [0, {DEFAULT_POSITION_VALUE}], got {adjusted}"
 
     @pytest.mark.parametrize("desired_size", [-1000, 0])
     def test_adjust_size_with_invalid_desired_size(self, risk_manager_strict, desired_size):
         """Test size adjustment with invalid desired size returns 0."""
         prices = [100, 101, 102]
-        adjusted = risk_manager_strict.adjust_position_size('AAPL', desired_size, prices, {})
+        adjusted = risk_manager_strict.adjust_position_size("AAPL", desired_size, prices, {})
 
         assert adjusted == 0, f"Expected 0 for invalid desired size, got {adjusted}"
 
     def test_adjust_size_rejects_high_correlation_strict(self, risk_manager_strict, stable_prices):
         """Test strict mode rejects positions with high correlation."""
         current_positions = {
-            'MSFT': {
-                'value': DEFAULT_POSITION_VALUE,
-                'price_history': stable_prices.copy()  # Same prices = perfect correlation
+            "MSFT": {
+                "value": DEFAULT_POSITION_VALUE,
+                "price_history": stable_prices.copy(),  # Same prices = perfect correlation
             }
         }
         adjusted = risk_manager_strict.adjust_position_size(
-            'AAPL', DEFAULT_POSITION_VALUE, stable_prices, current_positions
+            "AAPL", DEFAULT_POSITION_VALUE, stable_prices, current_positions
         )
 
         assert adjusted == 0, f"Expected 0 for high correlation in strict mode, got {adjusted}"
@@ -472,13 +487,10 @@ class TestAdjustPositionSize:
         """Test soft mode reduces (not rejects) positions with high correlation."""
         correlated_prices = generate_correlated_prices(stable_prices)
         current_positions = {
-            'MSFT': {
-                'value': DEFAULT_POSITION_VALUE,
-                'price_history': correlated_prices
-            }
+            "MSFT": {"value": DEFAULT_POSITION_VALUE, "price_history": correlated_prices}
         }
         adjusted = risk_manager_soft.adjust_position_size(
-            'AAPL', DEFAULT_POSITION_VALUE, stable_prices, current_positions
+            "AAPL", DEFAULT_POSITION_VALUE, stable_prices, current_positions
         )
 
         assert adjusted >= 0, f"Adjusted size should be non-negative, got {adjusted}"
@@ -486,36 +498,29 @@ class TestAdjustPositionSize:
     def test_adjust_size_stores_risk(self, risk_manager_strict, stable_prices):
         """Test that adjust_position_size stores risk in current_positions."""
         current_positions = {
-            'AAPL': {
-                'value': DEFAULT_POSITION_VALUE / 2,
-                'price_history': stable_prices.copy()
-            }
+            "AAPL": {"value": DEFAULT_POSITION_VALUE / 2, "price_history": stable_prices.copy()}
         }
         risk_manager_strict.adjust_position_size(
-            'AAPL', DEFAULT_POSITION_VALUE, stable_prices, current_positions
+            "AAPL", DEFAULT_POSITION_VALUE, stable_prices, current_positions
         )
 
-        assert 'risk' in current_positions['AAPL'], \
-            "Risk should be stored in current_positions"
+        assert "risk" in current_positions["AAPL"], "Risk should be stored in current_positions"
 
     def test_adjust_size_stores_correlations(self, risk_manager_soft, stable_prices):
         """Test that adjust_position_size stores correlations."""
         np.random.seed(RANDOM_SEED + 2)
         other_prices = (150 + np.cumsum(np.random.randn(50) * 0.1)).tolist()
         current_positions = {
-            'MSFT': {
-                'value': DEFAULT_POSITION_VALUE,
-                'price_history': other_prices
-            }
+            "MSFT": {"value": DEFAULT_POSITION_VALUE, "price_history": other_prices}
         }
         risk_manager_soft.adjust_position_size(
-            'AAPL', DEFAULT_POSITION_VALUE, stable_prices, current_positions
+            "AAPL", DEFAULT_POSITION_VALUE, stable_prices, current_positions
         )
 
-        has_correlation = (
-            ('AAPL', 'MSFT') in risk_manager_soft.position_correlations or
-            ('MSFT', 'AAPL') in risk_manager_soft.position_correlations
-        )
+        has_correlation = ("AAPL", "MSFT") in risk_manager_soft.position_correlations or (
+            "MSFT",
+            "AAPL",
+        ) in risk_manager_soft.position_correlations
         assert has_correlation, "Correlations should be stored"
 
 
@@ -537,39 +542,45 @@ class TestRiskCalculationError:
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
-    @pytest.mark.parametrize("prices,expected_corr", [
-        ([100, float('nan'), 102, 103, 104], 1.0),  # NaN values
-        ([100, float('inf'), 102, 103, 104], 1.0),  # Infinity values
-        ([100, "invalid", 102, 103, 104], 1.0),    # Type error
-        ([1e308] * 5, 1.0),                         # Extreme values
-    ])
+    @pytest.mark.parametrize(
+        "prices,expected_corr",
+        [
+            ([100, float("nan"), 102, 103, 104], 1.0),  # NaN values
+            ([100, float("inf"), 102, 103, 104], 1.0),  # Infinity values
+            ([100, "invalid", 102, 103, 104], 1.0),  # Type error
+            ([1e308] * 5, 1.0),  # Extreme values
+        ],
+    )
     def test_correlation_handles_invalid_values(self, risk_manager, prices, expected_corr):
         """Test correlation handles various invalid values gracefully."""
         prices2 = [100, 101, 102, 103, 104]
-        corr = risk_manager.calculate_position_correlation('AAPL', 'MSFT', prices, prices2)
+        corr = risk_manager.calculate_position_correlation("AAPL", "MSFT", prices, prices2)
 
         assert 0 <= corr <= 1.0, f"Correlation should be in [0, 1], got {corr}"
 
     def test_portfolio_risk_handles_missing_value_key(self, risk_manager):
         """Test portfolio risk handles missing 'value' key gracefully."""
-        positions = {'AAPL': {'invalid_key': 10000}}
+        positions = {"AAPL": {"invalid_key": 10000}}
         risk = risk_manager.calculate_portfolio_risk(positions)
 
-        assert risk == risk_manager.max_portfolio_risk, \
-            f"Expected max portfolio risk on error, got {risk}"
+        assert (
+            risk == risk_manager.max_portfolio_risk
+        ), f"Expected max portfolio risk on error, got {risk}"
 
     def test_adjust_size_with_math_error(self, risk_manager_strict):
         """Test adjust_position_size handles math errors gracefully."""
-        prices = [float('inf')] * 3
-        adjusted = risk_manager_strict.adjust_position_size('AAPL', DEFAULT_POSITION_VALUE, prices, {})
+        prices = [float("inf")] * 3
+        adjusted = risk_manager_strict.adjust_position_size(
+            "AAPL", DEFAULT_POSITION_VALUE, prices, {}
+        )
 
         assert adjusted >= 0, f"Adjusted size should be non-negative, got {adjusted}"
 
     def test_adjust_size_with_missing_position_keys(self, risk_manager_strict, stable_prices):
         """Test adjust_position_size handles missing position keys."""
-        current_positions = {'MSFT': {}}  # Missing 'value' and 'price_history'
+        current_positions = {"MSFT": {}}  # Missing 'value' and 'price_history'
         adjusted = risk_manager_strict.adjust_position_size(
-            'AAPL', DEFAULT_POSITION_VALUE, stable_prices, current_positions
+            "AAPL", DEFAULT_POSITION_VALUE, stable_prices, current_positions
         )
 
         assert adjusted >= 0, f"Adjusted size should be non-negative, got {adjusted}"
@@ -603,7 +614,7 @@ class TestEdgeCases:
             volatility_threshold=0.001,
             var_threshold=0.001,
             es_threshold=0.001,
-            drawdown_threshold=0.001
+            drawdown_threshold=0.001,
         )
 
         assert rm.max_portfolio_risk == 0.001, "Should accept minimum valid values"
@@ -616,28 +627,29 @@ class TestEdgeCases:
         adding a new position should result in reduced position sizing.
         """
         current_positions = {
-            'MSFT': {
-                'value': DEFAULT_POSITION_VALUE * 5,
-                'risk': HIGH_RISK_VALUE,
-                'price_history': sample_prices.copy()
+            "MSFT": {
+                "value": DEFAULT_POSITION_VALUE * 5,
+                "risk": HIGH_RISK_VALUE,
+                "price_history": sample_prices.copy(),
             },
-            'GOOGL': {
-                'value': DEFAULT_POSITION_VALUE * 5,
-                'risk': HIGH_RISK_VALUE,
-                'price_history': sample_prices.copy()
-            }
+            "GOOGL": {
+                "value": DEFAULT_POSITION_VALUE * 5,
+                "risk": HIGH_RISK_VALUE,
+                "price_history": sample_prices.copy(),
+            },
         }
-        risk_manager_soft.position_correlations[('MSFT', 'GOOGL')] = MODERATE_CORRELATION
-        risk_manager_soft.position_correlations[('GOOGL', 'MSFT')] = MODERATE_CORRELATION
+        risk_manager_soft.position_correlations[("MSFT", "GOOGL")] = MODERATE_CORRELATION
+        risk_manager_soft.position_correlations[("GOOGL", "MSFT")] = MODERATE_CORRELATION
 
         np.random.seed(RANDOM_SEED + 3)
         new_prices = (200 + np.cumsum(np.random.randn(50) * 0.5)).tolist()
         adjusted = risk_manager_soft.adjust_position_size(
-            'AAPL', DEFAULT_POSITION_VALUE, new_prices, current_positions
+            "AAPL", DEFAULT_POSITION_VALUE, new_prices, current_positions
         )
 
-        assert 0 <= adjusted <= DEFAULT_POSITION_VALUE, \
-            f"Adjusted should be in [0, {DEFAULT_POSITION_VALUE}], got {adjusted}"
+        assert (
+            0 <= adjusted <= DEFAULT_POSITION_VALUE
+        ), f"Adjusted should be in [0, {DEFAULT_POSITION_VALUE}], got {adjusted}"
 
     def test_max_drawdown_with_zero_start(self, risk_manager):
         """Test max drawdown when starting with zero."""

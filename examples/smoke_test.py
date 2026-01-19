@@ -14,8 +14,8 @@ Prerequisites:
     - All required dependencies installed (see requirements.txt)
 """
 
-import sys
 import os
+import sys
 from datetime import datetime
 
 # Add project root to path
@@ -31,6 +31,7 @@ print()
 print("Test 1: Checking environment variables...")
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 
     api_key = os.getenv("ALPACA_API_KEY", "")
@@ -57,7 +58,7 @@ except Exception as e:
 print("Test 2: Importing core modules...")
 try:
     from brokers.alpaca_broker import AlpacaBroker
-    from brokers.order_builder import OrderBuilder, market_order, limit_order, bracket_order
+    from brokers.order_builder import OrderBuilder, bracket_order, limit_order, market_order
     from config import SYMBOLS
 
     print("✅ PASSED: All core modules imported successfully")
@@ -91,7 +92,7 @@ try:
     qty = 1
 
     # Using OrderBuilder
-    order = OrderBuilder(symbol, 'buy', qty).market().day().build()
+    order = OrderBuilder(symbol, "buy", qty).market().day().build()
 
     print("✅ PASSED: Market order created")
     print(f"   Symbol: {order.symbol}")
@@ -111,7 +112,7 @@ try:
     qty = 2
     limit_price = 350.00
 
-    order = OrderBuilder(symbol, 'buy', qty).limit(limit_price).gtc().build()
+    order = OrderBuilder(symbol, "buy", qty).limit(limit_price).gtc().build()
 
     print("✅ PASSED: Limit order created")
     print(f"   Symbol: {order.symbol}")
@@ -131,17 +132,13 @@ try:
     qty = 1
     current_price = 250.00
     take_profit = current_price * 1.05  # 5% profit
-    stop_loss = current_price * 0.97     # 3% loss
-    stop_limit = current_price * 0.965   # 0.5% below stop
+    stop_loss = current_price * 0.97  # 3% loss
+    stop_limit = current_price * 0.965  # 0.5% below stop
 
     order = (
-        OrderBuilder(symbol, 'buy', qty)
+        OrderBuilder(symbol, "buy", qty)
         .market()
-        .bracket(
-            take_profit=take_profit,
-            stop_loss=stop_loss,
-            stop_limit=stop_limit
-        )
+        .bracket(take_profit=take_profit, stop_loss=stop_loss, stop_limit=stop_limit)
         .gtc()
         .build()
     )
@@ -153,7 +150,7 @@ try:
     print(f"   Order Class: {order.order_class}")
     print(f"   Take-Profit: ${order.take_profit['limit_price']:.2f}")
     print(f"   Stop-Loss: ${order.stop_loss['stop_price']:.2f}")
-    if 'limit_price' in order.stop_loss:
+    if "limit_price" in order.stop_loss:
         print(f"   Stop-Limit: ${order.stop_loss['limit_price']:.2f}")
     print()
 except Exception as e:
@@ -173,11 +170,13 @@ try:
 
     # bracket_order convenience function
     order3 = bracket_order(
-        "NVDA", "buy", 1,
+        "NVDA",
+        "buy",
+        1,
         entry_price=None,  # Market entry
         take_profit=500.00,
         stop_loss=450.00,
-        stop_limit=448.00
+        stop_limit=448.00,
     )
     print("✅ PASSED: bracket_order() function works")
     print()
@@ -191,7 +190,7 @@ try:
     test_order = OrderBuilder("TEST", "buy", 10).market().day().build()
 
     # Check required attributes
-    required_attrs = ['symbol', 'qty', 'side', 'time_in_force']
+    required_attrs = ["symbol", "qty", "side", "time_in_force"]
     missing_attrs = [attr for attr in required_attrs if not hasattr(test_order, attr)]
 
     if missing_attrs:

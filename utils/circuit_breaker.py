@@ -195,9 +195,7 @@ class CircuitBreaker:
                     logger.warning(f"Emergency closing {quantity} shares of {symbol}")
 
                     # Market order to close immediately
-                    order = (
-                        OrderBuilder(symbol, "sell", quantity).market().day().build()
-                    )
+                    order = OrderBuilder(symbol, "sell", quantity).market().day().build()
 
                     result = await self.broker.submit_order_advanced(order)
                     logger.info(f"Emergency sell order submitted for {symbol}: {result.id}")
@@ -225,7 +223,9 @@ class CircuitBreaker:
 
             if old_equity:
                 overnight_change = (new_equity - old_equity) / old_equity
-                logger.info(f"Overnight Change: {overnight_change:+.2%} (${new_equity - old_equity:+,.2f})")
+                logger.info(
+                    f"Overnight Change: {overnight_change:+.2%} (${new_equity - old_equity:+,.2f})"
+                )
 
             logger.info("Trading is ENABLED for new day")
             logger.info("=" * 80)
@@ -256,12 +256,10 @@ class CircuitBreaker:
             "max_daily_loss": self.max_daily_loss,
             "starting_equity": self.starting_equity,
             "peak_equity_today": self.peak_equity_today,
-            "halt_triggered_at": self.halt_triggered_at.isoformat()
-            if self.halt_triggered_at
-            else None,
-            "last_reset_date": self.last_reset_date.isoformat()
-            if self.last_reset_date
-            else None,
+            "halt_triggered_at": (
+                self.halt_triggered_at.isoformat() if self.halt_triggered_at else None
+            ),
+            "last_reset_date": self.last_reset_date.isoformat() if self.last_reset_date else None,
         }
 
     async def manual_reset(self, confirmation_token: str = None, force: bool = False):
@@ -292,7 +290,7 @@ class CircuitBreaker:
             )
 
         # P0 SAFETY: Rate limiting - prevent multiple resets within 5 minutes
-        if hasattr(self, '_last_manual_reset') and self._last_manual_reset:
+        if hasattr(self, "_last_manual_reset") and self._last_manual_reset:
             cooldown_seconds = 300  # 5 minutes
             time_since_last = (datetime.now() - self._last_manual_reset).total_seconds()
             if time_since_last < cooldown_seconds and not force:

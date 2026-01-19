@@ -8,10 +8,11 @@ Tests cover:
 - Integration with BaseStrategy.calculate_kelly_position_size
 """
 
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,10 +28,10 @@ class TestKellyParameters:
         strategy = MomentumStrategy()
         params = strategy.default_parameters()
 
-        assert 'use_kelly_criterion' in params
-        assert 'kelly_fraction' in params
-        assert 'kelly_min_trades' in params
-        assert 'kelly_lookback' in params
+        assert "use_kelly_criterion" in params
+        assert "kelly_fraction" in params
+        assert "kelly_min_trades" in params
+        assert "kelly_lookback" in params
 
     def test_kelly_disabled_by_default(self):
         """Kelly Criterion should be disabled by default."""
@@ -39,7 +40,7 @@ class TestKellyParameters:
         strategy = MomentumStrategy()
         params = strategy.default_parameters()
 
-        assert params['use_kelly_criterion'] is False
+        assert params["use_kelly_criterion"] is False
 
     def test_kelly_fraction_is_half_kelly(self):
         """Default Kelly fraction should be 0.5 (Half Kelly)."""
@@ -48,7 +49,7 @@ class TestKellyParameters:
         strategy = MomentumStrategy()
         params = strategy.default_parameters()
 
-        assert params['kelly_fraction'] == 0.5
+        assert params["kelly_fraction"] == 0.5
 
     def test_kelly_min_trades_reasonable(self):
         """Minimum trades should be reasonable (30+)."""
@@ -57,7 +58,7 @@ class TestKellyParameters:
         strategy = MomentumStrategy()
         params = strategy.default_parameters()
 
-        assert params['kelly_min_trades'] >= 30
+        assert params["kelly_min_trades"] >= 30
 
 
 class TestKellyCriterionCore:
@@ -111,19 +112,14 @@ class TestKellyCriterionCore:
         """Position size should be capped at max_position_size."""
         from utils.kelly_criterion import KellyCriterion
 
-        kelly = KellyCriterion(
-            kelly_fraction=1.0,
-            max_position_size=0.20  # 20% max
-        )
+        kelly = KellyCriterion(kelly_fraction=1.0, max_position_size=0.20)  # 20% max
 
         # Simulate high win rate scenario that would exceed max
         kelly.win_rate = 0.9
         kelly.profit_factor = 3.0
         kelly.trades = [None] * 100  # Simulate enough trades
 
-        position_value, position_fraction = kelly.calculate_position_size(
-            current_capital=100000
-        )
+        position_value, position_fraction = kelly.calculate_position_size(current_capital=100000)
 
         assert position_fraction <= 0.20, "Position should be capped at max"
 
@@ -138,7 +134,7 @@ class TestKellyWithTrades:
         kelly = KellyCriterion()
 
         trade = Trade(
-            symbol='AAPL',
+            symbol="AAPL",
             entry_time=datetime.now() - timedelta(days=1),
             exit_time=datetime.now(),
             entry_price=150.0,
@@ -146,7 +142,7 @@ class TestKellyWithTrades:
             quantity=10,
             pnl=50.0,
             pnl_pct=0.0333,
-            is_winner=True
+            is_winner=True,
         )
 
         kelly.add_trade(trade)
@@ -163,29 +159,29 @@ class TestKellyWithTrades:
         # Add 3 winners and 2 losers
         for i in range(3):
             trade = Trade(
-                symbol='AAPL',
-                entry_time=datetime.now() - timedelta(days=i+1),
+                symbol="AAPL",
+                entry_time=datetime.now() - timedelta(days=i + 1),
                 exit_time=datetime.now() - timedelta(days=i),
                 entry_price=100.0,
                 exit_price=105.0,
                 quantity=10,
                 pnl=50.0,
                 pnl_pct=0.05,
-                is_winner=True
+                is_winner=True,
             )
             kelly.add_trade(trade)
 
         for i in range(2):
             trade = Trade(
-                symbol='AAPL',
-                entry_time=datetime.now() - timedelta(days=i+4),
-                exit_time=datetime.now() - timedelta(days=i+3),
+                symbol="AAPL",
+                entry_time=datetime.now() - timedelta(days=i + 4),
+                exit_time=datetime.now() - timedelta(days=i + 3),
                 entry_price=100.0,
                 exit_price=97.0,
                 quantity=10,
                 pnl=-30.0,
                 pnl_pct=-0.03,
-                is_winner=False
+                is_winner=False,
             )
             kelly.add_trade(trade)
 
@@ -202,7 +198,7 @@ class TestKellyResearch:
         kelly_fraction = 0.5
 
         # Variance scales with kelly_fraction^2
-        variance_ratio = kelly_fraction ** 2
+        variance_ratio = kelly_fraction**2
 
         assert variance_ratio == 0.25, "Half Kelly has 25% of full Kelly variance"
 
@@ -225,7 +221,7 @@ class TestKellyResearch:
             "Mathematically optimal for known edge",
             "Prevents over-betting (negative Kelly = no bet)",
             "Adapts to changing win rates",
-            "Half-Kelly balances growth vs variance"
+            "Half-Kelly balances growth vs variance",
         ]
 
         # All advantages documented

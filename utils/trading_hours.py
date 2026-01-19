@@ -29,8 +29,9 @@ Usage:
 
 import logging
 from datetime import datetime, time, timedelta
-from typing import Dict, Optional, Tuple
 from enum import Enum
+from typing import Dict, Optional, Tuple
+
 import pytz
 
 logger = logging.getLogger(__name__)
@@ -38,21 +39,23 @@ logger = logging.getLogger(__name__)
 
 class TradingWindow(Enum):
     """Trading time windows."""
-    PREMARKET = "premarket"           # Before 9:30am ET
-    OPENING_VOLATILITY = "opening"    # 9:30-10:00am ET - avoid
-    MORNING_PRIME = "morning_prime"   # 10:00-11:30am ET - BEST
-    LUNCH_LULL = "lunch_lull"         # 11:30am-2:00pm ET - avoid
+
+    PREMARKET = "premarket"  # Before 9:30am ET
+    OPENING_VOLATILITY = "opening"  # 9:30-10:00am ET - avoid
+    MORNING_PRIME = "morning_prime"  # 10:00-11:30am ET - BEST
+    LUNCH_LULL = "lunch_lull"  # 11:30am-2:00pm ET - avoid
     AFTERNOON_PRIME = "afternoon_prime"  # 2:00-3:30pm ET - GOOD
-    CLOSING_VOLATILITY = "closing"    # 3:30-4:00pm ET - caution
-    AFTERHOURS = "afterhours"         # After 4:00pm ET
+    CLOSING_VOLATILITY = "closing"  # 3:30-4:00pm ET - caution
+    AFTERHOURS = "afterhours"  # After 4:00pm ET
 
 
 class DayQuality(Enum):
     """Day of week trading quality."""
+
     EXCELLENT = "excellent"  # Tuesday, Wednesday
-    GOOD = "good"           # Thursday
-    FAIR = "fair"           # Friday
-    POOR = "poor"           # Monday
+    GOOD = "good"  # Thursday
+    FAIR = "fair"  # Friday
+    POOR = "poor"  # Monday
 
 
 class TradingHoursFilter:
@@ -83,7 +86,7 @@ class TradingHoursFilter:
         avoid_closing: bool = False,
         avoid_monday_morning: bool = True,
         avoid_friday_afternoon: bool = True,
-        timezone: str = 'US/Eastern'
+        timezone: str = "US/Eastern",
     ):
         """
         Initialize trading hours filter.
@@ -157,19 +160,17 @@ class TradingHoursFilter:
 
         # Monday = 0, Tuesday = 1, ..., Friday = 4
         day_ratings = {
-            0: DayQuality.POOR,       # Monday - often weak
+            0: DayQuality.POOR,  # Monday - often weak
             1: DayQuality.EXCELLENT,  # Tuesday - historically best
             2: DayQuality.EXCELLENT,  # Wednesday - good follow-through
-            3: DayQuality.GOOD,       # Thursday - pre-Friday caution
-            4: DayQuality.FAIR,       # Friday - profit taking
+            3: DayQuality.GOOD,  # Thursday - pre-Friday caution
+            4: DayQuality.FAIR,  # Friday - profit taking
         }
 
         return day_ratings.get(weekday, DayQuality.FAIR)
 
     def is_good_time_to_trade(
-        self,
-        dt: Optional[datetime] = None,
-        allow_fair_windows: bool = True
+        self, dt: Optional[datetime] = None, allow_fair_windows: bool = True
     ) -> bool:
         """
         Check if current time is good for trading.
@@ -257,18 +258,14 @@ class TradingHoursFilter:
                 continue
 
             # Check morning prime window
-            morning_start = check_date.replace(
-                hour=10, minute=0, second=0, microsecond=0
-            )
+            morning_start = check_date.replace(hour=10, minute=0, second=0, microsecond=0)
             if morning_start > dt:
                 # Check Monday morning exception
                 if not (check_date.weekday() == 0 and self.avoid_monday_morning):
                     return (morning_start, TradingWindow.MORNING_PRIME)
 
             # Check afternoon prime window
-            afternoon_start = check_date.replace(
-                hour=14, minute=0, second=0, microsecond=0
-            )
+            afternoon_start = check_date.replace(hour=14, minute=0, second=0, microsecond=0)
             if afternoon_start > dt:
                 # Check Friday afternoon exception
                 if not (check_date.weekday() == 4 and self.avoid_friday_afternoon):
@@ -363,23 +360,22 @@ class TradingHoursFilter:
         time_until = next_good_window - dt if not is_good else timedelta(0)
 
         return {
-            'current_time': dt.strftime('%Y-%m-%d %H:%M:%S %Z'),
-            'day_of_week': dt.strftime('%A'),
-            'window': window.value,
-            'day_quality': day_quality.value,
-            'is_good_time': is_good,
-            'quality_score': quality_score,
-            'position_size_mult': self.get_position_size_adjustment(dt),
-            'next_good_window': next_good_window.strftime('%Y-%m-%d %H:%M:%S %Z') if not is_good else None,
-            'time_until_good': str(time_until) if not is_good else None,
-            'recommendation': self._get_recommendation(window, day_quality, is_good)
+            "current_time": dt.strftime("%Y-%m-%d %H:%M:%S %Z"),
+            "day_of_week": dt.strftime("%A"),
+            "window": window.value,
+            "day_quality": day_quality.value,
+            "is_good_time": is_good,
+            "quality_score": quality_score,
+            "position_size_mult": self.get_position_size_adjustment(dt),
+            "next_good_window": (
+                next_good_window.strftime("%Y-%m-%d %H:%M:%S %Z") if not is_good else None
+            ),
+            "time_until_good": str(time_until) if not is_good else None,
+            "recommendation": self._get_recommendation(window, day_quality, is_good),
         }
 
     def _get_recommendation(
-        self,
-        window: TradingWindow,
-        day_quality: DayQuality,
-        is_good: bool
+        self, window: TradingWindow, day_quality: DayQuality, is_good: bool
     ) -> str:
         """Get trading recommendation based on current conditions."""
         if not is_good:
@@ -410,14 +406,11 @@ def is_good_trading_time() -> bool:
 
 if __name__ == "__main__":
     """Test the trading hours filter."""
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TRADING HOURS FILTER TEST")
-    print("="*60)
+    print("=" * 60)
 
     filter = TradingHoursFilter()
     status = filter.get_trading_status()
@@ -430,9 +423,9 @@ if __name__ == "__main__":
     print(f"Quality Score: {status['quality_score']:.2f}")
     print(f"Position Size Multiplier: {status['position_size_mult']:.2f}x")
 
-    if not status['is_good_time']:
+    if not status["is_good_time"]:
         print(f"\nNext Good Window: {status['next_good_window']}")
         print(f"Time Until: {status['time_until_good']}")
 
     print(f"\nRecommendation: {status['recommendation']}")
-    print("="*60)
+    print("=" * 60)

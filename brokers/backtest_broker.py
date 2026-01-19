@@ -1,18 +1,29 @@
 """
 Mock broker for backtesting purposes
 """
+
 import logging
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 
+import numpy as np
+import pandas as pd
+
 logger = logging.getLogger(__name__)
+
 
 class BacktestBroker:
     """Simple broker for backtesting purposes with realistic slippage modeling"""
 
-    def __init__(self, api_key=None, api_secret=None, paper=True, initial_balance=10000,
-                 slippage_bps=5.0, spread_bps=3.0, enable_partial_fills=True):
+    def __init__(
+        self,
+        api_key=None,
+        api_secret=None,
+        paper=True,
+        initial_balance=10000,
+        slippage_bps=5.0,
+        spread_bps=3.0,
+        enable_partial_fills=True,
+    ):
         """
         Initialize broker with starting balance and slippage parameters.
 
@@ -41,11 +52,11 @@ class BacktestBroker:
 
         # Current date for backtesting (set by BacktestEngine)
         self._current_date = None
-        
+
     def set_price_data(self, symbol, data):
         """Set historical price data for a symbol"""
         self.price_data[symbol] = data
-        
+
     def get_price(self, symbol, date):
         """Get price for a symbol at given date"""
         if symbol not in self.price_data:
@@ -57,15 +68,16 @@ class BacktestBroker:
         # Handle timezone comparison
         try:
             import pytz
-            if df.index.tz is not None and (not hasattr(date, 'tzinfo') or date.tzinfo is None):
-                date = date.replace(tzinfo=pytz.UTC) if hasattr(date, 'replace') else date
+
+            if df.index.tz is not None and (not hasattr(date, "tzinfo") or date.tzinfo is None):
+                date = date.replace(tzinfo=pytz.UTC) if hasattr(date, "replace") else date
         except (ImportError, AttributeError):
             pass
 
         # Try exact match first
         try:
             if date in df.index:
-                return df.loc[date, 'close']
+                return df.loc[date, "close"]
         except TypeError:
             # Fallback: normalize to naive timestamps
             df_naive = df.copy()
@@ -73,15 +85,17 @@ class BacktestBroker:
                 df_naive.index = df_naive.index.tz_localize(None)
             except TypeError:
                 pass  # Already naive
-            date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') and date.tzinfo else date
+            date_naive = (
+                date.replace(tzinfo=None) if hasattr(date, "tzinfo") and date.tzinfo else date
+            )
             if date_naive in df_naive.index:
-                return df_naive.loc[date_naive, 'close']
+                return df_naive.loc[date_naive, "close"]
 
         # Get closest previous date
         try:
-            idx = df.index.get_indexer([date], method='pad')[0]
+            idx = df.index.get_indexer([date], method="pad")[0]
             if idx >= 0:
-                return df.iloc[idx]['close']
+                return df.iloc[idx]["close"]
         except TypeError:
             # Fallback for timezone issues
             df_naive = df.copy()
@@ -89,43 +103,48 @@ class BacktestBroker:
                 df_naive.index = df_naive.index.tz_localize(None)
             except TypeError:
                 pass
-            date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') and date.tzinfo else date
-            idx = df_naive.index.get_indexer([date_naive], method='pad')[0]
+            date_naive = (
+                date.replace(tzinfo=None) if hasattr(date, "tzinfo") and date.tzinfo else date
+            )
+            idx = df_naive.index.get_indexer([date_naive], method="pad")[0]
             if idx >= 0:
-                return df_naive.iloc[idx]['close']
+                return df_naive.iloc[idx]["close"]
 
         raise ValueError(f"No price data for {symbol} at {date}")
-        
+
     def get_historical_prices(self, symbol, days=30, end_date=None):
         """Get historical price data for a symbol"""
         if symbol not in self.price_data:
             # Create dummy data for testing
             end = end_date or datetime.now()
             start = end - timedelta(days=days)
-            dates = pd.date_range(start=start, end=end, freq='B')
-            
+            dates = pd.date_range(start=start, end=end, freq="B")
+
             # Generate random prices with upward trend
             np.random.seed(42 + hash(symbol) % 100)  # Consistent but different for each symbol
             price = 100 + np.random.rand() * 100  # Random start price between 100-200
             daily_returns = np.random.normal(0.0005, 0.015, len(dates))  # Slight upward bias
             prices = price * (1 + pd.Series(daily_returns)).cumprod()
-            
+
             # Create OHLC data
-            data = pd.DataFrame({
-                'open': prices * (1 + np.random.normal(0, 0.005, len(dates))),
-                'high': prices * (1 + np.random.uniform(0.001, 0.02, len(dates))),
-                'low': prices * (1 - np.random.uniform(0.001, 0.02, len(dates))),
-                'close': prices,
-                'volume': np.random.randint(100000, 10000000, len(dates))
-            }, index=dates)
-            
+            data = pd.DataFrame(
+                {
+                    "open": prices * (1 + np.random.normal(0, 0.005, len(dates))),
+                    "high": prices * (1 + np.random.uniform(0.001, 0.02, len(dates))),
+                    "low": prices * (1 - np.random.uniform(0.001, 0.02, len(dates))),
+                    "close": prices,
+                    "volume": np.random.randint(100000, 10000000, len(dates)),
+                },
+                index=dates,
+            )
+
             # Ensure high is always the highest
-            data['high'] = data[['open', 'close', 'high']].max(axis=1)
-            data['low'] = data[['open', 'close', 'low']].min(axis=1)
-            
+            data["high"] = data[["open", "close", "high"]].max(axis=1)
+            data["low"] = data[["open", "close", "low"]].min(axis=1)
+
             self.price_data[symbol] = data
             return data
-        
+
         return self.price_data[symbol].tail(days)
 
     def _calculate_slippage(self, symbol, quantity, side, base_price, order_type):
@@ -197,8 +216,10 @@ class BacktestBroker:
             # Fill 70-95% of the order (randomized for realism)
             fill_rate = 0.7 + (np.random.rand() * 0.25)
             filled_qty = int(quantity * fill_rate)
-            logger.warning(f"Partial fill for {symbol}: {filled_qty}/{quantity} "
-                          f"({fill_rate:.1%}) - order too large for liquidity")
+            logger.warning(
+                f"Partial fill for {symbol}: {filled_qty}/{quantity} "
+                f"({fill_rate:.1%}) - order too large for liquidity"
+            )
             return max(filled_qty, 1)  # Fill at least 1 share
 
         return quantity
@@ -240,14 +261,14 @@ class BacktestBroker:
             "status": "filled" if filled_quantity == quantity else "partially_filled",
             "created_at": current_date,
             "filled_at": current_date,
-            "slippage_bps": abs((execution_price - base_price) / base_price) * 10000
+            "slippage_bps": abs((execution_price - base_price) / base_price) * 10000,
         }
 
         self.orders.append(order)
 
         # Update positions and cash using FILLED quantity and EXECUTION price
         cost = filled_quantity * execution_price
-        
+
         if side == "buy":
             self.balance -= cost
             if symbol in self.positions:
@@ -261,7 +282,7 @@ class BacktestBroker:
                 self.positions[symbol] = {
                     "symbol": symbol,
                     "quantity": filled_quantity,
-                    "entry_price": execution_price
+                    "entry_price": execution_price,
                 }
         else:  # sell
             self.balance += cost
@@ -271,47 +292,49 @@ class BacktestBroker:
                     del self.positions[symbol]
 
         # Record the trade with actual execution details
-        self.trades.append({
-            "id": len(self.trades) + 1,
-            "symbol": symbol,
-            "quantity": filled_quantity,
-            "side": side,
-            "price": execution_price,
-            "slippage": execution_price - base_price,
-            "timestamp": current_date
-        })
-                    
+        self.trades.append(
+            {
+                "id": len(self.trades) + 1,
+                "symbol": symbol,
+                "quantity": filled_quantity,
+                "side": side,
+                "price": execution_price,
+                "slippage": execution_price - base_price,
+                "timestamp": current_date,
+            }
+        )
+
         return order
-        
+
     def get_position(self, symbol):
         """Get position for a symbol"""
         return self.positions.get(symbol, None)
-        
+
     def get_positions(self):
         """Get all positions"""
         return list(self.positions.values())
-        
+
     def get_balance(self):
         """Get current cash balance"""
         return self.balance
-        
+
     def get_portfolio_value(self, date=None):
         """Get total portfolio value at given date"""
         value = self.balance
         current_date = date or datetime.now()
-        
+
         for symbol, position in self.positions.items():
             price = self.get_price(symbol, current_date)
             value += position["quantity"] * price
-            
+
         return value
-        
+
     def get_orders(self, status=None):
         """Get orders with given status"""
         if status:
             return [order for order in self.orders if order["status"] == status]
         return self.orders
-        
+
     def get_trades(self):
         """Get all trades"""
         return self.trades
@@ -322,6 +345,7 @@ class BacktestBroker:
 
     async def get_account(self):
         """Async wrapper for getting account info (for strategy compatibility)."""
+
         class MockAccount:
             def __init__(self, balance, portfolio_value):
                 self.equity = str(portfolio_value)
@@ -334,16 +358,18 @@ class BacktestBroker:
     async def submit_order_advanced(self, order_request):
         """Async wrapper for submitting orders (for strategy compatibility)."""
         # Extract order details from the order request object
-        symbol = getattr(order_request, 'symbol', None)
-        qty = getattr(order_request, 'qty', None) or getattr(order_request, 'quantity', None)
-        side = getattr(order_request, 'side', 'buy')
-        order_type = getattr(order_request, 'type', 'market') or getattr(order_request, 'order_type', 'market')
+        symbol = getattr(order_request, "symbol", None)
+        qty = getattr(order_request, "qty", None) or getattr(order_request, "quantity", None)
+        side = getattr(order_request, "side", "buy")
+        order_type = getattr(order_request, "type", "market") or getattr(
+            order_request, "order_type", "market"
+        )
 
         if symbol is None or qty is None:
             return None
 
         # Convert side to string if it's an enum
-        if hasattr(side, 'value'):
+        if hasattr(side, "value"):
             side = side.value
 
         # Place the order
@@ -352,13 +378,13 @@ class BacktestBroker:
         # Return a mock order response
         class MockOrder:
             def __init__(self, order_dict):
-                self.id = order_dict['id']
-                self.symbol = order_dict['symbol']
-                self.qty = str(order_dict['quantity'])
-                self.filled_qty = str(order_dict['filled_qty'])
-                self.filled_avg_price = str(order_dict['filled_avg_price'])
-                self.status = order_dict['status']
-                self.side = order_dict['side']
+                self.id = order_dict["id"]
+                self.symbol = order_dict["symbol"]
+                self.qty = str(order_dict["quantity"])
+                self.filled_qty = str(order_dict["filled_qty"])
+                self.filled_avg_price = str(order_dict["filled_avg_price"])
+                self.status = order_dict["status"]
+                self.side = order_dict["side"]
 
         return MockOrder(result)
 
@@ -374,7 +400,7 @@ class BacktestBroker:
 
         return MockQuote(price)
 
-    async def get_bars(self, symbol, start=None, end=None, timeframe='1Day', limit=100):
+    async def get_bars(self, symbol, start=None, end=None, timeframe="1Day", limit=100):
         """Async wrapper for getting price bars (for strategy compatibility)."""
         if symbol not in self.price_data:
             return []
@@ -392,18 +418,21 @@ class BacktestBroker:
 
         bars = []
         for idx, row in df.tail(limit).iterrows():
-            bars.append(MockBar(idx, row['open'], row['high'], row['low'], row['close'], row['volume']))
+            bars.append(
+                MockBar(idx, row["open"], row["high"], row["low"], row["close"], row["volume"])
+            )
 
         return bars
 
     async def get_all_positions(self):
         """Async wrapper for getting all positions (for strategy compatibility)."""
+
         # Convert dict positions to mock position objects
         class MockPosition:
             def __init__(self, position_dict):
-                self.symbol = position_dict['symbol']
-                self.qty = str(position_dict['quantity'])
-                self.quantity = position_dict['quantity']
-                self.entry_price = position_dict['entry_price']
+                self.symbol = position_dict["symbol"]
+                self.qty = str(position_dict["quantity"])
+                self.quantity = position_dict["quantity"]
+                self.entry_price = position_dict["entry_price"]
 
         return [MockPosition(pos) for pos in self.positions.values()]

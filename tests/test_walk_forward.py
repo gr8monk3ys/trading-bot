@@ -9,15 +9,16 @@ Tests cover:
 - Edge cases
 """
 
-import pytest
-from datetime import datetime
-import sys
 import os
+import sys
+from datetime import datetime
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from engine.walk_forward import WalkForwardValidator, WalkForwardResult
+from engine.walk_forward import WalkForwardResult, WalkForwardValidator
 
 
 class TestWalkForwardInit:
@@ -33,12 +34,7 @@ class TestWalkForwardInit:
 
     def test_custom_initialization(self):
         """Test custom values override defaults."""
-        validator = WalkForwardValidator(
-            train_ratio=0.8,
-            n_splits=3,
-            min_train_days=60,
-            gap_days=5
-        )
+        validator = WalkForwardValidator(train_ratio=0.8, n_splits=3, min_train_days=60, gap_days=5)
         assert validator.train_ratio == 0.8
         assert validator.n_splits == 3
         assert validator.min_train_days == 60
@@ -127,7 +123,7 @@ class TestWalkForwardResult:
             oos_trades=20,
             oos_win_rate=0.55,
             overfitting_ratio=2.0,
-            degradation=0.5
+            degradation=0.5,
         )
 
         assert result.fold_num == 1
@@ -159,15 +155,15 @@ class TestOverfittingDetection:
             oos_trades=20,
             oos_win_rate=0.45,
             overfitting_ratio=10.0,  # 20%/2% = 10x overfit
-            degradation=0.9
+            degradation=0.9,
         )
 
         validator.results = [result]
         summary = validator._aggregate_results()
 
         # With our fix, high overfit ratio (10.0) should fail validation
-        assert summary['passes_validation'] == False
-        assert summary['avg_overfit_ratio'] >= 2.0
+        assert summary["passes_validation"] == False
+        assert summary["avg_overfit_ratio"] >= 2.0
 
     def test_good_oos_performance_passes(self):
         """Good out-of-sample performance should pass validation."""
@@ -189,14 +185,14 @@ class TestOverfittingDetection:
             oos_trades=20,
             oos_win_rate=0.58,
             overfitting_ratio=1.25,
-            degradation=0.2
+            degradation=0.2,
         )
 
         validator.results = [result]
         summary = validator._aggregate_results()
 
-        assert summary['passes_validation'] is True
-        assert summary['avg_overfit_ratio'] < 2.0
+        assert summary["passes_validation"] is True
+        assert summary["avg_overfit_ratio"] < 2.0
 
 
 class TestResultAggregation:
@@ -222,7 +218,7 @@ class TestResultAggregation:
                 oos_trades=20,
                 oos_win_rate=0.55,
                 overfitting_ratio=2.0,
-                degradation=0.5
+                degradation=0.5,
             )
             for i in range(3)
         ]
@@ -230,10 +226,10 @@ class TestResultAggregation:
         validator.results = results
         summary = validator._aggregate_results()
 
-        assert summary['n_folds'] == 3
-        assert summary['is_avg_return'] == pytest.approx(0.10, rel=1e-9)
-        assert summary['oos_avg_return'] == pytest.approx(0.05, rel=1e-9)
-        assert summary['oos_total_trades'] == 60  # 20 * 3
+        assert summary["n_folds"] == 3
+        assert summary["is_avg_return"] == pytest.approx(0.10, rel=1e-9)
+        assert summary["oos_avg_return"] == pytest.approx(0.05, rel=1e-9)
+        assert summary["oos_total_trades"] == 60  # 20 * 3
 
     def test_consistency_calculation(self):
         """Consistency should be percentage of profitable folds."""
@@ -255,7 +251,7 @@ class TestResultAggregation:
                 oos_trades=20,
                 oos_win_rate=0.55,
                 overfitting_ratio=2.0,
-                degradation=0.5
+                degradation=0.5,
             ),
             WalkForwardResult(
                 fold_num=2,
@@ -272,14 +268,14 @@ class TestResultAggregation:
                 oos_trades=20,
                 oos_win_rate=0.55,
                 overfitting_ratio=2.0,
-                degradation=0.5
+                degradation=0.5,
             ),
         ]
 
         validator.results = results
         summary = validator._aggregate_results()
 
-        assert summary['oos_consistency'] == 0.5  # 1 of 2 folds profitable
+        assert summary["oos_consistency"] == 0.5  # 1 of 2 folds profitable
 
     def test_empty_results_handled(self):
         """Empty results should return empty dict."""
@@ -313,14 +309,14 @@ class TestValidationCriteria:
             oos_trades=20,
             oos_win_rate=0.45,
             overfitting_ratio=1.0,
-            degradation=1.5
+            degradation=1.5,
         )
 
         validator.results = [result]
         summary = validator._aggregate_results()
 
         # Negative OOS return should fail validation
-        assert summary['passes_validation'] == False
+        assert summary["passes_validation"] == False
 
     def test_low_consistency_fails(self):
         """Consistency below 50% should fail validation."""
@@ -334,10 +330,16 @@ class TestValidationCriteria:
                 train_end=datetime(2024, 3, 31),
                 test_start=datetime(2024, 4, 1),
                 test_end=datetime(2024, 4, 30),
-                is_return=0.10, is_sharpe=1.0, is_trades=50, is_win_rate=0.6,
+                is_return=0.10,
+                is_sharpe=1.0,
+                is_trades=50,
+                is_win_rate=0.6,
                 oos_return=0.05,  # Profitable
-                oos_sharpe=0.5, oos_trades=20, oos_win_rate=0.55,
-                overfitting_ratio=1.0, degradation=0.0
+                oos_sharpe=0.5,
+                oos_trades=20,
+                oos_win_rate=0.55,
+                overfitting_ratio=1.0,
+                degradation=0.0,
             ),
             WalkForwardResult(
                 fold_num=2,
@@ -345,10 +347,16 @@ class TestValidationCriteria:
                 train_end=datetime(2024, 6, 30),
                 test_start=datetime(2024, 7, 1),
                 test_end=datetime(2024, 7, 31),
-                is_return=0.10, is_sharpe=1.0, is_trades=50, is_win_rate=0.6,
+                is_return=0.10,
+                is_sharpe=1.0,
+                is_trades=50,
+                is_win_rate=0.6,
                 oos_return=-0.02,  # Unprofitable
-                oos_sharpe=-0.2, oos_trades=20, oos_win_rate=0.45,
-                overfitting_ratio=1.0, degradation=0.0
+                oos_sharpe=-0.2,
+                oos_trades=20,
+                oos_win_rate=0.45,
+                overfitting_ratio=1.0,
+                degradation=0.0,
             ),
             WalkForwardResult(
                 fold_num=3,
@@ -356,10 +364,16 @@ class TestValidationCriteria:
                 train_end=datetime(2024, 9, 30),
                 test_start=datetime(2024, 10, 1),
                 test_end=datetime(2024, 10, 31),
-                is_return=0.10, is_sharpe=1.0, is_trades=50, is_win_rate=0.6,
+                is_return=0.10,
+                is_sharpe=1.0,
+                is_trades=50,
+                is_win_rate=0.6,
                 oos_return=-0.03,  # Unprofitable
-                oos_sharpe=-0.3, oos_trades=20, oos_win_rate=0.40,
-                overfitting_ratio=1.0, degradation=0.0
+                oos_sharpe=-0.3,
+                oos_trades=20,
+                oos_win_rate=0.40,
+                overfitting_ratio=1.0,
+                degradation=0.0,
             ),
         ]
 
@@ -368,7 +382,7 @@ class TestValidationCriteria:
 
         # Average OOS return is still slightly positive
         # But consistency is only 33%, so should fail
-        assert summary['oos_consistency'] < 0.5
+        assert summary["oos_consistency"] < 0.5
 
 
 if __name__ == "__main__":

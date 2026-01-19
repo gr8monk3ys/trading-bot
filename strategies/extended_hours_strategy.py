@@ -35,11 +35,11 @@ Usage:
 
 import logging
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Dict, Optional
 
+from brokers.order_builder import OrderBuilder
 from strategies.base_strategy import BaseStrategy
 from utils.extended_hours import ExtendedHoursManager
-from brokers.order_builder import OrderBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -78,26 +78,26 @@ class ExtendedHoursStrategy(BaseStrategy):
         await super()._initialize_parameters()
 
         # Extended hours configuration
-        self.enable_pre_market = self.parameters.get('enable_pre_market', True)
-        self.enable_after_hours = self.parameters.get('enable_after_hours', True)
+        self.enable_pre_market = self.parameters.get("enable_pre_market", True)
+        self.enable_after_hours = self.parameters.get("enable_after_hours", True)
 
         # Gap trading parameters (pre-market)
-        self.gap_threshold = self.parameters.get('gap_threshold', 0.02)  # 2% gap
-        self.gap_stop_loss = self.parameters.get('gap_stop_loss', 0.015)  # 1.5% stop
-        self.gap_take_profit = self.parameters.get('gap_take_profit', 0.03)  # 3% target
+        self.gap_threshold = self.parameters.get("gap_threshold", 0.02)  # 2% gap
+        self.gap_stop_loss = self.parameters.get("gap_stop_loss", 0.015)  # 1.5% stop
+        self.gap_take_profit = self.parameters.get("gap_take_profit", 0.03)  # 3% target
 
         # Earnings reaction parameters (after-hours)
-        self.earnings_threshold = self.parameters.get('earnings_threshold', 0.03)  # 3% move
-        self.earnings_stop_loss = self.parameters.get('earnings_stop_loss', 0.02)  # 2% stop
-        self.earnings_take_profit = self.parameters.get('earnings_take_profit', 0.05)  # 5% target
+        self.earnings_threshold = self.parameters.get("earnings_threshold", 0.03)  # 3% move
+        self.earnings_stop_loss = self.parameters.get("earnings_stop_loss", 0.02)  # 2% stop
+        self.earnings_take_profit = self.parameters.get("earnings_take_profit", 0.05)  # 5% target
 
         # Extended hours safety parameters
-        self.ext_position_size = self.parameters.get('ext_position_size', 0.05)  # 5% per position
-        self.max_spread_pct = self.parameters.get('max_spread_pct', 0.005)  # 0.5% max spread
-        self.min_daily_volume = self.parameters.get('min_daily_volume', 10000)  # 10K min volume
+        self.ext_position_size = self.parameters.get("ext_position_size", 0.05)  # 5% per position
+        self.max_spread_pct = self.parameters.get("max_spread_pct", 0.005)  # 0.5% max spread
+        self.min_daily_volume = self.parameters.get("min_daily_volume", 10000)  # 10K min volume
 
         # Cooldown between trades (extended hours are volatile)
-        self.trade_cooldown_minutes = self.parameters.get('trade_cooldown_minutes', 30)
+        self.trade_cooldown_minutes = self.parameters.get("trade_cooldown_minutes", 30)
         self.last_trade_time = {}  # {symbol: datetime}
 
         logger.info(f"{self.NAME} parameters initialized:")
@@ -118,7 +118,7 @@ class ExtendedHoursStrategy(BaseStrategy):
         self.ext_hours = ExtendedHoursManager(
             broker=self.broker,
             enable_pre_market=self.enable_pre_market,
-            enable_after_hours=self.enable_after_hours
+            enable_after_hours=self.enable_after_hours,
         )
 
         logger.info(f"✅ {self.NAME} initialized successfully")
@@ -136,7 +136,7 @@ class ExtendedHoursStrategy(BaseStrategy):
             session = self.ext_hours.get_current_session()
 
             # Only trade during extended hours
-            if session not in ['pre_market', 'after_hours']:
+            if session not in ["pre_market", "after_hours"]:
                 logger.debug(f"{self.NAME}: Not in extended hours (session: {session})")
                 return
 
@@ -163,7 +163,7 @@ class ExtendedHoursStrategy(BaseStrategy):
                     # Analyze for entry signal
                     signal = await self.analyze_symbol(symbol, session)
 
-                    if signal in ['buy', 'short']:
+                    if signal in ["buy", "short"]:
                         await self.execute_trade(symbol, signal, session)
 
                 except Exception as e:
@@ -187,32 +187,34 @@ class ExtendedHoursStrategy(BaseStrategy):
             # Check if symbol can be traded
             can_trade, reason = await self.ext_hours.can_trade_extended_hours(symbol)
             if not can_trade:
-                return 'neutral'
+                return "neutral"
 
             # Get quote with spread analysis
             quote = await self._get_safe_quote(symbol)
             if not quote:
-                return 'neutral'
+                return "neutral"
 
-            current_price = quote['price']
-            spread_pct = quote['spread_pct']
+            current_price = quote["price"]
+            spread_pct = quote["spread_pct"]
 
             # Spread too wide - skip
             if spread_pct > self.max_spread_pct:
-                logger.debug(f"{symbol}: Spread too wide ({spread_pct:.2%} > {self.max_spread_pct:.2%})")
-                return 'neutral'
+                logger.debug(
+                    f"{symbol}: Spread too wide ({spread_pct:.2%} > {self.max_spread_pct:.2%})"
+                )
+                return "neutral"
 
             # Route to appropriate strategy based on session
-            if session == 'pre_market':
+            if session == "pre_market":
                 return await self._analyze_gap_trading(symbol, current_price)
-            elif session == 'after_hours':
+            elif session == "after_hours":
                 return await self._analyze_earnings_reaction(symbol, current_price)
 
-            return 'neutral'
+            return "neutral"
 
         except Exception as e:
             logger.error(f"Error analyzing {symbol}: {e}", exc_info=True)
-            return 'neutral'
+            return "neutral"
 
     async def _analyze_gap_trading(self, symbol: str, current_price: float) -> str:
         """
@@ -232,23 +234,19 @@ class ExtendedHoursStrategy(BaseStrategy):
         """
         try:
             # Get yesterday's close
-            bars = await self.broker.get_bars(
-                symbol=symbol,
-                timeframe='1Day',
-                limit=2
-            )
+            bars = await self.broker.get_bars(symbol=symbol, timeframe="1Day", limit=2)
 
             if not bars or len(bars) < 2:
-                return 'neutral'
+                return "neutral"
 
             yesterday_close = float(bars[-2].close)
             gap_pct = (current_price - yesterday_close) / yesterday_close
 
             # Track gap
             self.tracked_gaps[symbol] = {
-                'gap_pct': gap_pct,
-                'direction': 'up' if gap_pct > 0 else 'down',
-                'yesterday_close': yesterday_close
+                "gap_pct": gap_pct,
+                "direction": "up" if gap_pct > 0 else "down",
+                "yesterday_close": yesterday_close,
             }
 
             # Gap up significantly - buy
@@ -257,7 +255,7 @@ class ExtendedHoursStrategy(BaseStrategy):
                     f"🔝 GAP UP detected: {symbol} "
                     f"({yesterday_close:.2f} → {current_price:.2f} = {gap_pct:+.2%})"
                 )
-                return 'buy'
+                return "buy"
 
             # Gap down significantly - short
             elif gap_pct <= -self.gap_threshold:
@@ -265,13 +263,13 @@ class ExtendedHoursStrategy(BaseStrategy):
                     f"🔻 GAP DOWN detected: {symbol} "
                     f"({yesterday_close:.2f} → {current_price:.2f} = {gap_pct:+.2%})"
                 )
-                return 'short'
+                return "short"
 
-            return 'neutral'
+            return "neutral"
 
         except Exception as e:
             logger.error(f"Error in gap analysis for {symbol}: {e}", exc_info=True)
-            return 'neutral'
+            return "neutral"
 
     async def _analyze_earnings_reaction(self, symbol: str, current_price: float) -> str:
         """
@@ -291,14 +289,10 @@ class ExtendedHoursStrategy(BaseStrategy):
         """
         try:
             # Get today's regular hours close
-            bars = await self.broker.get_bars(
-                symbol=symbol,
-                timeframe='1Day',
-                limit=1
-            )
+            bars = await self.broker.get_bars(symbol=symbol, timeframe="1Day", limit=1)
 
             if not bars:
-                return 'neutral'
+                return "neutral"
 
             today_close = float(bars[-1].close)
             move_pct = (current_price - today_close) / today_close
@@ -309,7 +303,7 @@ class ExtendedHoursStrategy(BaseStrategy):
                     f"📈 EARNINGS BEAT: {symbol} "
                     f"({today_close:.2f} → {current_price:.2f} = {move_pct:+.2%})"
                 )
-                return 'buy'
+                return "buy"
 
             # Strong negative reaction - short
             elif move_pct <= -self.earnings_threshold:
@@ -317,13 +311,13 @@ class ExtendedHoursStrategy(BaseStrategy):
                     f"📉 EARNINGS MISS: {symbol} "
                     f"({today_close:.2f} → {current_price:.2f} = {move_pct:+.2%})"
                 )
-                return 'short'
+                return "short"
 
-            return 'neutral'
+            return "neutral"
 
         except Exception as e:
             logger.error(f"Error in earnings analysis for {symbol}: {e}", exc_info=True)
-            return 'neutral'
+            return "neutral"
 
     async def execute_trade(self, symbol: str, signal: str, session: str):
         """
@@ -341,14 +335,13 @@ class ExtendedHoursStrategy(BaseStrategy):
                 logger.warning(f"Cannot execute {signal} for {symbol}: No valid quote")
                 return
 
-            current_price = quote['price']
-            spread_pct = quote['spread_pct']
+            current_price = quote["price"]
+            spread_pct = quote["spread_pct"]
 
             # Final spread check
             if spread_pct > self.max_spread_pct:
                 logger.warning(
-                    f"Cannot execute {signal} for {symbol}: "
-                    f"Spread too wide ({spread_pct:.2%})"
+                    f"Cannot execute {signal} for {symbol}: " f"Spread too wide ({spread_pct:.2%})"
                 )
                 return
 
@@ -370,7 +363,7 @@ class ExtendedHoursStrategy(BaseStrategy):
                 return
 
             # Determine stop-loss and take-profit based on strategy
-            if session == 'pre_market':
+            if session == "pre_market":
                 stop_loss_pct = self.gap_stop_loss
                 take_profit_pct = self.gap_take_profit
             else:  # after_hours
@@ -378,9 +371,9 @@ class ExtendedHoursStrategy(BaseStrategy):
                 take_profit_pct = self.earnings_take_profit
 
             # Calculate prices
-            if signal == 'buy':
+            if signal == "buy":
                 # LONG position
-                side = 'buy'
+                side = "buy"
                 limit_price = current_price * 1.001  # 0.1% above current
                 stop_loss_price = current_price * (1 - stop_loss_pct)
                 take_profit_price = current_price * (1 + take_profit_pct)
@@ -393,7 +386,7 @@ class ExtendedHoursStrategy(BaseStrategy):
 
             else:  # short
                 # SHORT position
-                side = 'sell'
+                side = "sell"
                 limit_price = current_price * 0.999  # 0.1% below current
                 stop_loss_price = current_price * (1 + stop_loss_pct)
                 take_profit_price = current_price * (1 - take_profit_pct)
@@ -405,15 +398,14 @@ class ExtendedHoursStrategy(BaseStrategy):
                 )
 
             # Create bracket order with LIMIT entry (safer for extended hours)
-            order = (OrderBuilder(symbol, side, quantity)
-                    .limit(limit_price)
-                    .extended_hours()  # Enable extended hours trading
-                    .bracket(
-                        take_profit=take_profit_price,
-                        stop_loss=stop_loss_price
-                    )
-                    .gtc()  # Good till canceled
-                    .build())
+            order = (
+                OrderBuilder(symbol, side, quantity)
+                .limit(limit_price)
+                .extended_hours()  # Enable extended hours trading
+                .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+                .gtc()  # Good till canceled
+                .build()
+            )
 
             # Submit order
             result = await self.broker.submit_order_advanced(order)
@@ -491,12 +483,7 @@ class ExtendedHoursStrategy(BaseStrategy):
             mid_price = (bid + ask) / 2
             spread_pct = (ask - bid) / mid_price
 
-            return {
-                'price': mid_price,
-                'bid': bid,
-                'ask': ask,
-                'spread_pct': spread_pct
-            }
+            return {"price": mid_price, "bid": bid, "ask": ask, "spread_pct": spread_pct}
 
         except Exception as e:
             logger.error(f"Error getting quote for {symbol}: {e}", exc_info=True)
@@ -531,17 +518,17 @@ class ExtendedHoursStrategy(BaseStrategy):
     def default_parameters():
         """Return default parameters for this strategy."""
         return {
-            'symbols': ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA'],
-            'enable_pre_market': True,
-            'enable_after_hours': True,
-            'gap_threshold': 0.02,  # 2% gap to trigger
-            'gap_stop_loss': 0.015,  # 1.5% stop
-            'gap_take_profit': 0.03,  # 3% target
-            'earnings_threshold': 0.03,  # 3% earnings move
-            'earnings_stop_loss': 0.02,  # 2% stop
-            'earnings_take_profit': 0.05,  # 5% target
-            'ext_position_size': 0.05,  # 5% per position (conservative)
-            'max_spread_pct': 0.005,  # 0.5% max spread
-            'min_daily_volume': 10000,  # 10K min volume
-            'trade_cooldown_minutes': 30,  # 30 min cooldown between trades
+            "symbols": ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
+            "enable_pre_market": True,
+            "enable_after_hours": True,
+            "gap_threshold": 0.02,  # 2% gap to trigger
+            "gap_stop_loss": 0.015,  # 1.5% stop
+            "gap_take_profit": 0.03,  # 3% target
+            "earnings_threshold": 0.03,  # 3% earnings move
+            "earnings_stop_loss": 0.02,  # 2% stop
+            "earnings_take_profit": 0.05,  # 5% target
+            "ext_position_size": 0.05,  # 5% per position (conservative)
+            "max_spread_pct": 0.005,  # 0.5% max spread
+            "min_daily_volume": 10000,  # 10K min volume
+            "trade_cooldown_minutes": 30,  # 30 min cooldown between trades
         }

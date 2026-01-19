@@ -31,6 +31,7 @@ Usage:
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -49,9 +50,9 @@ class RelativeStrengthRanker:
     def __init__(
         self,
         broker,
-        benchmark: str = 'SPY',
+        benchmark: str = "SPY",
         lookback_days: int = 20,
-        min_rs_for_long: float = 1.05,   # Must outperform by 5%
+        min_rs_for_long: float = 1.05,  # Must outperform by 5%
         max_rs_for_short: float = 0.95,  # Must underperform by 5%
     ):
         """
@@ -83,9 +84,11 @@ class RelativeStrengthRanker:
         """Get benchmark return for lookback period."""
         today = datetime.now().date()
 
-        if (not force_refresh and
-            self._benchmark_return is not None and
-            self._last_calc_date == today):
+        if (
+            not force_refresh
+            and self._benchmark_return is not None
+            and self._last_calc_date == today
+        ):
             return self._benchmark_return
 
         try:
@@ -94,18 +97,20 @@ class RelativeStrengthRanker:
 
             bars = await self.broker.get_bars(
                 self.benchmark,
-                start_date.strftime('%Y-%m-%d'),
-                end_date.strftime('%Y-%m-%d'),
-                timeframe='1Day'
+                start_date.strftime("%Y-%m-%d"),
+                end_date.strftime("%Y-%m-%d"),
+                timeframe="1Day",
             )
 
             if bars is None or len(bars) < self.lookback_days:
-                logger.warning(f"Insufficient benchmark data")
+                logger.warning("Insufficient benchmark data")
                 return 0.0
 
             # Calculate return
             closes = [float(b.close) for b in bars]
-            start_price = closes[-self.lookback_days] if len(closes) >= self.lookback_days else closes[0]
+            start_price = (
+                closes[-self.lookback_days] if len(closes) >= self.lookback_days else closes[0]
+            )
             end_price = closes[-1]
 
             benchmark_return = (end_price - start_price) / start_price
@@ -133,9 +138,9 @@ class RelativeStrengthRanker:
 
             bars = await self.broker.get_bars(
                 symbol,
-                start_date.strftime('%Y-%m-%d'),
-                end_date.strftime('%Y-%m-%d'),
-                timeframe='1Day'
+                start_date.strftime("%Y-%m-%d"),
+                end_date.strftime("%Y-%m-%d"),
+                timeframe="1Day",
             )
 
             if bars is None or len(bars) < self.lookback_days:
@@ -143,7 +148,9 @@ class RelativeStrengthRanker:
 
             # Calculate stock return
             closes = [float(b.close) for b in bars]
-            start_price = closes[-self.lookback_days] if len(closes) >= self.lookback_days else closes[0]
+            start_price = (
+                closes[-self.lookback_days] if len(closes) >= self.lookback_days else closes[0]
+            )
             end_price = closes[-1]
 
             # Guard against division by zero
@@ -167,14 +174,14 @@ class RelativeStrengthRanker:
             rs_line = stock_return - benchmark_return
 
             return {
-                'symbol': symbol,
-                'stock_return': stock_return,
-                'benchmark_return': benchmark_return,
-                'rs_ratio': rs_ratio,
-                'rs_line': rs_line,
-                'outperforming': rs_ratio > 1.0,
-                'current_price': end_price,
-                'lookback_days': self.lookback_days,
+                "symbol": symbol,
+                "stock_return": stock_return,
+                "benchmark_return": benchmark_return,
+                "rs_ratio": rs_ratio,
+                "rs_line": rs_line,
+                "outperforming": rs_ratio > 1.0,
+                "current_price": end_price,
+                "lookback_days": self.lookback_days,
             }
 
         except Exception as e:
@@ -200,12 +207,12 @@ class RelativeStrengthRanker:
                 rankings.append(result)
 
         # Sort by RS ratio (highest first)
-        rankings.sort(key=lambda x: x['rs_ratio'], reverse=True)
+        rankings.sort(key=lambda x: x["rs_ratio"], reverse=True)
 
         # Add rank and percentile
         for i, rs in enumerate(rankings):
-            rs['rank'] = i + 1
-            rs['percentile'] = (len(rankings) - i) / len(rankings)
+            rs["rank"] = i + 1
+            rs["percentile"] = (len(rankings) - i) / len(rankings)
 
         if rankings:
             logger.info(f"Ranked {len(rankings)} symbols by relative strength")
@@ -215,10 +222,7 @@ class RelativeStrengthRanker:
         return rankings
 
     def get_leaders(
-        self,
-        rankings: List[Dict],
-        top_pct: float = 0.30,
-        min_count: int = 5
+        self, rankings: List[Dict], top_pct: float = 0.30, min_count: int = 5
     ) -> List[str]:
         """
         Get top relative strength leaders.
@@ -235,15 +239,12 @@ class RelativeStrengthRanker:
             return []
 
         n = max(min_count, int(len(rankings) * top_pct))
-        leaders = [r['symbol'] for r in rankings[:n] if r['rs_ratio'] >= self.min_rs_for_long]
+        leaders = [r["symbol"] for r in rankings[:n] if r["rs_ratio"] >= self.min_rs_for_long]
 
         return leaders
 
     def get_laggards(
-        self,
-        rankings: List[Dict],
-        bottom_pct: float = 0.30,
-        min_count: int = 5
+        self, rankings: List[Dict], bottom_pct: float = 0.30, min_count: int = 5
     ) -> List[str]:
         """
         Get bottom relative strength laggards.
@@ -260,15 +261,11 @@ class RelativeStrengthRanker:
             return []
 
         n = max(min_count, int(len(rankings) * bottom_pct))
-        laggards = [r['symbol'] for r in rankings[-n:] if r['rs_ratio'] <= self.max_rs_for_short]
+        laggards = [r["symbol"] for r in rankings[-n:] if r["rs_ratio"] <= self.max_rs_for_short]
 
         return laggards
 
-    def filter_by_rs(
-        self,
-        signal: str,
-        rs_info: Dict
-    ) -> Tuple[bool, str]:
+    def filter_by_rs(self, signal: str, rs_info: Dict) -> Tuple[bool, str]:
         """
         Filter a trade signal based on relative strength.
 
@@ -282,9 +279,9 @@ class RelativeStrengthRanker:
         if rs_info is None:
             return True, "No RS data - allowing trade"
 
-        rs_ratio = rs_info['rs_ratio']
+        rs_ratio = rs_info["rs_ratio"]
 
-        if signal == 'long':
+        if signal == "long":
             if rs_ratio >= self.min_rs_for_long:
                 return True, f"RS {rs_ratio:.3f} >= {self.min_rs_for_long} - leader"
             elif rs_ratio >= 1.0:
@@ -292,7 +289,7 @@ class RelativeStrengthRanker:
             else:
                 return False, f"RS {rs_ratio:.3f} < 1.0 - underperformer, skip long"
 
-        elif signal == 'short':
+        elif signal == "short":
             if rs_ratio <= self.max_rs_for_short:
                 return True, f"RS {rs_ratio:.3f} <= {self.max_rs_for_short} - laggard"
             elif rs_ratio <= 1.0:
@@ -311,21 +308,21 @@ class RelativeStrengthRanker:
         laggards = self.get_laggards(rankings, bottom_pct=0.30)
 
         # Calculate stats
-        rs_values = [r['rs_ratio'] for r in rankings]
-        outperformers = [r for r in rankings if r['outperforming']]
+        rs_values = [r["rs_ratio"] for r in rankings]
+        outperformers = [r for r in rankings if r["outperforming"]]
 
         return {
-            'benchmark': self.benchmark,
-            'benchmark_return': benchmark_return,
-            'lookback_days': self.lookback_days,
-            'symbols_ranked': len(rankings),
-            'outperformers': len(outperformers),
-            'underperformers': len(rankings) - len(outperformers),
-            'avg_rs': np.mean(rs_values) if rs_values else 1.0,
-            'median_rs': np.median(rs_values) if rs_values else 1.0,
-            'leaders': leaders,
-            'laggards': laggards,
-            'rankings': rankings[:10],  # Top 10 for display
+            "benchmark": self.benchmark,
+            "benchmark_return": benchmark_return,
+            "lookback_days": self.lookback_days,
+            "symbols_ranked": len(rankings),
+            "outperformers": len(outperformers),
+            "underperformers": len(rankings) - len(outperformers),
+            "avg_rs": np.mean(rs_values) if rs_values else 1.0,
+            "median_rs": np.median(rs_values) if rs_values else 1.0,
+            "leaders": leaders,
+            "laggards": laggards,
+            "rankings": rankings[:10],  # Top 10 for display
         }
 
 
@@ -380,9 +377,9 @@ class RSMomentumFilter:
             logger.warning(
                 f"Truncating RS cache from {len(rankings)} to {self._max_cache_size} symbols"
             )
-            rankings = rankings[:self._max_cache_size]
+            rankings = rankings[: self._max_cache_size]
 
-        self._rankings_cache = {r['symbol']: r for r in rankings}
+        self._rankings_cache = {r["symbol"]: r for r in rankings}
         self._cache_time = datetime.now()
         logger.info(f"Refreshed RS rankings for {len(self._rankings_cache)} symbols")
 
@@ -431,7 +428,7 @@ class RSMomentumFilter:
         if rs_info is None:
             return self.DEFAULT_MULTIPLIER
 
-        percentile = rs_info.get('percentile', 0.5)
+        percentile = rs_info.get("percentile", 0.5)
 
         # Top performers get larger positions, laggards get smaller
         if percentile >= self.TOP_TIER_PERCENTILE:
@@ -449,28 +446,39 @@ class RSMomentumFilter:
 if __name__ == "__main__":
     """Test relative strength ranker."""
     import asyncio
+
     from dotenv import load_dotenv
 
     load_dotenv()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     async def test():
         from brokers.alpaca_broker import AlpacaBroker
+
         broker = AlpacaBroker(paper=True)
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("RELATIVE STRENGTH RANKING")
-        print("="*60)
+        print("=" * 60)
 
         ranker = RelativeStrengthRanker(broker, lookback_days=20)
 
         # Test symbols
-        symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META',
-                   'TSLA', 'AMD', 'JPM', 'XOM', 'UNH', 'V']
+        symbols = [
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "NVDA",
+            "META",
+            "TSLA",
+            "AMD",
+            "JPM",
+            "XOM",
+            "UNH",
+            "V",
+        ]
 
         report = await ranker.get_rs_report(symbols)
 
@@ -484,9 +492,13 @@ if __name__ == "__main__":
         print(f"Median RS: {report['median_rs']:.3f}")
 
         print("\nTop 10 by Relative Strength:")
-        print("-"*50)
-        for r in report['rankings']:
-            status = "LEADER" if r['rs_ratio'] >= 1.05 else "OUTPERFORM" if r['rs_ratio'] >= 1.0 else "LAGGING"
+        print("-" * 50)
+        for r in report["rankings"]:
+            status = (
+                "LEADER"
+                if r["rs_ratio"] >= 1.05
+                else "OUTPERFORM" if r["rs_ratio"] >= 1.0 else "LAGGING"
+            )
             print(
                 f"  {r['rank']:2d}. {r['symbol']:5s} | RS: {r['rs_ratio']:.3f} | "
                 f"Return: {r['stock_return']:+.1%} | {status}"
@@ -495,6 +507,6 @@ if __name__ == "__main__":
         print(f"\nLeaders (top 30%): {', '.join(report['leaders'])}")
         print(f"Laggards (bottom 30%): {', '.join(report['laggards'])}")
 
-        print("="*60)
+        print("=" * 60)
 
     asyncio.run(test())

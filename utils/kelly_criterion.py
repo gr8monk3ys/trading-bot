@@ -38,10 +38,11 @@ Usage:
 """
 
 import logging
-import numpy as np
-from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Trade:
     """Record of a single trade for Kelly calculation."""
+
     symbol: str
     entry_time: datetime
     exit_time: datetime
@@ -143,7 +145,7 @@ class KellyCriterion:
         entry_price: float,
         exit_price: float,
         quantity: float,
-        side: str = 'long'
+        side: str = "long",
     ):
         """
         Add a trade from position details.
@@ -158,7 +160,7 @@ class KellyCriterion:
             side: 'long' or 'short'
         """
         # Calculate P/L
-        if side == 'long':
+        if side == "long":
             pnl = (exit_price - entry_price) * quantity
             pnl_pct = (exit_price - entry_price) / entry_price
         else:  # short
@@ -174,7 +176,7 @@ class KellyCriterion:
             quantity=quantity,
             pnl=pnl,
             pnl_pct=pnl_pct,
-            is_winner=pnl > 0
+            is_winner=pnl > 0,
         )
 
         self.add_trade(trade)
@@ -185,7 +187,7 @@ class KellyCriterion:
             return
 
         # Use most recent trades
-        recent_trades = self.trades[-self.lookback_trades:]
+        recent_trades = self.trades[-self.lookback_trades :]
 
         # Calculate win rate
         winners = [t for t in recent_trades if t.is_winner]
@@ -210,9 +212,7 @@ class KellyCriterion:
             self.profit_factor = 0.0
 
     def calculate_kelly_fraction(
-        self,
-        win_rate: Optional[float] = None,
-        profit_factor: Optional[float] = None
+        self, win_rate: Optional[float] = None, profit_factor: Optional[float] = None
     ) -> float:
         """
         Calculate optimal Kelly fraction.
@@ -251,7 +251,7 @@ class KellyCriterion:
         current_capital: float,
         win_rate: Optional[float] = None,
         profit_factor: Optional[float] = None,
-        current_price: Optional[float] = None
+        current_price: Optional[float] = None,
     ) -> Tuple[float, float]:
         """
         Calculate optimal position size using Kelly Criterion.
@@ -318,26 +318,26 @@ class KellyCriterion:
         """
         if not self.trades:
             return {
-                'total_trades': 0,
-                'win_rate': 0.0,
-                'avg_win': 0.0,
-                'avg_loss': 0.0,
-                'profit_factor': 0.0,
-                'kelly_fraction': 0.0
+                "total_trades": 0,
+                "win_rate": 0.0,
+                "avg_win": 0.0,
+                "avg_loss": 0.0,
+                "profit_factor": 0.0,
+                "kelly_fraction": 0.0,
             }
 
         kelly = self.calculate_kelly_fraction()
 
         return {
-            'total_trades': len(self.trades),
-            'recent_trades': min(len(self.trades), self.lookback_trades),
-            'win_rate': self.win_rate or 0.0,
-            'avg_win': self.avg_win or 0.0,
-            'avg_loss': self.avg_loss or 0.0,
-            'profit_factor': self.profit_factor or 0.0,
-            'kelly_fraction': kelly,
-            'recommended_position': kelly * self.kelly_fraction,
-            'min_trades_met': len(self.trades) >= self.min_trades_required
+            "total_trades": len(self.trades),
+            "recent_trades": min(len(self.trades), self.lookback_trades),
+            "win_rate": self.win_rate or 0.0,
+            "avg_win": self.avg_win or 0.0,
+            "avg_loss": self.avg_loss or 0.0,
+            "profit_factor": self.profit_factor or 0.0,
+            "kelly_fraction": kelly,
+            "recommended_position": kelly * self.kelly_fraction,
+            "min_trades_met": len(self.trades) >= self.min_trades_required,
         }
 
     def get_recommended_sizes_table(self, capital_levels: List[float]) -> str:
@@ -353,16 +353,16 @@ class KellyCriterion:
         kelly = self.calculate_kelly_fraction()
 
         lines = []
-        lines.append("\n" + "="*70)
+        lines.append("\n" + "=" * 70)
         lines.append("KELLY CRITERION POSITION SIZING RECOMMENDATIONS")
-        lines.append("="*70)
+        lines.append("=" * 70)
         lines.append(f"Strategy: {self._get_kelly_name()}")
         lines.append(f"Win Rate: {(self.win_rate or 0):.1%}")
         lines.append(f"Profit Factor: {(self.profit_factor or 0):.2f}")
         lines.append(f"Kelly Fraction: {kelly:.1%}")
         lines.append("")
         lines.append(f"{'Capital':<15} {'Kelly %':<12} {'Position Size':<15} {'Max Loss (2%)':<15}")
-        lines.append("-"*70)
+        lines.append("-" * 70)
 
         for capital in capital_levels:
             position_value, position_fraction = self.calculate_position_size(capital)
@@ -375,6 +375,6 @@ class KellyCriterion:
                 f"${max_loss:>12,.2f}"
             )
 
-        lines.append("="*70 + "\n")
+        lines.append("=" * 70 + "\n")
 
         return "\n".join(lines)

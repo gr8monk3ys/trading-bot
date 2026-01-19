@@ -22,13 +22,14 @@ Usage:
 """
 
 import logging
-import numpy as np
-import talib
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
-from strategies.base_strategy import BaseStrategy
+import numpy as np
+import talib
+
 from brokers.order_builder import OrderBuilder
+from strategies.base_strategy import BaseStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -61,53 +62,45 @@ class EnhancedMomentumStrategy(BaseStrategy):
         return {
             # === RSI-2 PARAMETERS (RESEARCH OPTIMIZED) ===
             # Larry Connors RSI-2 strategy: 91% win rate
-            'rsi_period': 2,              # Short-term RSI (not 14!)
-            'rsi_oversold': 10,           # Extreme oversold (not 30!)
-            'rsi_overbought': 90,         # Extreme overbought (not 70!)
-
+            "rsi_period": 2,  # Short-term RSI (not 14!)
+            "rsi_oversold": 10,  # Extreme oversold (not 30!)
+            "rsi_overbought": 90,  # Extreme overbought (not 70!)
             # === POSITION SIZING (KELLY CRITERION) ===
-            'use_kelly_criterion': True,   # Enable optimal sizing
-            'kelly_fraction': 0.5,         # Half-Kelly (75% profit, 25% variance)
-            'min_position_size': 0.05,     # Minimum 5% position
-            'max_position_size': 0.20,     # Maximum 20% position
-            'position_size': 0.10,         # Fallback if Kelly unavailable
-
+            "use_kelly_criterion": True,  # Enable optimal sizing
+            "kelly_fraction": 0.5,  # Half-Kelly (75% profit, 25% variance)
+            "min_position_size": 0.05,  # Minimum 5% position
+            "max_position_size": 0.20,  # Maximum 20% position
+            "position_size": 0.10,  # Fallback if Kelly unavailable
             # === MULTI-TIMEFRAME (ENABLED) ===
-            'use_multi_timeframe': True,
-            'mtf_min_confidence': 0.70,    # Require 70% confidence
-            'mtf_require_daily_alignment': True,  # Daily TF has veto power
-
+            "use_multi_timeframe": True,
+            "mtf_min_confidence": 0.70,  # Require 70% confidence
+            "mtf_require_daily_alignment": True,  # Daily TF has veto power
             # === VOLATILITY REGIME (ENABLED) ===
-            'use_volatility_regime': True,
-
+            "use_volatility_regime": True,
             # === RISK MANAGEMENT ===
-            'max_positions': 5,            # Allow more positions with better signals
-            'max_portfolio_risk': 0.02,
-            'stop_loss': 0.02,             # Tighter stop (2%)
-            'take_profit': 0.04,           # Faster exits (4%)
-
+            "max_positions": 5,  # Allow more positions with better signals
+            "max_portfolio_risk": 0.02,
+            "stop_loss": 0.02,  # Tighter stop (2%)
+            "take_profit": 0.04,  # Faster exits (4%)
             # === ATR TRAILING STOP ===
-            'use_atr_trailing_stop': True,
-            'atr_period': 14,
-            'atr_multiplier': 2.0,         # 2x ATR for trailing stop
-
+            "use_atr_trailing_stop": True,
+            "atr_period": 14,
+            "atr_multiplier": 2.0,  # 2x ATR for trailing stop
             # === STANDARD INDICATORS ===
-            'macd_fast_period': 12,
-            'macd_slow_period': 26,
-            'macd_signal_period': 9,
-            'adx_period': 14,
-            'adx_threshold': 20,           # Lower threshold for more signals
-            'volume_ma_period': 20,
-            'volume_factor': 1.2,          # Require 20% above avg volume
-
+            "macd_fast_period": 12,
+            "macd_slow_period": 26,
+            "macd_signal_period": 9,
+            "adx_period": 14,
+            "adx_threshold": 20,  # Lower threshold for more signals
+            "volume_ma_period": 20,
+            "volume_factor": 1.2,  # Require 20% above avg volume
             # === MOVING AVERAGES ===
-            'fast_ma_period': 10,
-            'medium_ma_period': 20,
-            'slow_ma_period': 50,
-
+            "fast_ma_period": 10,
+            "medium_ma_period": 20,
+            "slow_ma_period": 50,
             # === TIMING ===
-            'min_bars_required': 50,       # Need enough data for indicators
-            'signal_cooldown_minutes': 30,  # Avoid overtrading
+            "min_bars_required": 50,  # Need enough data for indicators
+            "signal_cooldown_minutes": 30,  # Avoid overtrading
         }
 
     async def initialize(self, **kwargs):
@@ -121,29 +114,30 @@ class EnhancedMomentumStrategy(BaseStrategy):
             self.parameters = params
 
             # Extract commonly used parameters
-            self.rsi_period = self.parameters['rsi_period']
-            self.rsi_oversold = self.parameters['rsi_oversold']
-            self.rsi_overbought = self.parameters['rsi_overbought']
+            self.rsi_period = self.parameters["rsi_period"]
+            self.rsi_oversold = self.parameters["rsi_oversold"]
+            self.rsi_overbought = self.parameters["rsi_overbought"]
 
             # Initialize tracking
             self.indicators = {symbol: {} for symbol in self.symbols}
-            self.signals = {symbol: 'neutral' for symbol in self.symbols}
-            self.last_signal_time = {symbol: None for symbol in self.symbols}
+            self.signals = dict.fromkeys(self.symbols, "neutral")
+            self.last_signal_time = dict.fromkeys(self.symbols)
             self.stop_prices = {}
             self.target_prices = {}
             self.current_prices = {}
             self.price_history = {symbol: [] for symbol in self.symbols}
 
             # Kelly Criterion setup
-            self.use_kelly = self.parameters.get('use_kelly_criterion', True)
+            self.use_kelly = self.parameters.get("use_kelly_criterion", True)
             self.kelly_calculator = None
             if self.use_kelly:
                 try:
                     from utils.kelly_criterion import KellyCriterion
+
                     self.kelly_calculator = KellyCriterion(
-                        kelly_fraction=self.parameters.get('kelly_fraction', 0.5),
-                        max_position_size=self.parameters.get('max_position_size', 0.20),
-                        min_position_size=self.parameters.get('min_position_size', 0.05),
+                        kelly_fraction=self.parameters.get("kelly_fraction", 0.5),
+                        max_position_size=self.parameters.get("max_position_size", 0.20),
+                        min_position_size=self.parameters.get("min_position_size", 0.05),
                     )
                     logger.info("✅ Kelly Criterion position sizing ENABLED")
                 except ImportError:
@@ -151,11 +145,12 @@ class EnhancedMomentumStrategy(BaseStrategy):
                     self.use_kelly = False
 
             # Multi-timeframe setup
-            self.use_mtf = self.parameters.get('use_multi_timeframe', True)
+            self.use_mtf = self.parameters.get("use_multi_timeframe", True)
             self.mtf_analyzer = None
             if self.use_mtf:
                 try:
                     from utils.multi_timeframe_analyzer import MultiTimeframeAnalyzer
+
                     self.mtf_analyzer = MultiTimeframeAnalyzer(self.broker)
                     logger.info("✅ Multi-timeframe analysis ENABLED")
                 except ImportError:
@@ -163,11 +158,12 @@ class EnhancedMomentumStrategy(BaseStrategy):
                     self.use_mtf = False
 
             # Volatility regime setup
-            self.use_vol_regime = self.parameters.get('use_volatility_regime', True)
+            self.use_vol_regime = self.parameters.get("use_volatility_regime", True)
             self.vol_detector = None
             if self.use_vol_regime:
                 try:
                     from utils.volatility_regime import VolatilityRegimeDetector
+
                     self.vol_detector = VolatilityRegimeDetector(self.broker)
                     logger.info("✅ Volatility regime detection ENABLED")
                 except ImportError:
@@ -202,12 +198,10 @@ class EnhancedMomentumStrategy(BaseStrategy):
         try:
             # Get historical data
             bars = await self.broker.get_bars(
-                symbol=symbol,
-                timeframe='1Day',
-                limit=self.parameters['min_bars_required']
+                symbol=symbol, timeframe="1Day", limit=self.parameters["min_bars_required"]
             )
 
-            if not bars or len(bars) < self.parameters['min_bars_required']:
+            if not bars or len(bars) < self.parameters["min_bars_required"]:
                 logger.debug(f"{symbol}: Insufficient data ({len(bars) if bars else 0} bars)")
                 return None
 
@@ -230,41 +224,41 @@ class EnhancedMomentumStrategy(BaseStrategy):
             # Calculate MACD
             macd, macd_signal, macd_hist = talib.MACD(
                 closes,
-                fastperiod=self.parameters['macd_fast_period'],
-                slowperiod=self.parameters['macd_slow_period'],
-                signalperiod=self.parameters['macd_signal_period']
+                fastperiod=self.parameters["macd_fast_period"],
+                slowperiod=self.parameters["macd_slow_period"],
+                signalperiod=self.parameters["macd_signal_period"],
             )
 
             # Calculate ADX (trend strength)
-            adx = talib.ADX(highs, lows, closes, timeperiod=self.parameters['adx_period'])
+            adx = talib.ADX(highs, lows, closes, timeperiod=self.parameters["adx_period"])
             current_adx = adx[-1]
 
             # Calculate ATR for trailing stops
-            atr = talib.ATR(highs, lows, closes, timeperiod=self.parameters['atr_period'])
+            atr = talib.ATR(highs, lows, closes, timeperiod=self.parameters["atr_period"])
             current_atr = atr[-1]
 
             # Moving averages
-            sma_fast = talib.SMA(closes, timeperiod=self.parameters['fast_ma_period'])
-            sma_medium = talib.SMA(closes, timeperiod=self.parameters['medium_ma_period'])
-            sma_slow = talib.SMA(closes, timeperiod=self.parameters['slow_ma_period'])
+            sma_fast = talib.SMA(closes, timeperiod=self.parameters["fast_ma_period"])
+            sma_medium = talib.SMA(closes, timeperiod=self.parameters["medium_ma_period"])
+            sma_slow = talib.SMA(closes, timeperiod=self.parameters["slow_ma_period"])
 
             # Volume confirmation
-            volume_ma = talib.SMA(volumes, timeperiod=self.parameters['volume_ma_period'])
-            volume_confirmed = volumes[-1] > volume_ma[-1] * self.parameters['volume_factor']
+            volume_ma = talib.SMA(volumes, timeperiod=self.parameters["volume_ma_period"])
+            volume_confirmed = volumes[-1] > volume_ma[-1] * self.parameters["volume_factor"]
 
             # Store indicators
             self.indicators[symbol] = {
-                'rsi': current_rsi,
-                'macd': macd[-1],
-                'macd_signal': macd_signal[-1],
-                'macd_hist': macd_hist[-1],
-                'adx': current_adx,
-                'atr': current_atr,
-                'sma_fast': sma_fast[-1],
-                'sma_medium': sma_medium[-1],
-                'sma_slow': sma_slow[-1],
-                'volume_confirmed': volume_confirmed,
-                'price': current_price
+                "rsi": current_rsi,
+                "macd": macd[-1],
+                "macd_signal": macd_signal[-1],
+                "macd_hist": macd_hist[-1],
+                "adx": current_adx,
+                "atr": current_atr,
+                "sma_fast": sma_fast[-1],
+                "sma_medium": sma_medium[-1],
+                "sma_slow": sma_slow[-1],
+                "volume_confirmed": volume_confirmed,
+                "price": current_price,
             }
 
             # === RSI-2 SIGNAL LOGIC ===
@@ -275,22 +269,22 @@ class EnhancedMomentumStrategy(BaseStrategy):
 
             # BUY CONDITIONS (RSI-2 Strategy)
             buy_conditions = [
-                current_rsi < self.rsi_oversold,          # RSI-2 < 10
-                current_price > sma_slow[-1],             # Price above 50 MA (uptrend filter)
-                macd_hist[-1] > macd_hist[-2],            # MACD improving
-                current_adx > self.parameters['adx_threshold'],  # Trend strength
+                current_rsi < self.rsi_oversold,  # RSI-2 < 10
+                current_price > sma_slow[-1],  # Price above 50 MA (uptrend filter)
+                macd_hist[-1] > macd_hist[-2],  # MACD improving
+                current_adx > self.parameters["adx_threshold"],  # Trend strength
             ]
 
             # SELL CONDITIONS (Exit long or go short)
             sell_conditions = [
-                current_rsi > self.rsi_overbought,        # RSI-2 > 90
-                current_price < sma_fast[-1],             # Price below 10 MA
-                macd_hist[-1] < 0,                        # MACD bearish
+                current_rsi > self.rsi_overbought,  # RSI-2 > 90
+                current_price < sma_fast[-1],  # Price below 10 MA
+                macd_hist[-1] < 0,  # MACD bearish
             ]
 
             # Check buy signal
             if sum(buy_conditions) >= 3:  # At least 3 of 4 conditions
-                signal = 'buy'
+                signal = "buy"
                 logger.info(
                     f"📈 {symbol} BUY signal (RSI-2={current_rsi:.1f}, "
                     f"ADX={current_adx:.1f}, Volume={'✓' if volume_confirmed else '✗'})"
@@ -298,7 +292,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
 
             # Check sell signal
             elif sum(sell_conditions) >= 2:  # At least 2 of 3 conditions
-                signal = 'sell'
+                signal = "sell"
                 logger.info(
                     f"📉 {symbol} SELL signal (RSI-2={current_rsi:.1f}, "
                     f"MACD={macd_hist[-1]:.4f})"
@@ -308,12 +302,14 @@ class EnhancedMomentumStrategy(BaseStrategy):
             if signal and self.use_mtf and self.mtf_analyzer:
                 mtf_analysis = await self.mtf_analyzer.analyze(
                     symbol,
-                    min_confidence=self.parameters.get('mtf_min_confidence', 0.70),
-                    require_daily_alignment=self.parameters.get('mtf_require_daily_alignment', True)
+                    min_confidence=self.parameters.get("mtf_min_confidence", 0.70),
+                    require_daily_alignment=self.parameters.get(
+                        "mtf_require_daily_alignment", True
+                    ),
                 )
 
                 if mtf_analysis:
-                    if not mtf_analysis['should_enter']:
+                    if not mtf_analysis["should_enter"]:
                         logger.info(
                             f"⏭️  {symbol}: Signal filtered by MTF "
                             f"(confidence={mtf_analysis['confidence']:.0%})"
@@ -325,7 +321,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
                             f"(confidence={mtf_analysis['confidence']:.0%})"
                         )
 
-            self.signals[symbol] = signal or 'neutral'
+            self.signals[symbol] = signal or "neutral"
             return signal
 
         except Exception as e:
@@ -345,7 +341,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
             buying_power = float(account.buying_power)
 
             # Base position size
-            base_size = self.parameters.get('position_size', 0.10)
+            base_size = self.parameters.get("position_size", 0.10)
 
             # === KELLY CRITERION ADJUSTMENT ===
             if self.use_kelly and self.kelly_calculator:
@@ -359,9 +355,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
 
                     # Get Kelly-optimal size
                     _, kelly_fraction = self.kelly_calculator.calculate_position_size(
-                        current_capital=buying_power,
-                        win_rate=win_rate,
-                        profit_factor=profit_factor
+                        current_capital=buying_power, win_rate=win_rate, profit_factor=profit_factor
                     )
                     base_size = kelly_fraction
                     logger.debug(
@@ -373,7 +367,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
             if self.use_vol_regime and self.vol_detector:
                 try:
                     regime, adjustments = await self.vol_detector.get_current_regime()
-                    pos_mult = adjustments.get('pos_mult', 1.0)
+                    pos_mult = adjustments.get("pos_mult", 1.0)
                     base_size = base_size * pos_mult
                     logger.debug(
                         f"Volatility regime: {regime}, pos_mult={pos_mult:.1f}, "
@@ -383,22 +377,20 @@ class EnhancedMomentumStrategy(BaseStrategy):
                     logger.warning(f"Error getting volatility regime: {e}")
 
             # Apply limits
-            min_size = self.parameters.get('min_position_size', 0.05)
-            max_size = self.parameters.get('max_position_size', 0.20)
+            min_size = self.parameters.get("min_position_size", 0.05)
+            max_size = self.parameters.get("max_position_size", 0.20)
             position_size = max(min_size, min(max_size, base_size))
 
             # Calculate dollar amount
             position_value = buying_power * position_size
 
-            logger.info(
-                f"Position size for {symbol}: {position_size:.1%} = ${position_value:,.2f}"
-            )
+            logger.info(f"Position size for {symbol}: {position_size:.1%} = ${position_value:,.2f}")
 
             return position_size
 
         except Exception as e:
             logger.error(f"Error calculating position size: {e}", exc_info=True)
-            return self.parameters.get('position_size', 0.10)
+            return self.parameters.get("position_size", 0.10)
 
     async def execute_trade(self, symbol: str, signal: str) -> bool:
         """
@@ -418,7 +410,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
             # Get current price and ATR
             current_price = self.current_prices.get(symbol)
             indicators = self.indicators.get(symbol, {})
-            atr = indicators.get('atr', current_price * 0.02)  # Default 2% ATR
+            atr = indicators.get("atr", current_price * 0.02)  # Default 2% ATR
 
             if not current_price:
                 logger.error(f"No price data for {symbol}")
@@ -437,21 +429,16 @@ class EnhancedMomentumStrategy(BaseStrategy):
                 return False
 
             # Calculate stop and target prices
-            if signal == 'buy':
+            if signal == "buy":
                 # ATR-based stop loss
-                stop_price = current_price - (atr * self.parameters['atr_multiplier'])
-                target_price = current_price * (1 + self.parameters['take_profit'])
+                stop_price = current_price - (atr * self.parameters["atr_multiplier"])
+                target_price = current_price * (1 + self.parameters["take_profit"])
             else:  # sell (close position)
                 stop_price = None
                 target_price = None
 
             # Build order
-            order = (
-                OrderBuilder(symbol, signal, quantity)
-                .market()
-                .day()
-                .build()
-            )
+            order = OrderBuilder(symbol, signal, quantity).market().day().build()
 
             # Submit order
             result = await self.broker.submit_order_advanced(order)
@@ -497,16 +484,14 @@ class EnhancedMomentumStrategy(BaseStrategy):
             self.loss_count += 1
             self.total_losses += abs(pnl_pct)
 
-        self.trade_history.append({
-            'symbol': symbol,
-            'pnl': pnl,
-            'pnl_pct': pnl_pct,
-            'timestamp': datetime.now()
-        })
+        self.trade_history.append(
+            {"symbol": symbol, "pnl": pnl, "pnl_pct": pnl_pct, "timestamp": datetime.now()}
+        )
 
         # Update Kelly calculator if available
         if self.use_kelly and self.kelly_calculator:
             from utils.kelly_criterion import Trade
+
             trade = Trade(
                 symbol=symbol,
                 entry_time=datetime.now() - timedelta(hours=1),  # Approximate
@@ -516,7 +501,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
                 quantity=1,
                 pnl=pnl,
                 pnl_pct=pnl_pct,
-                is_winner=pnl > 0
+                is_winner=pnl > 0,
             )
             self.kelly_calculator.add_trade(trade)
 
@@ -525,7 +510,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
         total_trades = self.win_count + self.loss_count
 
         if total_trades == 0:
-            return {'total_trades': 0}
+            return {"total_trades": 0}
 
         win_rate = self.win_count / total_trades if total_trades > 0 else 0
         avg_win = self.total_wins / self.win_count if self.win_count > 0 else 0
@@ -533,14 +518,14 @@ class EnhancedMomentumStrategy(BaseStrategy):
         profit_factor = self.total_wins / self.total_losses if self.total_losses > 0 else 0
 
         return {
-            'total_trades': total_trades,
-            'win_count': self.win_count,
-            'loss_count': self.loss_count,
-            'win_rate': win_rate,
-            'avg_win_pct': avg_win,
-            'avg_loss_pct': avg_loss,
-            'profit_factor': profit_factor,
-            'kelly_enabled': self.use_kelly,
-            'mtf_enabled': self.use_mtf,
-            'vol_regime_enabled': self.use_vol_regime
+            "total_trades": total_trades,
+            "win_count": self.win_count,
+            "loss_count": self.loss_count,
+            "win_rate": win_rate,
+            "avg_win_pct": avg_win,
+            "avg_loss_pct": avg_loss,
+            "profit_factor": profit_factor,
+            "kelly_enabled": self.use_kelly,
+            "mtf_enabled": self.use_mtf,
+            "vol_regime_enabled": self.use_vol_regime,
         }

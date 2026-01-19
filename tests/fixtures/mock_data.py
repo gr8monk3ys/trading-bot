@@ -1,17 +1,16 @@
 """
 Mock data generators for testing
 """
-import pandas as pd
-import numpy as np
+
 from datetime import datetime
 from typing import Dict, List
 
+import numpy as np
+import pandas as pd
+
 
 def generate_price_series(
-    start_price: float = 100.0,
-    days: int = 100,
-    trend: str = "neutral",
-    volatility: float = 0.02
+    start_price: float = 100.0, days: int = 100, trend: str = "neutral", volatility: float = 0.02
 ) -> pd.Series:
     """
     Generate a price series for testing
@@ -25,7 +24,7 @@ def generate_price_series(
     Returns:
         pandas Series with datetime index
     """
-    dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
 
     # Drift based on trend
     drift_map = {"up": 0.001, "down": -0.001, "neutral": 0.0}
@@ -43,7 +42,7 @@ def generate_ohlcv_data(
     days: int = 100,
     start_price: float = 100.0,
     trend: str = "neutral",
-    volatility: float = 0.02
+    volatility: float = 0.02,
 ) -> pd.DataFrame:
     """
     Generate OHLCV data for testing
@@ -58,7 +57,7 @@ def generate_ohlcv_data(
     Returns:
         DataFrame with columns: open, high, low, close, volume
     """
-    dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
 
     # Generate close prices
     close_series = generate_price_series(start_price, days, trend, volatility)
@@ -73,22 +72,23 @@ def generate_ohlcv_data(
         low = float(min(open_price, close) - daily_range * 0.5)
         volume = float(np.random.uniform(1_000_000, 10_000_000))
 
-        data.append({
-            'timestamp': date,
-            'open': open_price,
-            'high': high,
-            'low': low,
-            'close': close,
-            'volume': volume,
-            'symbol': symbol
-        })
+        data.append(
+            {
+                "timestamp": date,
+                "open": open_price,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+                "symbol": symbol,
+            }
+        )
 
     return pd.DataFrame(data)
 
 
 def generate_technical_indicators(
-    prices: pd.Series,
-    periods: List[int] = [20, 50, 200]
+    prices: pd.Series, periods: List[int] = [20, 50, 200]
 ) -> Dict[str, pd.Series]:
     """
     Generate common technical indicators for testing
@@ -104,23 +104,23 @@ def generate_technical_indicators(
 
     # Simple Moving Averages
     for period in periods:
-        indicators[f'sma_{period}'] = prices.rolling(window=period).mean()
+        indicators[f"sma_{period}"] = prices.rolling(window=period).mean()
 
     # RSI
     delta = prices.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
-    indicators['rsi'] = 100 - (100 / (1 + rs))
+    indicators["rsi"] = 100 - (100 / (1 + rs))
 
     # Bollinger Bands
     sma20 = prices.rolling(window=20).mean()
     std20 = prices.rolling(window=20).std()
-    indicators['bb_upper'] = sma20 + (std20 * 2)
-    indicators['bb_lower'] = sma20 - (std20 * 2)
+    indicators["bb_upper"] = sma20 + (std20 * 2)
+    indicators["bb_lower"] = sma20 - (std20 * 2)
 
     # Volume-weighted average price (simplified)
-    indicators['vwap'] = prices.rolling(window=20).mean()
+    indicators["vwap"] = prices.rolling(window=20).mean()
 
     return indicators
 
@@ -133,11 +133,7 @@ def generate_momentum_scenario(days: int = 100) -> pd.DataFrame:
         OHLCV DataFrame with momentum characteristics
     """
     return generate_ohlcv_data(
-        symbol="MOMENTUM_TEST",
-        days=days,
-        start_price=100.0,
-        trend="up",
-        volatility=0.015
+        symbol="MOMENTUM_TEST", days=days, start_price=100.0, trend="up", volatility=0.015
     )
 
 
@@ -148,15 +144,16 @@ def generate_mean_reversion_scenario(days: int = 100) -> pd.DataFrame:
     Returns:
         OHLCV DataFrame with mean-reverting characteristics
     """
-    dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
+    dates = pd.date_range(end=datetime.now(), periods=days, freq="D")
 
     # Create oscillating pattern
     mean_price = 100.0
     amplitude = 10.0
     frequency = 0.1
 
-    closes = mean_price + amplitude * np.sin(np.arange(days) * frequency) + \
-             np.random.normal(0, 2, days)
+    closes = (
+        mean_price + amplitude * np.sin(np.arange(days) * frequency) + np.random.normal(0, 2, days)
+    )
 
     data = []
     for i, (date, close) in enumerate(zip(dates, closes)):
@@ -166,15 +163,17 @@ def generate_mean_reversion_scenario(days: int = 100) -> pd.DataFrame:
         low = float(min(open_price, close) - daily_range * 0.5)
         volume = float(np.random.uniform(1_000_000, 10_000_000))
 
-        data.append({
-            'timestamp': date,
-            'open': open_price,
-            'high': high,
-            'low': low,
-            'close': close,
-            'volume': volume,
-            'symbol': 'MEANREV_TEST'
-        })
+        data.append(
+            {
+                "timestamp": date,
+                "open": open_price,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+                "symbol": "MEANREV_TEST",
+            }
+        )
 
     return pd.DataFrame(data)
 
@@ -191,7 +190,7 @@ def generate_volatile_scenario(days: int = 100) -> pd.DataFrame:
         days=days,
         start_price=100.0,
         trend="neutral",
-        volatility=0.05  # High volatility
+        volatility=0.05,  # High volatility
     )
 
 
@@ -207,13 +206,12 @@ def generate_sideways_scenario(days: int = 100) -> pd.DataFrame:
         days=days,
         start_price=100.0,
         trend="neutral",
-        volatility=0.01  # Low volatility
+        volatility=0.01,  # Low volatility
     )
 
 
 def generate_multi_symbol_data(
-    symbols: List[str] = ["AAPL", "TSLA", "SPY"],
-    days: int = 100
+    symbols: List[str] = ["AAPL", "TSLA", "SPY"], days: int = 100
 ) -> Dict[str, pd.DataFrame]:
     """
     Generate OHLCV data for multiple symbols
@@ -244,16 +242,14 @@ def generate_multi_symbol_data(
             days=days,
             start_price=np.random.uniform(50, 200),
             trend=trend,
-            volatility=volatility
+            volatility=volatility,
         )
 
     return data
 
 
 def generate_backtest_data(
-    start_date: str = "2024-01-01",
-    end_date: str = "2024-03-01",
-    symbols: List[str] = ["TEST"]
+    start_date: str = "2024-01-01", end_date: str = "2024-03-01", symbols: List[str] = ["TEST"]
 ) -> Dict[str, pd.DataFrame]:
     """
     Generate data suitable for backtesting
@@ -274,16 +270,14 @@ def generate_backtest_data(
     for symbol in symbols:
         df = generate_ohlcv_data(symbol=symbol, days=days)
         # Adjust dates to match requested range
-        df['timestamp'] = pd.date_range(start=start, end=end, periods=len(df))
+        df["timestamp"] = pd.date_range(start=start, end=end, periods=len(df))
         data[symbol] = df
 
     return data
 
 
 def generate_account_data(
-    equity: float = 100000.0,
-    cash: float = 50000.0,
-    positions: int = 5
+    equity: float = 100000.0, cash: float = 50000.0, positions: int = 5
 ) -> dict:
     """
     Generate mock account data
@@ -297,22 +291,19 @@ def generate_account_data(
         Dictionary with account data
     """
     return {
-        'id': 'test_account_123',
-        'equity': equity,
-        'cash': cash,
-        'buying_power': cash * 4,  # 4x margin
-        'portfolio_value': equity,
-        'position_count': positions,
-        'long_market_value': equity - cash,
-        'short_market_value': 0.0
+        "id": "test_account_123",
+        "equity": equity,
+        "cash": cash,
+        "buying_power": cash * 4,  # 4x margin
+        "portfolio_value": equity,
+        "position_count": positions,
+        "long_market_value": equity - cash,
+        "short_market_value": 0.0,
     }
 
 
 def generate_position_data(
-    symbol: str = "TEST",
-    qty: float = 100,
-    entry_price: float = 100.0,
-    current_price: float = 105.0
+    symbol: str = "TEST", qty: float = 100, entry_price: float = 100.0, current_price: float = 105.0
 ) -> dict:
     """
     Generate mock position data
@@ -332,13 +323,13 @@ def generate_position_data(
     unrealized_plpc = (current_price - entry_price) / entry_price
 
     return {
-        'symbol': symbol,
-        'qty': qty,
-        'side': 'long',
-        'avg_entry_price': entry_price,
-        'current_price': current_price,
-        'market_value': market_value,
-        'cost_basis': cost_basis,
-        'unrealized_pl': unrealized_pl,
-        'unrealized_plpc': unrealized_plpc
+        "symbol": symbol,
+        "qty": qty,
+        "side": "long",
+        "avg_entry_price": entry_price,
+        "current_price": current_price,
+        "market_value": market_value,
+        "cost_basis": cost_basis,
+        "unrealized_pl": unrealized_pl,
+        "unrealized_plpc": unrealized_plpc,
     }

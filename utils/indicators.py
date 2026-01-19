@@ -28,10 +28,11 @@ Usage:
     bb_upper, bb_middle, bb_lower = indicators.bollinger_bands(period=20, std=2.0)
 """
 
+from datetime import datetime
+from typing import Dict, List, Tuple
+
 import numpy as np
 import talib
-from typing import Tuple, Dict, List
-from datetime import datetime
 
 
 class TechnicalIndicators:
@@ -42,13 +43,15 @@ class TechnicalIndicators:
     NaN values indicate insufficient data for calculation.
     """
 
-    def __init__(self,
-                 high: np.ndarray = None,
-                 low: np.ndarray = None,
-                 close: np.ndarray = None,
-                 open_: np.ndarray = None,
-                 volume: np.ndarray = None,
-                 timestamps: List[datetime] = None):
+    def __init__(
+        self,
+        high: np.ndarray = None,
+        low: np.ndarray = None,
+        close: np.ndarray = None,
+        open_: np.ndarray = None,
+        volume: np.ndarray = None,
+        timestamps: List[datetime] = None,
+    ):
         """
         Initialize with price/volume data.
 
@@ -69,7 +72,7 @@ class TechnicalIndicators:
 
     # ==================== TREND INDICATORS ====================
 
-    def sma(self, period: int = 20, price: str = 'close') -> np.ndarray:
+    def sma(self, period: int = 20, price: str = "close") -> np.ndarray:
         """
         Simple Moving Average.
 
@@ -83,7 +86,7 @@ class TechnicalIndicators:
         prices = self._get_price_array(price)
         return talib.SMA(prices, timeperiod=period)
 
-    def ema(self, period: int = 20, price: str = 'close') -> np.ndarray:
+    def ema(self, period: int = 20, price: str = "close") -> np.ndarray:
         """
         Exponential Moving Average.
 
@@ -97,10 +100,9 @@ class TechnicalIndicators:
         prices = self._get_price_array(price)
         return talib.EMA(prices, timeperiod=period)
 
-    def macd(self,
-             fast_period: int = 12,
-             slow_period: int = 26,
-             signal_period: int = 9) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def macd(
+        self, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Moving Average Convergence Divergence.
 
@@ -113,10 +115,7 @@ class TechnicalIndicators:
             Tuple of (macd, signal, histogram)
         """
         return talib.MACD(
-            self.close,
-            fastperiod=fast_period,
-            slowperiod=slow_period,
-            signalperiod=signal_period
+            self.close, fastperiod=fast_period, slowperiod=slow_period, signalperiod=signal_period
         )
 
     def adx(self, period: int = 14) -> np.ndarray:
@@ -156,9 +155,7 @@ class TechnicalIndicators:
         minus_di = talib.MINUS_DI(self.high, self.low, self.close, timeperiod=period)
         return adx, plus_di, minus_di
 
-    def parabolic_sar(self,
-                      acceleration: float = 0.02,
-                      maximum: float = 0.2) -> np.ndarray:
+    def parabolic_sar(self, acceleration: float = 0.02, maximum: float = 0.2) -> np.ndarray:
         """
         Parabolic SAR (Stop and Reverse).
 
@@ -177,7 +174,7 @@ class TechnicalIndicators:
 
     # ==================== MOMENTUM INDICATORS ====================
 
-    def rsi(self, period: int = 14, price: str = 'close') -> np.ndarray:
+    def rsi(self, period: int = 14, price: str = "close") -> np.ndarray:
         """
         Relative Strength Index.
 
@@ -195,10 +192,9 @@ class TechnicalIndicators:
         prices = self._get_price_array(price)
         return talib.RSI(prices, timeperiod=period)
 
-    def stochastic(self,
-                   fastk_period: int = 14,
-                   slowk_period: int = 3,
-                   slowd_period: int = 3) -> Tuple[np.ndarray, np.ndarray]:
+    def stochastic(
+        self, fastk_period: int = 14, slowk_period: int = 3, slowd_period: int = 3
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Stochastic Oscillator.
 
@@ -226,15 +222,13 @@ class TechnicalIndicators:
             slowk_period=slowk_period,
             slowk_matype=0,
             slowd_period=slowd_period,
-            slowd_matype=0
+            slowd_matype=0,
         )
         return slowk, slowd
 
-    def stochastic_rsi(self,
-                       rsi_period: int = 14,
-                       stoch_period: int = 14,
-                       k_period: int = 3,
-                       d_period: int = 3) -> Tuple[np.ndarray, np.ndarray]:
+    def stochastic_rsi(
+        self, rsi_period: int = 14, stoch_period: int = 14, k_period: int = 3, d_period: int = 3
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Stochastic RSI (more sensitive than regular Stochastic).
 
@@ -254,7 +248,7 @@ class TechnicalIndicators:
             timeperiod=rsi_period,
             fastk_period=k_period,
             fastd_period=d_period,
-            fastd_matype=0
+            fastd_matype=0,
         )
         return fastk, fastd
 
@@ -290,7 +284,7 @@ class TechnicalIndicators:
         """
         return talib.WILLR(self.high, self.low, self.close, timeperiod=period)
 
-    def roc(self, period: int = 12, price: str = 'close') -> np.ndarray:
+    def roc(self, period: int = 12, price: str = "close") -> np.ndarray:
         """
         Rate of Change (price momentum).
 
@@ -310,10 +304,9 @@ class TechnicalIndicators:
 
     # ==================== VOLATILITY INDICATORS ====================
 
-    def bollinger_bands(self,
-                        period: int = 20,
-                        std: float = 2.0,
-                        price: str = 'close') -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def bollinger_bands(
+        self, period: int = 20, std: float = 2.0, price: str = "close"
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Bollinger Bands (volatility and overbought/oversold).
 
@@ -333,11 +326,7 @@ class TechnicalIndicators:
         """
         prices = self._get_price_array(price)
         upper, middle, lower = talib.BBANDS(
-            prices,
-            timeperiod=period,
-            nbdevup=std,
-            nbdevdn=std,
-            matype=0
+            prices, timeperiod=period, nbdevup=std, nbdevdn=std, matype=0
         )
         return upper, middle, lower
 
@@ -357,10 +346,9 @@ class TechnicalIndicators:
         """
         return talib.ATR(self.high, self.low, self.close, timeperiod=period)
 
-    def keltner_channels(self,
-                         ema_period: int = 20,
-                         atr_period: int = 10,
-                         atr_multiplier: float = 2.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def keltner_channels(
+        self, ema_period: int = 20, atr_period: int = 10, atr_multiplier: float = 2.0
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Keltner Channels (volatility-based bands).
 
@@ -382,7 +370,7 @@ class TechnicalIndicators:
 
         return upper, middle, lower
 
-    def stddev(self, period: int = 20, price: str = 'close') -> np.ndarray:
+    def stddev(self, period: int = 20, price: str = "close") -> np.ndarray:
         """
         Standard Deviation (volatility measure).
 
@@ -423,7 +411,7 @@ class TechnicalIndicators:
             vwap_values = np.zeros(len(typical_price))
 
             # Group by date
-            dates = [ts.date() if hasattr(ts, 'date') else ts for ts in self.timestamps]
+            dates = [ts.date() if hasattr(ts, "date") else ts for ts in self.timestamps]
             unique_dates = sorted(set(dates))
 
             for date in unique_dates:
@@ -545,15 +533,11 @@ class TechnicalIndicators:
         s2 = pp - (high - low)
         s3 = low - 2 * (high - pp)
 
-        return {
-            'PP': pp,
-            'R1': r1, 'R2': r2, 'R3': r3,
-            'S1': s1, 'S2': s2, 'S3': s3
-        }
+        return {"PP": pp, "R1": r1, "R2": r2, "R3": r3, "S1": s1, "S2": s2, "S3": s3}
 
-    def fibonacci_retracement(self,
-                              swing_high: float = None,
-                              swing_low: float = None) -> Dict[str, float]:
+    def fibonacci_retracement(
+        self, swing_high: float = None, swing_low: float = None
+    ) -> Dict[str, float]:
         """
         Fibonacci Retracement Levels.
 
@@ -573,26 +557,26 @@ class TechnicalIndicators:
         diff = swing_high - swing_low
 
         return {
-            '0.0%': swing_high,
-            '23.6%': swing_high - 0.236 * diff,
-            '38.2%': swing_high - 0.382 * diff,
-            '50.0%': swing_high - 0.500 * diff,
-            '61.8%': swing_high - 0.618 * diff,
-            '78.6%': swing_high - 0.786 * diff,
-            '100.0%': swing_low
+            "0.0%": swing_high,
+            "23.6%": swing_high - 0.236 * diff,
+            "38.2%": swing_high - 0.382 * diff,
+            "50.0%": swing_high - 0.500 * diff,
+            "61.8%": swing_high - 0.618 * diff,
+            "78.6%": swing_high - 0.786 * diff,
+            "100.0%": swing_low,
         }
 
     # ==================== HELPER METHODS ====================
 
     def _get_price_array(self, price: str) -> np.ndarray:
         """Get price array by name."""
-        if price == 'close':
+        if price == "close":
             return self.close
-        elif price == 'high':
+        elif price == "high":
             return self.high
-        elif price == 'low':
+        elif price == "low":
             return self.low
-        elif price == 'open':
+        elif price == "open":
             return self.open
         else:
             raise ValueError(f"Invalid price type: {price}")
@@ -607,12 +591,12 @@ class TechnicalIndicators:
             Dict with all momentum indicator values
         """
         return {
-            'rsi': self.rsi(),
-            'stochastic': self.stochastic(),
-            'cci': self.cci(),
-            'williams_r': self.williams_r(),
-            'roc': self.roc(),
-            'macd': self.macd()
+            "rsi": self.rsi(),
+            "stochastic": self.stochastic(),
+            "cci": self.cci(),
+            "williams_r": self.williams_r(),
+            "roc": self.roc(),
+            "macd": self.macd(),
         }
 
     def all_trend_indicators(self) -> Dict[str, any]:
@@ -625,16 +609,16 @@ class TechnicalIndicators:
         adx, plus_di, minus_di = self.adx_di()
 
         return {
-            'sma_20': self.sma(20),
-            'sma_50': self.sma(50),
-            'sma_200': self.sma(200),
-            'ema_20': self.ema(20),
-            'ema_50': self.ema(50),
-            'macd': self.macd(),
-            'adx': adx,
-            'plus_di': plus_di,
-            'minus_di': minus_di,
-            'parabolic_sar': self.parabolic_sar()
+            "sma_20": self.sma(20),
+            "sma_50": self.sma(50),
+            "sma_200": self.sma(200),
+            "ema_20": self.ema(20),
+            "ema_50": self.ema(50),
+            "macd": self.macd(),
+            "adx": adx,
+            "plus_di": plus_di,
+            "minus_di": minus_di,
+            "parabolic_sar": self.parabolic_sar(),
         }
 
     def all_volatility_indicators(self) -> Dict[str, any]:
@@ -645,18 +629,17 @@ class TechnicalIndicators:
             Dict with all volatility indicator values
         """
         return {
-            'bollinger_bands': self.bollinger_bands(),
-            'atr': self.atr(),
-            'keltner_channels': self.keltner_channels(),
-            'stddev': self.stddev()
+            "bollinger_bands": self.bollinger_bands(),
+            "atr": self.atr(),
+            "keltner_channels": self.keltner_channels(),
+            "stddev": self.stddev(),
         }
 
 
 # ==================== QUICK ANALYSIS FUNCTIONS ====================
 
-def analyze_trend(close: np.ndarray,
-                  high: np.ndarray,
-                  low: np.ndarray) -> Dict[str, any]:
+
+def analyze_trend(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, any]:
     """
     Quick trend analysis.
 
@@ -676,38 +659,36 @@ def analyze_trend(close: np.ndarray,
 
     # Trend direction
     if current_plus_di > current_minus_di:
-        direction = 'bullish'
+        direction = "bullish"
     elif current_minus_di > current_plus_di:
-        direction = 'bearish'
+        direction = "bearish"
     else:
-        direction = 'neutral'
+        direction = "neutral"
 
     # Trend strength
     if current_adx > 50:
-        strength = 'very_strong'
+        strength = "very_strong"
     elif current_adx > 25:
-        strength = 'strong'
+        strength = "strong"
     elif current_adx > 15:
-        strength = 'weak'
+        strength = "weak"
     else:
-        strength = 'no_trend'
+        strength = "no_trend"
 
     return {
-        'direction': direction,
-        'strength': strength,
-        'adx': current_adx,
-        'plus_di': current_plus_di,
-        'minus_di': current_minus_di,
-        'sma_50': sma_50[-1] if not np.isnan(sma_50[-1]) else None,
-        'sma_200': sma_200[-1] if not np.isnan(sma_200[-1]) else None,
-        'price_vs_sma_50': 'above' if current_price > sma_50[-1] else 'below',
-        'price_vs_sma_200': 'above' if current_price > sma_200[-1] else 'below'
+        "direction": direction,
+        "strength": strength,
+        "adx": current_adx,
+        "plus_di": current_plus_di,
+        "minus_di": current_minus_di,
+        "sma_50": sma_50[-1] if not np.isnan(sma_50[-1]) else None,
+        "sma_200": sma_200[-1] if not np.isnan(sma_200[-1]) else None,
+        "price_vs_sma_50": "above" if current_price > sma_50[-1] else "below",
+        "price_vs_sma_200": "above" if current_price > sma_200[-1] else "below",
     }
 
 
-def analyze_momentum(close: np.ndarray,
-                     high: np.ndarray,
-                     low: np.ndarray) -> Dict[str, any]:
+def analyze_momentum(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, any]:
     """
     Quick momentum analysis.
 
@@ -723,23 +704,21 @@ def analyze_momentum(close: np.ndarray,
 
     # Conditions
     if current_rsi > 70 and current_stoch_k > 80:
-        condition = 'overbought'
+        condition = "overbought"
     elif current_rsi < 30 and current_stoch_k < 20:
-        condition = 'oversold'
+        condition = "oversold"
     else:
-        condition = 'neutral'
+        condition = "neutral"
 
     return {
-        'condition': condition,
-        'rsi': current_rsi,
-        'stochastic_k': current_stoch_k,
-        'stochastic_d': slowd[-1] if not np.isnan(slowd[-1]) else 50
+        "condition": condition,
+        "rsi": current_rsi,
+        "stochastic_k": current_stoch_k,
+        "stochastic_d": slowd[-1] if not np.isnan(slowd[-1]) else 50,
     }
 
 
-def analyze_volatility(close: np.ndarray,
-                       high: np.ndarray,
-                       low: np.ndarray) -> Dict[str, any]:
+def analyze_volatility(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, any]:
     """
     Quick volatility analysis.
 
@@ -757,18 +736,20 @@ def analyze_volatility(close: np.ndarray,
     bb_width = (upper[-1] - lower[-1]) / middle[-1] if middle[-1] > 0 else 0
 
     if bb_width < 0.04:  # Less than 4% width
-        volatility_state = 'squeeze'  # Breakout coming
+        volatility_state = "squeeze"  # Breakout coming
     elif bb_width > 0.12:  # More than 12% width
-        volatility_state = 'expansion'  # High volatility
+        volatility_state = "expansion"  # High volatility
     else:
-        volatility_state = 'normal'
+        volatility_state = "normal"
 
     return {
-        'state': volatility_state,
-        'atr': current_atr,
-        'bb_upper': upper[-1],
-        'bb_middle': middle[-1],
-        'bb_lower': lower[-1],
-        'bb_width_pct': bb_width * 100,
-        'price_position': (current_price - lower[-1]) / (upper[-1] - lower[-1]) if upper[-1] != lower[-1] else 0.5
+        "state": volatility_state,
+        "atr": current_atr,
+        "bb_upper": upper[-1],
+        "bb_middle": middle[-1],
+        "bb_lower": lower[-1],
+        "bb_width_pct": bb_width * 100,
+        "price_position": (
+            (current_price - lower[-1]) / (upper[-1] - lower[-1]) if upper[-1] != lower[-1] else 0.5
+        ),
     }

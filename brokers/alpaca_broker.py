@@ -1,23 +1,23 @@
-import os
-import logging
 import asyncio
+import logging
+import os
 import random
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Optional
 
-from alpaca.trading.client import TradingClient
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.live import StockDataStream
-from alpaca.data.requests import StockLatestTradeRequest, StockBarsRequest
+from alpaca.data.requests import StockBarsRequest, StockLatestTradeRequest
 from alpaca.data.timeframe import TimeFrame
+from alpaca.trading.client import TradingClient
+from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.requests import (
-    MarketOrderRequest,
-    LimitOrderRequest,
     GetOrdersRequest,
-    ReplaceOrderRequest
+    LimitOrderRequest,
+    MarketOrderRequest,
+    ReplaceOrderRequest,
 )
-from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 
 # NOTE: Removed lumibot imports - they crash at import time due to
 # lumibot.credentials.py trying to instantiate Alpaca broker before config is ready
@@ -40,16 +40,19 @@ class BrokerError(Exception):
     Use this for critical errors where the caller MUST handle the failure
     (e.g., order submission failures, authentication errors).
     """
+
     pass
 
 
 class BrokerConnectionError(BrokerError):
     """Raised when broker connection fails."""
+
     pass
 
 
 class OrderError(BrokerError):
     """Raised when order operations fail."""
+
     pass
 
 
@@ -70,6 +73,7 @@ class OrderError(BrokerError):
 #    - Raise BrokerConnectionError if broker is unreachable
 #    - These are critical - trading cannot proceed without them
 
+
 def retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10, jitter=0.1):
     """
     Retry decorator with exponential backoff and jitter.
@@ -83,6 +87,7 @@ def retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10, jitter=0.1)
     The jitter adds randomness to prevent many clients from retrying simultaneously.
     For example, with jitter=0.1 and base delay of 2s, actual delay will be 1.8s-2.2s.
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -94,17 +99,30 @@ def retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10, jitter=0.1)
                 except (ConnectionError, TimeoutError, OSError) as e:
                     # Network-related errors are retryable
                     last_exception = e
-                    logger.warning(f"Attempt {attempt + 1}/{max_retries} failed (network error): {e}")
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries} failed (network error): {e}"
+                    )
                 except Exception as e:
                     # For other exceptions, check if they seem transient
                     error_str = str(e).lower()
-                    is_transient = any(term in error_str for term in [
-                        'timeout', 'connection', 'rate limit', '429', '503', '502', '504'
-                    ])
+                    is_transient = any(
+                        term in error_str
+                        for term in [
+                            "timeout",
+                            "connection",
+                            "rate limit",
+                            "429",
+                            "503",
+                            "502",
+                            "504",
+                        ]
+                    )
 
                     if is_transient:
                         last_exception = e
-                        logger.warning(f"Attempt {attempt + 1}/{max_retries} failed (transient): {e}")
+                        logger.warning(
+                            f"Attempt {attempt + 1}/{max_retries} failed (transient): {e}"
+                        )
                     else:
                         # Non-transient error, don't retry
                         logger.error(f"Non-retryable error in {func.__name__}: {e}")
@@ -112,7 +130,7 @@ def retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10, jitter=0.1)
 
                 if attempt < max_retries - 1:
                     # Calculate base delay with exponential backoff
-                    base_delay = min(initial_delay * (2 ** attempt), max_delay)
+                    base_delay = min(initial_delay * (2**attempt), max_delay)
 
                     # Add jitter to prevent thundering herd
                     # Jitter range: [base * (1 - jitter), base * (1 + jitter)]
@@ -127,7 +145,9 @@ def retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10, jitter=0.1)
             raise last_exception
 
         return wrapper
+
     return decorator
+
 
 class AlpacaBroker:
     """
@@ -147,8 +167,10 @@ class AlpacaBroker:
             if isinstance(paper, str):
                 paper = paper.lower() == "true"
             self.paper = bool(paper)
-            logger.info(f"AlpacaBroker initialized with paper={self.paper} (type: {type(self.paper)})")
-            
+            logger.info(
+                f"AlpacaBroker initialized with paper={self.paper} (type: {type(self.paper)})"
+            )
+
             # Initialize position tracking
             self._filled_positions = []
             self._subscribers = set()
@@ -158,40 +180,39 @@ class AlpacaBroker:
             self._reconnect_attempts = 0
             self._reconnect_delay = 1  # Initial reconnect delay in seconds
             self._max_reconnect_delay = 60  # Max reconnect delay in seconds
-            
+
             # P0 FIX: Use local variables for credentials instead of storing as attributes
             # This prevents accidental exposure through logging, serialization, or debugging
             _api_key = ALPACA_CREDS["API_KEY"]
             _api_secret = ALPACA_CREDS["API_SECRET"]
 
             if not _api_key or not _api_secret:
-                raise ValueError("Alpaca API credentials not found. Please set them in your environment variables.")
+                raise ValueError(
+                    "Alpaca API credentials not found. Please set them in your environment variables."
+                )
 
             # Initialize the trading client
             self.trading_client = TradingClient(
                 api_key=_api_key,
                 secret_key=_api_secret,
                 paper=self.paper,
-                url_override="https://paper-api.alpaca.markets" if self.paper else None
+                url_override="https://paper-api.alpaca.markets" if self.paper else None,
             )
 
             # Initialize the data client
-            self.data_client = StockHistoricalDataClient(
-                api_key=_api_key,
-                secret_key=_api_secret
-            )
+            self.data_client = StockHistoricalDataClient(api_key=_api_key, secret_key=_api_secret)
 
             # Initialize the stream for WebSockets
             self.stream = StockDataStream(
                 api_key=_api_key,
                 secret_key=_api_secret,
-                url_override="https://paper-api.alpaca.markets/stream" if self.paper else None
+                url_override="https://paper-api.alpaca.markets/stream" if self.paper else None,
             )
 
             self._subscribed_symbols = set()  # Keep track of subscribed symbols
 
             # P0 FIX: Removed unused config dict that stored credentials in memory
-            
+
         except Exception as e:
             logger.error(f"Error initializing AlpacaBroker: {e}", exc_info=DEBUG_MODE)
             raise
@@ -223,7 +244,7 @@ class AlpacaBroker:
         symbol = symbol.upper().strip()
 
         # Valid stock symbols: 1-5 uppercase letters (some ETFs have numbers)
-        if not symbol.replace('.', '').replace('-', '').isalnum():
+        if not symbol.replace(".", "").replace("-", "").isalnum():
             raise ValueError(f"Invalid symbol format: {symbol}")
         if len(symbol) > 10:  # Allow for options symbols which are longer
             raise ValueError(f"Symbol too long: {symbol}")
@@ -247,30 +268,30 @@ class AlpacaBroker:
         try:
             # Process trade update from websocket
             logger.debug(f"Trade update received: {data}")
-            
+
             # Extract trade event details
-            event_type = data.get('event')
-            order = data.get('order', {})
-            order_id = order.get('id')
-            
+            event_type = data.get("event")
+            order = data.get("order", {})
+            order_id = order.get("id")
+
             # Handle different trade events
-            if event_type == 'fill':
+            if event_type == "fill":
                 logger.info(f"Order {order_id} filled")
                 # Notify subscribers
                 for subscriber in self._subscribers:
-                    if hasattr(subscriber, 'on_trade_update'):
+                    if hasattr(subscriber, "on_trade_update"):
                         await subscriber.on_trade_update(data)
-            elif event_type == 'partial_fill':
+            elif event_type == "partial_fill":
                 logger.info(f"Order {order_id} partially filled")
                 # Notify subscribers
                 for subscriber in self._subscribers:
-                    if hasattr(subscriber, 'on_trade_update'):
+                    if hasattr(subscriber, "on_trade_update"):
                         await subscriber.on_trade_update(data)
-            elif event_type == 'canceled':
+            elif event_type == "canceled":
                 logger.info(f"Order {order_id} canceled")
-            elif event_type == 'rejected':
+            elif event_type == "rejected":
                 logger.warning(f"Order {order_id} rejected: {order.get('reject_reason')}")
-            
+
         except Exception as e:
             logger.error(f"Error handling trade update: {e}", exc_info=DEBUG_MODE)
 
@@ -278,21 +299,21 @@ class AlpacaBroker:
         """Handle bar data from websocket."""
         try:
             # Extract bar data
-            symbol = data.get('S')
-            open_price = float(data.get('o', 0))
-            high_price = float(data.get('h', 0))
-            low_price = float(data.get('l', 0))
-            close_price = float(data.get('c', 0))
-            volume = int(data.get('v', 0))
-            timestamp = datetime.fromtimestamp(data.get('t', 0) / 1000.0)
-            
+            symbol = data.get("S")
+            open_price = float(data.get("o", 0))
+            high_price = float(data.get("h", 0))
+            low_price = float(data.get("l", 0))
+            close_price = float(data.get("c", 0))
+            volume = int(data.get("v", 0))
+            timestamp = datetime.fromtimestamp(data.get("t", 0) / 1000.0)
+
             # Notify subscribers
             for subscriber in self._subscribers:
-                if hasattr(subscriber, 'on_bar'):
+                if hasattr(subscriber, "on_bar"):
                     await subscriber.on_bar(
                         symbol, open_price, high_price, low_price, close_price, volume, timestamp
                     )
-            
+
         except Exception as e:
             logger.error(f"Error handling bar data: {e}", exc_info=DEBUG_MODE)
 
@@ -300,20 +321,20 @@ class AlpacaBroker:
         """Handle quote data from websocket."""
         try:
             # Extract quote data
-            symbol = data.get('S')
-            bid_price = float(data.get('bp', 0))
-            ask_price = float(data.get('ap', 0))
-            bid_size = int(data.get('bs', 0))
-            ask_size = int(data.get('as', 0))
-            timestamp = datetime.fromtimestamp(data.get('t', 0) / 1000.0)
-            
+            symbol = data.get("S")
+            bid_price = float(data.get("bp", 0))
+            ask_price = float(data.get("ap", 0))
+            bid_size = int(data.get("bs", 0))
+            ask_size = int(data.get("as", 0))
+            timestamp = datetime.fromtimestamp(data.get("t", 0) / 1000.0)
+
             # Notify subscribers
             for subscriber in self._subscribers:
-                if hasattr(subscriber, 'on_quote'):
+                if hasattr(subscriber, "on_quote"):
                     await subscriber.on_quote(
                         symbol, bid_price, ask_price, bid_size, ask_size, timestamp
                     )
-            
+
         except Exception as e:
             logger.error(f"Error handling quote data: {e}", exc_info=DEBUG_MODE)
 
@@ -321,18 +342,16 @@ class AlpacaBroker:
         """Handle trade data from websocket."""
         try:
             # Extract trade data
-            symbol = data.get('S')
-            price = float(data.get('p', 0))
-            size = int(data.get('s', 0))
-            timestamp = datetime.fromtimestamp(data.get('t', 0) / 1000.0)
-            
+            symbol = data.get("S")
+            price = float(data.get("p", 0))
+            size = int(data.get("s", 0))
+            timestamp = datetime.fromtimestamp(data.get("t", 0) / 1000.0)
+
             # Notify subscribers
             for subscriber in self._subscribers:
-                if hasattr(subscriber, 'on_trade'):
-                    await subscriber.on_trade(
-                        symbol, price, size, timestamp
-                    )
-            
+                if hasattr(subscriber, "on_trade"):
+                    await subscriber.on_trade(symbol, price, size, timestamp)
+
         except Exception as e:
             logger.error(f"Error handling trade data: {e}", exc_info=DEBUG_MODE)
 
@@ -388,10 +407,15 @@ class AlpacaBroker:
                 async with self._ws_lock:
                     self._connected = False
                     # Implement exponential backoff for reconnection
-                    sleep_time = min(self._reconnect_delay * (2 ** self._reconnect_attempts), self._max_reconnect_delay)
+                    sleep_time = min(
+                        self._reconnect_delay * (2**self._reconnect_attempts),
+                        self._max_reconnect_delay,
+                    )
                     self._reconnect_attempts += 1
 
-                logger.info(f"Attempting to reconnect in {sleep_time} seconds (attempt {self._reconnect_attempts})...")
+                logger.info(
+                    f"Attempting to reconnect in {sleep_time} seconds (attempt {self._reconnect_attempts})..."
+                )
                 await asyncio.sleep(sleep_time)
 
     async def _subscribe_to_symbols(self, symbols):
@@ -457,7 +481,7 @@ class AlpacaBroker:
             pass
 
         logger.info("Stopped websocket handler task")
-        
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_account(self):
         """Get account information."""
@@ -473,15 +497,15 @@ class AlpacaBroker:
         try:
             clock = self.trading_client.get_clock()
             return {
-                'is_open': clock.is_open,
-                'next_open': clock.next_open,
-                'next_close': clock.next_close,
-                'timestamp': clock.timestamp
+                "is_open": clock.is_open,
+                "next_open": clock.next_open,
+                "next_close": clock.next_close,
+                "timestamp": clock.timestamp,
             }
         except Exception as e:
             logger.error(f"Error getting market status: {e}", exc_info=DEBUG_MODE)
             # Return safe default if error
-            return {'is_open': False}
+            return {"is_open": False}
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_positions(self):
@@ -492,7 +516,7 @@ class AlpacaBroker:
         except Exception as e:
             logger.error(f"Error getting positions: {e}", exc_info=DEBUG_MODE)
             raise
-            
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_position(self, symbol):
         """Get position for a specific symbol."""
@@ -507,7 +531,7 @@ class AlpacaBroker:
         except Exception:
             # Position not found, return None
             return None
-            
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_tracked_positions(self, strategy):
         """Get positions for a specific strategy."""
@@ -518,42 +542,42 @@ class AlpacaBroker:
         except Exception as e:
             logger.error(f"Error getting tracked positions: {e}", exc_info=DEBUG_MODE)
             return []
-            
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def submit_order(self, order):
         """Submit an order."""
         try:
             # Convert order to alpaca-py format
-            side = OrderSide.BUY if order['side'].lower() == 'buy' else OrderSide.SELL
-            
+            side = OrderSide.BUY if order["side"].lower() == "buy" else OrderSide.SELL
+
             # Determine order type and create appropriate request
-            if order.get('type', 'market').lower() == 'market':
+            if order.get("type", "market").lower() == "market":
                 order_request = MarketOrderRequest(
-                    symbol=order['symbol'],
-                    qty=float(order['quantity']),
+                    symbol=order["symbol"],
+                    qty=float(order["quantity"]),
                     side=side,
-                    time_in_force=TimeInForce.DAY
+                    time_in_force=TimeInForce.DAY,
                 )
-            elif order.get('type', '').lower() == 'limit':
+            elif order.get("type", "").lower() == "limit":
                 order_request = LimitOrderRequest(
-                    symbol=order['symbol'],
-                    limit_price=float(order['limit_price']),
-                    qty=float(order['quantity']),
+                    symbol=order["symbol"],
+                    limit_price=float(order["limit_price"]),
+                    qty=float(order["quantity"]),
                     side=side,
-                    time_in_force=TimeInForce.DAY
+                    time_in_force=TimeInForce.DAY,
                 )
             else:
                 raise ValueError(f"Unsupported order type: {order.get('type')}")
-                
+
             # Submit the order
             result = self.trading_client.submit_order(order_request)
             logger.info(f"Order submitted: {result.id} for {result.symbol} ({result.qty} shares)")
             return result
-            
+
         except Exception as e:
             logger.error(f"Error submitting order: {e}", exc_info=DEBUG_MODE)
             raise
-            
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def submit_order_advanced(self, order_request):
         """
@@ -575,8 +599,10 @@ class AlpacaBroker:
 
             # Submit the order
             result = self.trading_client.submit_order(order_request)
-            logger.info(f"Advanced order submitted: {result.id} for {result.symbol} "
-                       f"({result.qty} shares, type={result.type}, class={result.order_class})")
+            logger.info(
+                f"Advanced order submitted: {result.id} for {result.symbol} "
+                f"({result.qty} shares, type={result.type}, class={result.order_class})"
+            )
             return result
 
         except Exception as e:
@@ -622,7 +648,7 @@ class AlpacaBroker:
         stop_price: Optional[float] = None,
         trail: Optional[float] = None,
         time_in_force: Optional[TimeInForce] = None,
-        client_order_id: Optional[str] = None
+        client_order_id: Optional[str] = None,
     ):
         """
         Replace an existing order (PATCH endpoint).
@@ -643,17 +669,17 @@ class AlpacaBroker:
             # Build replacement request with provided parameters
             replace_params = {}
             if qty is not None:
-                replace_params['qty'] = float(qty)
+                replace_params["qty"] = float(qty)
             if limit_price is not None:
-                replace_params['limit_price'] = float(limit_price)
+                replace_params["limit_price"] = float(limit_price)
             if stop_price is not None:
-                replace_params['stop_price'] = float(stop_price)
+                replace_params["stop_price"] = float(stop_price)
             if trail is not None:
-                replace_params['trail'] = float(trail)
+                replace_params["trail"] = float(trail)
             if time_in_force is not None:
-                replace_params['time_in_force'] = time_in_force
+                replace_params["time_in_force"] = time_in_force
             if client_order_id is not None:
-                replace_params['client_order_id'] = client_order_id
+                replace_params["client_order_id"] = client_order_id
 
             replace_request = ReplaceOrderRequest(**replace_params)
             result = self.trading_client.replace_order_by_id(order_id, replace_request)
@@ -682,7 +708,9 @@ class AlpacaBroker:
             order = self.trading_client.get_order_by_client_id(client_order_id)
             return order
         except Exception as e:
-            logger.error(f"Error getting order by client ID {client_order_id}: {e}", exc_info=DEBUG_MODE)
+            logger.error(
+                f"Error getting order by client ID {client_order_id}: {e}", exc_info=DEBUG_MODE
+            )
             return None
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
@@ -695,16 +723,13 @@ class AlpacaBroker:
             limit: Maximum number of orders to return
         """
         try:
-            request_params = GetOrdersRequest(
-                status=status or QueryOrderStatus.OPEN,
-                limit=limit
-            )
+            request_params = GetOrdersRequest(status=status or QueryOrderStatus.OPEN, limit=limit)
             orders = self.trading_client.get_orders(request_params)
             return orders
         except Exception as e:
             logger.error(f"Error getting orders: {e}", exc_info=DEBUG_MODE)
             raise
-            
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_last_price(self, symbol):
         """Get last price for a symbol."""
@@ -714,17 +739,17 @@ class AlpacaBroker:
 
             request_params = StockLatestTradeRequest(symbol_or_symbols=[symbol])
             response = self.data_client.get_stock_latest_trade(request_params)
-            
+
             if symbol in response:
                 return float(response[symbol].price)
             else:
                 logger.warning(f"No price data found for {symbol}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"Error getting last price for {symbol}: {e}", exc_info=DEBUG_MODE)
             return None
-            
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_bars(self, symbol, timeframe=TimeFrame.Day, limit=100, start=None, end=None):
         """Get historical bars for a symbol."""
@@ -735,14 +760,14 @@ class AlpacaBroker:
             # Convert string timeframe to TimeFrame object if needed
             if isinstance(timeframe, str):
                 timeframe_map = {
-                    '1Min': TimeFrame.Minute,
-                    '5Min': TimeFrame(5, 'Min'),
-                    '15Min': TimeFrame(15, 'Min'),
-                    '1Hour': TimeFrame.Hour,
-                    '1Day': TimeFrame.Day,
-                    'Day': TimeFrame.Day,
-                    'Hour': TimeFrame.Hour,
-                    'Minute': TimeFrame.Minute
+                    "1Min": TimeFrame.Minute,
+                    "5Min": TimeFrame(5, "Min"),
+                    "15Min": TimeFrame(15, "Min"),
+                    "1Hour": TimeFrame.Hour,
+                    "1Day": TimeFrame.Day,
+                    "Day": TimeFrame.Day,
+                    "Hour": TimeFrame.Hour,
+                    "Minute": TimeFrame.Minute,
                 }
                 timeframe = timeframe_map.get(timeframe, TimeFrame.Day)
                 logger.debug(f"Converted timeframe string to TimeFrame object: {timeframe}")
@@ -754,24 +779,21 @@ class AlpacaBroker:
                 start = (datetime.now() - timedelta(days=limit)).date()
 
             request_params = StockBarsRequest(
-                symbol_or_symbols=[symbol],
-                timeframe=timeframe,
-                start=start,
-                end=end
+                symbol_or_symbols=[symbol], timeframe=timeframe, start=start, end=end
             )
-            
+
             bars = self.data_client.get_stock_bars(request_params)
-            
+
             if symbol in bars.data:
                 return bars.data[symbol]
             else:
                 logger.warning(f"No bar data found for {symbol}")
                 return []
-                
+
         except Exception as e:
             logger.error(f"Error getting bars for {symbol}: {e}", exc_info=DEBUG_MODE)
             return []
-            
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_news(self, symbol, start, end):
         """
@@ -797,7 +819,7 @@ class AlpacaBroker:
             # Return empty list instead of fake data
             # This prevents sentiment strategy from making trades on fabricated information
             return []
-            
+
         except Exception as e:
             logger.error(f"Error getting news for {symbol}: {e}", exc_info=DEBUG_MODE)
             return []

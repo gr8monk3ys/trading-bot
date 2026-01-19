@@ -17,9 +17,10 @@ Real-world benefits:
 - Reduced volatility: Maintains balanced risk profile
 """
 
-import logging
 import asyncio
+import logging
 from datetime import datetime
+
 from utils.portfolio_rebalancer import PortfolioRebalancer
 
 logger = logging.getLogger(__name__)
@@ -37,24 +38,24 @@ async def example_equal_weight_rebalancing():
     broker = AlpacaBroker(paper=True)
 
     # Define portfolio
-    symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN']
+    symbols = ["AAPL", "MSFT", "GOOGL", "AMZN"]
 
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("EXAMPLE 1: Equal-Weight Portfolio Rebalancing")
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info(f"Symbols: {', '.join(symbols)}")
     logger.info("Target: 25% each")
     logger.info("Rebalance: Weekly, when drift > 5%")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     # Create rebalancer with equal weighting
     rebalancer = PortfolioRebalancer(
         broker=broker,
         equal_weight_symbols=symbols,
         rebalance_threshold=0.05,  # 5% drift threshold
-        rebalance_frequency='weekly',
+        rebalance_frequency="weekly",
         min_trade_size=50.0,  # Minimum $50 trade
-        dry_run=False  # Set True to test without executing
+        dry_run=False,  # Set True to test without executing
     )
 
     # Check current state
@@ -71,13 +72,15 @@ async def example_equal_weight_rebalancing():
 
         logger.info(f"\nGenerated {len(orders)} rebalancing orders:")
         for order in orders:
-            logger.info(f"  {order['side'].upper()} {order['quantity']:.2f} {order['symbol']} @ ${order['price']:.2f}")
+            logger.info(
+                f"  {order['side'].upper()} {order['quantity']:.2f} {order['symbol']} @ ${order['price']:.2f}"
+            )
             logger.info(f"    Reason: {order['reason']}")
 
         # Ask for confirmation (in production, this would be automatic)
         response = input("\nExecute these orders? (yes/no): ")
 
-        if response.lower() == 'yes':
+        if response.lower() == "yes":
             result = await rebalancer.execute_rebalancing(orders)
             logger.info(f"\nRebalancing result: {result}")
 
@@ -104,28 +107,28 @@ async def example_custom_allocation_rebalancing():
 
     # Define custom allocations (must sum to 1.0)
     target_allocations = {
-        'AAPL': 0.30,   # 30% in Apple
-        'MSFT': 0.30,   # 30% in Microsoft
-        'GOOGL': 0.25,  # 25% in Google
-        'AMZN': 0.15,   # 15% in Amazon
+        "AAPL": 0.30,  # 30% in Apple
+        "MSFT": 0.30,  # 30% in Microsoft
+        "GOOGL": 0.25,  # 25% in Google
+        "AMZN": 0.15,  # 15% in Amazon
     }
 
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("EXAMPLE 2: Custom Allocation Portfolio")
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("Target allocations:")
     for symbol, weight in target_allocations.items():
         logger.info(f"  {symbol}: {weight:.0%}")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     # Create rebalancer with custom allocations
     rebalancer = PortfolioRebalancer(
         broker=broker,
         target_allocations=target_allocations,
         rebalance_threshold=0.03,  # Tighter 3% threshold
-        rebalance_frequency='daily',
+        rebalance_frequency="daily",
         min_trade_size=100.0,
-        dry_run=False
+        dry_run=False,
     )
 
     # Check and rebalance
@@ -150,24 +153,24 @@ async def example_continuous_rebalancing():
     broker = AlpacaBroker(paper=True)
 
     # Equal weight portfolio
-    symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN']
+    symbols = ["AAPL", "MSFT", "GOOGL", "AMZN"]
 
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("EXAMPLE 3: Continuous Automatic Rebalancing")
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info(f"Monitoring {', '.join(symbols)}")
     logger.info("Checking every hour, rebalancing daily if drift > 5%")
     logger.info("Press Ctrl+C to stop")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     # Create rebalancer
     rebalancer = PortfolioRebalancer(
         broker=broker,
         equal_weight_symbols=symbols,
         rebalance_threshold=0.05,
-        rebalance_frequency='daily',
+        rebalance_frequency="daily",
         min_trade_size=50.0,
-        dry_run=False
+        dry_run=False,
     )
 
     # Continuous monitoring loop
@@ -204,11 +207,11 @@ async def example_backtest_rebalancing_benefit():
     - Portfolio WITH monthly rebalancing
     - Portfolio WITHOUT rebalancing (buy and hold)
     """
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("EXAMPLE 4: Rebalancing Benefit Analysis")
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("Comparing rebalanced portfolio vs buy-and-hold")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     # This would require historical data and backtesting framework
     # Placeholder for future implementation
@@ -222,30 +225,27 @@ async def example_backtest_rebalancing_benefit():
 
 if __name__ == "__main__":
     # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     # Run examples
     print("\nPortfolio Rebalancing Examples")
-    print("="*80)
+    print("=" * 80)
     print("Choose an example:")
     print("1. Equal-weight portfolio (one-time rebalance)")
     print("2. Custom allocation portfolio")
     print("3. Continuous automatic rebalancing")
     print("4. Backtest rebalancing benefit (TODO)")
-    print("="*80)
+    print("=" * 80)
 
     choice = input("\nEnter choice (1-4): ")
 
-    if choice == '1':
+    if choice == "1":
         asyncio.run(example_equal_weight_rebalancing())
-    elif choice == '2':
+    elif choice == "2":
         asyncio.run(example_custom_allocation_rebalancing())
-    elif choice == '3':
+    elif choice == "3":
         asyncio.run(example_continuous_rebalancing())
-    elif choice == '4':
+    elif choice == "4":
         asyncio.run(example_backtest_rebalancing_benefit())
     else:
         print("Invalid choice")

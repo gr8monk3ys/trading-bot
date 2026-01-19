@@ -9,9 +9,10 @@ Tests cover:
 - Edge cases (zero price, large orders)
 """
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,10 +33,7 @@ class TestSlippageModelInit:
     def test_custom_initialization(self):
         """Test custom values override defaults."""
         model = SlippageModel(
-            slippage_pct=0.01,
-            bid_ask_spread=0.005,
-            commission_per_share=0.01,
-            enabled=False
+            slippage_pct=0.01, bid_ask_spread=0.005, commission_per_share=0.01, enabled=False
         )
         assert model.slippage_pct == 0.01
         assert model.bid_ask_spread == 0.005
@@ -45,7 +43,7 @@ class TestSlippageModelInit:
     def test_disabled_mode(self):
         """Test that disabled mode returns original price."""
         model = SlippageModel(enabled=False)
-        exec_price, slip, spread, comm = model.apply_slippage(100.0, 'buy', 10)
+        exec_price, slip, spread, comm = model.apply_slippage(100.0, "buy", 10)
         assert exec_price == 100.0
         assert slip == 0.0
         assert spread == 0.0
@@ -59,7 +57,7 @@ class TestSlippageCalculation:
         """Buy orders should execute at higher price due to slippage."""
         model = SlippageModel(slippage_pct=0.004, bid_ask_spread=0.001)
         quoted_price = 100.0
-        exec_price, slip, spread, comm = model.apply_slippage(quoted_price, 'buy', 10)
+        exec_price, slip, spread, comm = model.apply_slippage(quoted_price, "buy", 10)
 
         # Price should be higher for buy
         assert exec_price > quoted_price
@@ -70,7 +68,7 @@ class TestSlippageCalculation:
         """Sell orders should execute at lower price due to slippage."""
         model = SlippageModel(slippage_pct=0.004, bid_ask_spread=0.001)
         quoted_price = 100.0
-        exec_price, slip, spread, comm = model.apply_slippage(quoted_price, 'sell', 10)
+        exec_price, slip, spread, comm = model.apply_slippage(quoted_price, "sell", 10)
 
         # Price should be lower for sell
         assert exec_price < quoted_price
@@ -80,7 +78,7 @@ class TestSlippageCalculation:
     def test_slippage_cost_calculation(self):
         """Slippage cost should be correctly calculated."""
         model = SlippageModel(slippage_pct=0.01, bid_ask_spread=0.0, commission_per_share=0.0)
-        _, slip, _, _ = model.apply_slippage(100.0, 'buy', 10)
+        _, slip, _, _ = model.apply_slippage(100.0, "buy", 10)
 
         # Slippage = 100 * 0.01 * 10 = 10
         assert slip == 10.0
@@ -88,7 +86,7 @@ class TestSlippageCalculation:
     def test_spread_cost_calculation(self):
         """Spread cost should be correctly calculated."""
         model = SlippageModel(slippage_pct=0.0, bid_ask_spread=0.01, commission_per_share=0.0)
-        _, _, spread, _ = model.apply_slippage(100.0, 'buy', 10)
+        _, _, spread, _ = model.apply_slippage(100.0, "buy", 10)
 
         # Spread = 100 * 0.005 * 10 = 5 (half spread per side)
         assert spread == 5.0
@@ -96,7 +94,7 @@ class TestSlippageCalculation:
     def test_commission_calculation(self):
         """Commission should be calculated per share."""
         model = SlippageModel(slippage_pct=0.0, bid_ask_spread=0.0, commission_per_share=0.01)
-        _, _, _, comm = model.apply_slippage(100.0, 'buy', 100)
+        _, _, _, comm = model.apply_slippage(100.0, "buy", 100)
 
         # Commission = 0.01 * 100 = 1.0
         assert comm == 1.0
@@ -110,37 +108,37 @@ class TestCostTracking:
         model = SlippageModel(slippage_pct=0.01, bid_ask_spread=0.01, commission_per_share=0.01)
 
         # Execute 3 trades
-        model.apply_slippage(100.0, 'buy', 10)
-        model.apply_slippage(100.0, 'sell', 10)
-        model.apply_slippage(100.0, 'buy', 10)
+        model.apply_slippage(100.0, "buy", 10)
+        model.apply_slippage(100.0, "sell", 10)
+        model.apply_slippage(100.0, "buy", 10)
 
         costs = model.get_total_costs()
 
         # Each trade: slippage=10, spread=5, commission=0.1
-        assert costs['slippage'] == 30.0
-        assert costs['spread'] == 15.0
-        assert costs['commission'] == pytest.approx(0.30, rel=1e-9)
-        assert costs['total'] == pytest.approx(45.30, rel=1e-9)
+        assert costs["slippage"] == 30.0
+        assert costs["spread"] == 15.0
+        assert costs["commission"] == pytest.approx(0.30, rel=1e-9)
+        assert costs["total"] == pytest.approx(45.30, rel=1e-9)
 
     def test_reset_clears_costs(self):
         """Reset should clear all accumulated costs."""
         model = SlippageModel(slippage_pct=0.01)
-        model.apply_slippage(100.0, 'buy', 10)
+        model.apply_slippage(100.0, "buy", 10)
 
         model.reset()
 
         costs = model.get_total_costs()
-        assert costs['total'] == 0.0
+        assert costs["total"] == 0.0
 
     def test_get_total_costs_structure(self):
         """get_total_costs should return dict with expected keys."""
         model = SlippageModel()
         costs = model.get_total_costs()
 
-        assert 'slippage' in costs
-        assert 'spread' in costs
-        assert 'commission' in costs
-        assert 'total' in costs
+        assert "slippage" in costs
+        assert "spread" in costs
+        assert "commission" in costs
+        assert "total" in costs
 
 
 class TestEdgeCases:
@@ -149,7 +147,7 @@ class TestEdgeCases:
     def test_zero_quantity(self):
         """Zero quantity should return zero costs."""
         model = SlippageModel(slippage_pct=0.01)
-        exec_price, slip, spread, comm = model.apply_slippage(100.0, 'buy', 0)
+        exec_price, slip, spread, comm = model.apply_slippage(100.0, "buy", 0)
 
         assert slip == 0.0
         assert spread == 0.0
@@ -158,7 +156,7 @@ class TestEdgeCases:
     def test_very_small_price(self):
         """Very small prices should still work correctly."""
         model = SlippageModel(slippage_pct=0.01)
-        exec_price, slip, spread, comm = model.apply_slippage(0.01, 'buy', 1000)
+        exec_price, slip, spread, comm = model.apply_slippage(0.01, "buy", 1000)
 
         assert exec_price > 0.01
         assert slip > 0
@@ -166,9 +164,9 @@ class TestEdgeCases:
     def test_large_order(self):
         """Large orders should calculate proportional costs."""
         model = SlippageModel(slippage_pct=0.01, bid_ask_spread=0.0, commission_per_share=0.0)
-        _, slip_small, _, _ = model.apply_slippage(100.0, 'buy', 100)
+        _, slip_small, _, _ = model.apply_slippage(100.0, "buy", 100)
         model.reset()
-        _, slip_large, _, _ = model.apply_slippage(100.0, 'buy', 1000)
+        _, slip_large, _, _ = model.apply_slippage(100.0, "buy", 1000)
 
         # Slippage should scale linearly with quantity
         assert slip_large == slip_small * 10
@@ -177,8 +175,8 @@ class TestEdgeCases:
         """Buy and sell slippage should be symmetric (opposite direction)."""
         model = SlippageModel(slippage_pct=0.01, bid_ask_spread=0.001)
 
-        buy_price, _, _, _ = model.apply_slippage(100.0, 'buy', 10)
-        sell_price, _, _, _ = model.apply_slippage(100.0, 'sell', 10)
+        buy_price, _, _, _ = model.apply_slippage(100.0, "buy", 10)
+        sell_price, _, _, _ = model.apply_slippage(100.0, "sell", 10)
 
         # Both should be equidistant from 100 (approximately)
         buy_diff = buy_price - 100.0
@@ -199,16 +197,14 @@ class TestIntegrationScenarios:
         With slippage, you should lose money even if price unchanged.
         """
         model = SlippageModel(
-            slippage_pct=0.004,  # 0.4%
-            bid_ask_spread=0.001,  # 0.1%
-            commission_per_share=0.0
+            slippage_pct=0.004, bid_ask_spread=0.001, commission_per_share=0.0  # 0.4%  # 0.1%
         )
 
         # Buy
-        buy_price, _, _, _ = model.apply_slippage(100.0, 'buy', 100)
+        buy_price, _, _, _ = model.apply_slippage(100.0, "buy", 100)
 
         # Sell at same quoted price
-        sell_price, _, _, _ = model.apply_slippage(100.0, 'sell', 100)
+        sell_price, _, _, _ = model.apply_slippage(100.0, "sell", 100)
 
         # P/L should be negative (transaction costs)
         pnl = (sell_price - buy_price) * 100
@@ -217,7 +213,7 @@ class TestIntegrationScenarios:
         # Total transaction cost should be approximately 1% of position
         costs = model.get_total_costs()
         position_value = 100 * 100.0
-        cost_ratio = costs['total'] / position_value
+        cost_ratio = costs["total"] / position_value
         assert 0.008 < cost_ratio < 0.012  # ~1% total cost
 
     def test_realistic_backtest_scenario(self):
@@ -228,22 +224,18 @@ class TestIntegrationScenarios:
         Gross P/L: 3*5% - 2*3% = 9%
         With transaction costs, net should be lower.
         """
-        model = SlippageModel(
-            slippage_pct=0.004,
-            bid_ask_spread=0.001,
-            commission_per_share=0.0
-        )
+        model = SlippageModel(slippage_pct=0.004, bid_ask_spread=0.001, commission_per_share=0.0)
 
         initial_capital = 100000
         position_size = 0.1  # 10% per trade
 
         # Simulate 5 trades
         trades = [
-            ('buy', 100.0, 'sell', 105.0),  # +5%
-            ('buy', 100.0, 'sell', 105.0),  # +5%
-            ('buy', 100.0, 'sell', 97.0),   # -3%
-            ('buy', 100.0, 'sell', 105.0),  # +5%
-            ('buy', 100.0, 'sell', 97.0),   # -3%
+            ("buy", 100.0, "sell", 105.0),  # +5%
+            ("buy", 100.0, "sell", 105.0),  # +5%
+            ("buy", 100.0, "sell", 97.0),  # -3%
+            ("buy", 100.0, "sell", 105.0),  # +5%
+            ("buy", 100.0, "sell", 97.0),  # -3%
         ]
 
         gross_pnl = 0
@@ -260,9 +252,9 @@ class TestIntegrationScenarios:
 
         # With 5 round-trip trades, should have measurable cost drag
         # Each trade has slippage + spread costs
-        assert costs['total'] > 0
+        assert costs["total"] > 0
         # Note: With 0.4% slippage + 0.1% spread = ~0.5% per trade, 10 sides = ~0.5% total
-        assert costs['total'] / initial_capital > 0.004  # At least 0.4% in costs
+        assert costs["total"] / initial_capital > 0.004  # At least 0.4% in costs
 
 
 if __name__ == "__main__":

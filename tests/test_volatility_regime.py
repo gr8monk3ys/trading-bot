@@ -9,11 +9,12 @@ Tests cover:
 - Adjustment calculations with safety caps
 """
 
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,9 +30,9 @@ class TestRegimeThresholds:
         detector = VolatilityRegimeDetector(broker=None)
         regime, adjustments = detector._determine_regime(vix=10.0)
 
-        assert regime == 'very_low'
-        assert adjustments['pos_mult'] == 1.4
-        assert adjustments['stop_mult'] == 0.7
+        assert regime == "very_low"
+        assert adjustments["pos_mult"] == 1.4
+        assert adjustments["stop_mult"] == 0.7
 
     def test_low_threshold(self):
         """VIX 12-15 should be 'low' regime."""
@@ -40,9 +41,9 @@ class TestRegimeThresholds:
         detector = VolatilityRegimeDetector(broker=None)
         regime, adjustments = detector._determine_regime(vix=13.5)
 
-        assert regime == 'low'
-        assert adjustments['pos_mult'] == 1.2
-        assert adjustments['stop_mult'] == 0.8
+        assert regime == "low"
+        assert adjustments["pos_mult"] == 1.2
+        assert adjustments["stop_mult"] == 0.8
 
     def test_normal_threshold(self):
         """VIX 15-20 should be 'normal' regime."""
@@ -51,9 +52,9 @@ class TestRegimeThresholds:
         detector = VolatilityRegimeDetector(broker=None)
         regime, adjustments = detector._determine_regime(vix=17.5)
 
-        assert regime == 'normal'
-        assert adjustments['pos_mult'] == 1.0
-        assert adjustments['stop_mult'] == 1.0
+        assert regime == "normal"
+        assert adjustments["pos_mult"] == 1.0
+        assert adjustments["stop_mult"] == 1.0
 
     def test_elevated_threshold(self):
         """VIX 20-30 should be 'elevated' regime."""
@@ -62,9 +63,9 @@ class TestRegimeThresholds:
         detector = VolatilityRegimeDetector(broker=None)
         regime, adjustments = detector._determine_regime(vix=25.0)
 
-        assert regime == 'elevated'
-        assert adjustments['pos_mult'] == 0.7
-        assert adjustments['stop_mult'] == 1.2
+        assert regime == "elevated"
+        assert adjustments["pos_mult"] == 0.7
+        assert adjustments["stop_mult"] == 1.2
 
     def test_high_threshold(self):
         """VIX > 30 should be 'high' regime."""
@@ -73,9 +74,9 @@ class TestRegimeThresholds:
         detector = VolatilityRegimeDetector(broker=None)
         regime, adjustments = detector._determine_regime(vix=40.0)
 
-        assert regime == 'high'
-        assert adjustments['pos_mult'] == 0.4
-        assert adjustments['stop_mult'] == 1.5
+        assert regime == "high"
+        assert adjustments["pos_mult"] == 0.4
+        assert adjustments["stop_mult"] == 1.5
 
 
 class TestBoundaryConditions:
@@ -88,7 +89,7 @@ class TestBoundaryConditions:
         detector = VolatilityRegimeDetector(broker=None)
         regime, _ = detector._determine_regime(vix=12.0)
 
-        assert regime == 'low'
+        assert regime == "low"
 
     def test_boundary_at_15(self):
         """VIX exactly at 15 should be 'normal'."""
@@ -97,7 +98,7 @@ class TestBoundaryConditions:
         detector = VolatilityRegimeDetector(broker=None)
         regime, _ = detector._determine_regime(vix=15.0)
 
-        assert regime == 'normal'
+        assert regime == "normal"
 
     def test_boundary_at_20(self):
         """VIX exactly at 20 should be 'elevated'."""
@@ -106,7 +107,7 @@ class TestBoundaryConditions:
         detector = VolatilityRegimeDetector(broker=None)
         regime, _ = detector._determine_regime(vix=20.0)
 
-        assert regime == 'elevated'
+        assert regime == "elevated"
 
     def test_boundary_at_30(self):
         """VIX exactly at 30 should be 'high'."""
@@ -115,7 +116,7 @@ class TestBoundaryConditions:
         detector = VolatilityRegimeDetector(broker=None)
         regime, _ = detector._determine_regime(vix=30.0)
 
-        assert regime == 'high'
+        assert regime == "high"
 
 
 class TestPositionSizeAdjustments:
@@ -130,7 +131,7 @@ class TestPositionSizeAdjustments:
         base_size = 0.10  # 10%
         _, adjustments = detector._determine_regime(vix=10.0)  # very_low
 
-        adjusted = detector.adjust_position_size(base_size, adjustments['pos_mult'])
+        adjusted = detector.adjust_position_size(base_size, adjustments["pos_mult"])
 
         assert adjusted == pytest.approx(0.14, rel=1e-6)  # 10% * 1.4 = 14%
 
@@ -143,7 +144,7 @@ class TestPositionSizeAdjustments:
         base_size = 0.10  # 10%
         _, adjustments = detector._determine_regime(vix=35.0)  # high
 
-        adjusted = detector.adjust_position_size(base_size, adjustments['pos_mult'])
+        adjusted = detector.adjust_position_size(base_size, adjustments["pos_mult"])
 
         assert adjusted == pytest.approx(0.04, rel=1e-6)  # 10% * 0.4 = 4%
 
@@ -182,7 +183,7 @@ class TestStopLossAdjustments:
         base_stop = 0.03  # 3%
         _, adjustments = detector._determine_regime(vix=10.0)  # very_low
 
-        adjusted = detector.adjust_stop_loss(base_stop, adjustments['stop_mult'])
+        adjusted = detector.adjust_stop_loss(base_stop, adjustments["stop_mult"])
 
         assert adjusted == pytest.approx(0.021, rel=1e-6)  # 3% * 0.7 = 2.1%
 
@@ -195,7 +196,7 @@ class TestStopLossAdjustments:
         base_stop = 0.03  # 3%
         _, adjustments = detector._determine_regime(vix=35.0)  # high
 
-        adjusted = detector.adjust_stop_loss(base_stop, adjustments['stop_mult'])
+        adjusted = detector.adjust_stop_loss(base_stop, adjustments["stop_mult"])
 
         assert adjusted == pytest.approx(0.045, rel=1e-6)  # 3% * 1.5 = 4.5%
 
@@ -232,7 +233,7 @@ class TestMaxPositions:
         detector = VolatilityRegimeDetector(broker=None)
         _, adjustments = detector._determine_regime(vix=10.0)
 
-        assert adjustments['max_positions'] == 12
+        assert adjustments["max_positions"] == 12
 
     def test_max_positions_normal(self):
         """Normal volatility has standard positions."""
@@ -241,7 +242,7 @@ class TestMaxPositions:
         detector = VolatilityRegimeDetector(broker=None)
         _, adjustments = detector._determine_regime(vix=17.0)
 
-        assert adjustments['max_positions'] == 8
+        assert adjustments["max_positions"] == 8
 
     def test_max_positions_high(self):
         """High volatility limits positions."""
@@ -250,7 +251,7 @@ class TestMaxPositions:
         detector = VolatilityRegimeDetector(broker=None)
         _, adjustments = detector._determine_regime(vix=35.0)
 
-        assert adjustments['max_positions'] == 3
+        assert adjustments["max_positions"] == 3
 
 
 class TestCrisisMode:
@@ -327,9 +328,9 @@ class TestVIXStatistics:
         detector = VolatilityRegimeDetector(broker=None)
         stats = detector.get_vix_statistics()
 
-        assert stats['avg_30d'] is None
-        assert stats['min_30d'] is None
-        assert stats['max_30d'] is None
+        assert stats["avg_30d"] is None
+        assert stats["min_30d"] is None
+        assert stats["max_30d"] is None
 
     def test_history_statistics_calculation(self):
         """Statistics should be calculated from history."""
@@ -340,21 +341,21 @@ class TestVIXStatistics:
         # Add some historical values
         now = datetime.now()
         detector.vix_history = [
-            {'time': now - timedelta(days=1), 'value': 15.0},
-            {'time': now - timedelta(days=2), 'value': 18.0},
-            {'time': now - timedelta(days=3), 'value': 12.0},
-            {'time': now - timedelta(days=4), 'value': 20.0},
-            {'time': now - timedelta(days=5), 'value': 16.0},
+            {"time": now - timedelta(days=1), "value": 15.0},
+            {"time": now - timedelta(days=2), "value": 18.0},
+            {"time": now - timedelta(days=3), "value": 12.0},
+            {"time": now - timedelta(days=4), "value": 20.0},
+            {"time": now - timedelta(days=5), "value": 16.0},
         ]
         detector.last_vix_value = 17.0
 
         stats = detector.get_vix_statistics()
 
-        assert stats['current'] == 17.0
-        assert stats['avg_30d'] == pytest.approx(16.2, rel=1e-6)  # (15+18+12+20+16)/5
-        assert stats['min_30d'] == 12.0
-        assert stats['max_30d'] == 20.0
-        assert stats['data_points'] == 5
+        assert stats["current"] == 17.0
+        assert stats["avg_30d"] == pytest.approx(16.2, rel=1e-6)  # (15+18+12+20+16)/5
+        assert stats["min_30d"] == 12.0
+        assert stats["max_30d"] == 20.0
+        assert stats["data_points"] == 5
 
 
 class TestRegimeChanges:
@@ -376,17 +377,17 @@ class TestRegimeChanges:
         mock_quote.ask_price = 17.0
         await detector.get_current_regime()
 
-        assert detector.last_regime == 'normal'
+        assert detector.last_regime == "normal"
 
         # Change to elevated - need to clear cache for new value
         detector.last_vix_time = None  # Clear cache timestamp
         mock_quote.ask_price = 25.0
         await detector.get_current_regime()
 
-        assert detector.last_regime == 'elevated'
+        assert detector.last_regime == "elevated"
         assert len(detector.regime_changes) == 1
-        assert detector.regime_changes[0]['from'] == 'normal'
-        assert detector.regime_changes[0]['to'] == 'elevated'
+        assert detector.regime_changes[0]["from"] == "normal"
+        assert detector.regime_changes[0]["to"] == "elevated"
 
 
 class TestFallbackBehavior:
@@ -399,10 +400,10 @@ class TestFallbackBehavior:
         detector = VolatilityRegimeDetector(broker=None)
         regime, adjustments = detector._get_normal_regime()
 
-        assert regime == 'normal'
-        assert adjustments['pos_mult'] == 1.0
-        assert adjustments['stop_mult'] == 1.0
-        assert adjustments['trade'] is True
+        assert regime == "normal"
+        assert adjustments["pos_mult"] == 1.0
+        assert adjustments["stop_mult"] == 1.0
+        assert adjustments["trade"] is True
 
 
 class TestResearch:
@@ -431,13 +432,13 @@ class TestResearch:
         _, high_adj = detector._determine_regime(vix=35.0)
 
         # Position size: larger in calm, smaller in volatile
-        assert low_adj['pos_mult'] > high_adj['pos_mult']
+        assert low_adj["pos_mult"] > high_adj["pos_mult"]
 
         # Stops: tighter in calm, wider in volatile
-        assert low_adj['stop_mult'] < high_adj['stop_mult']
+        assert low_adj["stop_mult"] < high_adj["stop_mult"]
 
         # Max positions: more in calm, fewer in volatile
-        assert low_adj['max_positions'] > high_adj['max_positions']
+        assert low_adj["max_positions"] > high_adj["max_positions"]
 
 
 if __name__ == "__main__":

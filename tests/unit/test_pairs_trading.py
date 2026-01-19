@@ -10,10 +10,11 @@ Tests cover:
 5. Signal generation
 """
 
-import pytest
-import sys
 import os
+import sys
+
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -51,7 +52,7 @@ class TestHurstExponent:
         x[0] = mu + 10  # Start away from mean
 
         for i in range(1, n):
-            x[i] = x[i-1] + theta * (mu - x[i-1]) + sigma * np.random.normal()
+            x[i] = x[i - 1] + theta * (mu - x[i - 1]) + sigma * np.random.normal()
 
         hurst = strategy._calculate_hurst_exponent(x)
 
@@ -99,7 +100,7 @@ class TestHalfLife:
         spread[0] = 5  # Start away from mean
 
         for i in range(1, n):
-            spread[i] = spread[i-1] - theta * (spread[i-1] - mu) + sigma * np.random.normal()
+            spread[i] = spread[i - 1] - theta * (spread[i - 1] - mu) + sigma * np.random.normal()
 
         half_life = strategy._calculate_half_life(spread)
 
@@ -143,22 +144,22 @@ class TestCointegrationValidation:
         strategy = PairsTradingStrategy.__new__(PairsTradingStrategy)
         params = strategy.default_parameters()
 
-        assert params['cointegration_pvalue'] == 0.05
-        assert params['min_correlation'] == 0.70
-        assert params['entry_z_score'] == 2.0
-        assert params['exit_z_score'] == 0.5
-        assert params['stop_loss_z_score'] == 3.5
-        assert params['min_hurst_threshold'] == 0.5
+        assert params["cointegration_pvalue"] == 0.05
+        assert params["min_correlation"] == 0.70
+        assert params["entry_z_score"] == 2.0
+        assert params["exit_z_score"] == 0.5
+        assert params["stop_loss_z_score"] == 3.5
+        assert params["min_hurst_threshold"] == 0.5
 
     def test_half_life_exit_parameters(self):
         """Test half-life exit parameters exist."""
         strategy = PairsTradingStrategy.__new__(PairsTradingStrategy)
         params = strategy.default_parameters()
 
-        assert 'use_half_life_exit' in params
-        assert params['use_half_life_exit'] is True
-        assert 'half_life_multiplier' in params
-        assert params['half_life_multiplier'] == 3.0
+        assert "use_half_life_exit" in params
+        assert params["use_half_life_exit"] is True
+        assert "half_life_multiplier" in params
+        assert params["half_life_multiplier"] == 3.0
 
 
 class TestSpreadCalculation:
@@ -197,11 +198,11 @@ class TestSignalGeneration:
         entry_threshold = 2.0
 
         if z_score > entry_threshold:
-            signal = 'short_spread'
+            signal = "short_spread"
         else:
-            signal = 'neutral'
+            signal = "neutral"
 
-        assert signal == 'short_spread'
+        assert signal == "short_spread"
 
     def test_low_z_score_long_spread(self):
         """Low z-score (<-2) should generate long_spread signal."""
@@ -211,11 +212,11 @@ class TestSignalGeneration:
         entry_threshold = 2.0
 
         if z_score < -entry_threshold:
-            signal = 'long_spread'
+            signal = "long_spread"
         else:
-            signal = 'neutral'
+            signal = "neutral"
 
-        assert signal == 'long_spread'
+        assert signal == "long_spread"
 
     def test_neutral_z_score(self):
         """Z-score within threshold should be neutral."""
@@ -223,11 +224,11 @@ class TestSignalGeneration:
         entry_threshold = 2.0
 
         if abs(z_score) > entry_threshold:
-            signal = 'short_spread' if z_score > 0 else 'long_spread'
+            signal = "short_spread" if z_score > 0 else "long_spread"
         else:
-            signal = 'neutral'
+            signal = "neutral"
 
-        assert signal == 'neutral'
+        assert signal == "neutral"
 
 
 class TestHedgeRatio:
@@ -259,7 +260,7 @@ class TestPositionSizing:
         pair_capital = 10000.0
 
         # From strategy logic:
-        value1 = pair_capital / (1 + 1/hedge_ratio)
+        value1 = pair_capital / (1 + 1 / hedge_ratio)
         value2 = pair_capital - value1
 
         quantity1 = value1 / price1
@@ -278,7 +279,7 @@ class TestPositionSizing:
         hedge_ratio = 2.0  # Need 2x stock2 for every stock1
         pair_capital = 10000.0
 
-        value1 = pair_capital / (1 + 1/hedge_ratio)
+        value1 = pair_capital / (1 + 1 / hedge_ratio)
         value2 = pair_capital - value1
 
         quantity1 = value1 / price1
@@ -288,5 +289,5 @@ class TestPositionSizing:
         assert 1.8 < (quantity1 / quantity2) < 2.2
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

@@ -14,28 +14,25 @@ Tests cover:
 - WebSocket handlers
 """
 
-import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, MagicMock, patch, PropertyMock
-from datetime import datetime, timedelta
 
 # Mock the config module before importing the broker
 import sys
-sys.modules['config'] = Mock(
-    ALPACA_CREDS={
-        'API_KEY': 'test_api_key',
-        'API_SECRET': 'test_api_secret'
-    },
-    SYMBOLS=['AAPL', 'MSFT', 'GOOGL']
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+sys.modules["config"] = Mock(
+    ALPACA_CREDS={"API_KEY": "test_api_key", "API_SECRET": "test_api_secret"},
+    SYMBOLS=["AAPL", "MSFT", "GOOGL"],
 )
 
-from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
-from alpaca.data.timeframe import TimeFrame
-
+from alpaca.trading.enums import QueryOrderStatus
 
 # ============================================================================
 # Test Custom Exceptions
 # ============================================================================
+
 
 class TestCustomExceptions:
     """Test custom exception classes."""
@@ -43,27 +40,31 @@ class TestCustomExceptions:
     def test_broker_error_is_exception(self):
         """BrokerError should be an Exception subclass."""
         from brokers.alpaca_broker import BrokerError
+
         assert issubclass(BrokerError, Exception)
 
     def test_broker_error_with_message(self):
         """BrokerError should store message correctly."""
         from brokers.alpaca_broker import BrokerError
+
         error = BrokerError("Test error message")
         assert str(error) == "Test error message"
 
     def test_broker_connection_error_is_broker_error(self):
         """BrokerConnectionError should be a BrokerError subclass."""
-        from brokers.alpaca_broker import BrokerError, BrokerConnectionError
+        from brokers.alpaca_broker import BrokerConnectionError, BrokerError
+
         assert issubclass(BrokerConnectionError, BrokerError)
 
     def test_order_error_is_broker_error(self):
         """OrderError should be a BrokerError subclass."""
         from brokers.alpaca_broker import BrokerError, OrderError
+
         assert issubclass(OrderError, BrokerError)
 
     def test_can_catch_broker_connection_error_as_broker_error(self):
         """BrokerConnectionError should be catchable as BrokerError."""
-        from brokers.alpaca_broker import BrokerError, BrokerConnectionError
+        from brokers.alpaca_broker import BrokerConnectionError, BrokerError
 
         try:
             raise BrokerConnectionError("Connection failed")
@@ -83,6 +84,7 @@ class TestCustomExceptions:
 # ============================================================================
 # Test retry_with_backoff Decorator
 # ============================================================================
+
 
 class TestRetryWithBackoff:
     """Test the retry_with_backoff decorator."""
@@ -203,12 +205,13 @@ class TestRetryWithBackoff:
 # Test AlpacaBroker Initialization
 # ============================================================================
 
+
 class TestAlpacaBrokerInit:
     """Test AlpacaBroker initialization."""
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_init_with_paper_true(self, mock_trading, mock_data, mock_stream):
         """Should initialize with paper=True."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -222,9 +225,9 @@ class TestAlpacaBrokerInit:
         mock_data.assert_called_once()
         mock_stream.assert_called_once()
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_init_with_paper_false(self, mock_trading, mock_data, mock_stream):
         """Should initialize with paper=False."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -233,9 +236,9 @@ class TestAlpacaBrokerInit:
 
         assert broker.paper is False
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_init_with_paper_string_true(self, mock_trading, mock_data, mock_stream):
         """Should handle paper='true' string."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -244,9 +247,9 @@ class TestAlpacaBrokerInit:
 
         assert broker.paper is True
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_init_with_paper_string_false(self, mock_trading, mock_data, mock_stream):
         """Should handle paper='false' string."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -255,9 +258,9 @@ class TestAlpacaBrokerInit:
 
         assert broker.paper is False
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_init_initializes_tracking_attributes(self, mock_trading, mock_data, mock_stream):
         """Should initialize all tracking attributes."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -271,10 +274,10 @@ class TestAlpacaBrokerInit:
         assert broker._reconnect_attempts == 0
         assert broker._subscribed_symbols == set()
 
-    @patch('brokers.alpaca_broker.ALPACA_CREDS', {'API_KEY': '', 'API_SECRET': ''})
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.ALPACA_CREDS", {"API_KEY": "", "API_SECRET": ""})
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_init_raises_on_missing_credentials(self, mock_trading, mock_data, mock_stream):
         """Should raise ValueError when credentials are missing."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -287,12 +290,13 @@ class TestAlpacaBrokerInit:
 # Test Symbol Validation
 # ============================================================================
 
+
 class TestSymbolValidation:
     """Test the _validate_symbol static method."""
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_uppercase(self, mock_trading, mock_data, mock_stream):
         """Should convert symbol to uppercase."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -300,9 +304,9 @@ class TestSymbolValidation:
         result = AlpacaBroker._validate_symbol("aapl")
         assert result == "AAPL"
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_strip_whitespace(self, mock_trading, mock_data, mock_stream):
         """Should strip whitespace from symbol."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -310,9 +314,9 @@ class TestSymbolValidation:
         result = AlpacaBroker._validate_symbol("  AAPL  ")
         assert result == "AAPL"
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_empty_raises(self, mock_trading, mock_data, mock_stream):
         """Should raise ValueError for empty symbol."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -320,9 +324,9 @@ class TestSymbolValidation:
         with pytest.raises(ValueError, match="Symbol cannot be empty"):
             AlpacaBroker._validate_symbol("")
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_none_raises(self, mock_trading, mock_data, mock_stream):
         """Should raise ValueError for None symbol."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -330,9 +334,9 @@ class TestSymbolValidation:
         with pytest.raises(ValueError, match="Symbol cannot be empty"):
             AlpacaBroker._validate_symbol(None)
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_non_string_raises(self, mock_trading, mock_data, mock_stream):
         """Should raise ValueError for non-string symbol."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -340,9 +344,9 @@ class TestSymbolValidation:
         with pytest.raises(ValueError, match="Symbol must be a string"):
             AlpacaBroker._validate_symbol(123)
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_too_long_raises(self, mock_trading, mock_data, mock_stream):
         """Should raise ValueError for symbol > 10 chars."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -350,9 +354,9 @@ class TestSymbolValidation:
         with pytest.raises(ValueError, match="Symbol too long"):
             AlpacaBroker._validate_symbol("VERYLONGSYMBOL")
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_invalid_chars_raises(self, mock_trading, mock_data, mock_stream):
         """Should raise ValueError for invalid characters."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -360,9 +364,9 @@ class TestSymbolValidation:
         with pytest.raises(ValueError, match="Invalid symbol format"):
             AlpacaBroker._validate_symbol("AAPL$")
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_with_dot(self, mock_trading, mock_data, mock_stream):
         """Should accept symbols with dots (e.g., BRK.B)."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -370,9 +374,9 @@ class TestSymbolValidation:
         result = AlpacaBroker._validate_symbol("BRK.B")
         assert result == "BRK.B"
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_validate_symbol_with_hyphen(self, mock_trading, mock_data, mock_stream):
         """Should accept symbols with hyphens."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -385,12 +389,13 @@ class TestSymbolValidation:
 # Test Subscriber Management
 # ============================================================================
 
+
 class TestSubscriberManagement:
     """Test subscriber management methods."""
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_add_subscriber(self, mock_trading, mock_data, mock_stream):
         """Should add subscriber to set."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -402,9 +407,9 @@ class TestSubscriberManagement:
 
         assert subscriber in broker._subscribers
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_add_subscriber_no_duplicates(self, mock_trading, mock_data, mock_stream):
         """Should not add duplicate subscribers."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -417,9 +422,9 @@ class TestSubscriberManagement:
 
         assert len(broker._subscribers) == 1
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_remove_subscriber(self, mock_trading, mock_data, mock_stream):
         """Should remove subscriber from set."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -432,9 +437,9 @@ class TestSubscriberManagement:
 
         assert subscriber not in broker._subscribers
 
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     def test_remove_nonexistent_subscriber(self, mock_trading, mock_data, mock_stream):
         """Should handle removing non-existent subscriber gracefully."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -452,13 +457,14 @@ class TestSubscriberManagement:
 # Test Account Methods
 # ============================================================================
 
+
 class TestAccountMethods:
     """Test account-related methods."""
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_account_success(self, mock_trading, mock_data, mock_stream):
         """Should return account info."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -476,9 +482,9 @@ class TestAccountMethods:
         mock_trading.return_value.get_account.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_account_raises_on_error(self, mock_trading, mock_data, mock_stream):
         """Should raise on API error."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -491,9 +497,9 @@ class TestAccountMethods:
             await broker.get_account()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_market_status_success(self, mock_trading, mock_data, mock_stream):
         """Should return market status."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -508,15 +514,17 @@ class TestAccountMethods:
         broker = AlpacaBroker(paper=True)
         status = await broker.get_market_status()
 
-        assert status['is_open'] is True
-        assert 'next_open' in status
-        assert 'next_close' in status
+        assert status["is_open"] is True
+        assert "next_open" in status
+        assert "next_close" in status
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
-    async def test_get_market_status_returns_default_on_error(self, mock_trading, mock_data, mock_stream):
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
+    async def test_get_market_status_returns_default_on_error(
+        self, mock_trading, mock_data, mock_stream
+    ):
         """Should return safe default on error."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -525,20 +533,21 @@ class TestAccountMethods:
         broker = AlpacaBroker(paper=True)
         status = await broker.get_market_status()
 
-        assert status == {'is_open': False}
+        assert status == {"is_open": False}
 
 
 # ============================================================================
 # Test Position Methods
 # ============================================================================
 
+
 class TestPositionMethods:
     """Test position-related methods."""
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_positions_success(self, mock_trading, mock_data, mock_stream):
         """Should return all positions."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -555,9 +564,9 @@ class TestPositionMethods:
         assert positions[0].symbol == "AAPL"
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_position_success(self, mock_trading, mock_data, mock_stream):
         """Should return specific position."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -574,10 +583,12 @@ class TestPositionMethods:
         mock_trading.return_value.get_position.assert_called_with("AAPL")
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
-    async def test_get_position_returns_none_on_not_found(self, mock_trading, mock_data, mock_stream):
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
+    async def test_get_position_returns_none_on_not_found(
+        self, mock_trading, mock_data, mock_stream
+    ):
         """Should return None when position not found."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -589,9 +600,9 @@ class TestPositionMethods:
         assert position is None
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_position_validates_symbol(self, mock_trading, mock_data, mock_stream):
         """Should validate symbol before API call."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -603,9 +614,9 @@ class TestPositionMethods:
         mock_trading.return_value.get_position.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_tracked_positions(self, mock_trading, mock_data, mock_stream):
         """Should return positions for strategy."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -624,13 +635,14 @@ class TestPositionMethods:
 # Test Order Methods
 # ============================================================================
 
+
 class TestOrderMethods:
     """Test order-related methods."""
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_submit_market_order(self, mock_trading, mock_data, mock_stream):
         """Should submit market order."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -642,21 +654,16 @@ class TestOrderMethods:
         mock_trading.return_value.submit_order.return_value = mock_result
 
         broker = AlpacaBroker(paper=True)
-        order = {
-            'symbol': 'AAPL',
-            'side': 'buy',
-            'quantity': 100,
-            'type': 'market'
-        }
+        order = {"symbol": "AAPL", "side": "buy", "quantity": 100, "type": "market"}
         result = await broker.submit_order(order)
 
         assert result.id == "order-123"
         mock_trading.return_value.submit_order.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_submit_limit_order(self, mock_trading, mock_data, mock_stream):
         """Should submit limit order."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -669,40 +676,37 @@ class TestOrderMethods:
 
         broker = AlpacaBroker(paper=True)
         order = {
-            'symbol': 'AAPL',
-            'side': 'sell',
-            'quantity': 100,
-            'type': 'limit',
-            'limit_price': 150.00
+            "symbol": "AAPL",
+            "side": "sell",
+            "quantity": 100,
+            "type": "limit",
+            "limit_price": 150.00,
         }
         result = await broker.submit_order(order)
 
         assert result.id == "order-123"
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_submit_order_unsupported_type(self, mock_trading, mock_data, mock_stream):
         """Should raise on unsupported order type."""
         from brokers.alpaca_broker import AlpacaBroker
 
         broker = AlpacaBroker(paper=True)
-        order = {
-            'symbol': 'AAPL',
-            'side': 'buy',
-            'quantity': 100,
-            'type': 'unsupported'
-        }
+        order = {"symbol": "AAPL", "side": "buy", "quantity": 100, "type": "unsupported"}
 
         with pytest.raises(ValueError, match="Unsupported order type"):
             await broker.submit_order(order)
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
-    async def test_submit_order_advanced_with_order_builder(self, mock_trading, mock_data, mock_stream):
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
+    async def test_submit_order_advanced_with_order_builder(
+        self, mock_trading, mock_data, mock_stream
+    ):
         """Should submit order from OrderBuilder."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -716,6 +720,7 @@ class TestOrderMethods:
 
         # Create a mock OrderBuilder
         from brokers.order_builder import OrderBuilder
+
         order_builder = OrderBuilder("AAPL", "buy", 100).market().day()
 
         broker = AlpacaBroker(paper=True)
@@ -724,9 +729,9 @@ class TestOrderMethods:
         assert result.id == "order-123"
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_cancel_order_success(self, mock_trading, mock_data, mock_stream):
         """Should cancel order by ID."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -738,9 +743,9 @@ class TestOrderMethods:
         mock_trading.return_value.cancel_order_by_id.assert_called_with("order-123")
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_cancel_order_failure(self, mock_trading, mock_data, mock_stream):
         """Should return False on cancel failure."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -753,9 +758,9 @@ class TestOrderMethods:
         assert result is False
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_cancel_all_orders(self, mock_trading, mock_data, mock_stream):
         """Should cancel all orders."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -768,9 +773,9 @@ class TestOrderMethods:
         assert len(result) == 2
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_replace_order(self, mock_trading, mock_data, mock_stream):
         """Should replace order with new parameters."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -780,19 +785,15 @@ class TestOrderMethods:
         mock_trading.return_value.replace_order_by_id.return_value = mock_result
 
         broker = AlpacaBroker(paper=True)
-        result = await broker.replace_order(
-            "order-123",
-            qty=150,
-            limit_price=155.00
-        )
+        result = await broker.replace_order("order-123", qty=150, limit_price=155.00)
 
         assert result.id == "order-456"
         mock_trading.return_value.replace_order_by_id.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_order_by_id(self, mock_trading, mock_data, mock_stream):
         """Should get order by ID."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -807,9 +808,9 @@ class TestOrderMethods:
         assert order.id == "order-123"
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_order_by_id_not_found(self, mock_trading, mock_data, mock_stream):
         """Should return None when order not found."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -822,9 +823,9 @@ class TestOrderMethods:
         assert order is None
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_order_by_client_id(self, mock_trading, mock_data, mock_stream):
         """Should get order by client order ID."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -839,9 +840,9 @@ class TestOrderMethods:
         assert order.client_order_id == "client-123"
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_orders(self, mock_trading, mock_data, mock_stream):
         """Should get orders with status filter."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -860,20 +861,21 @@ class TestOrderMethods:
 # Test Market Data Methods
 # ============================================================================
 
+
 class TestMarketDataMethods:
     """Test market data methods."""
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_last_price_success(self, mock_trading, mock_data, mock_stream):
         """Should return last trade price."""
         from brokers.alpaca_broker import AlpacaBroker
 
         mock_trade = Mock()
         mock_trade.price = 150.25
-        mock_data.return_value.get_stock_latest_trade.return_value = {'AAPL': mock_trade}
+        mock_data.return_value.get_stock_latest_trade.return_value = {"AAPL": mock_trade}
 
         broker = AlpacaBroker(paper=True)
         price = await broker.get_last_price("AAPL")
@@ -881,9 +883,9 @@ class TestMarketDataMethods:
         assert price == 150.25
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_last_price_not_found(self, mock_trading, mock_data, mock_stream):
         """Should return None when price not found."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -896,9 +898,9 @@ class TestMarketDataMethods:
         assert price is None
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_last_price_on_error(self, mock_trading, mock_data, mock_stream):
         """Should return None on API error."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -911,9 +913,9 @@ class TestMarketDataMethods:
         assert price is None
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_bars_success(self, mock_trading, mock_data, mock_stream):
         """Should return historical bars."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -926,7 +928,7 @@ class TestMarketDataMethods:
         mock_bar.volume = 1000000
 
         mock_response = Mock()
-        mock_response.data = {'AAPL': [mock_bar]}
+        mock_response.data = {"AAPL": [mock_bar]}
         mock_data.return_value.get_stock_bars.return_value = mock_response
 
         broker = AlpacaBroker(paper=True)
@@ -936,26 +938,26 @@ class TestMarketDataMethods:
         assert bars[0].close == 152.0
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_bars_with_string_timeframe(self, mock_trading, mock_data, mock_stream):
         """Should convert string timeframe."""
         from brokers.alpaca_broker import AlpacaBroker
 
         mock_response = Mock()
-        mock_response.data = {'AAPL': []}
+        mock_response.data = {"AAPL": []}
         mock_data.return_value.get_stock_bars.return_value = mock_response
 
         broker = AlpacaBroker(paper=True)
-        await broker.get_bars("AAPL", timeframe='1Min', limit=5)
+        await broker.get_bars("AAPL", timeframe="1Min", limit=5)
 
         mock_data.return_value.get_stock_bars.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_bars_returns_empty_on_not_found(self, mock_trading, mock_data, mock_stream):
         """Should return empty list when bars not found."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -970,9 +972,9 @@ class TestMarketDataMethods:
         assert bars == []
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_bars_returns_empty_on_error(self, mock_trading, mock_data, mock_stream):
         """Should return empty list on API error."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -985,9 +987,9 @@ class TestMarketDataMethods:
         assert bars == []
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_news_returns_empty(self, mock_trading, mock_data, mock_stream):
         """get_news should return empty list (not implemented)."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1002,13 +1004,14 @@ class TestMarketDataMethods:
 # Test WebSocket Handlers
 # ============================================================================
 
+
 class TestWebSocketHandlers:
     """Test WebSocket handler methods."""
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_handle_trade_updates_fill(self, mock_trading, mock_data, mock_stream):
         """Should handle fill event and notify subscribers."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1021,19 +1024,16 @@ class TestWebSocketHandlers:
         broker._add_subscriber(subscriber)
 
         # Simulate trade update
-        data = {
-            'event': 'fill',
-            'order': {'id': 'order-123'}
-        }
+        data = {"event": "fill", "order": {"id": "order-123"}}
 
         await broker._handle_trade_updates(data)
 
         subscriber.on_trade_update.assert_called_once_with(data)
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_handle_trade_updates_partial_fill(self, mock_trading, mock_data, mock_stream):
         """Should handle partial_fill event."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1043,19 +1043,16 @@ class TestWebSocketHandlers:
         subscriber.on_trade_update = AsyncMock()
         broker._add_subscriber(subscriber)
 
-        data = {
-            'event': 'partial_fill',
-            'order': {'id': 'order-123'}
-        }
+        data = {"event": "partial_fill", "order": {"id": "order-123"}}
 
         await broker._handle_trade_updates(data)
 
         subscriber.on_trade_update.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_handle_bars(self, mock_trading, mock_data, mock_stream):
         """Should handle bar data and notify subscribers."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1067,13 +1064,13 @@ class TestWebSocketHandlers:
         broker._add_subscriber(subscriber)
 
         data = {
-            'S': 'AAPL',
-            'o': 150.0,
-            'h': 155.0,
-            'l': 149.0,
-            'c': 152.0,
-            'v': 1000000,
-            't': datetime.now().timestamp() * 1000
+            "S": "AAPL",
+            "o": 150.0,
+            "h": 155.0,
+            "l": 149.0,
+            "c": 152.0,
+            "v": 1000000,
+            "t": datetime.now().timestamp() * 1000,
         }
 
         await broker._handle_bars(data)
@@ -1081,9 +1078,9 @@ class TestWebSocketHandlers:
         subscriber.on_bar.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_handle_quotes(self, mock_trading, mock_data, mock_stream):
         """Should handle quote data and notify subscribers."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1095,12 +1092,12 @@ class TestWebSocketHandlers:
         broker._add_subscriber(subscriber)
 
         data = {
-            'S': 'AAPL',
-            'bp': 150.0,
-            'ap': 150.05,
-            'bs': 100,
-            'as': 200,
-            't': datetime.now().timestamp() * 1000
+            "S": "AAPL",
+            "bp": 150.0,
+            "ap": 150.05,
+            "bs": 100,
+            "as": 200,
+            "t": datetime.now().timestamp() * 1000,
         }
 
         await broker._handle_quotes(data)
@@ -1108,9 +1105,9 @@ class TestWebSocketHandlers:
         subscriber.on_quote.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_handle_trades(self, mock_trading, mock_data, mock_stream):
         """Should handle trade data and notify subscribers."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1121,12 +1118,7 @@ class TestWebSocketHandlers:
         subscriber.on_trade = AsyncMock()
         broker._add_subscriber(subscriber)
 
-        data = {
-            'S': 'AAPL',
-            'p': 150.25,
-            's': 100,
-            't': datetime.now().timestamp() * 1000
-        }
+        data = {"S": "AAPL", "p": 150.25, "s": 100, "t": datetime.now().timestamp() * 1000}
 
         await broker._handle_trades(data)
 
@@ -1137,13 +1129,14 @@ class TestWebSocketHandlers:
 # Test WebSocket Connection Management
 # ============================================================================
 
+
 class TestWebSocketConnection:
     """Test WebSocket connection management."""
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_is_connected_initially_false(self, mock_trading, mock_data, mock_stream):
         """Should be disconnected initially."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1155,9 +1148,9 @@ class TestWebSocketConnection:
         assert is_connected is False
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_start_websocket_creates_task(self, mock_trading, mock_data, mock_stream):
         """Should create websocket handler task."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1172,9 +1165,9 @@ class TestWebSocketConnection:
         await broker.stop_websocket()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_start_websocket_no_duplicate(self, mock_trading, mock_data, mock_stream):
         """Should not create duplicate websocket tasks."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1193,9 +1186,9 @@ class TestWebSocketConnection:
         await broker.stop_websocket()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_stop_websocket_cancels_task(self, mock_trading, mock_data, mock_stream):
         """Should cancel websocket task."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1208,9 +1201,9 @@ class TestWebSocketConnection:
         assert broker._ws_task is None
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_stop_websocket_when_not_running(self, mock_trading, mock_data, mock_stream):
         """Should handle stopping when not running."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1223,16 +1216,18 @@ class TestWebSocketConnection:
         assert broker._ws_task is None
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
-    async def test_subscribe_to_symbols_when_not_connected(self, mock_trading, mock_data, mock_stream):
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
+    async def test_subscribe_to_symbols_when_not_connected(
+        self, mock_trading, mock_data, mock_stream
+    ):
         """Should return False when not connected."""
         from brokers.alpaca_broker import AlpacaBroker
 
         broker = AlpacaBroker(paper=True)
 
-        result = await broker._subscribe_to_symbols(['AAPL', 'MSFT'])
+        result = await broker._subscribe_to_symbols(["AAPL", "MSFT"])
 
         assert result is False
 
@@ -1241,13 +1236,14 @@ class TestWebSocketConnection:
 # Test Edge Cases and Error Handling
 # ============================================================================
 
+
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_handle_bars_with_no_subscribers(self, mock_trading, mock_data, mock_stream):
         """Should handle bars with no subscribers gracefully."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1255,22 +1251,22 @@ class TestEdgeCases:
         broker = AlpacaBroker(paper=True)
 
         data = {
-            'S': 'AAPL',
-            'o': 150.0,
-            'h': 155.0,
-            'l': 149.0,
-            'c': 152.0,
-            'v': 1000000,
-            't': datetime.now().timestamp() * 1000
+            "S": "AAPL",
+            "o": 150.0,
+            "h": 155.0,
+            "l": 149.0,
+            "c": 152.0,
+            "v": 1000000,
+            "t": datetime.now().timestamp() * 1000,
         }
 
         # Should not raise
         await broker._handle_bars(data)
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_handle_bars_with_missing_data(self, mock_trading, mock_data, mock_stream):
         """Should handle bars with missing fields."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1284,9 +1280,9 @@ class TestEdgeCases:
         await broker._handle_bars(data)
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_submit_order_with_default_type(self, mock_trading, mock_data, mock_stream):
         """Should default to market order."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1299,9 +1295,9 @@ class TestEdgeCases:
 
         broker = AlpacaBroker(paper=True)
         order = {
-            'symbol': 'AAPL',
-            'side': 'buy',
-            'quantity': 100
+            "symbol": "AAPL",
+            "side": "buy",
+            "quantity": 100,
             # No 'type' specified
         }
 
@@ -1310,10 +1306,12 @@ class TestEdgeCases:
         assert result.id == "order-123"
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
-    async def test_get_tracked_positions_returns_empty_on_error(self, mock_trading, mock_data, mock_stream):
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
+    async def test_get_tracked_positions_returns_empty_on_error(
+        self, mock_trading, mock_data, mock_stream
+    ):
         """Should return empty list on error."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -1329,58 +1327,59 @@ class TestEdgeCases:
 # Test Timeframe Conversion
 # ============================================================================
 
+
 class TestTimeframeConversion:
     """Test timeframe string to object conversion."""
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_timeframe_1min(self, mock_trading, mock_data, mock_stream):
         """Should convert '1Min' string."""
         from brokers.alpaca_broker import AlpacaBroker
 
         mock_response = Mock()
-        mock_response.data = {'AAPL': []}
+        mock_response.data = {"AAPL": []}
         mock_data.return_value.get_stock_bars.return_value = mock_response
 
         broker = AlpacaBroker(paper=True)
-        await broker.get_bars("AAPL", timeframe='1Min')
+        await broker.get_bars("AAPL", timeframe="1Min")
 
         # Verify call was made (timeframe conversion worked)
         mock_data.return_value.get_stock_bars.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_timeframe_1hour(self, mock_trading, mock_data, mock_stream):
         """Should convert '1Hour' string."""
         from brokers.alpaca_broker import AlpacaBroker
 
         mock_response = Mock()
-        mock_response.data = {'AAPL': []}
+        mock_response.data = {"AAPL": []}
         mock_data.return_value.get_stock_bars.return_value = mock_response
 
         broker = AlpacaBroker(paper=True)
-        await broker.get_bars("AAPL", timeframe='1Hour')
+        await broker.get_bars("AAPL", timeframe="1Hour")
 
         mock_data.return_value.get_stock_bars.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('brokers.alpaca_broker.StockDataStream')
-    @patch('brokers.alpaca_broker.StockHistoricalDataClient')
-    @patch('brokers.alpaca_broker.TradingClient')
+    @patch("brokers.alpaca_broker.StockDataStream")
+    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
+    @patch("brokers.alpaca_broker.TradingClient")
     async def test_timeframe_day(self, mock_trading, mock_data, mock_stream):
         """Should convert 'Day' string."""
         from brokers.alpaca_broker import AlpacaBroker
 
         mock_response = Mock()
-        mock_response.data = {'AAPL': []}
+        mock_response.data = {"AAPL": []}
         mock_data.return_value.get_stock_bars.return_value = mock_response
 
         broker = AlpacaBroker(paper=True)
-        await broker.get_bars("AAPL", timeframe='Day')
+        await broker.get_bars("AAPL", timeframe="Day")
 
         mock_data.return_value.get_stock_bars.assert_called_once()
 

@@ -29,10 +29,10 @@ Usage:
     adjusted_stop = base_stop * adjustments['stop_mult']
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Tuple, Dict, Optional
-import asyncio
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -113,12 +113,9 @@ class VolatilityRegimeDetector:
                     f"🔄 REGIME CHANGE: {self.last_regime.upper()} → {regime.upper()} "
                     f"(VIX: {vix:.1f})"
                 )
-                self.regime_changes.append({
-                    'time': datetime.now(),
-                    'from': self.last_regime,
-                    'to': regime,
-                    'vix': vix
-                })
+                self.regime_changes.append(
+                    {"time": datetime.now(), "from": self.last_regime, "to": regime, "vix": vix}
+                )
 
             self.last_regime = regime
 
@@ -149,66 +146,66 @@ class VolatilityRegimeDetector:
         if vix < self.VERY_LOW_THRESHOLD:
             # Very Low Volatility (VIX < 12)
             # Market complacency, opportunity for larger positions
-            return 'very_low', {
-                'pos_mult': 1.4,        # 40% larger positions
-                'stop_mult': 0.7,       # 30% tighter stops
-                'max_positions': 12,    # Allow more positions
-                'trade': True,
-                'description': 'Complacent market - increase exposure'
+            return "very_low", {
+                "pos_mult": 1.4,  # 40% larger positions
+                "stop_mult": 0.7,  # 30% tighter stops
+                "max_positions": 12,  # Allow more positions
+                "trade": True,
+                "description": "Complacent market - increase exposure",
             }
 
         elif vix < self.LOW_THRESHOLD:
             # Low Volatility (VIX 12-15)
             # Calm market, favorable for trading
-            return 'low', {
-                'pos_mult': 1.2,        # 20% larger positions
-                'stop_mult': 0.8,       # 20% tighter stops
-                'max_positions': 10,    # Standard positions
-                'trade': True,
-                'description': 'Calm market - slightly increase exposure'
+            return "low", {
+                "pos_mult": 1.2,  # 20% larger positions
+                "stop_mult": 0.8,  # 20% tighter stops
+                "max_positions": 10,  # Standard positions
+                "trade": True,
+                "description": "Calm market - slightly increase exposure",
             }
 
         elif vix < self.NORMAL_THRESHOLD:
             # Normal Volatility (VIX 15-20)
             # Average market conditions
-            return 'normal', {
-                'pos_mult': 1.0,        # Standard positions
-                'stop_mult': 1.0,       # Standard stops
-                'max_positions': 8,     # Standard positions
-                'trade': True,
-                'description': 'Normal market - standard sizing'
+            return "normal", {
+                "pos_mult": 1.0,  # Standard positions
+                "stop_mult": 1.0,  # Standard stops
+                "max_positions": 8,  # Standard positions
+                "trade": True,
+                "description": "Normal market - standard sizing",
             }
 
         elif vix < self.ELEVATED_THRESHOLD:
             # Elevated Volatility (VIX 20-30)
             # Increased uncertainty, reduce risk
-            return 'elevated', {
-                'pos_mult': 0.7,        # 30% smaller positions
-                'stop_mult': 1.2,       # 20% wider stops
-                'max_positions': 5,     # Fewer positions
-                'trade': True,
-                'description': 'Elevated volatility - reduce exposure'
+            return "elevated", {
+                "pos_mult": 0.7,  # 30% smaller positions
+                "stop_mult": 1.2,  # 20% wider stops
+                "max_positions": 5,  # Fewer positions
+                "trade": True,
+                "description": "Elevated volatility - reduce exposure",
             }
 
         else:
             # High Volatility (VIX > 30)
             # Market fear/panic, significantly reduce risk
-            return 'high', {
-                'pos_mult': 0.4,        # 60% smaller positions
-                'stop_mult': 1.5,       # 50% wider stops
-                'max_positions': 3,     # Very few positions
-                'trade': True,          # Still trade, but cautiously
-                'description': 'High volatility - significant reduction'
+            return "high", {
+                "pos_mult": 0.4,  # 60% smaller positions
+                "stop_mult": 1.5,  # 50% wider stops
+                "max_positions": 3,  # Very few positions
+                "trade": True,  # Still trade, but cautiously
+                "description": "High volatility - significant reduction",
             }
 
     def _get_normal_regime(self) -> Tuple[str, Dict]:
         """Fallback to normal regime if VIX unavailable."""
-        return 'normal', {
-            'pos_mult': 1.0,
-            'stop_mult': 1.0,
-            'max_positions': 8,
-            'trade': True,
-            'description': 'Normal market (fallback)'
+        return "normal", {
+            "pos_mult": 1.0,
+            "stop_mult": 1.0,
+            "max_positions": 8,
+            "trade": True,
+            "description": "Normal market (fallback)",
         }
 
     async def _get_vix(self) -> Optional[float]:
@@ -221,20 +218,22 @@ class VolatilityRegimeDetector:
         try:
             # Check cache
             now = datetime.now()
-            if (self.last_vix_value is not None and
-                self.last_vix_time is not None and
-                (now - self.last_vix_time).total_seconds() < self.cache_minutes * 60):
+            if (
+                self.last_vix_value is not None
+                and self.last_vix_time is not None
+                and (now - self.last_vix_time).total_seconds() < self.cache_minutes * 60
+            ):
                 return self.last_vix_value
 
             # Fetch VIX from broker
             # Note: VIX symbol varies by broker - Alpaca may use "VIX" or "$VIX"
             try:
-                quote = await self.broker.get_latest_quote('VIX')
+                quote = await self.broker.get_latest_quote("VIX")
                 vix_value = float(quote.ask_price)  # Use ask price for VIX
             except Exception as e:
                 # Try alternative symbol (VIX symbol varies by broker)
                 logger.debug(f"VIX quote failed, trying $VIX: {e}")
-                quote = await self.broker.get_latest_quote('$VIX')
+                quote = await self.broker.get_latest_quote("$VIX")
                 vix_value = float(quote.ask_price)
 
             # Validate VIX (typical range: 10-80, extreme: 10-100)
@@ -247,17 +246,11 @@ class VolatilityRegimeDetector:
             self.last_vix_time = now
 
             # Add to history
-            self.vix_history.append({
-                'time': now,
-                'value': vix_value
-            })
+            self.vix_history.append({"time": now, "value": vix_value})
 
             # Keep last 30 days only
             cutoff = now - timedelta(days=30)
-            self.vix_history = [
-                v for v in self.vix_history
-                if v['time'] > cutoff
-            ]
+            self.vix_history = [v for v in self.vix_history if v["time"] > cutoff]
 
             return vix_value
 
@@ -274,14 +267,14 @@ class VolatilityRegimeDetector:
         """
         if not self.vix_history:
             return {
-                'current': self.last_vix_value,
-                'avg_30d': None,
-                'min_30d': None,
-                'max_30d': None,
-                'percentile': None
+                "current": self.last_vix_value,
+                "avg_30d": None,
+                "min_30d": None,
+                "max_30d": None,
+                "percentile": None,
             }
 
-        values = [v['value'] for v in self.vix_history]
+        values = [v["value"] for v in self.vix_history]
 
         current_percentile = None
         if self.last_vix_value:
@@ -290,12 +283,12 @@ class VolatilityRegimeDetector:
             current_percentile = (below_current / len(values)) * 100
 
         return {
-            'current': self.last_vix_value,
-            'avg_30d': sum(values) / len(values),
-            'min_30d': min(values),
-            'max_30d': max(values),
-            'percentile': current_percentile,
-            'data_points': len(values)
+            "current": self.last_vix_value,
+            "avg_30d": sum(values) / len(values),
+            "min_30d": min(values),
+            "max_30d": max(values),
+            "percentile": current_percentile,
+            "data_points": len(values),
         }
 
     def get_regime_history(self) -> list:
@@ -315,7 +308,7 @@ class VolatilityRegimeDetector:
             True if should reduce exposure
         """
         regime, _ = await self.get_current_regime()
-        return regime in ['elevated', 'high']
+        return regime in ["elevated", "high"]
 
     async def is_crisis_mode(self) -> bool:
         """
@@ -402,8 +395,7 @@ async def monitor_volatility_regime(broker, interval_minutes: int = 5):
             # Alert on crisis mode
             if await detector.is_crisis_mode():
                 logger.critical(
-                    "🚨 CRISIS MODE: VIX > 40! "
-                    "Market in extreme fear - reduce all positions!"
+                    "🚨 CRISIS MODE: VIX > 40! " "Market in extreme fear - reduce all positions!"
                 )
 
         except Exception as e:
@@ -415,21 +407,19 @@ async def monitor_volatility_regime(broker, interval_minutes: int = 5):
 
 if __name__ == "__main__":
     # Example usage
-    import sys
     import os
+    import sys
+
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     from brokers.alpaca_broker import AlpacaBroker
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     async def main():
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("📊 VOLATILITY REGIME DETECTOR - EXAMPLE")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         # Initialize broker (paper trading)
         broker = AlpacaBroker(paper=True)
@@ -450,10 +440,10 @@ if __name__ == "__main__":
 
         print("\nExample Calculations:")
         base_position = 0.10  # 10%
-        base_stop = 0.03      # 3%
+        base_stop = 0.03  # 3%
 
-        adjusted_position = detector.adjust_position_size(base_position, adjustments['pos_mult'])
-        adjusted_stop = detector.adjust_stop_loss(base_stop, adjustments['stop_mult'])
+        adjusted_position = detector.adjust_position_size(base_position, adjustments["pos_mult"])
+        adjusted_stop = detector.adjust_stop_loss(base_stop, adjustments["stop_mult"])
 
         print(f"  Base Position Size: {base_position:.1%}")
         print(f"  Adjusted Position Size: {adjusted_position:.1%}")
@@ -462,12 +452,12 @@ if __name__ == "__main__":
 
         # Get statistics
         stats = detector.get_vix_statistics()
-        if stats['avg_30d']:
+        if stats["avg_30d"]:
             print("\n30-Day VIX Statistics:")
             print(f"  Current: {stats['current']:.1f}")
             print(f"  Average: {stats['avg_30d']:.1f}")
             print(f"  Range: {stats['min_30d']:.1f} - {stats['max_30d']:.1f}")
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
 
     asyncio.run(main())

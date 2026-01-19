@@ -12,10 +12,11 @@ Strategy Logic:
 Only enters trades when all timeframes are aligned (multi-timeframe confirmation).
 """
 
-import logging
 import asyncio
-from strategies.base_strategy import BaseStrategy
+import logging
+
 from brokers.order_builder import OrderBuilder
+from strategies.base_strategy import BaseStrategy
 from utils.multi_timeframe import MultiTimeframeAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -36,13 +37,12 @@ class MultiTimeframeStrategy(BaseStrategy):
     def default_parameters(self):
         """Default strategy parameters."""
         return {
-            'position_size': 0.10,  # 10% of capital per position
-            'stop_loss': 0.02,      # 2% stop loss
-            'take_profit': 0.05,    # 5% take profit
-
+            "position_size": 0.10,  # 10% of capital per position
+            "stop_loss": 0.02,  # 2% stop loss
+            "take_profit": 0.05,  # 5% take profit
             # Multi-timeframe settings
-            'timeframes': ['1Min', '5Min', '1Hour'],
-            'require_full_alignment': True,  # All timeframes must agree
+            "timeframes": ["1Min", "5Min", "1Hour"],
+            "require_full_alignment": True,  # All timeframes must agree
         }
 
     async def initialize(self, **kwargs):
@@ -56,15 +56,14 @@ class MultiTimeframeStrategy(BaseStrategy):
             params.update(self.parameters)
             self.parameters = params
 
-            self.position_size = self.parameters['position_size']
-            self.stop_loss = self.parameters['stop_loss']
-            self.take_profit = self.parameters['take_profit']
-            self.require_full_alignment = self.parameters['require_full_alignment']
+            self.position_size = self.parameters["position_size"]
+            self.stop_loss = self.parameters["stop_loss"]
+            self.take_profit = self.parameters["take_profit"]
+            self.require_full_alignment = self.parameters["require_full_alignment"]
 
             # Initialize multi-timeframe analyzer
             self.mtf = MultiTimeframeAnalyzer(
-                timeframes=self.parameters['timeframes'],
-                history_length=200
+                timeframes=self.parameters["timeframes"], history_length=200
             )
 
             # Track current positions
@@ -72,7 +71,7 @@ class MultiTimeframeStrategy(BaseStrategy):
             self.current_prices = {}
 
             # Add strategy as subscriber to broker
-            if hasattr(self.broker, '_add_subscriber'):
+            if hasattr(self.broker, "_add_subscriber"):
                 self.broker._add_subscriber(self)
 
             logger.info("Multi-timeframe strategy initialized")
@@ -85,7 +84,9 @@ class MultiTimeframeStrategy(BaseStrategy):
             logger.error(f"Error initializing multi-timeframe strategy: {e}", exc_info=True)
             return False
 
-    async def on_bar(self, symbol, open_price, high_price, low_price, close_price, volume, timestamp):
+    async def on_bar(
+        self, symbol, open_price, high_price, low_price, close_price, volume, timestamp
+    ):
         """Handle incoming bar data."""
         try:
             if symbol not in self.symbols:
@@ -99,19 +100,19 @@ class MultiTimeframeStrategy(BaseStrategy):
 
             # Check if we have enough data
             status = self.mtf.get_status(symbol)
-            if 'error' in status:
+            if "error" in status:
                 return
 
             # Get aligned signal
-            aligned_signal = status['aligned_signal']
+            aligned_signal = status["aligned_signal"]
 
             # Log multi-timeframe status periodically
             if timestamp.second == 0:  # Log every minute
                 logger.info(f"\n{symbol} Multi-Timeframe Status:")
-                for tf, data in status['timeframes'].items():
+                for tf, data in status["timeframes"].items():
                     logger.info(f"  {tf}: {data['trend']} (momentum: {data['momentum']:.2f}%)")
                 logger.info(f"  Aligned Signal: {aligned_signal}")
-                if status['divergence']:
+                if status["divergence"]:
                     logger.info(f"  ⚠️  Divergence: {status['divergence']}")
 
             # Get current position
@@ -119,9 +120,9 @@ class MultiTimeframeStrategy(BaseStrategy):
             current_position = next((p for p in positions if p.symbol == symbol), None)
 
             # Trading logic
-            if aligned_signal == 'bullish' and not current_position:
+            if aligned_signal == "bullish" and not current_position:
                 await self._execute_buy(symbol, close_price, status)
-            elif (aligned_signal == 'bearish' or aligned_signal == 'neutral') and current_position:
+            elif (aligned_signal == "bearish" or aligned_signal == "neutral") and current_position:
                 await self._execute_sell(symbol, current_position, status)
 
         except Exception as e:
@@ -143,7 +144,9 @@ class MultiTimeframeStrategy(BaseStrategy):
             position_value = buying_power * self.position_size
 
             # CRITICAL SAFETY: Enforce maximum position size limit (5% of portfolio)
-            position_value, quantity = await self.enforce_position_size_limit(symbol, position_value, price)
+            position_value, quantity = await self.enforce_position_size_limit(
+                symbol, position_value, price
+            )
 
             # Allow fractional shares (Alpaca minimum is typically 0.01)
             if quantity < 0.01:
@@ -158,7 +161,7 @@ class MultiTimeframeStrategy(BaseStrategy):
             logger.info(f"🎯 MULTI-TIMEFRAME BUY SIGNAL - {symbol}")
             logger.info(f"{'='*60}")
             logger.info(f"All timeframes aligned: {mtf_status['aligned_signal']}")
-            for tf, data in mtf_status['timeframes'].items():
+            for tf, data in mtf_status["timeframes"].items():
                 logger.info(f"  {tf}: {data['trend']} ({data['momentum']:+.2f}%)")
             logger.info("\nOrder Details:")
             logger.info(f"  Quantity: {quantity:.4f} shares")
@@ -168,11 +171,13 @@ class MultiTimeframeStrategy(BaseStrategy):
             logger.info(f"{'='*60}\n")
 
             # Create and submit bracket order
-            order = (OrderBuilder(symbol, 'buy', quantity)
-                     .market()
-                     .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-                     .gtc()
-                     .build())
+            order = (
+                OrderBuilder(symbol, "buy", quantity)
+                .market()
+                .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+                .gtc()
+                .build()
+            )
 
             result = await self.broker.submit_order_advanced(order)
 
@@ -192,18 +197,15 @@ class MultiTimeframeStrategy(BaseStrategy):
             logger.info(f"🔴 MULTI-TIMEFRAME SELL SIGNAL - {symbol}")
             logger.info(f"{'='*60}")
             logger.info(f"Signal: {mtf_status['aligned_signal']}")
-            if mtf_status['divergence']:
+            if mtf_status["divergence"]:
                 logger.info(f"Divergence detected: {mtf_status['divergence']}")
-            for tf, data in mtf_status['timeframes'].items():
+            for tf, data in mtf_status["timeframes"].items():
                 logger.info(f"  {tf}: {data['trend']} ({data['momentum']:+.2f}%)")
             logger.info(f"\nClosing {quantity:.4f} shares")
             logger.info(f"{'='*60}\n")
 
             # Create and submit sell order
-            order = (OrderBuilder(symbol, 'sell', quantity)
-                     .market()
-                     .day()
-                     .build())
+            order = OrderBuilder(symbol, "sell", quantity).market().day().build()
 
             result = await self.broker.submit_order_advanced(order)
 
@@ -217,7 +219,7 @@ class MultiTimeframeStrategy(BaseStrategy):
     async def analyze_symbol(self, symbol):
         """Required by base strategy - returns multi-timeframe signal."""
         status = self.mtf.get_status(symbol)
-        return status.get('aligned_signal', 'neutral')
+        return status.get("aligned_signal", "neutral")
 
     async def execute_trade(self, symbol, signal):
         """Required by base strategy - handled in on_bar."""
@@ -237,12 +239,12 @@ async def test_multi_timeframe_strategy():
     strategy = MultiTimeframeStrategy(
         broker=broker,
         parameters={
-            'symbols': SYMBOLS[:2],  # Test with 2 symbols
-            'timeframes': ['1Min', '5Min', '15Min'],  # 3 timeframes
-            'position_size': 0.05,  # 5% per position
-            'stop_loss': 0.02,
-            'take_profit': 0.04,
-        }
+            "symbols": SYMBOLS[:2],  # Test with 2 symbols
+            "timeframes": ["1Min", "5Min", "15Min"],  # 3 timeframes
+            "position_size": 0.05,  # 5% per position
+            "stop_loss": 0.02,
+            "take_profit": 0.04,
+        },
     )
 
     # Initialize
@@ -261,8 +263,7 @@ async def test_multi_timeframe_strategy():
 if __name__ == "__main__":
     # Set up logging
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
     # Run test

@@ -35,20 +35,20 @@ Usage:
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime
 from enum import Enum
-import numpy as np
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class ScaleMethod(Enum):
     """Scaling methods."""
-    EQUAL = "equal"           # Equal portions (1/3, 1/3, 1/3)
-    PYRAMID = "pyramid"       # Larger initial, smaller adds (50%, 30%, 20%)
-    INVERTED = "inverted"     # Smaller initial, larger adds (20%, 30%, 50%)
-    AGGRESSIVE = "aggressive" # 70% upfront, 30% on confirmation
+
+    EQUAL = "equal"  # Equal portions (1/3, 1/3, 1/3)
+    PYRAMID = "pyramid"  # Larger initial, smaller adds (50%, 30%, 20%)
+    INVERTED = "inverted"  # Smaller initial, larger adds (20%, 30%, 50%)
+    AGGRESSIVE = "aggressive"  # 70% upfront, 30% on confirmation
 
 
 class PositionScaler:
@@ -62,7 +62,7 @@ class PositionScaler:
         scale_in_method: ScaleMethod = ScaleMethod.PYRAMID,
         scale_out_method: ScaleMethod = ScaleMethod.EQUAL,
         min_profit_for_scale_out: float = 0.03,  # 3% profit to start scaling out
-        scale_out_levels: List[float] = None,    # Profit levels to scale out at
+        scale_out_levels: List[float] = None,  # Profit levels to scale out at
     ):
         """
         Initialize position scaler.
@@ -89,11 +89,7 @@ class PositionScaler:
             f"scale_in={scale_in_method.value}, scale_out_levels={self.scale_out_levels}"
         )
 
-    def get_tranche_weights(
-        self,
-        method: ScaleMethod,
-        num_tranches: int
-    ) -> List[float]:
+    def get_tranche_weights(self, method: ScaleMethod, num_tranches: int) -> List[float]:
         """
         Get weight distribution for tranches.
 
@@ -138,7 +134,7 @@ class PositionScaler:
         current_price: float,
         num_tranches: int = None,
         method: ScaleMethod = None,
-        price_levels: List[float] = None
+        price_levels: List[float] = None,
     ) -> Dict:
         """
         Create a scale-in plan for entering a position.
@@ -178,26 +174,28 @@ class PositionScaler:
                 # Default: first at current, others at 1% intervals below
                 target_price = current_price * (1 - 0.01 * i)
 
-            tranches.append({
-                'tranche': i + 1,
-                'shares': shares,
-                'weight': weight,
-                'target_price': target_price,
-                'status': 'pending',
-                'filled_price': None,
-                'filled_at': None,
-            })
+            tranches.append(
+                {
+                    "tranche": i + 1,
+                    "shares": shares,
+                    "weight": weight,
+                    "target_price": target_price,
+                    "status": "pending",
+                    "filled_price": None,
+                    "filled_at": None,
+                }
+            )
 
         plan = {
-            'symbol': symbol,
-            'direction': 'long',
-            'total_shares': total_shares,
-            'method': method.value,
-            'tranches': tranches,
-            'shares_filled': 0,
-            'avg_price': 0,
-            'created_at': datetime.now().isoformat(),
-            'status': 'active',
+            "symbol": symbol,
+            "direction": "long",
+            "total_shares": total_shares,
+            "method": method.value,
+            "tranches": tranches,
+            "shares_filled": 0,
+            "avg_price": 0,
+            "created_at": datetime.now().isoformat(),
+            "status": "active",
         }
 
         self.active_plans[symbol] = plan
@@ -221,18 +219,13 @@ class PositionScaler:
 
         plan = self.active_plans[symbol]
 
-        for tranche in plan['tranches']:
-            if tranche['status'] == 'pending':
+        for tranche in plan["tranches"]:
+            if tranche["status"] == "pending":
                 return tranche
 
         return None
 
-    def fill_tranche(
-        self,
-        symbol: str,
-        tranche_num: int,
-        filled_price: float
-    ) -> Dict:
+    def fill_tranche(self, symbol: str, tranche_num: int, filled_price: float) -> Dict:
         """
         Mark a tranche as filled.
 
@@ -249,22 +242,22 @@ class PositionScaler:
 
         plan = self.active_plans[symbol]
 
-        for tranche in plan['tranches']:
-            if tranche['tranche'] == tranche_num:
-                tranche['status'] = 'filled'
-                tranche['filled_price'] = filled_price
-                tranche['filled_at'] = datetime.now().isoformat()
+        for tranche in plan["tranches"]:
+            if tranche["tranche"] == tranche_num:
+                tranche["status"] = "filled"
+                tranche["filled_price"] = filled_price
+                tranche["filled_at"] = datetime.now().isoformat()
 
                 # Update plan totals
-                plan['shares_filled'] += tranche['shares']
+                plan["shares_filled"] += tranche["shares"]
 
                 # Calculate new average price
                 total_cost = sum(
-                    t['shares'] * t['filled_price']
-                    for t in plan['tranches']
-                    if t['status'] == 'filled'
+                    t["shares"] * t["filled_price"]
+                    for t in plan["tranches"]
+                    if t["status"] == "filled"
                 )
-                plan['avg_price'] = total_cost / plan['shares_filled']
+                plan["avg_price"] = total_cost / plan["shares_filled"]
 
                 logger.info(
                     f"Tranche {tranche_num} filled for {symbol}: "
@@ -275,8 +268,8 @@ class PositionScaler:
                 break
 
         # Check if all tranches filled
-        if all(t['status'] == 'filled' for t in plan['tranches']):
-            plan['status'] = 'completed'
+        if all(t["status"] == "filled" for t in plan["tranches"]):
+            plan["status"] = "completed"
 
         return plan
 
@@ -286,7 +279,7 @@ class PositionScaler:
         shares_held: int,
         entry_price: float,
         current_price: float = None,
-        profit_targets: List[float] = None
+        profit_targets: List[float] = None,
     ) -> Dict:
         """
         Create a scale-out plan for exiting a position.
@@ -318,28 +311,30 @@ class PositionScaler:
 
             target_price = entry_price * (1 + target_pct)
 
-            tranches.append({
-                'tranche': i + 1,
-                'shares': shares,
-                'weight': weight,
-                'target_profit_pct': target_pct,
-                'target_price': target_price,
-                'status': 'pending',
-                'filled_price': None,
-                'filled_at': None,
-            })
+            tranches.append(
+                {
+                    "tranche": i + 1,
+                    "shares": shares,
+                    "weight": weight,
+                    "target_profit_pct": target_pct,
+                    "target_price": target_price,
+                    "status": "pending",
+                    "filled_price": None,
+                    "filled_at": None,
+                }
+            )
 
         plan = {
-            'symbol': symbol,
-            'direction': 'exit',
-            'total_shares': shares_held,
-            'entry_price': entry_price,
-            'tranches': tranches,
-            'shares_sold': 0,
-            'avg_exit_price': 0,
-            'realized_pnl': 0,
-            'created_at': datetime.now().isoformat(),
-            'status': 'active',
+            "symbol": symbol,
+            "direction": "exit",
+            "total_shares": shares_held,
+            "entry_price": entry_price,
+            "tranches": tranches,
+            "shares_sold": 0,
+            "avg_exit_price": 0,
+            "realized_pnl": 0,
+            "created_at": datetime.now().isoformat(),
+            "status": "active",
         }
 
         logger.info(
@@ -354,7 +349,7 @@ class PositionScaler:
         entry_price: float,
         current_price: float,
         shares_held: int,
-        shares_already_sold: int = 0
+        shares_already_sold: int = 0,
     ) -> Dict:
         """
         Check if current price triggers a scale-out.
@@ -365,15 +360,17 @@ class PositionScaler:
         profit_pct = (current_price - entry_price) / entry_price
 
         result = {
-            'profit_pct': profit_pct,
-            'should_scale_out': False,
-            'shares_to_sell': 0,
-            'reason': None,
-            'next_target': None,
+            "profit_pct": profit_pct,
+            "should_scale_out": False,
+            "shares_to_sell": 0,
+            "reason": None,
+            "next_target": None,
         }
 
         if profit_pct < self.min_profit_for_scale_out:
-            result['reason'] = f"Profit {profit_pct:.1%} below threshold {self.min_profit_for_scale_out:.1%}"
+            result["reason"] = (
+                f"Profit {profit_pct:.1%} below threshold {self.min_profit_for_scale_out:.1%}"
+            )
             return result
 
         # Find which level we've hit
@@ -388,12 +385,12 @@ class PositionScaler:
         shares_to_sell = max(0, should_have_sold - shares_already_sold)
 
         if shares_to_sell > 0:
-            result['should_scale_out'] = True
-            result['shares_to_sell'] = min(shares_to_sell, remaining_shares)
-            result['reason'] = f"Hit {levels_hit} profit level(s), profit at {profit_pct:.1%}"
+            result["should_scale_out"] = True
+            result["shares_to_sell"] = min(shares_to_sell, remaining_shares)
+            result["reason"] = f"Hit {levels_hit} profit level(s), profit at {profit_pct:.1%}"
 
         if levels_hit < num_levels:
-            result['next_target'] = self.scale_out_levels[levels_hit]
+            result["next_target"] = self.scale_out_levels[levels_hit]
 
         return result
 
@@ -403,7 +400,7 @@ class PositionScaler:
         current_price: float,
         current_shares: int,
         max_position_shares: int,
-        min_profit_to_add: float = 0.03
+        min_profit_to_add: float = 0.03,
     ) -> Dict:
         """
         Check if we should pyramid (add to winner).
@@ -421,18 +418,18 @@ class PositionScaler:
         profit_pct = (current_price - entry_price) / entry_price
 
         result = {
-            'should_add': False,
-            'shares_to_add': 0,
-            'reason': None,
-            'new_avg_price': entry_price,
+            "should_add": False,
+            "shares_to_add": 0,
+            "reason": None,
+            "new_avg_price": entry_price,
         }
 
         if profit_pct < min_profit_to_add:
-            result['reason'] = f"Profit {profit_pct:.1%} below min {min_profit_to_add:.1%}"
+            result["reason"] = f"Profit {profit_pct:.1%} below min {min_profit_to_add:.1%}"
             return result
 
         if current_shares >= max_position_shares:
-            result['reason'] = "Already at max position size"
+            result["reason"] = "Already at max position size"
             return result
 
         # Add 50% of remaining room
@@ -440,16 +437,16 @@ class PositionScaler:
         add_shares = int(room * 0.5)
 
         if add_shares < 1:
-            result['reason'] = "Not enough room to add"
+            result["reason"] = "Not enough room to add"
             return result
 
-        result['should_add'] = True
-        result['shares_to_add'] = add_shares
-        result['reason'] = f"Pyramiding winner at {profit_pct:.1%} profit"
+        result["should_add"] = True
+        result["shares_to_add"] = add_shares
+        result["reason"] = f"Pyramiding winner at {profit_pct:.1%} profit"
 
         # Calculate new average
         total_cost = (entry_price * current_shares) + (current_price * add_shares)
-        result['new_avg_price'] = total_cost / (current_shares + add_shares)
+        result["new_avg_price"] = total_cost / (current_shares + add_shares)
 
         return result
 
@@ -464,9 +461,9 @@ class PositionScaler:
         to_remove = []
 
         for symbol, plan in self.active_plans.items():
-            if plan['status'] == 'completed':
+            if plan["status"] == "completed":
                 try:
-                    created = datetime.fromisoformat(plan['created_at'])
+                    created = datetime.fromisoformat(plan["created_at"])
                     if (now - created).total_seconds() > max_age_hours * 3600:
                         to_remove.append(symbol)
                 except (ValueError, KeyError):
@@ -487,66 +484,58 @@ class PositionScaler:
             self.cleanup_completed_plans(max_age_hours=1)
 
         if symbol not in self.active_plans:
-            return {'symbol': symbol, 'status': 'no_plan'}
+            return {"symbol": symbol, "status": "no_plan"}
 
         plan = self.active_plans[symbol]
 
-        filled_tranches = [t for t in plan['tranches'] if t['status'] == 'filled']
-        pending_tranches = [t for t in plan['tranches'] if t['status'] == 'pending']
+        filled_tranches = [t for t in plan["tranches"] if t["status"] == "filled"]
+        pending_tranches = [t for t in plan["tranches"] if t["status"] == "pending"]
 
         return {
-            'symbol': symbol,
-            'direction': plan['direction'],
-            'status': plan['status'],
-            'total_shares': plan['total_shares'],
-            'shares_filled': plan.get('shares_filled', 0),
-            'avg_price': plan.get('avg_price', 0),
-            'tranches_filled': len(filled_tranches),
-            'tranches_pending': len(pending_tranches),
-            'next_tranche': pending_tranches[0] if pending_tranches else None,
+            "symbol": symbol,
+            "direction": plan["direction"],
+            "status": plan["status"],
+            "total_shares": plan["total_shares"],
+            "shares_filled": plan.get("shares_filled", 0),
+            "avg_price": plan.get("avg_price", 0),
+            "tranches_filled": len(filled_tranches),
+            "tranches_pending": len(pending_tranches),
+            "next_tranche": pending_tranches[0] if pending_tranches else None,
         }
 
 
 if __name__ == "__main__":
     """Test position scaler."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("POSITION SCALER TEST")
-    print("="*60)
+    print("=" * 60)
 
     scaler = PositionScaler()
 
     # Test scale-in plan
     print("\n1. SCALE-IN PLAN (Pyramid Method)")
-    plan = scaler.create_scale_in_plan(
-        symbol='AAPL',
-        total_shares=100,
-        current_price=150.00
-    )
+    plan = scaler.create_scale_in_plan(symbol="AAPL", total_shares=100, current_price=150.00)
 
-    for t in plan['tranches']:
-        print(f"   Tranche {t['tranche']}: {t['shares']} shares @ ${t['target_price']:.2f} ({t['weight']:.0%})")
+    for t in plan["tranches"]:
+        print(
+            f"   Tranche {t['tranche']}: {t['shares']} shares @ ${t['target_price']:.2f} ({t['weight']:.0%})"
+        )
 
     # Simulate fills
     print("\n   Simulating fills...")
-    scaler.fill_tranche('AAPL', 1, 150.00)
-    scaler.fill_tranche('AAPL', 2, 148.50)
-    scaler.fill_tranche('AAPL', 3, 147.00)
+    scaler.fill_tranche("AAPL", 1, 150.00)
+    scaler.fill_tranche("AAPL", 2, 148.50)
+    scaler.fill_tranche("AAPL", 3, 147.00)
 
-    summary = scaler.get_scaling_summary('AAPL')
+    summary = scaler.get_scaling_summary("AAPL")
     print(f"   Final avg price: ${summary['avg_price']:.2f}")
 
     # Test scale-out
     print("\n2. SCALE-OUT CHECK")
     result = scaler.check_scale_out_trigger(
-        entry_price=148.50,
-        current_price=165.00,
-        shares_held=100,
-        shares_already_sold=0
+        entry_price=148.50, current_price=165.00, shares_held=100, shares_already_sold=0
     )
     print(f"   Profit: {result['profit_pct']:.1%}")
     print(f"   Should scale out: {result['should_scale_out']}")
@@ -556,13 +545,10 @@ if __name__ == "__main__":
     # Test pyramid recommendation
     print("\n3. PYRAMID RECOMMENDATION")
     rec = scaler.recommend_add_to_winner(
-        entry_price=148.50,
-        current_price=165.00,
-        current_shares=100,
-        max_position_shares=200
+        entry_price=148.50, current_price=165.00, current_shares=100, max_position_shares=200
     )
     print(f"   Should add: {rec['should_add']}")
     print(f"   Shares to add: {rec['shares_to_add']}")
     print(f"   New avg price: ${rec['new_avg_price']:.2f}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)

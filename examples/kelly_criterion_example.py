@@ -24,6 +24,7 @@ This example shows:
 
 import logging
 from datetime import datetime, timedelta
+
 from utils.kelly_criterion import KellyCriterion, Trade
 
 logger = logging.getLogger(__name__)
@@ -41,43 +42,43 @@ def example_1_basic_kelly_calculation():
 
     What's the optimal position size?
     """
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("EXAMPLE 1: Basic Kelly Calculation")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     # Create Kelly calculator with Half Kelly (conservative)
     kelly = KellyCriterion(
         kelly_fraction=0.5,  # Half Kelly
         min_trades_required=1,  # Allow calculation immediately for example
-        max_position_size=0.25  # Cap at 25%
+        max_position_size=0.25,  # Cap at 25%
     )
 
     # Simulate some historical trades
     trades = [
-        (True, 0.03),   # Win, +3%
+        (True, 0.03),  # Win, +3%
         (True, 0.025),  # Win, +2.5%
-        (False, -0.01), # Loss, -1%
-        (True, 0.04),   # Win, +4%
-        (False, -0.01), # Loss, -1%
-        (True, 0.02),   # Win, +2%
-        (False, -0.015),# Loss, -1.5%
+        (False, -0.01),  # Loss, -1%
+        (True, 0.04),  # Win, +4%
+        (False, -0.01),  # Loss, -1%
+        (True, 0.02),  # Win, +2%
+        (False, -0.015),  # Loss, -1.5%
         (True, 0.035),  # Win, +3.5%
-        (True, 0.03),   # Win, +3%
-        (True, 0.02),   # Win, +2%
+        (True, 0.03),  # Win, +3%
+        (True, 0.02),  # Win, +2%
     ]
 
     # Add trades to Kelly calculator
     for i, (is_winner, pnl_pct) in enumerate(trades):
         trade = Trade(
-            symbol='TEST',
-            entry_time=datetime.now() - timedelta(days=len(trades)-i),
-            exit_time=datetime.now() - timedelta(days=len(trades)-i-1),
+            symbol="TEST",
+            entry_time=datetime.now() - timedelta(days=len(trades) - i),
+            exit_time=datetime.now() - timedelta(days=len(trades) - i - 1),
             entry_price=100.0,
             exit_price=100.0 * (1 + pnl_pct),
             quantity=10,
             pnl=1000 * pnl_pct,
             pnl_pct=pnl_pct,
-            is_winner=is_winner
+            is_winner=is_winner,
         )
         kelly.add_trade(trade)
 
@@ -96,8 +97,7 @@ def example_1_basic_kelly_calculation():
     # Calculate position size for $100k account
     capital = 100000
     position_value, position_fraction = kelly.calculate_position_size(
-        current_capital=capital,
-        current_price=150.0  # Assume $150/share
+        current_capital=capital, current_price=150.0  # Assume $150/share
     )
 
     logger.info(f"\nFor ${capital:,} account:")
@@ -114,23 +114,31 @@ def example_2_compare_kelly_fractions():
 
     Shows how different Kelly fractions affect position sizing and risk.
     """
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("EXAMPLE 2: Comparing Kelly Fractions")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     # Same trading performance for all
     trades = [
-        (True, 0.04), (True, 0.03), (False, -0.02),
-        (True, 0.05), (False, -0.01), (True, 0.03),
-        (True, 0.04), (False, -0.02), (True, 0.06),
-        (True, 0.02), (True, 0.04), (False, -0.015),
+        (True, 0.04),
+        (True, 0.03),
+        (False, -0.02),
+        (True, 0.05),
+        (False, -0.01),
+        (True, 0.03),
+        (True, 0.04),
+        (False, -0.02),
+        (True, 0.06),
+        (True, 0.02),
+        (True, 0.04),
+        (False, -0.015),
     ]
 
     # Test different Kelly fractions
     fractions = [
         (1.0, "Full Kelly (Aggressive)"),
         (0.5, "Half Kelly (Moderate)"),
-        (0.25, "Quarter Kelly (Conservative)")
+        (0.25, "Quarter Kelly (Conservative)"),
     ]
 
     capital = 100000
@@ -140,13 +148,13 @@ def example_2_compare_kelly_fractions():
         kelly = KellyCriterion(
             kelly_fraction=fraction,
             min_trades_required=1,
-            max_position_size=0.50  # Allow up to 50% for comparison
+            max_position_size=0.50,  # Allow up to 50% for comparison
         )
 
         # Add trades
         for i, (is_winner, pnl_pct) in enumerate(trades):
             trade = Trade(
-                symbol='TEST',
+                symbol="TEST",
                 entry_time=datetime.now(),
                 exit_time=datetime.now(),
                 entry_price=100.0,
@@ -154,25 +162,27 @@ def example_2_compare_kelly_fractions():
                 quantity=10,
                 pnl=1000 * pnl_pct,
                 pnl_pct=pnl_pct,
-                is_winner=is_winner
+                is_winner=is_winner,
             )
             kelly.add_trade(trade)
 
         # Calculate position
         position_value, position_fraction = kelly.calculate_position_size(capital)
 
-        results.append({
-            'name': name,
-            'fraction': fraction,
-            'position_pct': position_fraction,
-            'position_value': position_value,
-            'max_loss_2pct': position_value * 0.02  # 2% stop loss
-        })
+        results.append(
+            {
+                "name": name,
+                "fraction": fraction,
+                "position_pct": position_fraction,
+                "position_value": position_value,
+                "max_loss_2pct": position_value * 0.02,  # 2% stop loss
+            }
+        )
 
     # Display comparison
     logger.info("Comparison of Kelly Fractions:\n")
     logger.info(f"{'Strategy':<30} {'Position %':<15} {'Position $':<15} {'Max Loss*':<15}")
-    logger.info("-"*75)
+    logger.info("-" * 75)
 
     for r in results:
         logger.info(
@@ -198,30 +208,32 @@ def example_3_adaptive_position_sizing():
     Demonstrates how Kelly automatically reduces size after losses
     and increases after wins.
     """
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("EXAMPLE 3: Adaptive Position Sizing")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     kelly = KellyCriterion(
-        kelly_fraction=0.5,
-        min_trades_required=5,
-        lookback_trades=10  # Only look at last 10 trades
+        kelly_fraction=0.5, min_trades_required=5, lookback_trades=10  # Only look at last 10 trades
     )
 
     capital = 100000
 
     # Scenario 1: Hot streak (60% win rate)
     logger.info("SCENARIO 1: Hot Streak (recent wins)")
-    logger.info("-"*40)
+    logger.info("-" * 40)
 
     trades_hot = [
-        (True, 0.03), (True, 0.04), (False, -0.01),
-        (True, 0.03), (True, 0.05), (True, 0.02),
+        (True, 0.03),
+        (True, 0.04),
+        (False, -0.01),
+        (True, 0.03),
+        (True, 0.05),
+        (True, 0.02),
     ]
 
     for i, (is_winner, pnl_pct) in enumerate(trades_hot):
         trade = Trade(
-            symbol='TEST',
+            symbol="TEST",
             entry_time=datetime.now(),
             exit_time=datetime.now(),
             entry_price=100.0,
@@ -229,7 +241,7 @@ def example_3_adaptive_position_sizing():
             quantity=10,
             pnl=1000 * pnl_pct,
             pnl_pct=pnl_pct,
-            is_winner=is_winner
+            is_winner=is_winner,
         )
         kelly.add_trade(trade)
 
@@ -238,16 +250,20 @@ def example_3_adaptive_position_sizing():
 
     # Scenario 2: Cold streak (adding losses)
     logger.info("SCENARIO 2: Cold Streak (recent losses)")
-    logger.info("-"*40)
+    logger.info("-" * 40)
 
     trades_cold = [
-        (False, -0.02), (False, -0.01), (False, -0.015),
-        (False, -0.02), (True, 0.01), (False, -0.01),
+        (False, -0.02),
+        (False, -0.01),
+        (False, -0.015),
+        (False, -0.02),
+        (True, 0.01),
+        (False, -0.01),
     ]
 
     for i, (is_winner, pnl_pct) in enumerate(trades_cold):
         trade = Trade(
-            symbol='TEST',
+            symbol="TEST",
             entry_time=datetime.now(),
             exit_time=datetime.now(),
             entry_price=100.0,
@@ -255,7 +271,7 @@ def example_3_adaptive_position_sizing():
             quantity=10,
             pnl=1000 * pnl_pct,
             pnl_pct=pnl_pct,
-            is_winner=is_winner
+            is_winner=is_winner,
         )
         kelly.add_trade(trade)
 
@@ -277,26 +293,31 @@ def example_4_negative_kelly_warning():
 
     Demonstrates Kelly Criterion's warning system for losing strategies.
     """
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("EXAMPLE 4: Negative Kelly Warning (No Edge)")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
-    kelly = KellyCriterion(
-        kelly_fraction=0.5,
-        min_trades_required=1
-    )
+    kelly = KellyCriterion(kelly_fraction=0.5, min_trades_required=1)
 
     # Simulate losing strategy (40% win rate, poor profit factor)
     trades_losing = [
-        (True, 0.02), (False, -0.03), (False, -0.02),
-        (False, -0.025), (True, 0.015), (False, -0.03),
-        (False, -0.02), (True, 0.01), (False, -0.025),
-        (True, 0.02), (False, -0.03), (False, -0.02),
+        (True, 0.02),
+        (False, -0.03),
+        (False, -0.02),
+        (False, -0.025),
+        (True, 0.015),
+        (False, -0.03),
+        (False, -0.02),
+        (True, 0.01),
+        (False, -0.025),
+        (True, 0.02),
+        (False, -0.03),
+        (False, -0.02),
     ]
 
     for i, (is_winner, pnl_pct) in enumerate(trades_losing):
         trade = Trade(
-            symbol='TEST',
+            symbol="TEST",
             entry_time=datetime.now(),
             exit_time=datetime.now(),
             entry_price=100.0,
@@ -304,7 +325,7 @@ def example_4_negative_kelly_warning():
             quantity=10,
             pnl=1000 * pnl_pct,
             pnl_pct=pnl_pct,
-            is_winner=is_winner
+            is_winner=is_winner,
         )
         kelly.add_trade(trade)
 
@@ -326,29 +347,26 @@ def example_4_negative_kelly_warning():
 
 if __name__ == "__main__":
     # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     logger.info("\nKelly Criterion Position Sizing Examples")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     # Run all examples
     example_1_basic_kelly_calculation()
-    print("\n" + "="*80 + "\n")
+    print("\n" + "=" * 80 + "\n")
 
     example_2_compare_kelly_fractions()
-    print("\n" + "="*80 + "\n")
+    print("\n" + "=" * 80 + "\n")
 
     example_3_adaptive_position_sizing()
-    print("\n" + "="*80 + "\n")
+    print("\n" + "=" * 80 + "\n")
 
     example_4_negative_kelly_warning()
 
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("SUMMARY")
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("\nKey Takeaways:")
     logger.info("1. Kelly Criterion maximizes long-term growth mathematically")
     logger.info("2. Use Half Kelly (0.5) or Quarter Kelly (0.25) for safety")

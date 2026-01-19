@@ -11,11 +11,12 @@ Tests cover:
 6. Edge cases
 """
 
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -24,6 +25,7 @@ from utils.volatility_regime import VolatilityRegimeDetector
 
 class MockQuote:
     """Mock quote for VIX testing."""
+
     def __init__(self, price):
         self.ask_price = price
 
@@ -51,11 +53,11 @@ class TestRegimeClassification:
 
         regime, adjustments = await detector.get_current_regime()
 
-        assert regime == 'very_low'
-        assert adjustments['pos_mult'] == 1.4  # 40% larger positions
-        assert adjustments['stop_mult'] == 0.7  # 30% tighter stops
-        assert adjustments['max_positions'] == 12
-        assert adjustments['trade'] == True
+        assert regime == "very_low"
+        assert adjustments["pos_mult"] == 1.4  # 40% larger positions
+        assert adjustments["stop_mult"] == 0.7  # 30% tighter stops
+        assert adjustments["max_positions"] == 12
+        assert adjustments["trade"] == True
 
     @pytest.mark.asyncio
     async def test_low_regime(self):
@@ -65,10 +67,10 @@ class TestRegimeClassification:
 
         regime, adjustments = await detector.get_current_regime()
 
-        assert regime == 'low'
-        assert adjustments['pos_mult'] == 1.2  # 20% larger positions
-        assert adjustments['stop_mult'] == 0.8  # 20% tighter stops
-        assert adjustments['max_positions'] == 10
+        assert regime == "low"
+        assert adjustments["pos_mult"] == 1.2  # 20% larger positions
+        assert adjustments["stop_mult"] == 0.8  # 20% tighter stops
+        assert adjustments["max_positions"] == 10
 
     @pytest.mark.asyncio
     async def test_normal_regime(self):
@@ -78,10 +80,10 @@ class TestRegimeClassification:
 
         regime, adjustments = await detector.get_current_regime()
 
-        assert regime == 'normal'
-        assert adjustments['pos_mult'] == 1.0  # Standard positions
-        assert adjustments['stop_mult'] == 1.0  # Standard stops
-        assert adjustments['max_positions'] == 8
+        assert regime == "normal"
+        assert adjustments["pos_mult"] == 1.0  # Standard positions
+        assert adjustments["stop_mult"] == 1.0  # Standard stops
+        assert adjustments["max_positions"] == 8
 
     @pytest.mark.asyncio
     async def test_elevated_regime(self):
@@ -91,10 +93,10 @@ class TestRegimeClassification:
 
         regime, adjustments = await detector.get_current_regime()
 
-        assert regime == 'elevated'
-        assert adjustments['pos_mult'] == 0.7  # 30% smaller positions
-        assert adjustments['stop_mult'] == 1.2  # 20% wider stops
-        assert adjustments['max_positions'] == 5
+        assert regime == "elevated"
+        assert adjustments["pos_mult"] == 0.7  # 30% smaller positions
+        assert adjustments["stop_mult"] == 1.2  # 20% wider stops
+        assert adjustments["max_positions"] == 5
 
     @pytest.mark.asyncio
     async def test_high_regime(self):
@@ -104,21 +106,21 @@ class TestRegimeClassification:
 
         regime, adjustments = await detector.get_current_regime()
 
-        assert regime == 'high'
-        assert adjustments['pos_mult'] == 0.4  # 60% smaller positions
-        assert adjustments['stop_mult'] == 1.5  # 50% wider stops
-        assert adjustments['max_positions'] == 3
-        assert adjustments['trade'] == True  # Still allowed to trade
+        assert regime == "high"
+        assert adjustments["pos_mult"] == 0.4  # 60% smaller positions
+        assert adjustments["stop_mult"] == 1.5  # 50% wider stops
+        assert adjustments["max_positions"] == 3
+        assert adjustments["trade"] == True  # Still allowed to trade
 
     @pytest.mark.asyncio
     async def test_boundary_values(self):
         """Test exact boundary values."""
         # Test exactly at thresholds
         test_cases = [
-            (12.0, 'low'),       # Exactly 12 -> low (not very_low)
-            (15.0, 'normal'),    # Exactly 15 -> normal (not low)
-            (20.0, 'elevated'),  # Exactly 20 -> elevated (not normal)
-            (30.0, 'high'),      # Exactly 30 -> high (not elevated)
+            (12.0, "low"),  # Exactly 12 -> low (not very_low)
+            (15.0, "normal"),  # Exactly 15 -> normal (not low)
+            (20.0, "elevated"),  # Exactly 20 -> elevated (not normal)
+            (30.0, "high"),  # Exactly 30 -> high (not elevated)
         ]
 
         for vix, expected_regime in test_cases:
@@ -219,7 +221,7 @@ class TestRegimeChangeDetection:
 
         # First call - normal regime
         await detector.get_current_regime()
-        assert detector.last_regime == 'normal'
+        assert detector.last_regime == "normal"
 
         # Change VIX to elevated
         broker.vix_value = 25.0
@@ -231,9 +233,9 @@ class TestRegimeChangeDetection:
         # Check change was recorded
         assert len(detector.regime_changes) == 1
         change = detector.regime_changes[0]
-        assert change['from'] == 'normal'
-        assert change['to'] == 'elevated'
-        assert change['vix'] == 25.0
+        assert change["from"] == "normal"
+        assert change["to"] == "elevated"
+        assert change["vix"] == 25.0
 
     @pytest.mark.asyncio
     async def test_no_duplicate_regime_changes(self):
@@ -361,10 +363,10 @@ class TestVIXStatistics:
 
         stats = detector.get_vix_statistics()
 
-        assert stats['current'] is None
-        assert stats['avg_30d'] is None
-        assert stats['min_30d'] is None
-        assert stats['max_30d'] is None
+        assert stats["current"] is None
+        assert stats["avg_30d"] is None
+        assert stats["min_30d"] is None
+        assert stats["max_30d"] is None
 
     @pytest.mark.asyncio
     async def test_statistics_with_history(self):
@@ -374,19 +376,19 @@ class TestVIXStatistics:
 
         # Simulate multiple VIX readings
         detector.vix_history = [
-            {'time': datetime.now(), 'value': 15.0},
-            {'time': datetime.now(), 'value': 20.0},
-            {'time': datetime.now(), 'value': 25.0}
+            {"time": datetime.now(), "value": 15.0},
+            {"time": datetime.now(), "value": 20.0},
+            {"time": datetime.now(), "value": 25.0},
         ]
         detector.last_vix_value = 20.0
 
         stats = detector.get_vix_statistics()
 
-        assert stats['current'] == 20.0
-        assert stats['avg_30d'] == 20.0  # (15+20+25)/3
-        assert stats['min_30d'] == 15.0
-        assert stats['max_30d'] == 25.0
-        assert stats['data_points'] == 3
+        assert stats["current"] == 20.0
+        assert stats["avg_30d"] == 20.0  # (15+20+25)/3
+        assert stats["min_30d"] == 15.0
+        assert stats["max_30d"] == 25.0
+        assert stats["data_points"] == 3
 
 
 class TestEdgeCases:
@@ -401,8 +403,8 @@ class TestEdgeCases:
         regime, adjustments = await detector.get_current_regime()
 
         # Should fall back to normal regime
-        assert regime == 'normal'
-        assert adjustments['pos_mult'] == 1.0
+        assert regime == "normal"
+        assert adjustments["pos_mult"] == 1.0
 
     @pytest.mark.asyncio
     async def test_handles_invalid_vix_value(self):
@@ -427,7 +429,7 @@ class TestEdgeCases:
         async def mock_get_quote(symbol):
             nonlocal call_count
             call_count += 1
-            if symbol == 'VIX' and call_count == 1:
+            if symbol == "VIX" and call_count == 1:
                 raise Exception("VIX not found")
             return MockQuote(20.0)
 
@@ -445,15 +447,25 @@ class TestEdgeCases:
 
         # Simulate some regime changes
         detector.regime_changes = [
-            {'time': datetime.now() - timedelta(hours=2), 'from': 'normal', 'to': 'elevated', 'vix': 25.0},
-            {'time': datetime.now() - timedelta(hours=1), 'from': 'elevated', 'to': 'high', 'vix': 35.0}
+            {
+                "time": datetime.now() - timedelta(hours=2),
+                "from": "normal",
+                "to": "elevated",
+                "vix": 25.0,
+            },
+            {
+                "time": datetime.now() - timedelta(hours=1),
+                "from": "elevated",
+                "to": "high",
+                "vix": 35.0,
+            },
         ]
 
         history = detector.get_regime_history()
 
         assert len(history) == 2
-        assert history[0]['from'] == 'normal'
-        assert history[1]['to'] == 'high'
+        assert history[0]["from"] == "normal"
+        assert history[1]["to"] == "high"
 
 
 class TestThresholdConstants:
@@ -463,7 +475,9 @@ class TestThresholdConstants:
         """Test that thresholds are properly ordered."""
         assert VolatilityRegimeDetector.VERY_LOW_THRESHOLD < VolatilityRegimeDetector.LOW_THRESHOLD
         assert VolatilityRegimeDetector.LOW_THRESHOLD < VolatilityRegimeDetector.NORMAL_THRESHOLD
-        assert VolatilityRegimeDetector.NORMAL_THRESHOLD < VolatilityRegimeDetector.ELEVATED_THRESHOLD
+        assert (
+            VolatilityRegimeDetector.NORMAL_THRESHOLD < VolatilityRegimeDetector.ELEVATED_THRESHOLD
+        )
 
     def test_thresholds_are_positive(self):
         """Test that all thresholds are positive."""
@@ -473,5 +487,5 @@ class TestThresholdConstants:
         assert VolatilityRegimeDetector.ELEVATED_THRESHOLD > 0
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

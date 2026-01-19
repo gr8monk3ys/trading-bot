@@ -32,9 +32,8 @@ Usage:
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple, Set
 from collections import defaultdict
-import numpy as np
+from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -47,84 +46,149 @@ class CorrelationManager:
     # Stock to sector mapping (major stocks)
     STOCK_SECTORS = {
         # Technology
-        'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology',
-        'NVDA': 'Technology', 'AMD': 'Technology', 'INTC': 'Technology',
-        'CRM': 'Technology', 'ADBE': 'Technology', 'ORCL': 'Technology',
-        'AVGO': 'Technology', 'CSCO': 'Technology', 'IBM': 'Technology',
-
+        "AAPL": "Technology",
+        "MSFT": "Technology",
+        "GOOGL": "Technology",
+        "NVDA": "Technology",
+        "AMD": "Technology",
+        "INTC": "Technology",
+        "CRM": "Technology",
+        "ADBE": "Technology",
+        "ORCL": "Technology",
+        "AVGO": "Technology",
+        "CSCO": "Technology",
+        "IBM": "Technology",
         # Financials
-        'JPM': 'Financials', 'BAC': 'Financials', 'WFC': 'Financials',
-        'GS': 'Financials', 'MS': 'Financials', 'C': 'Financials',
-        'V': 'Financials', 'MA': 'Financials', 'AXP': 'Financials',
-        'BLK': 'Financials', 'SCHW': 'Financials', 'USB': 'Financials',
-
+        "JPM": "Financials",
+        "BAC": "Financials",
+        "WFC": "Financials",
+        "GS": "Financials",
+        "MS": "Financials",
+        "C": "Financials",
+        "V": "Financials",
+        "MA": "Financials",
+        "AXP": "Financials",
+        "BLK": "Financials",
+        "SCHW": "Financials",
+        "USB": "Financials",
         # Healthcare
-        'UNH': 'Healthcare', 'JNJ': 'Healthcare', 'PFE': 'Healthcare',
-        'ABBV': 'Healthcare', 'MRK': 'Healthcare', 'LLY': 'Healthcare',
-        'TMO': 'Healthcare', 'ABT': 'Healthcare', 'BMY': 'Healthcare',
-
+        "UNH": "Healthcare",
+        "JNJ": "Healthcare",
+        "PFE": "Healthcare",
+        "ABBV": "Healthcare",
+        "MRK": "Healthcare",
+        "LLY": "Healthcare",
+        "TMO": "Healthcare",
+        "ABT": "Healthcare",
+        "BMY": "Healthcare",
         # Consumer Discretionary
-        'AMZN': 'ConsumerDisc', 'TSLA': 'ConsumerDisc', 'HD': 'ConsumerDisc',
-        'MCD': 'ConsumerDisc', 'NKE': 'ConsumerDisc', 'SBUX': 'ConsumerDisc',
-        'LOW': 'ConsumerDisc', 'TJX': 'ConsumerDisc', 'BKNG': 'ConsumerDisc',
-
+        "AMZN": "ConsumerDisc",
+        "TSLA": "ConsumerDisc",
+        "HD": "ConsumerDisc",
+        "MCD": "ConsumerDisc",
+        "NKE": "ConsumerDisc",
+        "SBUX": "ConsumerDisc",
+        "LOW": "ConsumerDisc",
+        "TJX": "ConsumerDisc",
+        "BKNG": "ConsumerDisc",
         # Consumer Staples
-        'PG': 'ConsumerStaples', 'KO': 'ConsumerStaples', 'PEP': 'ConsumerStaples',
-        'COST': 'ConsumerStaples', 'WMT': 'ConsumerStaples', 'PM': 'ConsumerStaples',
-
+        "PG": "ConsumerStaples",
+        "KO": "ConsumerStaples",
+        "PEP": "ConsumerStaples",
+        "COST": "ConsumerStaples",
+        "WMT": "ConsumerStaples",
+        "PM": "ConsumerStaples",
         # Energy
-        'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy',
-        'SLB': 'Energy', 'EOG': 'Energy', 'MPC': 'Energy',
-
+        "XOM": "Energy",
+        "CVX": "Energy",
+        "COP": "Energy",
+        "SLB": "Energy",
+        "EOG": "Energy",
+        "MPC": "Energy",
         # Industrials
-        'CAT': 'Industrials', 'HON': 'Industrials', 'UNP': 'Industrials',
-        'UPS': 'Industrials', 'BA': 'Industrials', 'RTX': 'Industrials',
-        'GE': 'Industrials', 'LMT': 'Industrials', 'DE': 'Industrials',
-
+        "CAT": "Industrials",
+        "HON": "Industrials",
+        "UNP": "Industrials",
+        "UPS": "Industrials",
+        "BA": "Industrials",
+        "RTX": "Industrials",
+        "GE": "Industrials",
+        "LMT": "Industrials",
+        "DE": "Industrials",
         # Communication Services
-        'META': 'Communication', 'NFLX': 'Communication', 'DIS': 'Communication',
-        'CMCSA': 'Communication', 'VZ': 'Communication', 'T': 'Communication',
-
+        "META": "Communication",
+        "NFLX": "Communication",
+        "DIS": "Communication",
+        "CMCSA": "Communication",
+        "VZ": "Communication",
+        "T": "Communication",
         # Materials
-        'LIN': 'Materials', 'APD': 'Materials', 'SHW': 'Materials',
-        'FCX': 'Materials', 'NEM': 'Materials', 'DOW': 'Materials',
-
+        "LIN": "Materials",
+        "APD": "Materials",
+        "SHW": "Materials",
+        "FCX": "Materials",
+        "NEM": "Materials",
+        "DOW": "Materials",
         # Utilities
-        'NEE': 'Utilities', 'DUK': 'Utilities', 'SO': 'Utilities',
-        'D': 'Utilities', 'AEP': 'Utilities', 'EXC': 'Utilities',
-
+        "NEE": "Utilities",
+        "DUK": "Utilities",
+        "SO": "Utilities",
+        "D": "Utilities",
+        "AEP": "Utilities",
+        "EXC": "Utilities",
         # Real Estate
-        'PLD': 'RealEstate', 'AMT': 'RealEstate', 'EQIX': 'RealEstate',
-        'PSA': 'RealEstate', 'CCI': 'RealEstate', 'SPG': 'RealEstate',
-
+        "PLD": "RealEstate",
+        "AMT": "RealEstate",
+        "EQIX": "RealEstate",
+        "PSA": "RealEstate",
+        "CCI": "RealEstate",
+        "SPG": "RealEstate",
         # Popular growth/momentum stocks
-        'PLTR': 'Technology', 'SNOW': 'Technology', 'DDOG': 'Technology',
-        'NET': 'Technology', 'CRWD': 'Technology', 'ZS': 'Technology',
-        'COIN': 'Financials', 'HOOD': 'Financials', 'SOFI': 'Financials',
-        'RIVN': 'ConsumerDisc', 'LCID': 'ConsumerDisc', 'NIO': 'ConsumerDisc',
-        'RBLX': 'Communication', 'U': 'Technology', 'SHOP': 'Technology',
-        'SQ': 'Financials', 'ABNB': 'ConsumerDisc', 'DASH': 'ConsumerDisc',
-        'UBER': 'ConsumerDisc',
-
+        "PLTR": "Technology",
+        "SNOW": "Technology",
+        "DDOG": "Technology",
+        "NET": "Technology",
+        "CRWD": "Technology",
+        "ZS": "Technology",
+        "COIN": "Financials",
+        "HOOD": "Financials",
+        "SOFI": "Financials",
+        "RIVN": "ConsumerDisc",
+        "LCID": "ConsumerDisc",
+        "NIO": "ConsumerDisc",
+        "RBLX": "Communication",
+        "U": "Technology",
+        "SHOP": "Technology",
+        "SQ": "Financials",
+        "ABNB": "ConsumerDisc",
+        "DASH": "ConsumerDisc",
+        "UBER": "ConsumerDisc",
         # ETFs
-        'SPY': 'ETF_Broad', 'QQQ': 'ETF_Tech', 'IWM': 'ETF_Broad',
-        'DIA': 'ETF_Broad', 'XLK': 'ETF_Tech', 'XLF': 'ETF_Fin',
-        'XLV': 'ETF_Health', 'XLE': 'ETF_Energy', 'GLD': 'ETF_Commodity',
-        'SLV': 'ETF_Commodity', 'TLT': 'ETF_Bond',
+        "SPY": "ETF_Broad",
+        "QQQ": "ETF_Tech",
+        "IWM": "ETF_Broad",
+        "DIA": "ETF_Broad",
+        "XLK": "ETF_Tech",
+        "XLF": "ETF_Fin",
+        "XLV": "ETF_Health",
+        "XLE": "ETF_Energy",
+        "GLD": "ETF_Commodity",
+        "SLV": "ETF_Commodity",
+        "TLT": "ETF_Bond",
     }
 
     # Assumed correlation between sectors
     SECTOR_CORRELATIONS = {
-        ('Technology', 'Technology'): 0.75,
-        ('Technology', 'Communication'): 0.65,
-        ('Financials', 'Financials'): 0.70,
-        ('Healthcare', 'Healthcare'): 0.60,
-        ('ConsumerDisc', 'ConsumerDisc'): 0.65,
-        ('ConsumerDisc', 'ConsumerStaples'): 0.40,
-        ('Energy', 'Energy'): 0.80,
-        ('Energy', 'Materials'): 0.55,
-        ('Utilities', 'Utilities'): 0.70,
-        ('Utilities', 'RealEstate'): 0.45,
+        ("Technology", "Technology"): 0.75,
+        ("Technology", "Communication"): 0.65,
+        ("Financials", "Financials"): 0.70,
+        ("Healthcare", "Healthcare"): 0.60,
+        ("ConsumerDisc", "ConsumerDisc"): 0.65,
+        ("ConsumerDisc", "ConsumerStaples"): 0.40,
+        ("Energy", "Energy"): 0.80,
+        ("Energy", "Materials"): 0.55,
+        ("Utilities", "Utilities"): 0.70,
+        ("Utilities", "RealEstate"): 0.45,
     }
 
     # Default cross-sector correlation
@@ -158,7 +222,7 @@ class CorrelationManager:
 
     def get_sector(self, symbol: str) -> str:
         """Get sector for a symbol."""
-        return self.STOCK_SECTORS.get(symbol, 'Unknown')
+        return self.STOCK_SECTORS.get(symbol, "Unknown")
 
     def get_assumed_correlation(self, symbol1: str, symbol2: str) -> float:
         """
@@ -172,14 +236,13 @@ class CorrelationManager:
         sector1 = self.get_sector(symbol1)
         sector2 = self.get_sector(symbol2)
 
-        if sector1 == 'Unknown' or sector2 == 'Unknown':
+        if sector1 == "Unknown" or sector2 == "Unknown":
             return self.DEFAULT_CROSS_SECTOR_CORR
 
         # Same sector = high assumed correlation
         if sector1 == sector2:
             return self.SECTOR_CORRELATIONS.get(
-                (sector1, sector2),
-                0.65  # Default same-sector correlation
+                (sector1, sector2), 0.65  # Default same-sector correlation
             )
 
         # Cross-sector correlation
@@ -206,19 +269,16 @@ class CorrelationManager:
         if not positions:
             return {}
 
-        total_value = sum(p.get('value', 0) for p in positions.values())
+        total_value = sum(p.get("value", 0) for p in positions.values())
         if total_value == 0:
             return {}
 
         sector_values = defaultdict(float)
         for symbol, pos in positions.items():
             sector = self.get_sector(symbol)
-            sector_values[sector] += pos.get('value', 0)
+            sector_values[sector] += pos.get("value", 0)
 
-        return {
-            sector: value / total_value
-            for sector, value in sector_values.items()
-        }
+        return {sector: value / total_value for sector, value in sector_values.items()}
 
     def get_diversification_score(self, positions: Dict[str, Dict]) -> float:
         """
@@ -244,23 +304,15 @@ class CorrelationManager:
         concentration_score = max(0, min(1, concentration_score))
 
         # 3. Evenness (Herfindahl-Hirschman Index inverse)
-        hhi = sum(exp ** 2 for exp in sector_exposure.values())
+        hhi = sum(exp**2 for exp in sector_exposure.values())
         hhi_score = 1 - hhi  # Lower HHI = better diversification
 
         # Weighted combination
-        score = (
-            0.4 * sector_score +
-            0.4 * concentration_score +
-            0.2 * hhi_score
-        )
+        score = 0.4 * sector_score + 0.4 * concentration_score + 0.2 * hhi_score
 
         return max(0, min(1, score))
 
-    def get_sector_limit_multiplier(
-        self,
-        symbol: str,
-        positions: Dict[str, Dict]
-    ) -> float:
+    def get_sector_limit_multiplier(self, symbol: str, positions: Dict[str, Dict]) -> float:
         """
         Get position size multiplier based on sector concentration.
 
@@ -286,11 +338,7 @@ class CorrelationManager:
 
         return max(0.3, min(1.0, capacity_ratio))
 
-    def get_correlation_penalty(
-        self,
-        symbol: str,
-        positions: Dict[str, Dict]
-    ) -> float:
+    def get_correlation_penalty(self, symbol: str, positions: Dict[str, Dict]) -> float:
         """
         Get position size penalty based on correlation with existing positions.
 
@@ -308,7 +356,7 @@ class CorrelationManager:
 
         for sym, pos in positions.items():
             pos_sector = self.get_sector(sym)
-            value = pos.get('value', 0)
+            value = pos.get("value", 0)
             total_value += value
 
             if pos_sector == target_sector:
@@ -328,7 +376,7 @@ class CorrelationManager:
         symbol: str,
         desired_size: float,
         positions: Dict[str, Dict],
-        portfolio_value: float = 100000
+        portfolio_value: float = 100000,
     ) -> Tuple[float, Dict]:
         """
         Get correlation-adjusted position size.
@@ -343,34 +391,34 @@ class CorrelationManager:
             Tuple of (adjusted_size, adjustment_info)
         """
         adjustments = {
-            'original_size': desired_size,
-            'sector': self.get_sector(symbol),
-            'sector_multiplier': 1.0,
-            'correlation_multiplier': 1.0,
-            'final_multiplier': 1.0,
-            'reason': 'None',
+            "original_size": desired_size,
+            "sector": self.get_sector(symbol),
+            "sector_multiplier": 1.0,
+            "correlation_multiplier": 1.0,
+            "final_multiplier": 1.0,
+            "reason": "None",
         }
 
         # Sector concentration limit
         sector_mult = self.get_sector_limit_multiplier(symbol, positions)
-        adjustments['sector_multiplier'] = sector_mult
+        adjustments["sector_multiplier"] = sector_mult
 
         if sector_mult < 1.0:
-            adjustments['reason'] = f"Sector {adjustments['sector']} approaching limit"
+            adjustments["reason"] = f"Sector {adjustments['sector']} approaching limit"
 
         # Correlation penalty for same-sector adds
         corr_mult = self.get_correlation_penalty(symbol, positions)
-        adjustments['correlation_multiplier'] = corr_mult
+        adjustments["correlation_multiplier"] = corr_mult
 
-        if corr_mult < 1.0 and adjustments['reason'] == 'None':
-            adjustments['reason'] = f"Correlation penalty (same sector)"
+        if corr_mult < 1.0 and adjustments["reason"] == "None":
+            adjustments["reason"] = "Correlation penalty (same sector)"
 
         # Final multiplier
         final_mult = min(sector_mult, corr_mult)
-        adjustments['final_multiplier'] = final_mult
+        adjustments["final_multiplier"] = final_mult
 
         adjusted_size = desired_size * final_mult
-        adjustments['adjusted_size'] = adjusted_size
+        adjustments["adjusted_size"] = adjusted_size
 
         if final_mult < 1.0:
             logger.info(
@@ -394,26 +442,19 @@ class CorrelationManager:
         ]
 
         return {
-            'diversification_score': diversification_score,
-            'sector_count': len(sector_exposure),
-            'target_sectors': self.target_sector_count,
-            'sector_exposure': dict(sorted(
-                sector_exposure.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )),
-            'concentrated_sectors': concentrated_sectors,
-            'is_well_diversified': diversification_score > 0.6,
-            'recommendation': self._get_recommendation(
-                diversification_score,
-                concentrated_sectors
-            )
+            "diversification_score": diversification_score,
+            "sector_count": len(sector_exposure),
+            "target_sectors": self.target_sector_count,
+            "sector_exposure": dict(
+                sorted(sector_exposure.items(), key=lambda x: x[1], reverse=True)
+            ),
+            "concentrated_sectors": concentrated_sectors,
+            "is_well_diversified": diversification_score > 0.6,
+            "recommendation": self._get_recommendation(diversification_score, concentrated_sectors),
         }
 
     def _get_recommendation(
-        self,
-        score: float,
-        concentrated_sectors: List[Tuple[str, float]]
+        self, score: float, concentrated_sectors: List[Tuple[str, float]]
     ) -> str:
         """Get diversification recommendation."""
         if score > 0.8:
@@ -429,24 +470,21 @@ class CorrelationManager:
 
 if __name__ == "__main__":
     """Test correlation manager."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CORRELATION MANAGER TEST")
-    print("="*60)
+    print("=" * 60)
 
     manager = CorrelationManager()
 
     # Test portfolio
     positions = {
-        'AAPL': {'value': 10000},
-        'MSFT': {'value': 8000},
-        'GOOGL': {'value': 7000},
-        'JPM': {'value': 5000},
-        'XOM': {'value': 3000},
+        "AAPL": {"value": 10000},
+        "MSFT": {"value": 8000},
+        "GOOGL": {"value": 7000},
+        "JPM": {"value": 5000},
+        "XOM": {"value": 3000},
     }
 
     report = manager.get_portfolio_report(positions)
@@ -456,29 +494,29 @@ if __name__ == "__main__":
     print(f"Well Diversified: {'Yes' if report['is_well_diversified'] else 'No'}")
 
     print("\nSector Exposure:")
-    for sector, exp in report['sector_exposure'].items():
-        bar = '█' * int(exp * 40)
+    for sector, exp in report["sector_exposure"].items():
+        bar = "█" * int(exp * 40)
         print(f"  {sector:20s}: {exp:5.1%} {bar}")
 
-    if report['concentrated_sectors']:
+    if report["concentrated_sectors"]:
         print(f"\nConcentration Warning: {report['concentrated_sectors']}")
 
     print(f"\nRecommendation: {report['recommendation']}")
 
     # Test position sizing
-    print("\n" + "-"*60)
+    print("\n" + "-" * 60)
     print("Position Sizing Test:")
 
     # Adding more tech (should be penalized)
-    size, info = manager.get_adjusted_position_size('NVDA', 10000, positions)
-    print(f"\nAdding NVDA (Tech):")
+    size, info = manager.get_adjusted_position_size("NVDA", 10000, positions)
+    print("\nAdding NVDA (Tech):")
     print(f"  Desired: $10,000 -> Adjusted: ${size:,.0f}")
     print(f"  Reason: {info['reason']}")
 
     # Adding healthcare (should be fine)
-    size, info = manager.get_adjusted_position_size('UNH', 10000, positions)
-    print(f"\nAdding UNH (Healthcare):")
+    size, info = manager.get_adjusted_position_size("UNH", 10000, positions)
+    print("\nAdding UNH (Healthcare):")
     print(f"  Desired: $10,000 -> Adjusted: ${size:,.0f}")
     print(f"  Reason: {info['reason']}")
 
-    print("="*60)
+    print("=" * 60)

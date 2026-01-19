@@ -9,9 +9,10 @@ Tests cover:
 - Environment variable handling
 """
 
-import pytest
 import os
 import sys
+
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -203,7 +204,7 @@ class TestSymbolSelectionConfig:
             "USE_DYNAMIC_SELECTION",
             "TOP_N_SYMBOLS",
             "MIN_MOMENTUM_SCORE",
-            "RESCAN_INTERVAL_HOURS"
+            "RESCAN_INTERVAL_HOURS",
         ]
 
         for key in expected_keys:
@@ -283,6 +284,7 @@ class TestConfigIntegrity:
         """Config module should import without errors."""
         try:
             import config
+
             # Verify the module loaded
             assert config is not None
         except Exception as e:
@@ -292,12 +294,12 @@ class TestConfigIntegrity:
         """All required parameter dicts should exist."""
         import config
 
-        assert hasattr(config, 'TRADING_PARAMS')
-        assert hasattr(config, 'RISK_PARAMS')
-        assert hasattr(config, 'TECHNICAL_PARAMS')
-        assert hasattr(config, 'BACKTEST_PARAMS')
-        assert hasattr(config, 'ALPACA_CREDS')
-        assert hasattr(config, 'SYMBOLS')
+        assert hasattr(config, "TRADING_PARAMS")
+        assert hasattr(config, "RISK_PARAMS")
+        assert hasattr(config, "TECHNICAL_PARAMS")
+        assert hasattr(config, "BACKTEST_PARAMS")
+        assert hasattr(config, "ALPACA_CREDS")
+        assert hasattr(config, "SYMBOLS")
 
     def test_no_conflicting_defaults(self):
         """Default values should not conflict."""

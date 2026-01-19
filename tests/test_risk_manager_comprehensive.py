@@ -10,10 +10,11 @@ Tests cover:
 - Edge cases and error handling
 """
 
-import pytest
-import numpy as np
-import sys
 import os
+import sys
+
+import numpy as np
+import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,11 +34,7 @@ class TestRiskManagerInit:
 
     def test_custom_initialization(self):
         """Test custom values are accepted."""
-        rm = RiskManager(
-            max_portfolio_risk=0.05,
-            max_position_risk=0.02,
-            max_correlation=0.5
-        )
+        rm = RiskManager(max_portfolio_risk=0.05, max_position_risk=0.02, max_correlation=0.5)
         assert rm.max_portfolio_risk == 0.05
         assert rm.max_position_risk == 0.02
         assert rm.max_correlation == 0.5
@@ -311,11 +308,7 @@ class TestPositionSizeAdjustment:
 
         # Existing position with same price pattern (high correlation)
         current_positions = {
-            'EXISTING': {
-                'value': 10000,
-                'price_history': prices.copy(),
-                'risk': 0.5
-            }
+            "EXISTING": {"value": 10000, "price_history": prices.copy(), "risk": 0.5}
         }
 
         # Same pattern = high correlation
@@ -339,9 +332,7 @@ class TestPortfolioRisk:
         """Single position risk should equal position risk."""
         rm = RiskManager()
 
-        positions = {
-            'AAPL': {'value': 10000, 'risk': 0.5}
-        }
+        positions = {"AAPL": {"value": 10000, "risk": 0.5}}
 
         portfolio_risk = rm.calculate_portfolio_risk(positions)
 
@@ -353,12 +344,9 @@ class TestPortfolioRisk:
         rm = RiskManager()
 
         # Two uncorrelated positions (correlation = 0)
-        rm.position_correlations = {('A', 'B'): 0, ('B', 'A'): 0}
+        rm.position_correlations = {("A", "B"): 0, ("B", "A"): 0}
 
-        positions = {
-            'A': {'value': 5000, 'risk': 0.5},
-            'B': {'value': 5000, 'risk': 0.5}
-        }
+        positions = {"A": {"value": 5000, "risk": 0.5}, "B": {"value": 5000, "risk": 0.5}}
 
         portfolio_risk = rm.calculate_portfolio_risk(positions)
 
@@ -372,12 +360,9 @@ class TestPortfolioRisk:
         rm = RiskManager()
 
         # Perfectly correlated positions
-        rm.position_correlations = {('A', 'B'): 1.0, ('B', 'A'): 1.0}
+        rm.position_correlations = {("A", "B"): 1.0, ("B", "A"): 1.0}
 
-        positions = {
-            'A': {'value': 5000, 'risk': 0.5},
-            'B': {'value': 5000, 'risk': 0.5}
-        }
+        positions = {"A": {"value": 5000, "risk": 0.5}, "B": {"value": 5000, "risk": 0.5}}
 
         portfolio_risk = rm.calculate_portfolio_risk(positions)
 
@@ -434,7 +419,7 @@ class TestThresholdValidation:
             volatility_threshold=0.3,
             var_threshold=0.03,
             es_threshold=0.04,
-            drawdown_threshold=0.2
+            drawdown_threshold=0.2,
         )
 
         assert rm.volatility_threshold == 0.3

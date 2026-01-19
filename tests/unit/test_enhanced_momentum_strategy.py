@@ -12,9 +12,10 @@ Tests cover:
 7. Performance tracking
 """
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -23,6 +24,7 @@ from strategies.enhanced_momentum_strategy import EnhancedMomentumStrategy
 
 class MockBar:
     """Mock bar for testing."""
+
     def __init__(self, close, high=None, low=None, volume=1000000):
         self.close = close
         self.high = high or close * 1.01
@@ -32,6 +34,7 @@ class MockBar:
 
 class MockAccount:
     """Mock account for testing."""
+
     def __init__(self, buying_power=100000, equity=100000):
         self.buying_power = buying_power
         self.equity = equity
@@ -45,7 +48,7 @@ class MockBroker:
         self.account = account or MockAccount()
         self.submitted_orders = []
 
-    async def get_bars(self, symbol, timeframe='1Day', limit=50):
+    async def get_bars(self, symbol, timeframe="1Day", limit=50):
         return self.bars
 
     async def get_account(self):
@@ -53,32 +56,31 @@ class MockBroker:
 
     async def submit_order_advanced(self, order):
         self.submitted_orders.append(order)
-        return {'id': 'test_order_123'}
+        return {"id": "test_order_123"}
 
     async def get_latest_quote(self, symbol):
         """Mock quote for VIX."""
+
         class Quote:
             ask_price = 18.0  # Normal VIX
+
         return Quote()
 
 
-def create_trending_bars(direction='up', length=60, start_price=100):
+def create_trending_bars(direction="up", length=60, start_price=100):
     """Create mock bars with clear trend."""
     bars = []
     price = start_price
 
     for i in range(length):
-        if direction == 'up':
+        if direction == "up":
             price = price * 1.005  # 0.5% up per bar
-        elif direction == 'down':
+        elif direction == "down":
             price = price * 0.995  # 0.5% down per bar
 
-        bars.append(MockBar(
-            close=price,
-            high=price * 1.01,
-            low=price * 0.99,
-            volume=1000000 + i * 10000
-        ))
+        bars.append(
+            MockBar(close=price, high=price * 1.01, low=price * 0.99, volume=1000000 + i * 10000)
+        )
 
     return bars
 
@@ -125,35 +127,29 @@ class TestStrategyInitialization:
     @pytest.mark.asyncio
     async def test_default_parameters(self):
         """Test that default parameters are set correctly."""
-        strategy = EnhancedMomentumStrategy(
-            broker=MockBroker(),
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=MockBroker(), symbols=["AAPL"])
 
         params = strategy.default_parameters()
 
         # RSI-2 settings
-        assert params['rsi_period'] == 2
-        assert params['rsi_oversold'] == 10
-        assert params['rsi_overbought'] == 90
+        assert params["rsi_period"] == 2
+        assert params["rsi_oversold"] == 10
+        assert params["rsi_overbought"] == 90
 
         # Profit features enabled
-        assert params['use_kelly_criterion'] == True
-        assert params['use_multi_timeframe'] == True
-        assert params['use_volatility_regime'] == True
+        assert params["use_kelly_criterion"] == True
+        assert params["use_multi_timeframe"] == True
+        assert params["use_volatility_regime"] == True
 
         # Position sizing
-        assert params['kelly_fraction'] == 0.5
-        assert params['min_position_size'] == 0.05
-        assert params['max_position_size'] == 0.20
+        assert params["kelly_fraction"] == 0.5
+        assert params["min_position_size"] == 0.05
+        assert params["max_position_size"] == 0.20
 
     @pytest.mark.asyncio
     async def test_strategy_name(self):
         """Test strategy name is set."""
-        strategy = EnhancedMomentumStrategy(
-            broker=MockBroker(),
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=MockBroker(), symbols=["AAPL"])
 
         assert strategy.NAME == "EnhancedMomentumStrategy"
 
@@ -161,17 +157,14 @@ class TestStrategyInitialization:
     async def test_initialize_creates_tracking_structures(self):
         """Test initialization creates required tracking structures."""
         broker = MockBroker()
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL', 'MSFT']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL", "MSFT"])
 
         await strategy.initialize()
 
-        assert 'AAPL' in strategy.indicators
-        assert 'MSFT' in strategy.indicators
-        assert 'AAPL' in strategy.signals
-        assert strategy.signals['AAPL'] == 'neutral'
+        assert "AAPL" in strategy.indicators
+        assert "MSFT" in strategy.indicators
+        assert "AAPL" in strategy.signals
+        assert strategy.signals["AAPL"] == "neutral"
 
 
 class TestRSI2SignalGeneration:
@@ -183,19 +176,16 @@ class TestRSI2SignalGeneration:
         bars = create_oversold_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
 
         # Disable MTF to test RSI-2 only
         strategy.use_mtf = False
 
-        await strategy.analyze_symbol('AAPL')
+        await strategy.analyze_symbol("AAPL")
 
         # Should generate buy signal on extreme oversold
-        assert strategy.indicators['AAPL']['rsi'] is not None
+        assert strategy.indicators["AAPL"]["rsi"] is not None
 
     @pytest.mark.asyncio
     async def test_no_signal_on_neutral_rsi(self):
@@ -204,46 +194,40 @@ class TestRSI2SignalGeneration:
         bars = [MockBar(close=100.0) for _ in range(60)]
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
         strategy.use_mtf = False
 
-        await strategy.analyze_symbol('AAPL')
+        await strategy.analyze_symbol("AAPL")
 
         # Neutral RSI should not generate signal
         # RSI should be around 50 with flat prices
-        assert strategy.indicators['AAPL']['rsi'] is not None
+        assert strategy.indicators["AAPL"]["rsi"] is not None
 
     @pytest.mark.asyncio
     async def test_indicators_stored_correctly(self):
         """Test that all indicators are stored after analysis."""
-        bars = create_trending_bars(direction='up')
+        bars = create_trending_bars(direction="up")
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
         strategy.use_mtf = False
 
-        await strategy.analyze_symbol('AAPL')
+        await strategy.analyze_symbol("AAPL")
 
-        indicators = strategy.indicators['AAPL']
+        indicators = strategy.indicators["AAPL"]
 
-        assert 'rsi' in indicators
-        assert 'macd' in indicators
-        assert 'macd_signal' in indicators
-        assert 'adx' in indicators
-        assert 'atr' in indicators
-        assert 'sma_fast' in indicators
-        assert 'sma_medium' in indicators
-        assert 'sma_slow' in indicators
-        assert 'volume_confirmed' in indicators
-        assert 'price' in indicators
+        assert "rsi" in indicators
+        assert "macd" in indicators
+        assert "macd_signal" in indicators
+        assert "adx" in indicators
+        assert "atr" in indicators
+        assert "sma_fast" in indicators
+        assert "sma_medium" in indicators
+        assert "sma_slow" in indicators
+        assert "volume_confirmed" in indicators
+        assert "price" in indicators
 
 
 class TestPositionSizing:
@@ -255,14 +239,11 @@ class TestPositionSizing:
         bars = create_trending_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
 
         # No trade history, should use base size
-        size = await strategy.calculate_position_size('AAPL', 'buy')
+        size = await strategy.calculate_position_size("AAPL", "buy")
 
         # Should be between min and max
         assert 0.05 <= size <= 0.20
@@ -273,21 +254,18 @@ class TestPositionSizing:
         bars = create_trending_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
 
         # Add winning trade history
         for i in range(15):
             strategy.record_trade_result(
-                symbol='AAPL',
+                symbol="AAPL",
                 pnl=100 if i < 12 else -50,  # 80% win rate
-                pnl_pct=0.05 if i < 12 else -0.025
+                pnl_pct=0.05 if i < 12 else -0.025,
             )
 
-        size = await strategy.calculate_position_size('AAPL', 'buy')
+        size = await strategy.calculate_position_size("AAPL", "buy")
 
         # With good win rate, Kelly should suggest reasonable size
         assert 0.05 <= size <= 0.20
@@ -298,10 +276,7 @@ class TestPositionSizing:
         bars = create_trending_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
 
         # Force high Kelly suggestion by setting extreme win stats
@@ -310,7 +285,7 @@ class TestPositionSizing:
         strategy.total_wins = 10.0
         strategy.total_losses = 0.0
 
-        size = await strategy.calculate_position_size('AAPL', 'buy')
+        size = await strategy.calculate_position_size("AAPL", "buy")
 
         # Should be capped at max_position_size
         assert size <= 0.20
@@ -325,18 +300,15 @@ class TestTradeExecution:
         bars = create_trending_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
         strategy.use_mtf = False
 
         # Analyze first to get current price
-        await strategy.analyze_symbol('AAPL')
+        await strategy.analyze_symbol("AAPL")
 
         # Execute trade
-        result = await strategy.execute_trade('AAPL', 'buy')
+        result = await strategy.execute_trade("AAPL", "buy")
 
         assert result == True
         assert len(broker.submitted_orders) == 1
@@ -347,19 +319,16 @@ class TestTradeExecution:
         bars = create_trending_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
         strategy.use_mtf = False
 
-        await strategy.analyze_symbol('AAPL')
-        await strategy.execute_trade('AAPL', 'buy')
+        await strategy.analyze_symbol("AAPL")
+        await strategy.execute_trade("AAPL", "buy")
 
         # Stop price should be set
-        assert 'AAPL' in strategy.stop_prices
-        assert strategy.stop_prices['AAPL'] > 0
+        assert "AAPL" in strategy.stop_prices
+        assert strategy.stop_prices["AAPL"] > 0
 
     @pytest.mark.asyncio
     async def test_execute_trade_updates_signal_time(self):
@@ -367,17 +336,14 @@ class TestTradeExecution:
         bars = create_trending_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
         strategy.use_mtf = False
 
-        await strategy.analyze_symbol('AAPL')
-        await strategy.execute_trade('AAPL', 'buy')
+        await strategy.analyze_symbol("AAPL")
+        await strategy.execute_trade("AAPL", "buy")
 
-        assert strategy.last_signal_time['AAPL'] is not None
+        assert strategy.last_signal_time["AAPL"] is not None
 
 
 class TestPerformanceTracking:
@@ -386,13 +352,10 @@ class TestPerformanceTracking:
     @pytest.mark.asyncio
     async def test_record_winning_trade(self):
         """Test recording a winning trade."""
-        strategy = EnhancedMomentumStrategy(
-            broker=MockBroker(),
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=MockBroker(), symbols=["AAPL"])
         await strategy.initialize()
 
-        strategy.record_trade_result('AAPL', pnl=100, pnl_pct=0.05)
+        strategy.record_trade_result("AAPL", pnl=100, pnl_pct=0.05)
 
         assert strategy.win_count == 1
         assert strategy.loss_count == 0
@@ -402,13 +365,10 @@ class TestPerformanceTracking:
     @pytest.mark.asyncio
     async def test_record_losing_trade(self):
         """Test recording a losing trade."""
-        strategy = EnhancedMomentumStrategy(
-            broker=MockBroker(),
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=MockBroker(), symbols=["AAPL"])
         await strategy.initialize()
 
-        strategy.record_trade_result('AAPL', pnl=-50, pnl_pct=-0.025)
+        strategy.record_trade_result("AAPL", pnl=-50, pnl_pct=-0.025)
 
         assert strategy.win_count == 0
         assert strategy.loss_count == 1
@@ -417,40 +377,32 @@ class TestPerformanceTracking:
     @pytest.mark.asyncio
     async def test_performance_summary(self):
         """Test performance summary calculation."""
-        strategy = EnhancedMomentumStrategy(
-            broker=MockBroker(),
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=MockBroker(), symbols=["AAPL"])
         await strategy.initialize()
 
         # Add mixed results
         for i in range(10):
             is_win = i < 6  # 60% win rate
             strategy.record_trade_result(
-                'AAPL',
-                pnl=100 if is_win else -50,
-                pnl_pct=0.05 if is_win else -0.025
+                "AAPL", pnl=100 if is_win else -50, pnl_pct=0.05 if is_win else -0.025
             )
 
         summary = strategy.get_performance_summary()
 
-        assert summary['total_trades'] == 10
-        assert summary['win_count'] == 6
-        assert summary['loss_count'] == 4
-        assert abs(summary['win_rate'] - 0.6) < 0.01
+        assert summary["total_trades"] == 10
+        assert summary["win_count"] == 6
+        assert summary["loss_count"] == 4
+        assert abs(summary["win_rate"] - 0.6) < 0.01
 
     @pytest.mark.asyncio
     async def test_empty_performance_summary(self):
         """Test performance summary with no trades."""
-        strategy = EnhancedMomentumStrategy(
-            broker=MockBroker(),
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=MockBroker(), symbols=["AAPL"])
         await strategy.initialize()
 
         summary = strategy.get_performance_summary()
 
-        assert summary['total_trades'] == 0
+        assert summary["total_trades"] == 0
 
 
 class TestFeatureFlags:
@@ -461,9 +413,7 @@ class TestFeatureFlags:
         """Test that Kelly Criterion can be disabled."""
         broker = MockBroker()
         strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL'],
-            parameters={'use_kelly_criterion': False}
+            broker=broker, symbols=["AAPL"], parameters={"use_kelly_criterion": False}
         )
         await strategy.initialize()
 
@@ -474,9 +424,7 @@ class TestFeatureFlags:
         """Test that multi-timeframe can be disabled."""
         broker = MockBroker()
         strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL'],
-            parameters={'use_multi_timeframe': False}
+            broker=broker, symbols=["AAPL"], parameters={"use_multi_timeframe": False}
         )
         await strategy.initialize()
 
@@ -487,9 +435,7 @@ class TestFeatureFlags:
         """Test that volatility regime can be disabled."""
         broker = MockBroker()
         strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL'],
-            parameters={'use_volatility_regime': False}
+            broker=broker, symbols=["AAPL"], parameters={"use_volatility_regime": False}
         )
         await strategy.initialize()
 
@@ -506,13 +452,10 @@ class TestEdgeCases:
         bars = [MockBar(close=100) for _ in range(10)]
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
 
-        signal = await strategy.analyze_symbol('AAPL')
+        signal = await strategy.analyze_symbol("AAPL")
 
         assert signal is None
 
@@ -521,13 +464,10 @@ class TestEdgeCases:
         """Test that empty bars returns None signal."""
         broker = MockBroker(bars=[])
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
 
-        signal = await strategy.analyze_symbol('AAPL')
+        signal = await strategy.analyze_symbol("AAPL")
 
         assert signal is None
 
@@ -535,14 +475,11 @@ class TestEdgeCases:
     async def test_handles_missing_price_gracefully(self):
         """Test that missing price doesn't crash trade execution."""
         broker = MockBroker()
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
 
         # Don't analyze, so no current price
-        result = await strategy.execute_trade('AAPL', 'buy')
+        result = await strategy.execute_trade("AAPL", "buy")
 
         assert result == False  # Should fail gracefully
 
@@ -556,16 +493,13 @@ class TestATRStops:
         bars = create_trending_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
 
-        await strategy.analyze_symbol('AAPL')
+        await strategy.analyze_symbol("AAPL")
 
-        assert 'atr' in strategy.indicators['AAPL']
-        assert strategy.indicators['AAPL']['atr'] > 0
+        assert "atr" in strategy.indicators["AAPL"]
+        assert strategy.indicators["AAPL"]["atr"] > 0
 
     @pytest.mark.asyncio
     async def test_stop_price_uses_atr_multiplier(self):
@@ -573,26 +507,23 @@ class TestATRStops:
         bars = create_trending_bars()
         broker = MockBroker(bars=bars)
 
-        strategy = EnhancedMomentumStrategy(
-            broker=broker,
-            symbols=['AAPL']
-        )
+        strategy = EnhancedMomentumStrategy(broker=broker, symbols=["AAPL"])
         await strategy.initialize()
         strategy.use_mtf = False
 
-        await strategy.analyze_symbol('AAPL')
+        await strategy.analyze_symbol("AAPL")
 
-        current_price = strategy.current_prices['AAPL']
-        atr = strategy.indicators['AAPL']['atr']
+        current_price = strategy.current_prices["AAPL"]
+        atr = strategy.indicators["AAPL"]["atr"]
         expected_stop = current_price - (atr * 2.0)  # Default multiplier
 
-        await strategy.execute_trade('AAPL', 'buy')
+        await strategy.execute_trade("AAPL", "buy")
 
-        actual_stop = strategy.stop_prices['AAPL']
+        actual_stop = strategy.stop_prices["AAPL"]
 
         # Should be approximately ATR-based
         assert abs(actual_stop - expected_stop) < 0.01 * current_price
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

@@ -1,15 +1,17 @@
-import unittest
-from stock_scanner import StockScanner
-import pandas as pd
 import logging
+import unittest
+
+import pandas as pd
+from stock_scanner import StockScanner
 
 logging.basicConfig(level=logging.INFO)
+
 
 class TestStockScanner(unittest.TestCase):
     def setUp(self):
         self.scanner = StockScanner()
         # Test with a small set of well-known stocks
-        self.test_symbols = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'META']
+        self.test_symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "META"]
 
     def test_market_data(self):
         """Test market data retrieval"""
@@ -40,21 +42,41 @@ class TestStockScanner(unittest.TestCase):
         results = self.scanner.scan_market(self.test_symbols)
         self.assertIsInstance(results, pd.DataFrame)
         if not results.empty:
-            self.assertTrue(all(col in results.columns for col in [
-                'symbol', 'price', 'volume', 'technical_score', 
-                'sentiment_score', 'combined_score'
-            ]))
+            self.assertTrue(
+                all(
+                    col in results.columns
+                    for col in [
+                        "symbol",
+                        "price",
+                        "volume",
+                        "technical_score",
+                        "sentiment_score",
+                        "combined_score",
+                    ]
+                )
+            )
 
     def test_get_top_opportunities(self):
         """Test getting top opportunities"""
         opportunities = self.scanner.get_top_opportunities(n=3, min_score=0.5)
         self.assertIsInstance(opportunities, pd.DataFrame)
         if not opportunities.empty:
-            self.assertTrue(all(col in opportunities.columns for col in [
-                'symbol', 'price', 'volume', 'technical_score',
-                'sentiment_score', 'combined_score', 'recommendation'
-            ]))
+            self.assertTrue(
+                all(
+                    col in opportunities.columns
+                    for col in [
+                        "symbol",
+                        "price",
+                        "volume",
+                        "technical_score",
+                        "sentiment_score",
+                        "combined_score",
+                        "recommendation",
+                    ]
+                )
+            )
             self.assertLessEqual(len(opportunities), 3)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

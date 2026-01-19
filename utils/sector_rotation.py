@@ -26,8 +26,9 @@ Usage:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
 from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,11 @@ logger = logging.getLogger(__name__)
 
 class EconomicPhase(Enum):
     """Economic cycle phases."""
+
     EARLY_EXPANSION = "early_expansion"  # Recovery phase
-    LATE_EXPANSION = "late_expansion"    # Growth slowing
-    CONTRACTION = "contraction"          # Recession
-    TROUGH = "trough"                    # Bottom, recovery starting
+    LATE_EXPANSION = "late_expansion"  # Growth slowing
+    CONTRACTION = "contraction"  # Recession
+    TROUGH = "trough"  # Bottom, recovery starting
 
 
 class SectorRotator:
@@ -48,88 +50,88 @@ class SectorRotator:
 
     # Sector ETFs
     SECTOR_ETFS = {
-        'XLK': 'Technology',
-        'XLF': 'Financials',
-        'XLV': 'Healthcare',
-        'XLY': 'Consumer Discretionary',
-        'XLP': 'Consumer Staples',
-        'XLE': 'Energy',
-        'XLI': 'Industrials',
-        'XLB': 'Materials',
-        'XLU': 'Utilities',
-        'XLRE': 'Real Estate',
-        'XLC': 'Communication Services',
+        "XLK": "Technology",
+        "XLF": "Financials",
+        "XLV": "Healthcare",
+        "XLY": "Consumer Discretionary",
+        "XLP": "Consumer Staples",
+        "XLE": "Energy",
+        "XLI": "Industrials",
+        "XLB": "Materials",
+        "XLU": "Utilities",
+        "XLRE": "Real Estate",
+        "XLC": "Communication Services",
     }
 
     # Sector performance by economic phase (1.0 = neutral, >1 = overweight, <1 = underweight)
     PHASE_ALLOCATIONS = {
         EconomicPhase.EARLY_EXPANSION: {
-            'XLK': 1.4,   # Tech leads recovery
-            'XLY': 1.3,   # Consumer spending rebounds
-            'XLI': 1.2,   # Industrial activity picks up
-            'XLF': 1.2,   # Financials benefit from rate normalization
-            'XLRE': 1.1,  # Real estate recovers
-            'XLC': 1.0,
-            'XLB': 1.0,
-            'XLE': 0.8,   # Energy lags early
-            'XLV': 0.8,   # Defensive less needed
-            'XLP': 0.7,   # Staples underperform
-            'XLU': 0.6,   # Utilities underperform
+            "XLK": 1.4,  # Tech leads recovery
+            "XLY": 1.3,  # Consumer spending rebounds
+            "XLI": 1.2,  # Industrial activity picks up
+            "XLF": 1.2,  # Financials benefit from rate normalization
+            "XLRE": 1.1,  # Real estate recovers
+            "XLC": 1.0,
+            "XLB": 1.0,
+            "XLE": 0.8,  # Energy lags early
+            "XLV": 0.8,  # Defensive less needed
+            "XLP": 0.7,  # Staples underperform
+            "XLU": 0.6,  # Utilities underperform
         },
         EconomicPhase.LATE_EXPANSION: {
-            'XLE': 1.4,   # Energy peaks late cycle
-            'XLB': 1.3,   # Materials demand high
-            'XLF': 1.2,   # Financials benefit from rates
-            'XLI': 1.1,   # Industrials still strong
-            'XLK': 1.0,   # Tech normalizes
-            'XLC': 0.9,
-            'XLY': 0.9,   # Consumer slowing
-            'XLRE': 0.8,  # Real estate slows
-            'XLV': 0.8,
-            'XLP': 0.8,
-            'XLU': 0.7,
+            "XLE": 1.4,  # Energy peaks late cycle
+            "XLB": 1.3,  # Materials demand high
+            "XLF": 1.2,  # Financials benefit from rates
+            "XLI": 1.1,  # Industrials still strong
+            "XLK": 1.0,  # Tech normalizes
+            "XLC": 0.9,
+            "XLY": 0.9,  # Consumer slowing
+            "XLRE": 0.8,  # Real estate slows
+            "XLV": 0.8,
+            "XLP": 0.8,
+            "XLU": 0.7,
         },
         EconomicPhase.CONTRACTION: {
-            'XLV': 1.5,   # Healthcare defensive
-            'XLU': 1.4,   # Utilities defensive
-            'XLP': 1.4,   # Staples defensive
-            'XLC': 1.0,   # Communication stable
-            'XLK': 0.9,   # Tech volatile
-            'XLF': 0.7,   # Financials struggle
-            'XLI': 0.7,   # Industrials decline
-            'XLY': 0.6,   # Discretionary cut
-            'XLB': 0.6,   # Materials demand drops
-            'XLE': 0.6,   # Energy demand drops
-            'XLRE': 0.5,  # Real estate struggles
+            "XLV": 1.5,  # Healthcare defensive
+            "XLU": 1.4,  # Utilities defensive
+            "XLP": 1.4,  # Staples defensive
+            "XLC": 1.0,  # Communication stable
+            "XLK": 0.9,  # Tech volatile
+            "XLF": 0.7,  # Financials struggle
+            "XLI": 0.7,  # Industrials decline
+            "XLY": 0.6,  # Discretionary cut
+            "XLB": 0.6,  # Materials demand drops
+            "XLE": 0.6,  # Energy demand drops
+            "XLRE": 0.5,  # Real estate struggles
         },
         EconomicPhase.TROUGH: {
-            'XLK': 1.3,   # Tech often leads out
-            'XLF': 1.2,   # Financials anticipate recovery
-            'XLY': 1.2,   # Consumer sentiment improves
-            'XLI': 1.1,
-            'XLRE': 1.1,
-            'XLC': 1.0,
-            'XLV': 1.0,   # Still some defense
-            'XLP': 0.9,
-            'XLB': 0.9,
-            'XLE': 0.8,
-            'XLU': 0.8,
+            "XLK": 1.3,  # Tech often leads out
+            "XLF": 1.2,  # Financials anticipate recovery
+            "XLY": 1.2,  # Consumer sentiment improves
+            "XLI": 1.1,
+            "XLRE": 1.1,
+            "XLC": 1.0,
+            "XLV": 1.0,  # Still some defense
+            "XLP": 0.9,
+            "XLB": 0.9,
+            "XLE": 0.8,
+            "XLU": 0.8,
         },
     }
 
     # Top stocks in each sector for direct stock trading
     SECTOR_STOCKS = {
-        'XLK': ['AAPL', 'MSFT', 'NVDA', 'AVGO', 'ORCL', 'CRM', 'AMD', 'ADBE'],
-        'XLF': ['JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS', 'AXP'],
-        'XLV': ['UNH', 'JNJ', 'LLY', 'ABBV', 'MRK', 'PFE', 'TMO', 'ABT'],
-        'XLY': ['AMZN', 'TSLA', 'HD', 'MCD', 'NKE', 'SBUX', 'LOW', 'TJX'],
-        'XLP': ['PG', 'KO', 'PEP', 'COST', 'WMT', 'PM', 'MDLZ', 'CL'],
-        'XLE': ['XOM', 'CVX', 'COP', 'SLB', 'EOG', 'MPC', 'PSX', 'VLO'],
-        'XLI': ['CAT', 'UNP', 'HON', 'UPS', 'BA', 'RTX', 'GE', 'LMT'],
-        'XLB': ['LIN', 'APD', 'SHW', 'ECL', 'FCX', 'NEM', 'NUE', 'DOW'],
-        'XLU': ['NEE', 'DUK', 'SO', 'D', 'AEP', 'EXC', 'SRE', 'XEL'],
-        'XLRE': ['PLD', 'AMT', 'EQIX', 'PSA', 'CCI', 'SPG', 'O', 'WELL'],
-        'XLC': ['META', 'GOOGL', 'NFLX', 'DIS', 'CMCSA', 'VZ', 'T', 'CHTR'],
+        "XLK": ["AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "AMD", "ADBE"],
+        "XLF": ["JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "AXP"],
+        "XLV": ["UNH", "JNJ", "LLY", "ABBV", "MRK", "PFE", "TMO", "ABT"],
+        "XLY": ["AMZN", "TSLA", "HD", "MCD", "NKE", "SBUX", "LOW", "TJX"],
+        "XLP": ["PG", "KO", "PEP", "COST", "WMT", "PM", "MDLZ", "CL"],
+        "XLE": ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO"],
+        "XLI": ["CAT", "UNP", "HON", "UPS", "BA", "RTX", "GE", "LMT"],
+        "XLB": ["LIN", "APD", "SHW", "ECL", "FCX", "NEM", "NUE", "DOW"],
+        "XLU": ["NEE", "DUK", "SO", "D", "AEP", "EXC", "SRE", "XEL"],
+        "XLRE": ["PLD", "AMT", "EQIX", "PSA", "CCI", "SPG", "O", "WELL"],
+        "XLC": ["META", "GOOGL", "NFLX", "DIS", "CMCSA", "VZ", "T", "CHTR"],
     }
 
     def __init__(self, broker, use_etfs: bool = False):
@@ -166,17 +168,20 @@ class SectorRotator:
         try:
             # Check cache
             now = datetime.now()
-            if (self._current_phase and self._last_phase_check and
-                (now - self._last_phase_check).total_seconds() < self._phase_cache_minutes * 60):
+            if (
+                self._current_phase
+                and self._last_phase_check
+                and (now - self._last_phase_check).total_seconds() < self._phase_cache_minutes * 60
+            ):
                 return self._current_phase
 
             # Get market data
-            spy_data = await self._get_price_data('SPY', days=200)
+            spy_data = await self._get_price_data("SPY", days=200)
             if spy_data is None or len(spy_data) < 50:
                 logger.warning("Insufficient SPY data for phase detection")
                 return (EconomicPhase.LATE_EXPANSION, 0.5)  # Default
 
-            closes = np.array([d['close'] for d in spy_data])
+            closes = np.array([d["close"] for d in spy_data])
 
             # Calculate indicators
             sma_50 = np.mean(closes[-50:])
@@ -239,10 +244,7 @@ class SectorRotator:
             logger.error(f"Error detecting economic phase: {e}")
             return (EconomicPhase.LATE_EXPANSION, 0.5)
 
-    async def get_sector_allocations(
-        self,
-        base_allocation: float = 1.0
-    ) -> Dict[str, float]:
+    async def get_sector_allocations(self, base_allocation: float = 1.0) -> Dict[str, float]:
         """
         Get recommended sector allocations based on current phase.
 
@@ -275,9 +277,7 @@ class SectorRotator:
         return allocations
 
     async def get_recommended_stocks(
-        self,
-        top_n: int = 20,
-        stocks_per_sector: int = 3
+        self, top_n: int = 20, stocks_per_sector: int = 3
     ) -> List[str]:
         """
         Get recommended stocks based on sector rotation.
@@ -292,11 +292,7 @@ class SectorRotator:
         allocations = await self.get_sector_allocations()
 
         # Sort sectors by allocation (highest first)
-        sorted_sectors = sorted(
-            allocations.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+        sorted_sectors = sorted(allocations.items(), key=lambda x: x[1], reverse=True)
 
         recommended = []
         for sector_etf, allocation in sorted_sectors:
@@ -304,10 +300,7 @@ class SectorRotator:
                 continue
 
             # Number of stocks proportional to allocation
-            num_stocks = min(
-                stocks_per_sector,
-                max(1, int(allocation * top_n))
-            )
+            num_stocks = min(stocks_per_sector, max(1, int(allocation * top_n)))
 
             sector_stocks = self.SECTOR_STOCKS[sector_etf][:num_stocks]
             recommended.extend(sector_stocks)
@@ -330,7 +323,7 @@ class SectorRotator:
             try:
                 data = await self._get_price_data(etf, days=30)
                 if data and len(data) >= 20:
-                    closes = [d['close'] for d in data]
+                    closes = [d["close"] for d in data]
                     # 20-day momentum
                     mom = (closes[-1] / closes[-20] - 1) * 100
                     momentum[etf] = mom
@@ -348,9 +341,9 @@ class SectorRotator:
 
             bars = await self.broker.get_bars(
                 symbol,
-                start_date.strftime('%Y-%m-%d'),
-                end_date.strftime('%Y-%m-%d'),
-                timeframe='1Day'
+                start_date.strftime("%Y-%m-%d"),
+                end_date.strftime("%Y-%m-%d"),
+                timeframe="1Day",
             )
 
             if bars is None:
@@ -358,11 +351,11 @@ class SectorRotator:
 
             return [
                 {
-                    'open': float(b.open),
-                    'high': float(b.high),
-                    'low': float(b.low),
-                    'close': float(b.close),
-                    'volume': float(b.volume)
+                    "open": float(b.open),
+                    "high": float(b.high),
+                    "low": float(b.low),
+                    "close": float(b.close),
+                    "volume": float(b.volume),
                 }
                 for b in bars
             ]
@@ -379,43 +372,37 @@ class SectorRotator:
         recommended = await self.get_recommended_stocks(top_n=15)
 
         # Sort by allocation
-        sorted_sectors = sorted(
-            allocations.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+        sorted_sectors = sorted(allocations.items(), key=lambda x: x[1], reverse=True)
 
         return {
-            'phase': phase.value,
-            'phase_confidence': confidence,
-            'allocations': dict(sorted_sectors),
-            'momentum': momentum,
-            'recommended_stocks': recommended,
-            'overweight_sectors': [s for s, a in sorted_sectors if a > 0.10],
-            'underweight_sectors': [s for s, a in sorted_sectors if a < 0.08],
+            "phase": phase.value,
+            "phase_confidence": confidence,
+            "allocations": dict(sorted_sectors),
+            "momentum": momentum,
+            "recommended_stocks": recommended,
+            "overweight_sectors": [s for s, a in sorted_sectors if a > 0.10],
+            "underweight_sectors": [s for s, a in sorted_sectors if a < 0.08],
         }
 
 
 if __name__ == "__main__":
     """Test the sector rotator."""
     import asyncio
-    import os
+
     from dotenv import load_dotenv
 
     load_dotenv()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     async def test():
         from brokers.alpaca_broker import AlpacaBroker
+
         broker = AlpacaBroker(paper=True)
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("SECTOR ROTATION ANALYSIS")
-        print("="*60)
+        print("=" * 60)
 
         rotator = SectorRotator(broker)
         report = await rotator.get_sector_report()
@@ -424,19 +411,19 @@ if __name__ == "__main__":
         print(f"Confidence: {report['phase_confidence']:.0%}")
 
         print("\nSector Allocations:")
-        print("-"*40)
-        for sector, alloc in report['allocations'].items():
+        print("-" * 40)
+        for sector, alloc in report["allocations"].items():
             sector_name = SectorRotator.SECTOR_ETFS.get(sector, sector)
-            mom = report['momentum'].get(sector, 0)
-            bar = '█' * int(alloc * 50)
+            mom = report["momentum"].get(sector, 0)
+            bar = "█" * int(alloc * 50)
             print(f"  {sector:5s} ({sector_name:25s}): {alloc:5.1%} {bar} ({mom:+.1f}%)")
 
         print(f"\nOverweight: {', '.join(report['overweight_sectors'])}")
         print(f"Underweight: {', '.join(report['underweight_sectors'])}")
 
         print(f"\nRecommended Stocks ({len(report['recommended_stocks'])}):")
-        print(", ".join(report['recommended_stocks']))
+        print(", ".join(report["recommended_stocks"]))
 
-        print("="*60)
+        print("=" * 60)
 
     asyncio.run(test())

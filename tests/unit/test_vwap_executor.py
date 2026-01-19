@@ -9,25 +9,28 @@ Tests cover:
 4. Execution statistics
 """
 
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from utils.vwap_executor import VWAPExecutor, VWAPSlice, VWAPResult
+from utils.vwap_executor import VWAPExecutor, VWAPResult, VWAPSlice
 
 
 class MockBar:
     """Mock bar for testing."""
+
     def __init__(self, volume=1000000):
         self.volume = volume
 
 
 class MockQuote:
     """Mock quote for testing."""
+
     def __init__(self, bid=100.0, ask=100.10):
         self.bid_price = bid
         self.ask_price = ask
@@ -42,12 +45,12 @@ class TestSliceCreation:
 
         weights = [0.1, 0.2, 0.3, 0.2, 0.2]
         slices = executor._create_slices(
-            symbol='AAPL',
-            side='buy',
+            symbol="AAPL",
+            side="buy",
             total_qty=100,
             duration_minutes=60,
             num_slices=5,
-            weights=weights
+            weights=weights,
         )
 
         assert len(slices) == 5
@@ -58,12 +61,12 @@ class TestSliceCreation:
 
         weights = [0.1, 0.2, 0.3, 0.2, 0.2]
         slices = executor._create_slices(
-            symbol='AAPL',
-            side='buy',
+            symbol="AAPL",
+            side="buy",
             total_qty=100,
             duration_minutes=60,
             num_slices=5,
-            weights=weights
+            weights=weights,
         )
 
         total = sum(s.target_qty for s in slices)
@@ -75,16 +78,16 @@ class TestSliceCreation:
 
         weights = [0.25, 0.25, 0.25, 0.25]
         slices = executor._create_slices(
-            symbol='AAPL',
-            side='buy',
+            symbol="AAPL",
+            side="buy",
             total_qty=100,
             duration_minutes=60,
             num_slices=4,
-            weights=weights
+            weights=weights,
         )
 
         for i in range(len(slices) - 1):
-            assert slices[i].scheduled_time < slices[i+1].scheduled_time
+            assert slices[i].scheduled_time < slices[i + 1].scheduled_time
 
     def test_minimum_slice_quantity_enforced(self):
         """Test minimum slice quantity is enforced."""
@@ -92,12 +95,12 @@ class TestSliceCreation:
 
         weights = [0.01, 0.99]  # First slice would be tiny
         slices = executor._create_slices(
-            symbol='AAPL',
-            side='buy',
+            symbol="AAPL",
+            side="buy",
             total_qty=100,
             duration_minutes=60,
             num_slices=2,
-            weights=weights
+            weights=weights,
         )
 
         # First slice should be at least min_slice_qty
@@ -159,8 +162,8 @@ class TestVolumeProfile:
         """Test default volume profile has all trading hours."""
         executor = VWAPExecutor(MagicMock())
 
-        assert '09:30' in executor.DEFAULT_VOLUME_PROFILE
-        assert '15:30' in executor.DEFAULT_VOLUME_PROFILE
+        assert "09:30" in executor.DEFAULT_VOLUME_PROFILE
+        assert "15:30" in executor.DEFAULT_VOLUME_PROFILE
 
     def test_profile_weights_sum_to_reasonable_value(self):
         """Test profile weights sum to ~1.0."""
@@ -176,14 +179,14 @@ class TestVolumeProfile:
         executor = VWAPExecutor(MagicMock())
 
         # Opening 30 min should have higher volume than midday
-        assert executor.DEFAULT_VOLUME_PROFILE['09:30'] > executor.DEFAULT_VOLUME_PROFILE['12:00']
+        assert executor.DEFAULT_VOLUME_PROFILE["09:30"] > executor.DEFAULT_VOLUME_PROFILE["12:00"]
 
     def test_closing_has_high_volume(self):
         """Test that market close has high volume weight."""
         executor = VWAPExecutor(MagicMock())
 
         # Closing 30 min should have higher volume than midday
-        assert executor.DEFAULT_VOLUME_PROFILE['15:30'] > executor.DEFAULT_VOLUME_PROFILE['12:00']
+        assert executor.DEFAULT_VOLUME_PROFILE["15:30"] > executor.DEFAULT_VOLUME_PROFILE["12:00"]
 
 
 class TestExecutionStats:
@@ -195,8 +198,8 @@ class TestExecutionStats:
 
         stats = executor.get_execution_stats()
 
-        assert stats['total_executions'] == 0
-        assert stats['avg_slippage_bps'] == 0
+        assert stats["total_executions"] == 0
+        assert stats["avg_slippage_bps"] == 0
 
     def test_stats_calculation(self):
         """Test stats are calculated correctly."""
@@ -204,15 +207,15 @@ class TestExecutionStats:
 
         # Add some fake history
         executor.execution_history = [
-            VWAPResult('AAPL', 'buy', 100, 100, 150.0, 150.0, 5.0, 60, 5, 5, 'completed'),
-            VWAPResult('MSFT', 'buy', 200, 200, 300.0, 300.0, -3.0, 60, 5, 5, 'completed'),
+            VWAPResult("AAPL", "buy", 100, 100, 150.0, 150.0, 5.0, 60, 5, 5, "completed"),
+            VWAPResult("MSFT", "buy", 200, 200, 300.0, 300.0, -3.0, 60, 5, 5, "completed"),
         ]
 
         stats = executor.get_execution_stats()
 
-        assert stats['total_executions'] == 2
-        assert stats['avg_slippage_bps'] == 1.0  # (5 + -3) / 2
-        assert stats['completion_rate'] == 1.0
+        assert stats["total_executions"] == 2
+        assert stats["avg_slippage_bps"] == 1.0  # (5 + -3) / 2
+        assert stats["completion_rate"] == 1.0
 
 
 class TestParticipationRate:
@@ -222,15 +225,17 @@ class TestParticipationRate:
     async def test_participation_reduces_quantity(self):
         """Test that participation rate limits slice size."""
         broker = MagicMock()
-        broker.get_bars = AsyncMock(return_value=[
-            MockBar(volume=10000),  # Avg volume = 10000
-        ])
+        broker.get_bars = AsyncMock(
+            return_value=[
+                MockBar(volume=10000),  # Avg volume = 10000
+            ]
+        )
 
         executor = VWAPExecutor(broker)
 
         # Want 1000 shares but participation rate is 5%
         # Max = 10000 * 0.05 = 500
-        adjusted = await executor._adjust_for_participation('AAPL', 1000, 0.05)
+        adjusted = await executor._adjust_for_participation("AAPL", 1000, 0.05)
 
         assert adjusted == 500
 
@@ -238,14 +243,16 @@ class TestParticipationRate:
     async def test_participation_no_reduction_needed(self):
         """Test that small orders aren't reduced."""
         broker = MagicMock()
-        broker.get_bars = AsyncMock(return_value=[
-            MockBar(volume=100000),  # High volume
-        ])
+        broker.get_bars = AsyncMock(
+            return_value=[
+                MockBar(volume=100000),  # High volume
+            ]
+        )
 
         executor = VWAPExecutor(broker)
 
         # Want 100 shares, participation allows 10000
-        adjusted = await executor._adjust_for_participation('AAPL', 100, 0.10)
+        adjusted = await executor._adjust_for_participation("AAPL", 100, 0.10)
 
         assert adjusted == 100  # Not reduced
 
@@ -291,27 +298,27 @@ class TestCancelOrder:
         """Test cancelling pending slices."""
         executor = VWAPExecutor(MagicMock())
 
-        executor.active_orders['AAPL'] = [
-            VWAPSlice(datetime.now(), 100, status='filled'),
-            VWAPSlice(datetime.now() + timedelta(minutes=10), 100, status='pending'),
-            VWAPSlice(datetime.now() + timedelta(minutes=20), 100, status='pending'),
+        executor.active_orders["AAPL"] = [
+            VWAPSlice(datetime.now(), 100, status="filled"),
+            VWAPSlice(datetime.now() + timedelta(minutes=10), 100, status="pending"),
+            VWAPSlice(datetime.now() + timedelta(minutes=20), 100, status="pending"),
         ]
 
-        result = executor.cancel_active_order('AAPL')
+        result = executor.cancel_active_order("AAPL")
 
         assert result is True
-        assert executor.active_orders['AAPL'][0].status == 'filled'  # Not changed
-        assert executor.active_orders['AAPL'][1].status == 'cancelled'
-        assert executor.active_orders['AAPL'][2].status == 'cancelled'
+        assert executor.active_orders["AAPL"][0].status == "filled"  # Not changed
+        assert executor.active_orders["AAPL"][1].status == "cancelled"
+        assert executor.active_orders["AAPL"][2].status == "cancelled"
 
     def test_cancel_nonexistent_order(self):
         """Test cancelling order that doesn't exist."""
         executor = VWAPExecutor(MagicMock())
 
-        result = executor.cancel_active_order('NONEXISTENT')
+        result = executor.cancel_active_order("NONEXISTENT")
 
         assert result is False
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

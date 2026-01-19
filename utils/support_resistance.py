@@ -26,8 +26,8 @@ Usage:
 """
 
 import logging
-from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class SupportResistanceAnalyzer:
     """
 
     # Fallback stop-loss percentages (when no S/R levels found)
-    FALLBACK_LONG_STOP_PCT = 0.97   # 3% below entry for longs
+    FALLBACK_LONG_STOP_PCT = 0.97  # 3% below entry for longs
     FALLBACK_SHORT_STOP_PCT = 1.03  # 3% above entry for shorts
 
     # Fallback profit target percentages
@@ -48,10 +48,10 @@ class SupportResistanceAnalyzer:
 
     # Fallback level percentages (when no specific levels found)
     FALLBACK_RESISTANCE_PCT = 1.05  # 5% above current price
-    FALLBACK_SUPPORT_PCT = 0.95     # 5% below current price
+    FALLBACK_SUPPORT_PCT = 0.95  # 5% below current price
 
     # Default tolerances
-    DEFAULT_BUFFER_PCT = 0.005      # 0.5% buffer for stop placement
+    DEFAULT_BUFFER_PCT = 0.005  # 0.5% buffer for stop placement
     DEFAULT_LEVEL_TOLERANCE_PCT = 0.02  # 2% tolerance for S/R proximity check
 
     # Recent lookback period
@@ -59,8 +59,8 @@ class SupportResistanceAnalyzer:
 
     def __init__(
         self,
-        swing_lookback: int = 5,      # Bars to look back for swing detection
-        min_touches: int = 2,          # Minimum touches to confirm level
+        swing_lookback: int = 5,  # Bars to look back for swing detection
+        min_touches: int = 2,  # Minimum touches to confirm level
         level_tolerance: float = 0.01,  # 1% tolerance for level clustering
         include_round_numbers: bool = True,
     ):
@@ -79,15 +79,10 @@ class SupportResistanceAnalyzer:
         self.include_round_numbers = include_round_numbers
 
         logger.info(
-            f"SupportResistanceAnalyzer: lookback={swing_lookback}, "
-            f"min_touches={min_touches}"
+            f"SupportResistanceAnalyzer: lookback={swing_lookback}, " f"min_touches={min_touches}"
         )
 
-    def find_swing_highs(
-        self,
-        highs: List[float],
-        lookback: int = None
-    ) -> List[Tuple[int, float]]:
+    def find_swing_highs(self, highs: List[float], lookback: int = None) -> List[Tuple[int, float]]:
         """
         Find swing high points in price data.
 
@@ -109,11 +104,7 @@ class SupportResistanceAnalyzer:
 
         return swing_highs
 
-    def find_swing_lows(
-        self,
-        lows: List[float],
-        lookback: int = None
-    ) -> List[Tuple[int, float]]:
+    def find_swing_lows(self, lows: List[float], lookback: int = None) -> List[Tuple[int, float]]:
         """
         Find swing low points in price data.
 
@@ -135,12 +126,7 @@ class SupportResistanceAnalyzer:
 
         return swing_lows
 
-    def calculate_pivot_points(
-        self,
-        high: float,
-        low: float,
-        close: float
-    ) -> Dict[str, float]:
+    def calculate_pivot_points(self, high: float, low: float, close: float) -> Dict[str, float]:
         """
         Calculate standard pivot points.
 
@@ -159,16 +145,16 @@ class SupportResistanceAnalyzer:
         s3 = low - 2 * (high - pp)
 
         return {
-            'PP': pp,
-            'R1': r1, 'R2': r2, 'R3': r3,
-            'S1': s1, 'S2': s2, 'S3': s3,
+            "PP": pp,
+            "R1": r1,
+            "R2": r2,
+            "R3": r3,
+            "S1": s1,
+            "S2": s2,
+            "S3": s3,
         }
 
-    def cluster_levels(
-        self,
-        levels: List[float],
-        tolerance: float = None
-    ) -> List[Dict]:
+    def cluster_levels(self, levels: List[float], tolerance: float = None) -> List[Dict]:
         """
         Cluster nearby levels and count touches.
 
@@ -206,20 +192,18 @@ class SupportResistanceAnalyzer:
         result = []
         for cluster in clusters:
             if len(cluster) >= self.min_touches:
-                result.append({
-                    'price': np.mean(cluster),
-                    'touches': len(cluster),
-                    'strength': min(len(cluster) / 5, 1.0),  # Normalize to 0-1
-                    'range': (min(cluster), max(cluster)),
-                })
+                result.append(
+                    {
+                        "price": np.mean(cluster),
+                        "touches": len(cluster),
+                        "strength": min(len(cluster) / 5, 1.0),  # Normalize to 0-1
+                        "range": (min(cluster), max(cluster)),
+                    }
+                )
 
         return result
 
-    def get_round_numbers(
-        self,
-        current_price: float,
-        range_pct: float = 0.10
-    ) -> List[float]:
+    def get_round_numbers(self, current_price: float, range_pct: float = 0.10) -> List[float]:
         """
         Get psychological round numbers near current price.
 
@@ -258,11 +242,7 @@ class SupportResistanceAnalyzer:
 
         return sorted(set(levels))
 
-    def find_levels(
-        self,
-        bars: List[Dict],
-        current_price: float = None
-    ) -> Dict:
+    def find_levels(self, bars: List[Dict], current_price: float = None) -> Dict:
         """
         Find all support and resistance levels.
 
@@ -274,13 +254,13 @@ class SupportResistanceAnalyzer:
             Dict with all levels and analysis
         """
         if not bars or len(bars) < 20:
-            return {'error': 'Insufficient data'}
+            return {"error": "Insufficient data"}
 
         # Extract price data
-        highs = [b['high'] for b in bars]
-        lows = [b['low'] for b in bars]
-        closes = [b['close'] for b in bars]
-        volumes = [b.get('volume', 1) for b in bars]
+        highs = [b["high"] for b in bars]
+        lows = [b["low"] for b in bars]
+        closes = [b["close"] for b in bars]
+        volumes = [b.get("volume", 1) for b in bars]
 
         current_price = current_price or closes[-1]
 
@@ -289,24 +269,22 @@ class SupportResistanceAnalyzer:
         swing_lows = self.find_swing_lows(lows)
 
         # Calculate daily pivot points (from last bar)
-        pivots = self.calculate_pivot_points(
-            highs[-1], lows[-1], closes[-1]
-        )
+        pivots = self.calculate_pivot_points(highs[-1], lows[-1], closes[-1])
 
         # Get recent high/low
-        recent_high = max(highs[-self.RECENT_BARS_LOOKBACK:])
-        recent_low = min(lows[-self.RECENT_BARS_LOOKBACK:])
+        recent_high = max(highs[-self.RECENT_BARS_LOOKBACK :])
+        recent_low = min(lows[-self.RECENT_BARS_LOOKBACK :])
 
         # Collect all potential resistance levels
         resistance_levels = []
         resistance_levels.extend([sh[1] for sh in swing_highs])
-        resistance_levels.extend([pivots['R1'], pivots['R2'], pivots['R3']])
+        resistance_levels.extend([pivots["R1"], pivots["R2"], pivots["R3"]])
         resistance_levels.append(recent_high)
 
         # Collect all potential support levels
         support_levels = []
         support_levels.extend([sl[1] for sl in swing_lows])
-        support_levels.extend([pivots['S1'], pivots['S2'], pivots['S3']])
+        support_levels.extend([pivots["S1"], pivots["S2"], pivots["S3"]])
         support_levels.append(recent_low)
 
         # Add round numbers
@@ -319,43 +297,38 @@ class SupportResistanceAnalyzer:
                     support_levels.append(rn)
 
         # Cluster and filter levels
-        resistance = self.cluster_levels(
-            [r for r in resistance_levels if r > current_price]
-        )
-        support = self.cluster_levels(
-            [s for s in support_levels if s < current_price]
-        )
+        resistance = self.cluster_levels([r for r in resistance_levels if r > current_price])
+        support = self.cluster_levels([s for s in support_levels if s < current_price])
 
         # Sort by distance from current price
-        resistance.sort(key=lambda x: x['price'])
-        support.sort(key=lambda x: x['price'], reverse=True)
+        resistance.sort(key=lambda x: x["price"])
+        support.sort(key=lambda x: x["price"], reverse=True)
 
         # Find nearest levels
-        nearest_resistance = resistance[0]['price'] if resistance else current_price * self.FALLBACK_RESISTANCE_PCT
-        nearest_support = support[0]['price'] if support else current_price * self.FALLBACK_SUPPORT_PCT
+        nearest_resistance = (
+            resistance[0]["price"] if resistance else current_price * self.FALLBACK_RESISTANCE_PCT
+        )
+        nearest_support = (
+            support[0]["price"] if support else current_price * self.FALLBACK_SUPPORT_PCT
+        )
 
         return {
-            'current_price': current_price,
-            'nearest_resistance': nearest_resistance,
-            'nearest_support': nearest_support,
-            'resistance_levels': resistance[:5],  # Top 5
-            'support_levels': support[:5],        # Top 5
-            'pivot_points': pivots,
-            'recent_high': recent_high,
-            'recent_low': recent_low,
-            'resistance_distance_pct': (nearest_resistance - current_price) / current_price,
-            'support_distance_pct': (current_price - nearest_support) / current_price,
-            'risk_reward': self._calculate_risk_reward(
+            "current_price": current_price,
+            "nearest_resistance": nearest_resistance,
+            "nearest_support": nearest_support,
+            "resistance_levels": resistance[:5],  # Top 5
+            "support_levels": support[:5],  # Top 5
+            "pivot_points": pivots,
+            "recent_high": recent_high,
+            "recent_low": recent_low,
+            "resistance_distance_pct": (nearest_resistance - current_price) / current_price,
+            "support_distance_pct": (current_price - nearest_support) / current_price,
+            "risk_reward": self._calculate_risk_reward(
                 current_price, nearest_support, nearest_resistance
             ),
         }
 
-    def _calculate_risk_reward(
-        self,
-        entry: float,
-        support: float,
-        resistance: float
-    ) -> float:
+    def _calculate_risk_reward(self, entry: float, support: float, resistance: float) -> float:
         """Calculate risk/reward ratio for a long trade."""
         risk = entry - support
         reward = resistance - entry
@@ -366,11 +339,7 @@ class SupportResistanceAnalyzer:
         return reward / risk
 
     def get_optimal_stop(
-        self,
-        direction: str,
-        current_price: float,
-        bars: List[Dict],
-        buffer_pct: float = 0.005
+        self, direction: str, current_price: float, bars: List[Dict], buffer_pct: float = 0.005
     ) -> float:
         """
         Get optimal stop-loss placement based on S/R.
@@ -386,26 +355,22 @@ class SupportResistanceAnalyzer:
         """
         levels = self.find_levels(bars, current_price)
 
-        if 'error' in levels:
+        if "error" in levels:
             # Fallback to percentage-based stop
-            if direction == 'long':
+            if direction == "long":
                 return current_price * self.FALLBACK_LONG_STOP_PCT
             else:
                 return current_price * self.FALLBACK_SHORT_STOP_PCT
 
-        if direction == 'long':
-            support = levels['nearest_support']
+        if direction == "long":
+            support = levels["nearest_support"]
             return support * (1 - buffer_pct)
         else:
-            resistance = levels['nearest_resistance']
+            resistance = levels["nearest_resistance"]
             return resistance * (1 + buffer_pct)
 
     def get_profit_target(
-        self,
-        direction: str,
-        current_price: float,
-        bars: List[Dict],
-        target_number: int = 1
+        self, direction: str, current_price: float, bars: List[Dict], target_number: int = 1
     ) -> float:
         """
         Get profit target based on S/R.
@@ -421,27 +386,24 @@ class SupportResistanceAnalyzer:
         """
         levels = self.find_levels(bars, current_price)
 
-        if 'error' in levels:
+        if "error" in levels:
             # Fallback
-            if direction == 'long':
+            if direction == "long":
                 return current_price * self.FALLBACK_LONG_TARGET_PCT
             else:
                 return current_price * self.FALLBACK_SHORT_TARGET_PCT
 
-        if direction == 'long':
-            if len(levels['resistance_levels']) >= target_number:
-                return levels['resistance_levels'][target_number - 1]['price']
-            return levels['nearest_resistance']
+        if direction == "long":
+            if len(levels["resistance_levels"]) >= target_number:
+                return levels["resistance_levels"][target_number - 1]["price"]
+            return levels["nearest_resistance"]
         else:
-            if len(levels['support_levels']) >= target_number:
-                return levels['support_levels'][target_number - 1]['price']
-            return levels['nearest_support']
+            if len(levels["support_levels"]) >= target_number:
+                return levels["support_levels"][target_number - 1]["price"]
+            return levels["nearest_support"]
 
     def is_at_support(
-        self,
-        current_price: float,
-        bars: List[Dict],
-        tolerance_pct: float = None
+        self, current_price: float, bars: List[Dict], tolerance_pct: float = None
     ) -> Tuple[bool, Optional[float]]:
         """
         Check if price is at a support level.
@@ -457,21 +419,18 @@ class SupportResistanceAnalyzer:
         tolerance_pct = tolerance_pct or self.DEFAULT_LEVEL_TOLERANCE_PCT
         levels = self.find_levels(bars, current_price)
 
-        if 'error' in levels:
+        if "error" in levels:
             return False, None
 
-        for level in levels['support_levels']:
-            distance = abs(current_price - level['price']) / current_price
+        for level in levels["support_levels"]:
+            distance = abs(current_price - level["price"]) / current_price
             if distance <= tolerance_pct:
-                return True, level['price']
+                return True, level["price"]
 
         return False, None
 
     def is_at_resistance(
-        self,
-        current_price: float,
-        bars: List[Dict],
-        tolerance_pct: float = None
+        self, current_price: float, bars: List[Dict], tolerance_pct: float = None
     ) -> Tuple[bool, Optional[float]]:
         """
         Check if price is at a resistance level.
@@ -487,27 +446,24 @@ class SupportResistanceAnalyzer:
         tolerance_pct = tolerance_pct or self.DEFAULT_LEVEL_TOLERANCE_PCT
         levels = self.find_levels(bars, current_price)
 
-        if 'error' in levels:
+        if "error" in levels:
             return False, None
 
-        for level in levels['resistance_levels']:
-            distance = abs(level['price'] - current_price) / current_price
+        for level in levels["resistance_levels"]:
+            distance = abs(level["price"] - current_price) / current_price
             if distance <= tolerance_pct:
-                return True, level['price']
+                return True, level["price"]
 
         return False, None
 
 
 if __name__ == "__main__":
     """Test support/resistance analyzer."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SUPPORT/RESISTANCE ANALYZER TEST")
-    print("="*60)
+    print("=" * 60)
 
     # Generate sample price data
     np.random.seed(42)
@@ -520,15 +476,17 @@ if __name__ == "__main__":
         high = price + abs(np.random.randn() * 1.5)
         low = price - abs(np.random.randn() * 1.5)
         close = price + change
-        bars.append({
-            'high': high,
-            'low': low,
-            'close': close,
-            'volume': 1000000 + np.random.randint(-500000, 500000)
-        })
+        bars.append(
+            {
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": 1000000 + np.random.randint(-500000, 500000),
+            }
+        )
         price = close
 
-    current_price = bars[-1]['close']
+    current_price = bars[-1]["close"]
 
     analyzer = SupportResistanceAnalyzer()
     levels = analyzer.find_levels(bars, current_price)
@@ -537,33 +495,37 @@ if __name__ == "__main__":
     print(f"Recent High: ${levels['recent_high']:.2f}")
     print(f"Recent Low: ${levels['recent_low']:.2f}")
 
-    print(f"\nNearest Resistance: ${levels['nearest_resistance']:.2f} "
-          f"({levels['resistance_distance_pct']:+.1%} away)")
-    print(f"Nearest Support: ${levels['nearest_support']:.2f} "
-          f"({levels['support_distance_pct']:+.1%} away)")
+    print(
+        f"\nNearest Resistance: ${levels['nearest_resistance']:.2f} "
+        f"({levels['resistance_distance_pct']:+.1%} away)"
+    )
+    print(
+        f"Nearest Support: ${levels['nearest_support']:.2f} "
+        f"({levels['support_distance_pct']:+.1%} away)"
+    )
 
     print(f"\nRisk/Reward Ratio: {levels['risk_reward']:.2f}")
 
     print("\nResistance Levels:")
-    for r in levels['resistance_levels'][:3]:
+    for r in levels["resistance_levels"][:3]:
         print(f"  ${r['price']:.2f} (touches: {r['touches']}, strength: {r['strength']:.2f})")
 
     print("\nSupport Levels:")
-    for s in levels['support_levels'][:3]:
+    for s in levels["support_levels"][:3]:
         print(f"  ${s['price']:.2f} (touches: {s['touches']}, strength: {s['strength']:.2f})")
 
     print("\nPivot Points:")
-    pp = levels['pivot_points']
+    pp = levels["pivot_points"]
     print(f"  PP: ${pp['PP']:.2f}")
     print(f"  R1: ${pp['R1']:.2f}, R2: ${pp['R2']:.2f}")
     print(f"  S1: ${pp['S1']:.2f}, S2: ${pp['S2']:.2f}")
 
     # Test stop/target
-    stop = analyzer.get_optimal_stop('long', current_price, bars)
-    target = analyzer.get_profit_target('long', current_price, bars)
-    print(f"\nOptimal Long Trade:")
+    stop = analyzer.get_optimal_stop("long", current_price, bars)
+    target = analyzer.get_profit_target("long", current_price, bars)
+    print("\nOptimal Long Trade:")
     print(f"  Entry: ${current_price:.2f}")
     print(f"  Stop: ${stop:.2f} ({(stop/current_price-1)*100:.1f}%)")
     print(f"  Target: ${target:.2f} ({(target/current_price-1)*100:.1f}%)")
 
-    print("="*60)
+    print("=" * 60)

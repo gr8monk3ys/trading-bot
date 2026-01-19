@@ -8,15 +8,11 @@ Direct trading without lumibot dependency issues.
 import asyncio
 import logging
 import signal
-from datetime import datetime
 import sys
 
 from brokers.alpaca_broker import AlpacaBroker
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +33,9 @@ class SimpleTrader:
 
     async def initialize(self):
         """Initialize broker."""
-        logger.info("="*80)
+        logger.info("=" * 80)
         logger.info("🚀 INITIALIZING SIMPLE TRADER")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         self.broker = AlpacaBroker(paper=True)
 
@@ -47,7 +43,7 @@ class SimpleTrader:
         account = await self.broker.get_account()
         self.start_equity = float(account.equity)
 
-        logger.info(f"✅ Connected to Alpaca")
+        logger.info("✅ Connected to Alpaca")
         logger.info(f"   Account: {account.id}")
         logger.info(f"   Equity: ${self.start_equity:,.2f}")
         logger.info(f"   Symbols: {', '.join(self.symbols)}")
@@ -60,7 +56,7 @@ class SimpleTrader:
         logger.info(f"\n   Market: {'🟢 OPEN' if clock.is_open else '🔴 CLOSED'}")
         logger.info(f"   Next Open: {clock.next_open}")
 
-        logger.info("="*80 + "\n")
+        logger.info("=" * 80 + "\n")
 
         return True
 
@@ -93,8 +89,10 @@ class SimpleTrader:
 
                 positions = await self.broker.get_positions()
 
-                logger.info("-"*80)
-                logger.info(f"💰 Equity: ${equity:,.2f} | P/L: ${pnl:+,.2f} ({pnl_pct:+.2f}%) | Positions: {len(positions)}")
+                logger.info("-" * 80)
+                logger.info(
+                    f"💰 Equity: ${equity:,.2f} | P/L: ${pnl:+,.2f} ({pnl_pct:+.2f}%) | Positions: {len(positions)}"
+                )
 
                 for pos in positions:
                     logger.info(
@@ -103,16 +101,16 @@ class SimpleTrader:
                         f"(${float(pos.unrealized_pl):+,.2f})"
                     )
 
-                logger.info("-"*80)
+                logger.info("-" * 80)
 
         except asyncio.CancelledError:
             pass
 
     async def shutdown(self):
         """Shutdown."""
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("🛑 SHUTTING DOWN")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         account = await self.broker.get_account()
         final_equity = float(account.equity)
@@ -129,7 +127,7 @@ class SimpleTrader:
                 logger.info(f"  {pos.symbol}: {pos.qty} shares")
 
         logger.info("\n✅ Shutdown complete")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
     def handle_shutdown(self, signum, frame):
         """Handle Ctrl+C."""
@@ -140,14 +138,9 @@ class SimpleTrader:
 
 async def main():
     """Main entry."""
-    symbols = ['SPY', 'QQQ', 'AAPL']
+    symbols = ["SPY", "QQQ", "AAPL"]
 
-    trader = SimpleTrader(
-        symbols=symbols,
-        position_size=0.08,
-        stop_loss=0.02,
-        take_profit=0.05
-    )
+    trader = SimpleTrader(symbols=symbols, position_size=0.08, stop_loss=0.02, take_profit=0.05)
 
     signal.signal(signal.SIGINT, trader.handle_shutdown)
     signal.signal(signal.SIGTERM, trader.handle_shutdown)

@@ -21,14 +21,20 @@ DRY Principles Applied:
 - Assertion messages on key assertions
 """
 
-import pytest
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, date, timedelta
+
+import pytest
+
+from tests.unit.conftest import (
+    DEFAULT_STARTING_CASH,
+    DEFAULT_STARTING_EQUITY,
+    create_mock_account,
+    create_mock_position,
+)
 
 # Module-level import - avoid repeated imports in each test
 from utils.circuit_breaker import CircuitBreaker
-from tests.unit.conftest import create_mock_position, create_mock_account, DEFAULT_STARTING_EQUITY, DEFAULT_STARTING_CASH
-
 
 # =============================================================================
 # CONSTANTS - No magic numbers in tests
@@ -71,6 +77,7 @@ TEST_DATE = date(2024, 1, 15)
 # =============================================================================
 # MODULE-LEVEL FIXTURES
 # =============================================================================
+
 
 @pytest.fixture
 def circuit_breaker():
@@ -139,13 +146,15 @@ def create_account_with_equity(equity: float) -> MagicMock:
 # TEST CLASSES
 # =============================================================================
 
+
 class TestCircuitBreakerInitialization:
     """Tests for CircuitBreaker initialization."""
 
     def test_default_initialization(self, circuit_breaker):
         """Test CircuitBreaker with default parameters."""
-        assert circuit_breaker.max_daily_loss == DEFAULT_MAX_DAILY_LOSS, \
-            f"Expected default max_daily_loss {DEFAULT_MAX_DAILY_LOSS}"
+        assert (
+            circuit_breaker.max_daily_loss == DEFAULT_MAX_DAILY_LOSS
+        ), f"Expected default max_daily_loss {DEFAULT_MAX_DAILY_LOSS}"
         assert circuit_breaker.auto_close_positions is True
         assert circuit_breaker.trading_halted is False
         assert circuit_breaker.starting_balance is None
@@ -175,10 +184,12 @@ class TestInitializeWithBroker:
         await circuit_breaker.initialize(mock_broker)
 
         assert circuit_breaker.broker == mock_broker
-        assert circuit_breaker.starting_balance == DEFAULT_STARTING_CASH, \
-            f"Expected starting_balance {DEFAULT_STARTING_CASH}"
-        assert circuit_breaker.starting_equity == DEFAULT_STARTING_EQUITY, \
-            f"Expected starting_equity {DEFAULT_STARTING_EQUITY}"
+        assert (
+            circuit_breaker.starting_balance == DEFAULT_STARTING_CASH
+        ), f"Expected starting_balance {DEFAULT_STARTING_CASH}"
+        assert (
+            circuit_breaker.starting_equity == DEFAULT_STARTING_EQUITY
+        ), f"Expected starting_equity {DEFAULT_STARTING_EQUITY}"
         assert circuit_breaker.peak_equity_today == DEFAULT_STARTING_EQUITY
         assert circuit_breaker.last_reset_date == datetime.now().date()
 
@@ -217,13 +228,16 @@ class TestCheckAndHalt:
 
         await initialized_cb.check_and_halt()
 
-        assert initialized_cb.peak_equity_today == PROFIT_EQUITY, \
-            f"Peak equity should be updated to {PROFIT_EQUITY}"
+        assert (
+            initialized_cb.peak_equity_today == PROFIT_EQUITY
+        ), f"Peak equity should be updated to {PROFIT_EQUITY}"
 
     @pytest.mark.asyncio
     async def test_check_no_halt_within_limit(self, initialized_cb):
         """Test no halt when loss is within limit."""
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(WITHIN_LIMIT_EQUITY)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            WITHIN_LIMIT_EQUITY
+        )
 
         result = await initialized_cb.check_and_halt()
 
@@ -233,7 +247,9 @@ class TestCheckAndHalt:
     @pytest.mark.asyncio
     async def test_check_halts_at_daily_loss_limit(self, initialized_cb):
         """Test halt when daily loss limit reached."""
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(OVER_LIMIT_EQUITY)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            OVER_LIMIT_EQUITY
+        )
         initialized_cb._trigger_halt = AsyncMock()
         initialized_cb.auto_close_positions = False
 
@@ -246,14 +262,19 @@ class TestCheckAndHalt:
     async def test_check_halts_on_rapid_drawdown(self, initialized_cb):
         """Test halt on rapid drawdown from peak."""
         # First, make profit to set peak higher
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(PEAK_EQUITY_FOR_DRAWDOWN)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            PEAK_EQUITY_FOR_DRAWDOWN
+        )
         await initialized_cb.check_and_halt()
 
-        assert initialized_cb.peak_equity_today == PEAK_EQUITY_FOR_DRAWDOWN, \
-            "Peak equity should be updated after profit"
+        assert (
+            initialized_cb.peak_equity_today == PEAK_EQUITY_FOR_DRAWDOWN
+        ), "Peak equity should be updated after profit"
 
         # Now simulate rapid drawdown (2.09% from peak when rapid threshold is 2%)
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(RAPID_DRAWDOWN_EQUITY)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            RAPID_DRAWDOWN_EQUITY
+        )
         initialized_cb._trigger_halt = AsyncMock()
         initialized_cb.auto_close_positions = False
 
@@ -287,7 +308,9 @@ class TestCheckAndHalt:
         """Test circuit breaker resets at start of new day."""
         initialized_cb.last_reset_date = datetime.now().date() - timedelta(days=1)
         initialized_cb._reset_for_new_day = AsyncMock()
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(DEFAULT_STARTING_EQUITY)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            DEFAULT_STARTING_EQUITY
+        )
 
         await initialized_cb.check_and_halt()
 
@@ -311,7 +334,9 @@ class TestTriggerHalt:
         """Test trigger halt sets state correctly."""
         cb_for_trigger._emergency_close_positions = AsyncMock()
 
-        await cb_for_trigger._trigger_halt(EXACT_LIMIT_EQUITY, DEFAULT_MAX_DAILY_LOSS, "daily_loss_limit")
+        await cb_for_trigger._trigger_halt(
+            EXACT_LIMIT_EQUITY, DEFAULT_MAX_DAILY_LOSS, "daily_loss_limit"
+        )
 
         assert cb_for_trigger.trading_halted is True, "trading_halted should be True after trigger"
         assert cb_for_trigger.halt_triggered_at is not None, "halt_triggered_at should be set"
@@ -321,7 +346,9 @@ class TestTriggerHalt:
         """Test trigger halt calls emergency close when configured."""
         cb_for_trigger._emergency_close_positions = AsyncMock()
 
-        await cb_for_trigger._trigger_halt(EXACT_LIMIT_EQUITY, DEFAULT_MAX_DAILY_LOSS, "daily_loss_limit")
+        await cb_for_trigger._trigger_halt(
+            EXACT_LIMIT_EQUITY, DEFAULT_MAX_DAILY_LOSS, "daily_loss_limit"
+        )
 
         cb_for_trigger._emergency_close_positions.assert_called_once()
 
@@ -331,7 +358,9 @@ class TestTriggerHalt:
         cb_for_trigger.auto_close_positions = False
         cb_for_trigger._emergency_close_positions = AsyncMock()
 
-        await cb_for_trigger._trigger_halt(EXACT_LIMIT_EQUITY, DEFAULT_MAX_DAILY_LOSS, "daily_loss_limit")
+        await cb_for_trigger._trigger_halt(
+            EXACT_LIMIT_EQUITY, DEFAULT_MAX_DAILY_LOSS, "daily_loss_limit"
+        )
 
         cb_for_trigger._emergency_close_positions.assert_not_called()
 
@@ -376,7 +405,7 @@ class TestEmergencyClosePositions:
         order_result.id = "order123"
         cb_for_close.broker.submit_order_advanced.return_value = order_result
 
-        with patch('brokers.order_builder.OrderBuilder') as MockOrderBuilder:
+        with patch("brokers.order_builder.OrderBuilder") as MockOrderBuilder:
             mock_builder = MagicMock()
             mock_builder.market.return_value = mock_builder
             mock_builder.day.return_value = mock_builder
@@ -385,8 +414,9 @@ class TestEmergencyClosePositions:
 
             await cb_for_close._emergency_close_positions()
 
-        assert cb_for_close.broker.submit_order_advanced.call_count == 2, \
-            "Should submit orders for both positions"
+        assert (
+            cb_for_close.broker.submit_order_advanced.call_count == 2
+        ), "Should submit orders for both positions"
 
     @pytest.mark.asyncio
     async def test_close_positions_handles_order_error(self, cb_for_close):
@@ -396,7 +426,7 @@ class TestEmergencyClosePositions:
         cb_for_close.broker.get_positions.return_value = [pos1]
         cb_for_close.broker.submit_order_advanced.side_effect = Exception("Order failed")
 
-        with patch('brokers.order_builder.OrderBuilder') as MockOrderBuilder:
+        with patch("brokers.order_builder.OrderBuilder") as MockOrderBuilder:
             mock_builder = MagicMock()
             mock_builder.market.return_value = mock_builder
             mock_builder.day.return_value = mock_builder
@@ -433,18 +463,23 @@ class TestResetForNewDay:
     @pytest.mark.asyncio
     async def test_reset_updates_equity(self, cb_for_reset):
         """Test reset updates equity values."""
-        cb_for_reset.broker.get_account.return_value = create_account_with_equity(SLIGHT_PROFIT_EQUITY)
+        cb_for_reset.broker.get_account.return_value = create_account_with_equity(
+            SLIGHT_PROFIT_EQUITY
+        )
 
         await cb_for_reset._reset_for_new_day()
 
-        assert cb_for_reset.starting_equity == SLIGHT_PROFIT_EQUITY, \
-            f"Starting equity should be updated to {SLIGHT_PROFIT_EQUITY}"
+        assert (
+            cb_for_reset.starting_equity == SLIGHT_PROFIT_EQUITY
+        ), f"Starting equity should be updated to {SLIGHT_PROFIT_EQUITY}"
         assert cb_for_reset.peak_equity_today == SLIGHT_PROFIT_EQUITY
 
     @pytest.mark.asyncio
     async def test_reset_clears_halt_state(self, cb_for_reset):
         """Test reset clears halt state."""
-        cb_for_reset.broker.get_account.return_value = create_account_with_equity(DEFAULT_STARTING_EQUITY)
+        cb_for_reset.broker.get_account.return_value = create_account_with_equity(
+            DEFAULT_STARTING_EQUITY
+        )
 
         await cb_for_reset._reset_for_new_day()
 
@@ -454,7 +489,9 @@ class TestResetForNewDay:
     @pytest.mark.asyncio
     async def test_reset_updates_last_reset_date(self, cb_for_reset):
         """Test reset updates last reset date."""
-        cb_for_reset.broker.get_account.return_value = create_account_with_equity(DEFAULT_STARTING_EQUITY)
+        cb_for_reset.broker.get_account.return_value = create_account_with_equity(
+            DEFAULT_STARTING_EQUITY
+        )
 
         await cb_for_reset._reset_for_new_day()
 
@@ -516,8 +553,9 @@ class TestGetStatus:
         status = cb.get_status()
 
         assert status["halted"] is True
-        assert status["halt_triggered_at"] == "2024-01-15T10:30:00", \
-            "halt_triggered_at should be ISO format"
+        assert (
+            status["halt_triggered_at"] == "2024-01-15T10:30:00"
+        ), "halt_triggered_at should be ISO format"
 
     def test_get_status_with_none_values(self, circuit_breaker):
         """Test get_status with None values."""
@@ -582,11 +620,11 @@ class TestManualReset:
     @pytest.mark.asyncio
     async def test_manual_reset_tracks_last_reset_time(self, halted_cb):
         """Test manual reset tracks last reset time."""
-        assert not hasattr(halted_cb, '_last_manual_reset') or halted_cb._last_manual_reset is None
+        assert not hasattr(halted_cb, "_last_manual_reset") or halted_cb._last_manual_reset is None
 
         await halted_cb.manual_reset(confirmation_token=CONFIRM_RESET_TOKEN)
 
-        assert hasattr(halted_cb, '_last_manual_reset')
+        assert hasattr(halted_cb, "_last_manual_reset")
         assert halted_cb._last_manual_reset is not None, "Should track last manual reset time"
 
 
@@ -596,7 +634,9 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_exact_loss_limit_triggers_halt(self, initialized_cb):
         """Test that exact loss limit triggers halt."""
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(EXACT_LIMIT_EQUITY)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            EXACT_LIMIT_EQUITY
+        )
         initialized_cb._trigger_halt = AsyncMock()
         initialized_cb.auto_close_positions = False
 
@@ -610,7 +650,9 @@ class TestEdgeCases:
         """Test loss just under limit does not halt."""
         # Need to stay under both daily loss limit (3%) AND rapid drawdown (2%)
         # 98100 is 1.9% loss - under both thresholds
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(UNDER_BOTH_THRESHOLDS_EQUITY)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            UNDER_BOTH_THRESHOLDS_EQUITY
+        )
 
         result = await initialized_cb.check_and_halt()
 
@@ -620,12 +662,15 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_peak_not_updated_on_decline(self, initialized_cb):
         """Test peak equity not updated when equity declines."""
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(SLIGHT_DECLINE_EQUITY)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            SLIGHT_DECLINE_EQUITY
+        )
 
         await initialized_cb.check_and_halt()
 
-        assert initialized_cb.peak_equity_today == DEFAULT_STARTING_EQUITY, \
-            "Peak equity should remain unchanged on decline"
+        assert (
+            initialized_cb.peak_equity_today == DEFAULT_STARTING_EQUITY
+        ), "Peak equity should remain unchanged on decline"
 
     def test_initialization_with_zero_loss_limit(self):
         """Test initialization with zero loss limit (will trigger immediately)."""
@@ -635,7 +680,9 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_multiple_checks_within_limit(self, initialized_cb):
         """Test multiple checks while within limit."""
-        initialized_cb.broker.get_account.return_value = create_account_with_equity(SLIGHT_DECLINE_EQUITY)
+        initialized_cb.broker.get_account.return_value = create_account_with_equity(
+            SLIGHT_DECLINE_EQUITY
+        )
 
         for i in range(5):
             result = await initialized_cb.check_and_halt()

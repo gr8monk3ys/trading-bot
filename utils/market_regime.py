@@ -27,21 +27,23 @@ Usage:
 """
 
 import logging
-import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple
 from enum import Enum
+from typing import Dict, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 class MarketRegime(Enum):
     """Market regime types."""
-    BULL = "bull"           # Trending up - use momentum (long)
-    BEAR = "bear"           # Trending down - use momentum (short) or cash
-    SIDEWAYS = "sideways"   # Ranging - use mean reversion
-    VOLATILE = "volatile"   # High volatility - reduce exposure
-    UNKNOWN = "unknown"     # Not enough data
+
+    BULL = "bull"  # Trending up - use momentum (long)
+    BEAR = "bear"  # Trending down - use momentum (short) or cash
+    SIDEWAYS = "sideways"  # Ranging - use mean reversion
+    VOLATILE = "volatile"  # High volatility - reduce exposure
+    UNKNOWN = "unknown"  # Not enough data
 
 
 class MarketRegimeDetector:
@@ -66,10 +68,10 @@ class MarketRegimeDetector:
     """
 
     # Regime detection thresholds
-    ADX_TRENDING_THRESHOLD = 25      # ADX above this = trending
-    ADX_RANGING_THRESHOLD = 20       # ADX below this = ranging
-    BREADTH_BULL_THRESHOLD = 0.60    # 60% of stocks above MA = bull
-    BREADTH_BEAR_THRESHOLD = 0.40    # 40% of stocks above MA = bear
+    ADX_TRENDING_THRESHOLD = 25  # ADX above this = trending
+    ADX_RANGING_THRESHOLD = 20  # ADX below this = ranging
+    BREADTH_BULL_THRESHOLD = 0.60  # 60% of stocks above MA = bull
+    BREADTH_BEAR_THRESHOLD = 0.40  # 40% of stocks above MA = bear
 
     def __init__(self, broker, lookback_days: int = 200, cache_minutes: int = 30):
         """
@@ -116,10 +118,12 @@ class MarketRegimeDetector:
         try:
             # Check cache
             now = datetime.now()
-            if (not force_refresh and
-                self.last_regime and
-                self.last_detection_time and
-                (now - self.last_detection_time).total_seconds() < self.cache_minutes * 60):
+            if (
+                not force_refresh
+                and self.last_regime
+                and self.last_detection_time
+                and (now - self.last_detection_time).total_seconds() < self.cache_minutes * 60
+            ):
                 return self.last_regime
 
             # Fetch market data
@@ -129,15 +133,15 @@ class MarketRegimeDetector:
                 return self._get_default_regime()
 
             # Calculate indicators
-            closes = np.array([b['close'] for b in bars])
-            highs = np.array([b['high'] for b in bars])
-            lows = np.array([b['low'] for b in bars])
+            closes = np.array([b["close"] for b in bars])
+            highs = np.array([b["high"] for b in bars])
+            lows = np.array([b["low"] for b in bars])
 
             # 1. Trend direction (SMA crossover)
             sma_50 = self._calculate_sma(closes, 50)
             sma_200 = self._calculate_sma(closes, 200) if len(closes) >= 200 else sma_50
 
-            trend_direction = 'up' if sma_50 > sma_200 else 'down' if sma_50 < sma_200 else 'flat'
+            trend_direction = "up" if sma_50 > sma_200 else "down" if sma_50 < sma_200 else "flat"
 
             # 2. Trend strength (ADX)
             adx = self._calculate_adx(highs, lows, closes, period=14)
@@ -154,56 +158,52 @@ class MarketRegimeDetector:
 
             # Volatility regimes
             if volatility_pct > 3.0:
-                volatility_regime = 'high'
+                volatility_regime = "high"
             elif volatility_pct < 1.0:
-                volatility_regime = 'low'
+                volatility_regime = "low"
             else:
-                volatility_regime = 'normal'
+                volatility_regime = "normal"
 
             # 5. Determine market regime
             regime_type, confidence = self._classify_regime(
-                trend_direction,
-                trend_strength,
-                is_trending,
-                is_ranging,
-                volatility_regime
+                trend_direction, trend_strength, is_trending, is_ranging, volatility_regime
             )
 
             # 6. Strategy recommendation
             recommended_strategy, position_multiplier = self._get_strategy_recommendation(
-                regime_type,
-                confidence,
-                volatility_regime
+                regime_type, confidence, volatility_regime
             )
 
             regime = {
-                'type': regime_type.value,
-                'confidence': confidence,
-                'trend_direction': trend_direction,
-                'trend_strength': trend_strength,
-                'is_trending': is_trending,
-                'is_ranging': is_ranging,
-                'volatility_regime': volatility_regime,
-                'volatility_pct': volatility_pct,
-                'sma_50': sma_50,
-                'sma_200': sma_200,
-                'recommended_strategy': recommended_strategy,
-                'position_multiplier': position_multiplier,
-                'detected_at': now.isoformat()
+                "type": regime_type.value,
+                "confidence": confidence,
+                "trend_direction": trend_direction,
+                "trend_strength": trend_strength,
+                "is_trending": is_trending,
+                "is_ranging": is_ranging,
+                "volatility_regime": volatility_regime,
+                "volatility_pct": volatility_pct,
+                "sma_50": sma_50,
+                "sma_200": sma_200,
+                "recommended_strategy": recommended_strategy,
+                "position_multiplier": position_multiplier,
+                "detected_at": now.isoformat(),
             }
 
             # Log regime change
-            if self.last_regime and regime['type'] != self.last_regime['type']:
+            if self.last_regime and regime["type"] != self.last_regime["type"]:
                 logger.warning(
                     f"REGIME CHANGE: {self.last_regime['type'].upper()} -> {regime['type'].upper()} "
                     f"(confidence: {confidence:.0%})"
                 )
-                self.regime_history.append({
-                    'time': now,
-                    'from': self.last_regime['type'],
-                    'to': regime['type'],
-                    'confidence': confidence
-                })
+                self.regime_history.append(
+                    {
+                        "time": now,
+                        "from": self.last_regime["type"],
+                        "to": regime["type"],
+                        "confidence": confidence,
+                    }
+                )
 
             # Update cache
             self.last_regime = regime
@@ -227,7 +227,7 @@ class MarketRegimeDetector:
         trend_strength: float,
         is_trending: bool,
         is_ranging: bool,
-        volatility_regime: str
+        volatility_regime: str,
     ) -> Tuple[MarketRegime, float]:
         """
         Classify market into regime with confidence score.
@@ -238,17 +238,17 @@ class MarketRegimeDetector:
         confidence = 0.5  # Base confidence
 
         # High volatility overrides other signals
-        if volatility_regime == 'high':
+        if volatility_regime == "high":
             confidence = 0.7 + (trend_strength / 100) * 0.2
             return MarketRegime.VOLATILE, min(confidence, 0.95)
 
         # Trending markets
         if is_trending:
-            if trend_direction == 'up':
+            if trend_direction == "up":
                 # Strong uptrend
                 confidence = 0.6 + (trend_strength - self.ADX_TRENDING_THRESHOLD) / 50
                 return MarketRegime.BULL, min(confidence, 0.95)
-            elif trend_direction == 'down':
+            elif trend_direction == "down":
                 # Strong downtrend
                 confidence = 0.6 + (trend_strength - self.ADX_TRENDING_THRESHOLD) / 50
                 return MarketRegime.BEAR, min(confidence, 0.95)
@@ -259,18 +259,15 @@ class MarketRegimeDetector:
             return MarketRegime.SIDEWAYS, min(confidence, 0.90)
 
         # Ambiguous - weak trend
-        if trend_direction == 'up':
+        if trend_direction == "up":
             return MarketRegime.BULL, 0.55
-        elif trend_direction == 'down':
+        elif trend_direction == "down":
             return MarketRegime.BEAR, 0.55
 
         return MarketRegime.SIDEWAYS, 0.50
 
     def _get_strategy_recommendation(
-        self,
-        regime: MarketRegime,
-        confidence: float,
-        volatility_regime: str
+        self, regime: MarketRegime, confidence: float, volatility_regime: str
     ) -> Tuple[str, float]:
         """
         Get strategy recommendation based on regime.
@@ -280,14 +277,14 @@ class MarketRegimeDetector:
         """
         # Base multipliers by regime
         regime_config = {
-            MarketRegime.BULL: ('momentum_long', 1.2),
-            MarketRegime.BEAR: ('momentum_short', 0.8),  # Can short or go to cash
-            MarketRegime.SIDEWAYS: ('mean_reversion', 1.0),
-            MarketRegime.VOLATILE: ('defensive', 0.5),
-            MarketRegime.UNKNOWN: ('momentum_long', 0.7),
+            MarketRegime.BULL: ("momentum_long", 1.2),
+            MarketRegime.BEAR: ("momentum_short", 0.8),  # Can short or go to cash
+            MarketRegime.SIDEWAYS: ("mean_reversion", 1.0),
+            MarketRegime.VOLATILE: ("defensive", 0.5),
+            MarketRegime.UNKNOWN: ("momentum_long", 0.7),
         }
 
-        strategy, base_mult = regime_config.get(regime, ('momentum_long', 1.0))
+        strategy, base_mult = regime_config.get(regime, ("momentum_long", 1.0))
 
         # Adjust multiplier based on confidence
         if confidence < 0.6:
@@ -296,11 +293,7 @@ class MarketRegimeDetector:
             base_mult *= 1.1  # Higher confidence = slightly larger positions
 
         # Adjust for volatility
-        vol_adjustments = {
-            'low': 1.2,
-            'normal': 1.0,
-            'high': 0.6
-        }
+        vol_adjustments = {"low": 1.2, "normal": 1.0, "high": 0.6}
         base_mult *= vol_adjustments.get(volatility_regime, 1.0)
 
         # Cap multiplier
@@ -316,23 +309,23 @@ class MarketRegimeDetector:
 
             bars = await self.broker.get_bars(
                 self.market_index,
-                start_date.strftime('%Y-%m-%d'),
-                end_date.strftime('%Y-%m-%d'),
-                timeframe='1Day'
+                start_date.strftime("%Y-%m-%d"),
+                end_date.strftime("%Y-%m-%d"),
+                timeframe="1Day",
             )
 
             if bars is None:
                 return None
 
             # Convert to list of dicts if needed
-            if hasattr(bars, '__iter__'):
+            if hasattr(bars, "__iter__"):
                 return [
                     {
-                        'open': float(b.open),
-                        'high': float(b.high),
-                        'low': float(b.low),
-                        'close': float(b.close),
-                        'volume': float(b.volume)
+                        "open": float(b.open),
+                        "high": float(b.high),
+                        "low": float(b.low),
+                        "close": float(b.close),
+                        "volume": float(b.volume),
                     }
                     for b in bars
                 ]
@@ -349,11 +342,7 @@ class MarketRegimeDetector:
         return np.mean(prices[-period:])
 
     def _calculate_adx(
-        self,
-        highs: np.ndarray,
-        lows: np.ndarray,
-        closes: np.ndarray,
-        period: int = 14
+        self, highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14
     ) -> Optional[float]:
         """Calculate Average Directional Index (ADX)."""
         try:
@@ -364,9 +353,7 @@ class MarketRegimeDetector:
             tr = np.zeros(len(closes))
             for i in range(1, len(closes)):
                 tr[i] = max(
-                    highs[i] - lows[i],
-                    abs(highs[i] - closes[i-1]),
-                    abs(lows[i] - closes[i-1])
+                    highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])
                 )
 
             # Calculate +DM and -DM
@@ -374,8 +361,8 @@ class MarketRegimeDetector:
             minus_dm = np.zeros(len(closes))
 
             for i in range(1, len(closes)):
-                up_move = highs[i] - highs[i-1]
-                down_move = lows[i-1] - lows[i]
+                up_move = highs[i] - highs[i - 1]
+                down_move = lows[i - 1] - lows[i]
 
                 if up_move > down_move and up_move > 0:
                     plus_dm[i] = up_move
@@ -402,11 +389,7 @@ class MarketRegimeDetector:
             return None
 
     def _calculate_atr(
-        self,
-        highs: np.ndarray,
-        lows: np.ndarray,
-        closes: np.ndarray,
-        period: int = 14
+        self, highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14
     ) -> float:
         """Calculate Average True Range."""
         if len(closes) < 2:
@@ -415,9 +398,7 @@ class MarketRegimeDetector:
         tr = np.zeros(len(closes))
         for i in range(1, len(closes)):
             tr[i] = max(
-                highs[i] - lows[i],
-                abs(highs[i] - closes[i-1]),
-                abs(lows[i] - closes[i-1])
+                highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])
             )
 
         if len(tr) < period:
@@ -441,19 +422,19 @@ class MarketRegimeDetector:
     def _get_default_regime(self) -> Dict:
         """Return default regime when detection fails."""
         return {
-            'type': MarketRegime.UNKNOWN.value,
-            'confidence': 0.5,
-            'trend_direction': 'flat',
-            'trend_strength': 20,
-            'is_trending': False,
-            'is_ranging': True,
-            'volatility_regime': 'normal',
-            'volatility_pct': 2.0,
-            'sma_50': None,
-            'sma_200': None,
-            'recommended_strategy': 'momentum_long',
-            'position_multiplier': 0.7,  # Conservative when uncertain
-            'detected_at': datetime.now().isoformat()
+            "type": MarketRegime.UNKNOWN.value,
+            "confidence": 0.5,
+            "trend_direction": "flat",
+            "trend_strength": 20,
+            "is_trending": False,
+            "is_ranging": True,
+            "volatility_regime": "normal",
+            "volatility_pct": 2.0,
+            "sma_50": None,
+            "sma_200": None,
+            "recommended_strategy": "momentum_long",
+            "position_multiplier": 0.7,  # Conservative when uncertain
+            "detected_at": datetime.now().isoformat(),
         }
 
     def get_regime_history(self) -> list:
@@ -463,17 +444,17 @@ class MarketRegimeDetector:
     async def should_use_momentum(self) -> bool:
         """Quick check if momentum strategy is appropriate."""
         regime = await self.detect_regime()
-        return regime['type'] in ['bull', 'bear'] and regime['is_trending']
+        return regime["type"] in ["bull", "bear"] and regime["is_trending"]
 
     async def should_use_mean_reversion(self) -> bool:
         """Quick check if mean reversion strategy is appropriate."""
         regime = await self.detect_regime()
-        return regime['type'] == 'sideways' or regime['is_ranging']
+        return regime["type"] == "sideways" or regime["is_ranging"]
 
     async def get_position_multiplier(self) -> float:
         """Get current position size multiplier based on regime."""
         regime = await self.detect_regime()
-        return regime['position_multiplier']
+        return regime["position_multiplier"]
 
 
 # Convenience function for quick regime check

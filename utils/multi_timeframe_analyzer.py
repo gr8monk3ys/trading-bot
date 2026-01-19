@@ -25,10 +25,10 @@ Usage in Strategy:
         return analysis['signal']  # 'buy' or 'sell'
 """
 
-import logging
-from typing import Dict, Optional
-from datetime import datetime
 import asyncio
+import logging
+from datetime import datetime
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +51,10 @@ class MultiTimeframeAnalyzer:
 
     # Timeframe weights (sum to 1.0)
     WEIGHTS = {
-        '5Min': 0.15,   # Entry timing
-        '15Min': 0.25,  # Short-term trend
-        '1Hour': 0.35,  # Primary trend (most important)
-        '1Day': 0.25    # Market context
+        "5Min": 0.15,  # Entry timing
+        "15Min": 0.25,  # Short-term trend
+        "1Hour": 0.35,  # Primary trend (most important)
+        "1Day": 0.25,  # Market context
     }
 
     def __init__(self, broker):
@@ -69,10 +69,7 @@ class MultiTimeframeAnalyzer:
         logger.info("✅ Multi-timeframe analyzer initialized")
 
     async def analyze(
-        self,
-        symbol: str,
-        min_confidence: float = 0.70,
-        require_daily_alignment: bool = True
+        self, symbol: str, min_confidence: float = 0.70, require_daily_alignment: bool = True
     ) -> Optional[Dict]:
         """
         Perform complete multi-timeframe analysis.
@@ -125,14 +122,11 @@ class MultiTimeframeAnalyzer:
 
             # Aggregate signals
             analysis = self._aggregate_analysis(
-                symbol,
-                timeframe_data,
-                min_confidence,
-                require_daily_alignment
+                symbol, timeframe_data, min_confidence, require_daily_alignment
             )
 
             # Log result
-            if analysis['should_enter']:
+            if analysis["should_enter"]:
                 logger.info(
                     f"✅ {symbol}: {analysis['signal'].upper()} signal "
                     f"(Confidence: {analysis['confidence']:.0%})"
@@ -163,11 +157,7 @@ class MultiTimeframeAnalyzer:
         """
         try:
             # Fetch bars
-            bars = await self.broker.get_bars(
-                symbol=symbol,
-                timeframe=timeframe,
-                limit=bars_needed
-            )
+            bars = await self.broker.get_bars(symbol=symbol, timeframe=timeframe, limit=bars_needed)
 
             if not bars or len(bars) < 20:
                 raise ValueError(f"Insufficient bars ({len(bars) if bars else 0})")
@@ -182,27 +172,25 @@ class MultiTimeframeAnalyzer:
 
             # Determine trend
             if sma_short > sma_long * 1.01:  # 1% above
-                trend = 'bullish'
+                trend = "bullish"
             elif sma_short < sma_long * 0.99:  # 1% below
-                trend = 'bearish'
+                trend = "bearish"
             else:
-                trend = 'neutral'
+                trend = "neutral"
 
             # Calculate trend strength (0.0 to 1.0)
             trend_diff_pct = abs((sma_short - sma_long) / sma_long)
             strength = min(trend_diff_pct / 0.05, 1.0)  # 5% = max strength
 
-            logger.debug(
-                f"  {timeframe:6s}: {trend:8s} (strength={strength:.2f})"
-            )
+            logger.debug(f"  {timeframe:6s}: {trend:8s} (strength={strength:.2f})")
 
             return {
-                'timeframe': timeframe,
-                'trend': trend,
-                'strength': strength,
-                'price': current_price,
-                'sma_short': sma_short,
-                'sma_long': sma_long
+                "timeframe": timeframe,
+                "trend": trend,
+                "strength": strength,
+                "price": current_price,
+                "sma_short": sma_short,
+                "sma_long": sma_long,
             }
 
         except Exception as e:
@@ -214,7 +202,7 @@ class MultiTimeframeAnalyzer:
         symbol: str,
         timeframe_data: Dict[str, Optional[Dict]],
         min_confidence: float,
-        require_daily_alignment: bool
+        require_daily_alignment: bool,
     ) -> Dict:
         """
         Aggregate multi-timeframe signals into final trading decision.
@@ -235,15 +223,15 @@ class MultiTimeframeAnalyzer:
             return self._neutral_analysis(symbol)
 
         # Calculate weighted signal score (-1 to +1)
-        signal_values = {'bullish': 1.0, 'neutral': 0.0, 'bearish': -1.0}
+        signal_values = {"bullish": 1.0, "neutral": 0.0, "bearish": -1.0}
 
         weighted_score = 0.0
         total_weight = 0.0
 
         for tf, data in valid_tfs.items():
             weight = self.WEIGHTS[tf]
-            signal_value = signal_values[data['trend']]
-            strength = data['strength']
+            signal_value = signal_values[data["trend"]]
+            strength = data["strength"]
 
             # Weight by both timeframe importance and signal strength
             weighted_score += signal_value * strength * weight
@@ -255,24 +243,24 @@ class MultiTimeframeAnalyzer:
 
         # Determine overall signal
         if weighted_score >= 0.5:
-            signal = 'strong_buy'
+            signal = "strong_buy"
         elif weighted_score >= 0.2:
-            signal = 'buy'
+            signal = "buy"
         elif weighted_score >= -0.2:
-            signal = 'neutral'
+            signal = "neutral"
         elif weighted_score >= -0.5:
-            signal = 'sell'
+            signal = "sell"
         else:
-            signal = 'strong_sell'
+            signal = "strong_sell"
 
         # Calculate alignment score (how many TFs agree?)
-        trends = [data['trend'] for data in valid_tfs.values()]
+        trends = [data["trend"] for data in valid_tfs.values()]
         if weighted_score > 0:
-            expected_trend = 'bullish'
+            expected_trend = "bullish"
         elif weighted_score < 0:
-            expected_trend = 'bearish'
+            expected_trend = "bearish"
         else:
-            expected_trend = 'neutral'
+            expected_trend = "neutral"
 
         alignment_count = trends.count(expected_trend)
         alignment_score = alignment_count / len(trends)
@@ -282,102 +270,102 @@ class MultiTimeframeAnalyzer:
         confidence = (score_confidence * 0.5) + (alignment_score * 0.5)
 
         # Check daily timeframe alignment (veto power)
-        daily_data = timeframe_data.get('1Day')
+        daily_data = timeframe_data.get("1Day")
         daily_conflicts = False
         if require_daily_alignment and daily_data:
-            if signal in ['buy', 'strong_buy'] and daily_data['trend'] == 'bearish':
+            if signal in ["buy", "strong_buy"] and daily_data["trend"] == "bearish":
                 daily_conflicts = True
                 logger.warning(f"⚠️  {symbol}: Daily timeframe is BEARISH, vetoing BUY signal")
-            elif signal in ['sell', 'strong_sell'] and daily_data['trend'] == 'bullish':
+            elif signal in ["sell", "strong_sell"] and daily_data["trend"] == "bullish":
                 daily_conflicts = True
                 logger.warning(f"⚠️  {symbol}: Daily timeframe is BULLISH, vetoing SELL signal")
 
         # Determine if should enter trade
         should_enter = (
-            confidence >= min_confidence and
-            signal in ['buy', 'strong_buy', 'sell', 'strong_sell'] and
-            not daily_conflicts
+            confidence >= min_confidence
+            and signal in ["buy", "strong_buy", "sell", "strong_sell"]
+            and not daily_conflicts
         )
 
         # Build summary
         summary_lines = [f"{symbol} Multi-Timeframe Analysis:"]
-        for tf in ['5Min', '15Min', '1Hour', '1Day']:
+        for tf in ["5Min", "15Min", "1Hour", "1Day"]:
             data = timeframe_data.get(tf)
             if data:
-                summary_lines.append(
-                    f"  {tf:6s}: {data['trend']:8s} (str={data['strength']:.2f})"
-                )
+                summary_lines.append(f"  {tf:6s}: {data['trend']:8s} (str={data['strength']:.2f})")
 
         summary_lines.append(f"  Overall: {signal.upper()} (conf={confidence:.0%})")
         if daily_conflicts:
             summary_lines.append("  ⚠️  DAILY VETO: Trade blocked")
 
         return {
-            'symbol': symbol,
-            'timestamp': datetime.now(),
-            'signal': 'buy' if signal in ['buy', 'strong_buy'] else 'sell' if signal in ['sell', 'strong_sell'] else 'neutral',
-            'signal_strength': signal,  # Original strength
-            'confidence': confidence,
-            'should_enter': should_enter,
-            'alignment_score': alignment_score,
-            'weighted_score': weighted_score,
-            'daily_conflicts': daily_conflicts,
-            'timeframes': timeframe_data,
-            'summary': '\n'.join(summary_lines)
+            "symbol": symbol,
+            "timestamp": datetime.now(),
+            "signal": (
+                "buy"
+                if signal in ["buy", "strong_buy"]
+                else "sell" if signal in ["sell", "strong_sell"] else "neutral"
+            ),
+            "signal_strength": signal,  # Original strength
+            "confidence": confidence,
+            "should_enter": should_enter,
+            "alignment_score": alignment_score,
+            "weighted_score": weighted_score,
+            "daily_conflicts": daily_conflicts,
+            "timeframes": timeframe_data,
+            "summary": "\n".join(summary_lines),
         }
 
     def _neutral_analysis(self, symbol: str) -> Dict:
         """Return neutral analysis when no data available."""
         return {
-            'symbol': symbol,
-            'timestamp': datetime.now(),
-            'signal': 'neutral',
-            'signal_strength': 'neutral',
-            'confidence': 0.0,
-            'should_enter': False,
-            'alignment_score': 0.0,
-            'weighted_score': 0.0,
-            'daily_conflicts': False,
-            'timeframes': {},
-            'summary': f"{symbol}: No timeframe data available"
+            "symbol": symbol,
+            "timestamp": datetime.now(),
+            "signal": "neutral",
+            "signal_strength": "neutral",
+            "confidence": 0.0,
+            "should_enter": False,
+            "alignment_score": 0.0,
+            "weighted_score": 0.0,
+            "daily_conflicts": False,
+            "timeframes": {},
+            "summary": f"{symbol}: No timeframe data available",
         }
 
     def get_summary(self, analysis: Dict) -> str:
         """Get human-readable summary."""
         if not analysis:
             return "No analysis available"
-        return analysis['summary']
+        return analysis["summary"]
 
 
 if __name__ == "__main__":
     # Example usage
-    import sys
     import os
+    import sys
+
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
     from brokers.alpaca_broker import AlpacaBroker
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     async def main():
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("📊 MULTI-TIMEFRAME ANALYZER - EXAMPLE")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         # Initialize broker
         broker = AlpacaBroker(paper=True)
         analyzer = MultiTimeframeAnalyzer(broker)
 
         # Test symbols
-        symbols = ['AAPL', 'TSLA', 'SPY']
+        symbols = ["AAPL", "TSLA", "SPY"]
 
         for symbol in symbols:
             print(f"\n{'='*80}")
             print(f"Analyzing {symbol}")
-            print('='*80)
+            print("=" * 80)
 
             # Analyze
             analysis = await analyzer.analyze(symbol, min_confidence=0.70)
@@ -386,18 +374,18 @@ if __name__ == "__main__":
                 print(analyzer.get_summary(analysis))
                 print(f"\n{'='*40}")
                 print(f"📊 DECISION: {'✅ ENTER TRADE' if analysis['should_enter'] else '⏭️  SKIP'}")
-                if analysis['should_enter']:
+                if analysis["should_enter"]:
                     print(f"   Signal: {analysis['signal'].upper()}")
                     print(f"   Confidence: {analysis['confidence']:.0%}")
-                print('='*40)
+                print("=" * 40)
             else:
                 print(f"❌ Failed to analyze {symbol}")
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("💡 KEY INSIGHTS:")
         print("  - All timeframes should align for highest confidence")
         print("  - Daily timeframe has veto power (never trade against it)")
         print("  - Expected: +8-12% win rate, -30-40% false signals")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
     asyncio.run(main())

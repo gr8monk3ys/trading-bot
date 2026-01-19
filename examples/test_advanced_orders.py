@@ -15,29 +15,26 @@ This script demonstrates all the new order types including:
 
 import asyncio
 import logging
-import sys
 import os
+import sys
 from datetime import datetime
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from brokers.alpaca_broker import AlpacaBroker
-from brokers.order_builder import OrderBuilder, market_order, limit_order, bracket_order
+from brokers.order_builder import OrderBuilder, bracket_order, limit_order, market_order
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 async def test_account_info(broker):
     """Test getting account information."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: Account Information")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         account = await broker.get_account()
@@ -52,11 +49,11 @@ async def test_account_info(broker):
         return False
 
 
-async def test_market_data(broker, symbol='AAPL'):
+async def test_market_data(broker, symbol="AAPL"):
     """Test getting market data."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info(f"TEST: Market Data for {symbol}")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         # Get latest price
@@ -73,15 +70,15 @@ async def test_market_data(broker, symbol='AAPL'):
         return None
 
 
-async def test_simple_market_order(broker, symbol='AAPL'):
+async def test_simple_market_order(broker, symbol="AAPL"):
     """Test simple market order using OrderBuilder."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: Simple Market Order")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         # Build market order
-        order = OrderBuilder(symbol, 'buy', 1).market().day().build()
+        order = OrderBuilder(symbol, "buy", 1).market().day().build()
 
         logger.info(f"📝 Market order created: Buy 1 share of {symbol}")
         logger.info("   Would submit order (commented out for safety)")
@@ -96,11 +93,11 @@ async def test_simple_market_order(broker, symbol='AAPL'):
         return False
 
 
-async def test_limit_order(broker, symbol='AAPL', limit_price=None):
+async def test_limit_order(broker, symbol="AAPL", limit_price=None):
     """Test limit order."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: Limit Order")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         # Get current price
@@ -111,10 +108,7 @@ async def test_limit_order(broker, symbol='AAPL', limit_price=None):
 
         # Build limit order
         order = (
-            OrderBuilder(symbol, 'buy', 1)
-            .limit(limit_price)
-            .gtc()  # Good-Till-Canceled
-            .build()
+            OrderBuilder(symbol, "buy", 1).limit(limit_price).gtc().build()  # Good-Till-Canceled
         )
 
         logger.info(f"📝 Limit order created: Buy 1 share of {symbol} at ${limit_price:.2f}")
@@ -131,11 +125,11 @@ async def test_limit_order(broker, symbol='AAPL', limit_price=None):
         return False
 
 
-async def test_stop_order(broker, symbol='AAPL'):
+async def test_stop_order(broker, symbol="AAPL"):
     """Test stop order."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: Stop Order")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         current_price = await broker.get_last_price(symbol)
@@ -143,14 +137,11 @@ async def test_stop_order(broker, symbol='AAPL'):
         stop_price = current_price * 1.05
 
         # Build stop order
-        order = (
-            OrderBuilder(symbol, 'buy', 1)
-            .stop(stop_price)
-            .gtc()
-            .build()
-        )
+        order = OrderBuilder(symbol, "buy", 1).stop(stop_price).gtc().build()
 
-        logger.info(f"📝 Stop order created: Buy 1 share of {symbol} when price hits ${stop_price:.2f}")
+        logger.info(
+            f"📝 Stop order created: Buy 1 share of {symbol} when price hits ${stop_price:.2f}"
+        )
         logger.info(f"   Current price: ${current_price:.2f}")
         logger.info("   Would submit order (commented out for safety)")
 
@@ -160,20 +151,15 @@ async def test_stop_order(broker, symbol='AAPL'):
         return False
 
 
-async def test_trailing_stop_order(broker, symbol='AAPL'):
+async def test_trailing_stop_order(broker, symbol="AAPL"):
     """Test trailing stop order."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: Trailing Stop Order")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         # Trailing stop with 2.5% trail
-        order = (
-            OrderBuilder(symbol, 'sell', 1)
-            .trailing_stop(trail_percent=2.5)
-            .gtc()
-            .build()
-        )
+        order = OrderBuilder(symbol, "sell", 1).trailing_stop(trail_percent=2.5).gtc().build()
 
         logger.info(f"📝 Trailing stop order created: Sell 1 share of {symbol}")
         logger.info("   Trail: 2.5% below highest price")
@@ -185,11 +171,11 @@ async def test_trailing_stop_order(broker, symbol='AAPL'):
         return False
 
 
-async def test_bracket_order(broker, symbol='AAPL'):
+async def test_bracket_order(broker, symbol="AAPL"):
     """Test bracket order (entry + take-profit + stop-loss)."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: Bracket Order")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         current_price = await broker.get_last_price(symbol)
@@ -197,17 +183,17 @@ async def test_bracket_order(broker, symbol='AAPL'):
         # Calculate levels
         entry_price = current_price  # Market entry
         take_profit_price = current_price * 1.05  # 5% profit
-        stop_loss_price = current_price * 0.97     # 3% loss
-        stop_limit_price = current_price * 0.965   # 0.5% below stop
+        stop_loss_price = current_price * 0.97  # 3% loss
+        stop_limit_price = current_price * 0.965  # 0.5% below stop
 
         # Build bracket order
         order = (
-            OrderBuilder(symbol, 'buy', 1)
+            OrderBuilder(symbol, "buy", 1)
             .market()
             .bracket(
                 take_profit=take_profit_price,
                 stop_loss=stop_loss_price,
-                stop_limit=stop_limit_price
+                stop_limit=stop_limit_price,
             )
             .gtc()
             .build()
@@ -231,11 +217,11 @@ async def test_bracket_order(broker, symbol='AAPL'):
         return False
 
 
-async def test_oco_order(broker, symbol='AAPL'):
+async def test_oco_order(broker, symbol="AAPL"):
     """Test OCO (One-Cancels-Other) order."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: OCO Order (One-Cancels-Other)")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         current_price = await broker.get_last_price(symbol)
@@ -247,12 +233,9 @@ async def test_oco_order(broker, symbol='AAPL'):
 
         # Build OCO order
         order = (
-            OrderBuilder(symbol, 'sell', 1)
+            OrderBuilder(symbol, "sell", 1)
             .limit(current_price)  # Required for OCO
-            .oco(
-                take_profit=take_profit,
-                stop_loss=stop_loss
-            )
+            .oco(take_profit=take_profit, stop_loss=stop_loss)
             .gtc()
             .build()
         )
@@ -271,18 +254,21 @@ async def test_oco_order(broker, symbol='AAPL'):
 
 async def test_order_management(broker):
     """Test order management features."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: Order Management")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         # Get open orders
         from alpaca.trading.enums import QueryOrderStatus
+
         open_orders = await broker.get_orders(status=QueryOrderStatus.OPEN, limit=10)
         logger.info(f"✅ Open orders: {len(open_orders)}")
 
         for order in open_orders[:3]:  # Show first 3
-            logger.info(f"   Order {order.id}: {order.side} {order.qty} {order.symbol} @ {order.type}")
+            logger.info(
+                f"   Order {order.id}: {order.side} {order.qty} {order.symbol} @ {order.type}"
+            )
 
         # Get all orders
         all_orders = await broker.get_orders(status=QueryOrderStatus.ALL, limit=5)
@@ -294,28 +280,30 @@ async def test_order_management(broker):
         return False
 
 
-async def test_convenience_functions(symbol='AAPL'):
+async def test_convenience_functions(symbol="AAPL"):
     """Test convenience functions."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST: Convenience Functions")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     try:
         # Simple market order
-        order1 = market_order(symbol, 'buy', 1, gtc=True)
+        order1 = market_order(symbol, "buy", 1, gtc=True)
         logger.info("✅ market_order() created successfully")
 
         # Simple limit order
-        order2 = limit_order(symbol, 'sell', 1, 200.00, gtc=True)
+        order2 = limit_order(symbol, "sell", 1, 200.00, gtc=True)
         logger.info("✅ limit_order() created successfully")
 
         # Bracket order
         order3 = bracket_order(
-            symbol, 'buy', 1,
+            symbol,
+            "buy",
+            1,
             entry_price=None,  # Market entry
             take_profit=210.00,
             stop_loss=190.00,
-            stop_limit=189.50
+            stop_limit=189.50,
         )
         logger.info("✅ bracket_order() created successfully")
 
@@ -345,21 +333,21 @@ async def main():
     # Run tests
     results = {}
 
-    results['account'] = await test_account_info(broker)
-    results['market_data'] = await test_market_data(broker)
-    results['simple_market'] = await test_simple_market_order(broker)
-    results['limit'] = await test_limit_order(broker)
-    results['stop'] = await test_stop_order(broker)
-    results['trailing_stop'] = await test_trailing_stop_order(broker)
-    results['bracket'] = await test_bracket_order(broker)
-    results['oco'] = await test_oco_order(broker)
-    results['management'] = await test_order_management(broker)
-    results['convenience'] = await test_convenience_functions()
+    results["account"] = await test_account_info(broker)
+    results["market_data"] = await test_market_data(broker)
+    results["simple_market"] = await test_simple_market_order(broker)
+    results["limit"] = await test_limit_order(broker)
+    results["stop"] = await test_stop_order(broker)
+    results["trailing_stop"] = await test_trailing_stop_order(broker)
+    results["bracket"] = await test_bracket_order(broker)
+    results["oco"] = await test_oco_order(broker)
+    results["management"] = await test_order_management(broker)
+    results["convenience"] = await test_convenience_functions()
 
     # Summary
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("TEST SUMMARY")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     passed = sum(1 for v in results.values() if v)
     total = len(results)
@@ -368,9 +356,9 @@ async def main():
         status = "✅ PASS" if result else "❌ FAIL"
         logger.info(f"{test_name:20s}: {status}")
 
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info(f"RESULTS: {passed}/{total} tests passed")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     logger.info("\n⚠️  NOTE: All actual order submissions are commented out for safety.")
     logger.info("   To enable real paper trading orders, uncomment the submit lines in each test.")

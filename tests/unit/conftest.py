@@ -16,10 +16,10 @@ Helper Functions:
 """
 
 from typing import Optional
-import pytest
-import numpy as np
 from unittest.mock import AsyncMock, MagicMock
 
+import numpy as np
+import pytest
 
 # =============================================================================
 # SHARED CONSTANTS
@@ -45,10 +45,11 @@ DEFAULT_PRICE_POINTS = 30
 # HELPER FUNCTIONS
 # =============================================================================
 
+
 def create_mock_account(
     equity: float = DEFAULT_STARTING_EQUITY,
     cash: float = DEFAULT_STARTING_CASH,
-    buying_power: float = DEFAULT_BUYING_POWER
+    buying_power: float = DEFAULT_BUYING_POWER,
 ) -> MagicMock:
     """
     Create a mock account object with specified values.
@@ -69,10 +70,7 @@ def create_mock_account(
 
 
 def create_mock_position(
-    symbol: str,
-    qty: str,
-    unrealized_pl: str = "0.00",
-    unrealized_plpc: str = "0.00"
+    symbol: str, qty: str, unrealized_pl: str = "0.00", unrealized_plpc: str = "0.00"
 ) -> MagicMock:
     """
     Create a mock position object.
@@ -99,7 +97,7 @@ def generate_price_history(
     num_points: int = DEFAULT_PRICE_POINTS,
     volatility: float = 0.02,
     trend: float = 0.0,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ) -> list[float]:
     """
     Generate synthetic price history for testing.
@@ -132,7 +130,7 @@ def generate_correlated_price_histories(
     start_price1: float = DEFAULT_PRICE_START,
     start_price2: float = DEFAULT_PRICE_START,
     num_points: int = DEFAULT_PRICE_POINTS,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ) -> tuple[list[float], list[float]]:
     """
     Generate two correlated price histories for correlation testing.
@@ -172,6 +170,7 @@ def generate_correlated_price_histories(
 # PYTEST FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def mock_broker() -> AsyncMock:
     """
@@ -209,7 +208,7 @@ def sample_price_history() -> list[float]:
         start_price=DEFAULT_PRICE_START,
         num_points=DEFAULT_PRICE_POINTS,
         volatility=0.02,
-        seed=42  # Fixed seed for reproducibility
+        seed=42,  # Fixed seed for reproducibility
     )
 
 
@@ -226,7 +225,7 @@ def stable_price_history() -> list[float]:
         num_points=DEFAULT_PRICE_POINTS,
         volatility=0.005,
         trend=0.001,
-        seed=42
+        seed=42,
     )
 
 
@@ -239,10 +238,7 @@ def volatile_price_history() -> list[float]:
         List of prices with high volatility
     """
     return generate_price_history(
-        start_price=DEFAULT_PRICE_START,
-        num_points=DEFAULT_PRICE_POINTS,
-        volatility=0.05,
-        seed=42
+        start_price=DEFAULT_PRICE_START, num_points=DEFAULT_PRICE_POINTS, volatility=0.05, seed=42
     )
 
 
@@ -259,7 +255,7 @@ def downtrend_price_history() -> list[float]:
         num_points=DEFAULT_PRICE_POINTS,
         volatility=0.02,
         trend=-0.01,
-        seed=42
+        seed=42,
     )
 
 
@@ -272,9 +268,7 @@ def correlated_price_histories() -> tuple[list[float], list[float]]:
         Tuple of (prices1, prices2) with ~0.8 correlation
     """
     return generate_correlated_price_histories(
-        correlation=0.8,
-        num_points=DEFAULT_PRICE_POINTS,
-        seed=42
+        correlation=0.8, num_points=DEFAULT_PRICE_POINTS, seed=42
     )
 
 
@@ -287,7 +281,5 @@ def uncorrelated_price_histories() -> tuple[list[float], list[float]]:
         Tuple of (prices1, prices2) with ~0.2 correlation
     """
     return generate_correlated_price_histories(
-        correlation=0.2,
-        num_points=DEFAULT_PRICE_POINTS,
-        seed=42
+        correlation=0.2, num_points=DEFAULT_PRICE_POINTS, seed=42
     )

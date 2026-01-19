@@ -7,6 +7,7 @@ Quick script to verify your .env file has the correct variable names.
 
 import os
 import sys
+
 from dotenv import load_dotenv
 
 # Add project root to path
@@ -18,7 +19,7 @@ print("=" * 80)
 print()
 
 # Load .env file
-env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
 if os.path.exists(env_path):
     print(f"✅ Found .env file at: {env_path}")
     load_dotenv(env_path)
@@ -33,22 +34,19 @@ print()
 
 # Check for correct variable names (what config.py expects)
 required_vars = {
-    'ALPACA_API_KEY': os.getenv('ALPACA_API_KEY'),
-    'ALPACA_SECRET_KEY': os.getenv('ALPACA_SECRET_KEY'),
-    'PAPER': os.getenv('PAPER')
+    "ALPACA_API_KEY": os.getenv("ALPACA_API_KEY"),
+    "ALPACA_SECRET_KEY": os.getenv("ALPACA_SECRET_KEY"),
+    "PAPER": os.getenv("PAPER"),
 }
 
 # Also check for old variable names
-old_vars = {
-    'API_KEY': os.getenv('API_KEY'),
-    'API_SECRET': os.getenv('API_SECRET')
-}
+old_vars = {"API_KEY": os.getenv("API_KEY"), "API_SECRET": os.getenv("API_SECRET")}
 
 print("Expected variables (used by config.py):")
 for var, value in required_vars.items():
     if value:
         display_value = value[:8] + "..." if len(value) > 8 else value
-        if var == 'PAPER':
+        if var == "PAPER":
             display_value = value
         print(f"  ✅ {var:25s} = {display_value}")
     else:
@@ -67,7 +65,7 @@ print()
 print("=" * 80)
 
 # Check if migration is needed
-if old_vars['API_KEY'] and not required_vars['ALPACA_API_KEY']:
+if old_vars["API_KEY"] and not required_vars["ALPACA_API_KEY"]:
     print("⚠️  MIGRATION NEEDED")
     print("=" * 80)
     print()
@@ -82,7 +80,7 @@ if old_vars['API_KEY'] and not required_vars['ALPACA_API_KEY']:
     print("  ALPACA_SECRET_KEY=...")
     print("  PAPER=True")
     print()
-elif required_vars['ALPACA_API_KEY'] and required_vars['ALPACA_SECRET_KEY']:
+elif required_vars["ALPACA_API_KEY"] and required_vars["ALPACA_SECRET_KEY"]:
     print("✅ ALL CHECKS PASSED")
     print("=" * 80)
     print()

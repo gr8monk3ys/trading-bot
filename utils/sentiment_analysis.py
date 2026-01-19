@@ -18,17 +18,18 @@ Usage:
     print(f"Sentiment: {sentiment['sentiment']} ({sentiment['score']:.2f})")
 """
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
-import numpy as np
-import re
+import asyncio
 import logging
 import os
-import asyncio
-import aiohttp
-from datetime import datetime, timedelta
-from typing import List, Dict, Tuple
+import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Dict, List, Tuple
+
+import aiohttp
+import numpy as np
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -40,86 +41,112 @@ model = AutoModelForSequenceClassification.from_pretrained(model_name)
 # Define financial sentiment keywords with weights
 POSITIVE_KEYWORDS = {
     # Strong positive indicators
-    'strong': 0.6, 'surges': 0.6, 'beat': 0.6, 'exceeded': 0.6,
+    "strong": 0.6,
+    "surges": 0.6,
+    "beat": 0.6,
+    "exceeded": 0.6,
     # Growth and improvement indicators
-    'increase': 0.5, 'growth': 0.5, 'improved': 0.5, 'higher': 0.5,
-    'gains': 0.5, 'increased': 0.5,
+    "increase": 0.5,
+    "growth": 0.5,
+    "improved": 0.5,
+    "higher": 0.5,
+    "gains": 0.5,
+    "increased": 0.5,
     # Financial indicators
-    'profit': 0.4, 'dividend': 0.4, 'earnings': 0.4,
+    "profit": 0.4,
+    "dividend": 0.4,
+    "earnings": 0.4,
     # General positive indicators
-    'better': 0.4, 'positive': 0.4, 'reported': 0.3
+    "better": 0.4,
+    "positive": 0.4,
+    "reported": 0.3,
 }
 
 NEGATIVE_KEYWORDS = {
     # Strong negative indicators
-    'missed': 0.6, 'plunges': 0.6, 'disappointing': 0.6, 'loss': 0.6,
+    "missed": 0.6,
+    "plunges": 0.6,
+    "disappointing": 0.6,
+    "loss": 0.6,
     # Decline indicators
-    'cut': 0.5, 'decline': 0.5, 'falls': 0.5, 'worse': 0.5,
+    "cut": 0.5,
+    "decline": 0.5,
+    "falls": 0.5,
+    "worse": 0.5,
     # Warning indicators
-    'concerns': 0.4, 'negative': 0.4, 'lower': 0.4, 'weak': 0.4
+    "concerns": 0.4,
+    "negative": 0.4,
+    "lower": 0.4,
+    "weak": 0.4,
 }
 
 # Define keyword combinations that strongly indicate sentiment
 POSITIVE_COMBINATIONS = [
-    ('strong', 'earnings'),
-    ('increased', 'dividend'),
-    ('beat', 'expectations'),
-    ('better', 'than', 'expected')
+    ("strong", "earnings"),
+    ("increased", "dividend"),
+    ("beat", "expectations"),
+    ("better", "than", "expected"),
 ]
 
 NEGATIVE_COMBINATIONS = [
-    ('missed', 'expectations'),
-    ('cut', 'dividend'),
-    ('lower', 'guidance'),
-    ('below', 'expectations')
+    ("missed", "expectations"),
+    ("cut", "dividend"),
+    ("lower", "guidance"),
+    ("below", "expectations"),
 ]
+
 
 def clean_text(text):
     """Clean text while preserving case."""
     # Remove special characters and extra whitespace
-    text = re.sub(r'[^\w\s]', ' ', text)
-    text = ' '.join(text.split())
+    text = re.sub(r"[^\w\s]", " ", text)
+    text = " ".join(text.split())
     return text
+
 
 def preprocess_text(text):
     """Preprocess the text for sentiment analysis."""
     # Clean text while preserving case for display
     return clean_text(text)
 
+
 def check_keyword_combinations(text, combinations):
     """Check if any keyword combinations are present in the text."""
     text_lower = text.lower()
     words = text_lower.split()
-    
+
     for combination in combinations:
         if len(combination) == 2:
             if combination[0] in words and combination[1] in words:
                 return True
         elif len(combination) == 3:
             for i in range(len(words) - 2):
-                if (words[i] == combination[0] and 
-                    words[i+1] == combination[1] and 
-                    words[i+2] == combination[2]):
+                if (
+                    words[i] == combination[0]
+                    and words[i + 1] == combination[1]
+                    and words[i + 2] == combination[2]
+                ):
                     return True
     return False
+
 
 def get_keyword_sentiment_score(text):
     """Get sentiment score based on weighted keyword presence and combinations."""
     words = text.lower().split()
-    
+
     # Calculate weighted scores
     positive_score = sum(POSITIVE_KEYWORDS[word] for word in words if word in POSITIVE_KEYWORDS)
     negative_score = sum(NEGATIVE_KEYWORDS[word] for word in words if word in NEGATIVE_KEYWORDS)
-    
+
     # Check for keyword combinations
     if check_keyword_combinations(text, POSITIVE_COMBINATIONS):
         positive_score += 0.4  # Boost score for positive combinations
     if check_keyword_combinations(text, NEGATIVE_COMBINATIONS):
         negative_score += 0.4  # Boost score for negative combinations
-        
+
     # Calculate the difference with positive bias
     score_diff = positive_score - negative_score
-    
+
     # Apply stronger positive bias
     if score_diff > 0:
         return min(0.6, score_diff * 1.3)  # Stronger boost for positive scores
@@ -127,13 +154,14 @@ def get_keyword_sentiment_score(text):
         return -min(0.5, abs(score_diff))  # Keep negative scores lower
     return 0.0
 
+
 def analyze_sentiment(texts):
     """
     Analyze sentiment of financial texts using FinBERT with ensemble approach.
-    
+
     Args:
         texts (list): List of text strings to analyze
-        
+
     Returns:
         tuple: (probability, sentiment) where probability is the confidence
                and sentiment is 'positive', 'negative', or 'neutral'
@@ -141,36 +169,41 @@ def analyze_sentiment(texts):
     try:
         if not texts:
             return 0, "neutral"
-        
+
         if isinstance(texts, str):
             texts = [texts]
-        
+
         # Preprocess texts
         processed_texts = [preprocess_text(text) for text in texts]
-            
+
         # Tokenize texts (use lowercase version for the model)
-        inputs = tokenizer([text.lower() for text in processed_texts], 
-                         padding=True, truncation=True, return_tensors="pt", max_length=512)
-        
+        inputs = tokenizer(
+            [text.lower() for text in processed_texts],
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+            max_length=512,
+        )
+
         # Get predictions
         with torch.no_grad():
             outputs = model(**inputs)
             logits = outputs.logits
-            
+
         # Convert logits to probabilities
         probabilities = torch.nn.functional.softmax(logits, dim=-1)
-        
+
         # Process each text's sentiment
         sentiments = []
         confidences = []
-        
+
         for text, prob in zip(processed_texts, probabilities):
             # Get class probabilities
             class_probs = prob.numpy()
-            
+
             # Get keyword sentiment bias
             keyword_bias = get_keyword_sentiment_score(text)
-            
+
             # Apply asymmetric adjustments
             if keyword_bias > 0:
                 # Stronger positive adjustment
@@ -180,20 +213,20 @@ def analyze_sentiment(texts):
                 # Weaker negative adjustment
                 class_probs[0] += abs(keyword_bias) * 0.7  # Increase negative less
                 class_probs[2] -= abs(keyword_bias) * 0.3  # Decrease positive less
-            
+
             # Ensure probabilities are non-negative
             class_probs = np.maximum(class_probs, 0)
-            
+
             # Normalize probabilities
             class_probs = class_probs / np.sum(class_probs)
-            
+
             # Calculate sentiment with asymmetric thresholds
             pos_neg_diff = class_probs[2] - class_probs[0]  # positive - negative
-            
+
             # Check for keyword combinations
             has_positive_combo = check_keyword_combinations(text, POSITIVE_COMBINATIONS)
             has_negative_combo = check_keyword_combinations(text, NEGATIVE_COMBINATIONS)
-            
+
             # Determine sentiment with combination-aware thresholds
             if has_positive_combo or pos_neg_diff > 0.01:  # Very low threshold for positive
                 sentiment = "positive"
@@ -204,14 +237,14 @@ def analyze_sentiment(texts):
             else:
                 sentiment = "neutral"
                 confidence = class_probs[1]
-                
+
             sentiments.append(sentiment)
             confidences.append(confidence)
-        
+
         # Determine final sentiment
         if len(sentiments) == 1:
             return float(confidences[0]), sentiments[0]
-        
+
         # For multiple texts, use weighted voting with positive bias
         sentiment_scores = {"positive": 0.0, "negative": 0.0, "neutral": 0.0}
         for sent, conf in zip(sentiments, confidences):
@@ -219,13 +252,13 @@ def analyze_sentiment(texts):
                 sentiment_scores[sent] += conf * 1.2  # Boost positive scores
             else:
                 sentiment_scores[sent] += conf
-            
+
         # Get the dominant sentiment
         final_sentiment = max(sentiment_scores.items(), key=lambda x: x[1])[0]
         final_confidence = sentiment_scores[final_sentiment] / len(texts)
-        
+
         return float(final_confidence), final_sentiment
-            
+
     except Exception as e:
         logger = logging.getLogger(__name__)
         logger.error(f"Error in sentiment analysis: {str(e)}", exc_info=True)
@@ -235,6 +268,7 @@ def analyze_sentiment(texts):
 @dataclass
 class NewsArticle:
     """Represents a news article."""
+
     headline: str
     summary: str
     source: str
@@ -258,20 +292,17 @@ class NewsFetcher:
 
     def __init__(self):
         """Initialize news fetcher with API keys from environment."""
-        self.finnhub_key = os.getenv('FINNHUB_API_KEY')
-        self.alpha_vantage_key = os.getenv('ALPHA_VANTAGE_API_KEY')
-        self.alpaca_key = os.getenv('ALPACA_API_KEY')
-        self.alpaca_secret = os.getenv('ALPACA_SECRET_KEY')
+        self.finnhub_key = os.getenv("FINNHUB_API_KEY")
+        self.alpha_vantage_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        self.alpaca_key = os.getenv("ALPACA_API_KEY")
+        self.alpaca_secret = os.getenv("ALPACA_SECRET_KEY")
 
         # Cache for rate limiting
         self._cache: Dict[str, Tuple[datetime, List[NewsArticle]]] = {}
         self._cache_duration = timedelta(minutes=5)
 
     async def fetch_news(
-        self,
-        symbol: str,
-        days_back: int = 3,
-        max_articles: int = 10
+        self, symbol: str, days_back: int = 3, max_articles: int = 10
     ) -> List[NewsArticle]:
         """
         Fetch news for a symbol from available APIs.
@@ -312,23 +343,14 @@ class NewsFetcher:
 
         return articles[:max_articles]
 
-    async def _fetch_finnhub(
-        self,
-        symbol: str,
-        days_back: int
-    ) -> List[NewsArticle]:
+    async def _fetch_finnhub(self, symbol: str, days_back: int) -> List[NewsArticle]:
         """Fetch news from Finnhub API."""
         try:
-            from_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
-            to_date = datetime.now().strftime('%Y-%m-%d')
+            from_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            to_date = datetime.now().strftime("%Y-%m-%d")
 
             url = f"{self.FINNHUB_BASE_URL}/company-news"
-            params = {
-                'symbol': symbol,
-                'from': from_date,
-                'to': to_date,
-                'token': self.finnhub_key
-            }
+            params = {"symbol": symbol, "from": from_date, "to": to_date, "token": self.finnhub_key}
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, params=params, timeout=10) as response:
@@ -337,14 +359,16 @@ class NewsFetcher:
                         articles = []
                         for item in data[:20]:  # Limit to 20
                             try:
-                                articles.append(NewsArticle(
-                                    headline=item.get('headline', ''),
-                                    summary=item.get('summary', ''),
-                                    source=item.get('source', 'Finnhub'),
-                                    published=datetime.fromtimestamp(item.get('datetime', 0)),
-                                    url=item.get('url', ''),
-                                    symbol=symbol
-                                ))
+                                articles.append(
+                                    NewsArticle(
+                                        headline=item.get("headline", ""),
+                                        summary=item.get("summary", ""),
+                                        source=item.get("source", "Finnhub"),
+                                        published=datetime.fromtimestamp(item.get("datetime", 0)),
+                                        url=item.get("url", ""),
+                                        symbol=symbol,
+                                    )
+                                )
                             except Exception:
                                 continue
                         logger.info(f"Fetched {len(articles)} articles from Finnhub for {symbol}")
@@ -362,10 +386,10 @@ class NewsFetcher:
         try:
             url = self.ALPHA_VANTAGE_BASE_URL
             params = {
-                'function': 'NEWS_SENTIMENT',
-                'tickers': symbol,
-                'apikey': self.alpha_vantage_key,
-                'limit': 20
+                "function": "NEWS_SENTIMENT",
+                "tickers": symbol,
+                "apikey": self.alpha_vantage_key,
+                "limit": 20,
             }
 
             async with aiohttp.ClientSession() as session:
@@ -373,26 +397,30 @@ class NewsFetcher:
                     if response.status == 200:
                         data = await response.json()
                         articles = []
-                        for item in data.get('feed', [])[:20]:
+                        for item in data.get("feed", [])[:20]:
                             try:
                                 # Parse Alpha Vantage date format
-                                time_str = item.get('time_published', '')
+                                time_str = item.get("time_published", "")
                                 if time_str:
-                                    published = datetime.strptime(time_str[:14], '%Y%m%dT%H%M%S')
+                                    published = datetime.strptime(time_str[:14], "%Y%m%dT%H%M%S")
                                 else:
                                     published = datetime.now()
 
-                                articles.append(NewsArticle(
-                                    headline=item.get('title', ''),
-                                    summary=item.get('summary', ''),
-                                    source=item.get('source', 'Alpha Vantage'),
-                                    published=published,
-                                    url=item.get('url', ''),
-                                    symbol=symbol
-                                ))
+                                articles.append(
+                                    NewsArticle(
+                                        headline=item.get("title", ""),
+                                        summary=item.get("summary", ""),
+                                        source=item.get("source", "Alpha Vantage"),
+                                        published=published,
+                                        url=item.get("url", ""),
+                                        symbol=symbol,
+                                    )
+                                )
                             except Exception:
                                 continue
-                        logger.info(f"Fetched {len(articles)} articles from Alpha Vantage for {symbol}")
+                        logger.info(
+                            f"Fetched {len(articles)} articles from Alpha Vantage for {symbol}"
+                        )
                         return articles
 
         except Exception as e:
@@ -406,14 +434,10 @@ class NewsFetcher:
             from_date = (datetime.now() - timedelta(days=days_back)).isoformat()
 
             url = "https://data.alpaca.markets/v1beta1/news"
-            params = {
-                'symbols': symbol,
-                'start': from_date,
-                'limit': 20
-            }
+            params = {"symbols": symbol, "start": from_date, "limit": 20}
             headers = {
-                'APCA-API-KEY-ID': self.alpaca_key,
-                'APCA-API-SECRET-KEY': self.alpaca_secret
+                "APCA-API-KEY-ID": self.alpaca_key,
+                "APCA-API-SECRET-KEY": self.alpaca_secret,
             }
 
             async with aiohttp.ClientSession() as session:
@@ -421,20 +445,26 @@ class NewsFetcher:
                     if response.status == 200:
                         data = await response.json()
                         articles = []
-                        for item in data.get('news', [])[:20]:
+                        for item in data.get("news", [])[:20]:
                             try:
                                 # Parse Alpaca date format
-                                time_str = item.get('created_at', '')
-                                published = datetime.fromisoformat(time_str.replace('Z', '+00:00')) if time_str else datetime.now()
+                                time_str = item.get("created_at", "")
+                                published = (
+                                    datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+                                    if time_str
+                                    else datetime.now()
+                                )
 
-                                articles.append(NewsArticle(
-                                    headline=item.get('headline', ''),
-                                    summary=item.get('summary', ''),
-                                    source=item.get('source', 'Alpaca'),
-                                    published=published,
-                                    url=item.get('url', ''),
-                                    symbol=symbol
-                                ))
+                                articles.append(
+                                    NewsArticle(
+                                        headline=item.get("headline", ""),
+                                        summary=item.get("summary", ""),
+                                        source=item.get("source", "Alpaca"),
+                                        published=published,
+                                        url=item.get("url", ""),
+                                        symbol=symbol,
+                                    )
+                                )
                             except Exception:
                                 continue
                         logger.info(f"Fetched {len(articles)} articles from Alpaca for {symbol}")
@@ -460,10 +490,7 @@ class SentimentAnalyzer:
         self._cache_duration = timedelta(minutes=cache_minutes)
 
     async def get_symbol_sentiment(
-        self,
-        symbol: str,
-        days_back: int = 3,
-        min_articles: int = 2
+        self, symbol: str, days_back: int = 3, min_articles: int = 2
     ) -> Dict:
         """
         Get sentiment analysis for a symbol based on recent news.
@@ -488,12 +515,12 @@ class SentimentAnalyzer:
 
         if len(articles) < min_articles:
             result = {
-                'sentiment': 'neutral',
-                'score': 0.0,
-                'confidence': 0.0,
-                'article_count': len(articles),
-                'source': 'insufficient_data',
-                'articles': []
+                "sentiment": "neutral",
+                "score": 0.0,
+                "confidence": 0.0,
+                "article_count": len(articles),
+                "source": "insufficient_data",
+                "articles": [],
             }
             return result
 
@@ -507,12 +534,12 @@ class SentimentAnalyzer:
 
         if not texts:
             result = {
-                'sentiment': 'neutral',
-                'score': 0.0,
-                'confidence': 0.0,
-                'article_count': len(articles),
-                'source': 'no_text',
-                'articles': []
+                "sentiment": "neutral",
+                "score": 0.0,
+                "confidence": 0.0,
+                "article_count": len(articles),
+                "source": "no_text",
+                "articles": [],
             }
             return result
 
@@ -520,27 +547,23 @@ class SentimentAnalyzer:
         confidence, sentiment = analyze_sentiment(texts)
 
         # Calculate numeric score (-1 to 1)
-        if sentiment == 'positive':
+        if sentiment == "positive":
             score = confidence
-        elif sentiment == 'negative':
+        elif sentiment == "negative":
             score = -confidence
         else:
             score = 0.0
 
         result = {
-            'sentiment': sentiment,
-            'score': score,
-            'confidence': confidence,
-            'article_count': len(articles),
-            'source': articles[0].source if articles else 'unknown',
-            'articles': [
-                {
-                    'headline': a.headline,
-                    'source': a.source,
-                    'published': a.published.isoformat()
-                }
+            "sentiment": sentiment,
+            "score": score,
+            "confidence": confidence,
+            "article_count": len(articles),
+            "source": articles[0].source if articles else "unknown",
+            "articles": [
+                {"headline": a.headline, "source": a.source, "published": a.published.isoformat()}
                 for a in articles[:5]  # Include top 5 articles
-            ]
+            ],
         }
 
         # Cache result
@@ -555,9 +578,7 @@ class SentimentAnalyzer:
         return result
 
     async def get_multi_symbol_sentiment(
-        self,
-        symbols: List[str],
-        days_back: int = 3
+        self, symbols: List[str], days_back: int = 3
     ) -> Dict[str, Dict]:
         """
         Get sentiment for multiple symbols concurrently.
@@ -577,11 +598,11 @@ class SentimentAnalyzer:
             if isinstance(result, Exception):
                 logger.error(f"Error getting sentiment for {symbol}: {result}")
                 sentiment_map[symbol] = {
-                    'sentiment': 'neutral',
-                    'score': 0.0,
-                    'confidence': 0.0,
-                    'article_count': 0,
-                    'source': 'error'
+                    "sentiment": "neutral",
+                    "score": 0.0,
+                    "confidence": 0.0,
+                    "article_count": 0,
+                    "source": "error",
                 }
             else:
                 sentiment_map[symbol] = result
@@ -593,7 +614,7 @@ class SentimentAnalyzer:
         sentiment_result: Dict,
         bullish_threshold: float = 0.3,
         bearish_threshold: float = -0.3,
-        min_confidence: float = 0.5
+        min_confidence: float = 0.5,
     ) -> str:
         """
         Convert sentiment result to trading signal.
@@ -607,18 +628,18 @@ class SentimentAnalyzer:
         Returns:
             'bullish', 'bearish', or 'neutral'
         """
-        score = sentiment_result.get('score', 0)
-        confidence = sentiment_result.get('confidence', 0)
+        score = sentiment_result.get("score", 0)
+        confidence = sentiment_result.get("confidence", 0)
 
         if confidence < min_confidence:
-            return 'neutral'
+            return "neutral"
 
         if score >= bullish_threshold:
-            return 'bullish'
+            return "bullish"
         elif score <= bearish_threshold:
-            return 'bearish'
+            return "bearish"
         else:
-            return 'neutral'
+            return "neutral"
 
 
 # Convenience function for quick sentiment check
@@ -634,4 +655,4 @@ async def get_quick_sentiment(symbol: str) -> Tuple[str, float]:
     """
     analyzer = SentimentAnalyzer()
     result = await analyzer.get_symbol_sentiment(symbol)
-    return result['sentiment'], result['score']
+    return result["sentiment"], result["score"]

@@ -34,10 +34,10 @@ Usage:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
+
 import yfinance as yf
-from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class EarningsCalendar:
         exit_days_before: int = 2,
         skip_entry_days_before: int = 3,
         reentry_days_after: int = 1,
-        cache_hours: int = 12
+        cache_hours: int = 12,
     ):
         """
         Initialize earnings calendar.
@@ -105,9 +105,9 @@ class EarningsCalendar:
             # Get earnings date - yfinance returns it in different formats
             earnings_date = None
 
-            if 'Earnings Date' in calendar.index:
-                earnings_dates = calendar.loc['Earnings Date']
-                if hasattr(earnings_dates, '__iter__') and not isinstance(earnings_dates, str):
+            if "Earnings Date" in calendar.index:
+                earnings_dates = calendar.loc["Earnings Date"]
+                if hasattr(earnings_dates, "__iter__") and not isinstance(earnings_dates, str):
                     # Multiple dates - take the first one
                     for date in earnings_dates:
                         if date is not None:
@@ -136,10 +136,10 @@ class EarningsCalendar:
         try:
             if isinstance(date_value, datetime):
                 return date_value
-            if hasattr(date_value, 'to_pydatetime'):
+            if hasattr(date_value, "to_pydatetime"):
                 return date_value.to_pydatetime()
             if isinstance(date_value, str):
-                return datetime.strptime(date_value, '%Y-%m-%d')
+                return datetime.strptime(date_value, "%Y-%m-%d")
             return None
         except Exception:
             return None
@@ -199,10 +199,7 @@ class EarningsCalendar:
             return True
 
         if days <= self.skip_entry_days_before:
-            logger.info(
-                f"EARNINGS FILTER: Skipping {symbol} entry - "
-                f"earnings in ~{days} days"
-            )
+            logger.info(f"EARNINGS FILTER: Skipping {symbol} entry - " f"earnings in ~{days} days")
             return False
 
         return True
@@ -219,14 +216,14 @@ class EarningsCalendar:
         days = self.days_until_earnings(symbol)
 
         if days is None:
-            return 'low'
+            return "low"
 
         if days <= self.exit_days_before:
-            return 'high'
+            return "high"
         elif days <= self.skip_entry_days_before:
-            return 'medium'
+            return "medium"
         else:
-            return 'low'
+            return "low"
 
     def filter_symbols(self, symbols: List[str], for_entry: bool = True) -> List[str]:
         """
@@ -254,9 +251,7 @@ class EarningsCalendar:
                 filtered_count += 1
 
         if filtered_count > 0:
-            logger.info(
-                f"Earnings filter: {filtered_count}/{len(symbols)} symbols filtered out"
-            )
+            logger.info(f"Earnings filter: {filtered_count}/{len(symbols)} symbols filtered out")
 
         return safe_symbols
 
@@ -275,9 +270,7 @@ class EarningsCalendar:
         for symbol in symbols:
             if not self.is_safe_to_hold(symbol):
                 days = self.days_until_earnings(symbol)
-                logger.warning(
-                    f"EXIT SIGNAL: {symbol} - earnings in ~{days} days"
-                )
+                logger.warning(f"EXIT SIGNAL: {symbol} - earnings in ~{days} days")
                 to_exit.append(symbol)
 
         return to_exit
@@ -290,13 +283,9 @@ class EarningsCalendar:
             Dict with earnings info for each symbol
         """
         report = {
-            'checked_at': datetime.now().isoformat(),
-            'symbols': {},
-            'summary': {
-                'high_risk': [],
-                'medium_risk': [],
-                'low_risk': []
-            }
+            "checked_at": datetime.now().isoformat(),
+            "symbols": {},
+            "summary": {"high_risk": [], "medium_risk": [], "low_risk": []},
         }
 
         for symbol in symbols:
@@ -304,15 +293,15 @@ class EarningsCalendar:
             days = self.days_until_earnings(symbol)
             risk = self.get_earnings_risk_level(symbol)
 
-            report['symbols'][symbol] = {
-                'earnings_date': earnings_date.strftime('%Y-%m-%d') if earnings_date else None,
-                'days_until': days,
-                'risk_level': risk,
-                'safe_to_hold': self.is_safe_to_hold(symbol),
-                'safe_to_enter': self.is_safe_to_enter(symbol)
+            report["symbols"][symbol] = {
+                "earnings_date": earnings_date.strftime("%Y-%m-%d") if earnings_date else None,
+                "days_until": days,
+                "risk_level": risk,
+                "safe_to_hold": self.is_safe_to_hold(symbol),
+                "safe_to_enter": self.is_safe_to_enter(symbol),
             }
 
-            report['summary'][f'{risk}_risk'].append(symbol)
+            report["summary"][f"{risk}_risk"].append(symbol)
 
         return report
 
@@ -336,28 +325,25 @@ def check_earnings_safety(symbols: List[str]) -> Dict[str, bool]:
 
 if __name__ == "__main__":
     """Test the earnings calendar."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     # Test symbols
-    test_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA']
+    test_symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("EARNINGS CALENDAR TEST")
-    print("="*60)
+    print("=" * 60)
 
     calendar = EarningsCalendar()
     report = calendar.get_earnings_report(test_symbols)
 
     print(f"\nChecked at: {report['checked_at']}")
     print("\nEarnings Schedule:")
-    print("-"*60)
+    print("-" * 60)
 
-    for symbol, info in report['symbols'].items():
-        if info['earnings_date']:
-            risk_indicator = {'high': '🔴', 'medium': '🟡', 'low': '🟢'}[info['risk_level']]
+    for symbol, info in report["symbols"].items():
+        if info["earnings_date"]:
+            risk_indicator = {"high": "🔴", "medium": "🟡", "low": "🟢"}[info["risk_level"]]
             print(
                 f"  {symbol:6s} | {info['earnings_date']} | "
                 f"{info['days_until']:+3d} days | {risk_indicator} {info['risk_level']}"
@@ -365,8 +351,8 @@ if __name__ == "__main__":
         else:
             print(f"  {symbol:6s} | No earnings date found")
 
-    print("\n" + "-"*60)
+    print("\n" + "-" * 60)
     print(f"High Risk (exit):    {', '.join(report['summary']['high_risk']) or 'None'}")
     print(f"Medium Risk (avoid): {', '.join(report['summary']['medium_risk']) or 'None'}")
     print(f"Low Risk (safe):     {', '.join(report['summary']['low_risk']) or 'None'}")
-    print("="*60)
+    print("=" * 60)

@@ -14,10 +14,11 @@ Industry standard: If OOS performance < 50% of IS performance, strategy is overf
 
 import asyncio
 import logging
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
 
 from config import BACKTEST_PARAMS
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WalkForwardResult:
     """Results from a single walk-forward fold."""
+
     fold_num: int
     train_start: datetime
     train_end: datetime
@@ -67,7 +69,7 @@ class WalkForwardValidator:
         train_ratio: float = None,
         n_splits: int = None,
         min_train_days: int = None,
-        gap_days: int = 0
+        gap_days: int = 0,
     ):
         """
         Initialize walk-forward validator.
@@ -87,9 +89,7 @@ class WalkForwardValidator:
         self.results: List[WalkForwardResult] = []
 
     def create_time_splits(
-        self,
-        start_date: datetime,
-        end_date: datetime
+        self, start_date: datetime, end_date: datetime
     ) -> List[Tuple[datetime, datetime, datetime, datetime]]:
         """
         Create time-based train/test splits.
@@ -111,13 +111,14 @@ class WalkForwardValidator:
         for i in range(self.n_splits):
             # Each fold uses expanding window for training
             fold_start = start_date
-            fold_train_end = start_date + timedelta(days=int(fold_size * (i + 1) * self.train_ratio))
+            fold_train_end = start_date + timedelta(
+                days=int(fold_size * (i + 1) * self.train_ratio)
+            )
 
             # Test period starts after gap
             test_start = fold_train_end + timedelta(days=self.gap_days)
             test_end = min(
-                test_start + timedelta(days=int(fold_size * (1 - self.train_ratio))),
-                end_date
+                test_start + timedelta(days=int(fold_size * (1 - self.train_ratio))), end_date
             )
 
             # Skip if test period is too short
@@ -134,7 +135,7 @@ class WalkForwardValidator:
         symbols: List[str],
         start_date_str: str,
         end_date_str: str,
-        **backtest_kwargs
+        **backtest_kwargs,
     ) -> Dict[str, Any]:
         """
         Run walk-forward validation on a backtest function.
@@ -158,13 +159,13 @@ class WalkForwardValidator:
         if not splits:
             raise ValueError("Could not create valid train/test splits")
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("WALK-FORWARD VALIDATION")
-        print("="*80)
+        print("=" * 80)
         print(f"Total period: {start_date_str} to {end_date_str}")
         print(f"Number of folds: {len(splits)}")
         print(f"Train/Test ratio: {self.train_ratio:.0%}/{1-self.train_ratio:.0%}")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         self.results = []
 
@@ -179,7 +180,7 @@ class WalkForwardValidator:
                 symbols,
                 train_start.strftime("%Y-%m-%d"),
                 train_end.strftime("%Y-%m-%d"),
-                **backtest_kwargs
+                **backtest_kwargs,
             )
 
             # Run out-of-sample (testing) backtest
@@ -188,12 +189,12 @@ class WalkForwardValidator:
                 symbols,
                 test_start.strftime("%Y-%m-%d"),
                 test_end.strftime("%Y-%m-%d"),
-                **backtest_kwargs
+                **backtest_kwargs,
             )
 
             # Calculate comparison metrics
-            is_return = is_result.get('total_return', 0)
-            oos_return = oos_result.get('total_return', 0)
+            is_return = is_result.get("total_return", 0)
+            oos_return = oos_result.get("total_return", 0)
 
             # P1 Fix: Overfitting ratio with proper handling of edge cases
             # Ratio > 2 suggests overfitting
@@ -220,21 +221,21 @@ class WalkForwardValidator:
                 degradation = 0
 
             result = WalkForwardResult(
-                fold_num=i+1,
+                fold_num=i + 1,
                 train_start=train_start,
                 train_end=train_end,
                 test_start=test_start,
                 test_end=test_end,
                 is_return=is_return,
-                is_sharpe=is_result.get('sharpe_ratio', 0),
-                is_trades=is_result.get('num_trades', 0),
-                is_win_rate=is_result.get('win_rate', 0),
+                is_sharpe=is_result.get("sharpe_ratio", 0),
+                is_trades=is_result.get("num_trades", 0),
+                is_win_rate=is_result.get("win_rate", 0),
                 oos_return=oos_return,
-                oos_sharpe=oos_result.get('sharpe_ratio', 0),
-                oos_trades=oos_result.get('num_trades', 0),
-                oos_win_rate=oos_result.get('win_rate', 0),
+                oos_sharpe=oos_result.get("sharpe_ratio", 0),
+                oos_trades=oos_result.get("num_trades", 0),
+                oos_win_rate=oos_result.get("win_rate", 0),
                 overfitting_ratio=overfitting_ratio,
-                degradation=degradation
+                degradation=degradation,
             )
 
             self.results.append(result)
@@ -257,12 +258,17 @@ class WalkForwardValidator:
         avg_degradation = np.mean([r.degradation for r in self.results])
 
         # P1 Fix: Handle empty list and NaN values for overfitting ratio
-        valid_ratios = [r.overfitting_ratio for r in self.results
-                       if r.overfitting_ratio != float('inf') and not np.isnan(r.overfitting_ratio)]
+        valid_ratios = [
+            r.overfitting_ratio
+            for r in self.results
+            if r.overfitting_ratio != float("inf") and not np.isnan(r.overfitting_ratio)
+        ]
         avg_overfit_ratio = np.mean(valid_ratios) if valid_ratios else self.overfitting_threshold
 
         # Count how many folds show overfitting
-        overfit_folds = sum(1 for r in self.results if r.overfitting_ratio > self.overfitting_threshold)
+        overfit_folds = sum(
+            1 for r in self.results if r.overfitting_ratio > self.overfitting_threshold
+        )
 
         # Calculate consistency (OOS positive in what % of folds)
         oos_positive_folds = sum(1 for r in self.results if r.oos_return > 0)
@@ -273,15 +279,15 @@ class WalkForwardValidator:
 
         # Determine if strategy passes validation
         passes_validation = (
-            avg_oos_return > 0 and
-            avg_overfit_ratio < self.overfitting_threshold and
-            consistency >= 0.5
+            avg_oos_return > 0
+            and avg_overfit_ratio < self.overfitting_threshold
+            and consistency >= 0.5
         )
 
         # Print summary
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("WALK-FORWARD VALIDATION SUMMARY")
-        print("="*80)
+        print("=" * 80)
 
         print("\nIn-Sample Performance (Training):")
         print(f"  Average Return:    {avg_is_return:+.2%}")
@@ -298,7 +304,7 @@ class WalkForwardValidator:
         print(f"  Average Overfit Ratio: {avg_overfit_ratio:.2f}")
         print(f"  Overfit Folds:        {overfit_folds}/{len(self.results)}")
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         if passes_validation:
             print("✅ VALIDATION PASSED")
             print("   Strategy shows consistent out-of-sample performance")
@@ -307,42 +313,35 @@ class WalkForwardValidator:
             if avg_oos_return <= 0:
                 print("   - Out-of-sample returns are negative")
             if avg_overfit_ratio >= self.overfitting_threshold:
-                print(f"   - Overfitting detected (ratio {avg_overfit_ratio:.2f} > {self.overfitting_threshold})")
+                print(
+                    f"   - Overfitting detected (ratio {avg_overfit_ratio:.2f} > {self.overfitting_threshold})"
+                )
             if consistency < 0.5:
                 print(f"   - Inconsistent results ({consistency:.0%} folds profitable)")
 
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         return {
-            'passes_validation': passes_validation,
-            'n_folds': len(self.results),
-
+            "passes_validation": passes_validation,
+            "n_folds": len(self.results),
             # In-sample metrics
-            'is_avg_return': avg_is_return,
-            'is_avg_sharpe': avg_is_sharpe,
-
+            "is_avg_return": avg_is_return,
+            "is_avg_sharpe": avg_is_sharpe,
             # Out-of-sample metrics
-            'oos_avg_return': avg_oos_return,
-            'oos_avg_sharpe': avg_oos_sharpe,
-            'oos_total_trades': total_oos_trades,
-            'oos_consistency': consistency,
-
+            "oos_avg_return": avg_oos_return,
+            "oos_avg_sharpe": avg_oos_sharpe,
+            "oos_total_trades": total_oos_trades,
+            "oos_consistency": consistency,
             # Overfitting metrics
-            'avg_degradation': avg_degradation,
-            'avg_overfit_ratio': avg_overfit_ratio,
-            'overfit_folds': overfit_folds,
-
+            "avg_degradation": avg_degradation,
+            "avg_overfit_ratio": avg_overfit_ratio,
+            "overfit_folds": overfit_folds,
             # Raw results
-            'fold_results': self.results
+            "fold_results": self.results,
         }
 
 
-async def run_walk_forward_validation(
-    symbols: List[str],
-    start_date: str,
-    end_date: str,
-    **kwargs
-):
+async def run_walk_forward_validation(symbols: List[str], start_date: str, end_date: str, **kwargs):
     """
     Convenience function to run walk-forward validation.
 
@@ -359,13 +358,7 @@ async def run_walk_forward_validation(
     from simple_backtest import simple_backtest
 
     validator = WalkForwardValidator()
-    result = await validator.validate(
-        simple_backtest,
-        symbols,
-        start_date,
-        end_date,
-        **kwargs
-    )
+    result = await validator.validate(simple_backtest, symbols, start_date, end_date, **kwargs)
 
     return result
 
@@ -374,9 +367,7 @@ if __name__ == "__main__":
     # Example usage
     async def main():
         result = await run_walk_forward_validation(
-            symbols=['AAPL', 'MSFT', 'NVDA'],
-            start_date='2024-01-01',
-            end_date='2024-11-01'
+            symbols=["AAPL", "MSFT", "NVDA"], start_date="2024-01-01", end_date="2024-11-01"
         )
 
         print(f"Validation passed: {result['passes_validation']}")

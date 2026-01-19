@@ -9,10 +9,11 @@ Tests cover:
 4. Half-Kelly and Quarter-Kelly variations
 """
 
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timedelta
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -80,30 +81,26 @@ class TestPositionSizing:
 
     def test_position_size_basic(self):
         """Test basic position size calculation."""
-        kelly = KellyCriterion(
-            kelly_fraction=0.5,
-            max_position_size=0.25,
-            min_position_size=0.05
-        )
+        kelly = KellyCriterion(kelly_fraction=0.5, max_position_size=0.25, min_position_size=0.05)
 
         # Add enough trades to enable Kelly calculation
         for i in range(35):
-            kelly.add_trade(Trade(
-                symbol='AAPL',
-                entry_time=datetime.now() - timedelta(days=i),
-                exit_time=datetime.now() - timedelta(days=i-1),
-                entry_price=100,
-                exit_price=105 if i % 5 != 0 else 95,  # 80% win rate
-                quantity=10,
-                pnl=50 if i % 5 != 0 else -50,
-                pnl_pct=0.05 if i % 5 != 0 else -0.05,
-                is_winner=i % 5 != 0
-            ))
+            kelly.add_trade(
+                Trade(
+                    symbol="AAPL",
+                    entry_time=datetime.now() - timedelta(days=i),
+                    exit_time=datetime.now() - timedelta(days=i - 1),
+                    entry_price=100,
+                    exit_price=105 if i % 5 != 0 else 95,  # 80% win rate
+                    quantity=10,
+                    pnl=50 if i % 5 != 0 else -50,
+                    pnl_pct=0.05 if i % 5 != 0 else -0.05,
+                    is_winner=i % 5 != 0,
+                )
+            )
 
         position_value, position_fraction = kelly.calculate_position_size(
-            current_capital=100000,
-            win_rate=0.6,
-            profit_factor=2.0
+            current_capital=100000, win_rate=0.6, profit_factor=2.0
         )
 
         # Half Kelly of 40% = 20%
@@ -113,44 +110,38 @@ class TestPositionSizing:
 
     def test_position_size_respects_max(self):
         """Test that position size respects maximum limit."""
-        kelly = KellyCriterion(
-            kelly_fraction=1.0,  # Full Kelly
-            max_position_size=0.15
-        )
+        kelly = KellyCriterion(kelly_fraction=1.0, max_position_size=0.15)  # Full Kelly
 
         # Add enough trades
         for i in range(35):
-            kelly.add_trade(Trade(
-                symbol='TEST',
-                entry_time=datetime.now(),
-                exit_time=datetime.now(),
-                entry_price=100,
-                exit_price=110,
-                quantity=10,
-                pnl=100,
-                pnl_pct=0.10,
-                is_winner=True
-            ))
+            kelly.add_trade(
+                Trade(
+                    symbol="TEST",
+                    entry_time=datetime.now(),
+                    exit_time=datetime.now(),
+                    entry_price=100,
+                    exit_price=110,
+                    quantity=10,
+                    pnl=100,
+                    pnl_pct=0.10,
+                    is_winner=True,
+                )
+            )
 
         _, position_fraction = kelly.calculate_position_size(
             current_capital=100000,
             win_rate=0.9,  # Very high win rate would suggest large position
-            profit_factor=5.0
+            profit_factor=5.0,
         )
 
         assert position_fraction <= 0.15, f"Should not exceed max (got {position_fraction})"
 
     def test_position_size_respects_min(self):
         """Test that position size respects minimum limit."""
-        kelly = KellyCriterion(
-            kelly_fraction=1.0,
-            min_position_size=0.05
-        )
+        kelly = KellyCriterion(kelly_fraction=1.0, min_position_size=0.05)
 
         # With insufficient trades, should use minimum
-        _, position_fraction = kelly.calculate_position_size(
-            current_capital=100000
-        )
+        _, position_fraction = kelly.calculate_position_size(current_capital=100000)
 
         assert position_fraction >= 0.05, f"Should not go below min (got {position_fraction})"
 
@@ -163,7 +154,7 @@ class TestTradeHistory:
         kelly = KellyCriterion()
 
         trade = Trade(
-            symbol='AAPL',
+            symbol="AAPL",
             entry_time=datetime.now() - timedelta(hours=1),
             exit_time=datetime.now(),
             entry_price=150.0,
@@ -171,7 +162,7 @@ class TestTradeHistory:
             quantity=100,
             pnl=500.0,
             pnl_pct=0.0333,
-            is_winner=True
+            is_winner=True,
         )
 
         kelly.add_trade(trade)
@@ -184,17 +175,19 @@ class TestTradeHistory:
         # Add 10 trades: 6 winners, 4 losers = 60% win rate
         for i in range(10):
             is_winner = i < 6
-            kelly.add_trade(Trade(
-                symbol='TEST',
-                entry_time=datetime.now(),
-                exit_time=datetime.now(),
-                entry_price=100,
-                exit_price=105 if is_winner else 95,
-                quantity=10,
-                pnl=50 if is_winner else -50,
-                pnl_pct=0.05 if is_winner else -0.05,
-                is_winner=is_winner
-            ))
+            kelly.add_trade(
+                Trade(
+                    symbol="TEST",
+                    entry_time=datetime.now(),
+                    exit_time=datetime.now(),
+                    entry_price=100,
+                    exit_price=105 if is_winner else 95,
+                    quantity=10,
+                    pnl=50 if is_winner else -50,
+                    pnl_pct=0.05 if is_winner else -0.05,
+                    is_winner=is_winner,
+                )
+            )
 
         assert abs(kelly.win_rate - 0.6) < 0.01, f"Expected 60% win rate, got {kelly.win_rate}"
 
@@ -205,17 +198,19 @@ class TestTradeHistory:
         # Add trades: avg win 5%, avg loss 2.5% = profit factor 2.0
         for i in range(10):
             is_winner = i < 6
-            kelly.add_trade(Trade(
-                symbol='TEST',
-                entry_time=datetime.now(),
-                exit_time=datetime.now(),
-                entry_price=100,
-                exit_price=105 if is_winner else 97.5,
-                quantity=10,
-                pnl=50 if is_winner else -25,
-                pnl_pct=0.05 if is_winner else -0.025,
-                is_winner=is_winner
-            ))
+            kelly.add_trade(
+                Trade(
+                    symbol="TEST",
+                    entry_time=datetime.now(),
+                    exit_time=datetime.now(),
+                    entry_price=100,
+                    exit_price=105 if is_winner else 97.5,
+                    quantity=10,
+                    pnl=50 if is_winner else -25,
+                    pnl_pct=0.05 if is_winner else -0.025,
+                    is_winner=is_winner,
+                )
+            )
 
         # Profit factor = avg_win / avg_loss = 0.05 / 0.025 = 2.0
         assert kelly.profit_factor > 1.5, f"Expected profit factor > 1.5, got {kelly.profit_factor}"
@@ -225,13 +220,13 @@ class TestTradeHistory:
         kelly = KellyCriterion()
 
         kelly.add_trade_from_position(
-            symbol='TSLA',
+            symbol="TSLA",
             entry_time=datetime.now() - timedelta(hours=2),
             exit_time=datetime.now(),
             entry_price=200.0,
             exit_price=210.0,
             quantity=50,
-            side='long'
+            side="long",
         )
 
         assert len(kelly.trades) == 1
@@ -245,13 +240,13 @@ class TestTradeHistory:
         kelly = KellyCriterion()
 
         kelly.add_trade_from_position(
-            symbol='SPY',
+            symbol="SPY",
             entry_time=datetime.now() - timedelta(hours=2),
             exit_time=datetime.now(),
             entry_price=450.0,
             exit_price=440.0,  # Price went down, short wins
             quantity=10,
-            side='short'
+            side="short",
         )
 
         trade = kelly.trades[0]
@@ -267,8 +262,8 @@ class TestPerformanceSummary:
         kelly = KellyCriterion()
         summary = kelly.get_performance_summary()
 
-        assert summary['total_trades'] == 0
-        assert summary['win_rate'] == 0.0
+        assert summary["total_trades"] == 0
+        assert summary["win_rate"] == 0.0
 
     def test_summary_with_trades(self):
         """Test summary with trade history."""
@@ -277,24 +272,26 @@ class TestPerformanceSummary:
         # Add trades
         for i in range(20):
             is_winner = i % 3 != 0  # ~67% win rate
-            kelly.add_trade(Trade(
-                symbol='TEST',
-                entry_time=datetime.now(),
-                exit_time=datetime.now(),
-                entry_price=100,
-                exit_price=105 if is_winner else 95,
-                quantity=10,
-                pnl=50 if is_winner else -50,
-                pnl_pct=0.05 if is_winner else -0.05,
-                is_winner=is_winner
-            ))
+            kelly.add_trade(
+                Trade(
+                    symbol="TEST",
+                    entry_time=datetime.now(),
+                    exit_time=datetime.now(),
+                    entry_price=100,
+                    exit_price=105 if is_winner else 95,
+                    quantity=10,
+                    pnl=50 if is_winner else -50,
+                    pnl_pct=0.05 if is_winner else -0.05,
+                    is_winner=is_winner,
+                )
+            )
 
         summary = kelly.get_performance_summary()
 
-        assert summary['total_trades'] == 20
-        assert summary['win_rate'] > 0.5
-        assert 'profit_factor' in summary
-        assert 'kelly_fraction' in summary
+        assert summary["total_trades"] == 20
+        assert summary["win_rate"] > 0.5
+        assert "profit_factor" in summary
+        assert "kelly_fraction" in summary
 
 
 class TestEdgeCases:
@@ -306,17 +303,19 @@ class TestEdgeCases:
 
         # All losing trades = profit factor 0
         for i in range(10):
-            kelly.add_trade(Trade(
-                symbol='TEST',
-                entry_time=datetime.now(),
-                exit_time=datetime.now(),
-                entry_price=100,
-                exit_price=95,
-                quantity=10,
-                pnl=-50,
-                pnl_pct=-0.05,
-                is_winner=False
-            ))
+            kelly.add_trade(
+                Trade(
+                    symbol="TEST",
+                    entry_time=datetime.now(),
+                    exit_time=datetime.now(),
+                    entry_price=100,
+                    exit_price=95,
+                    quantity=10,
+                    pnl=-50,
+                    pnl_pct=-0.05,
+                    is_winner=False,
+                )
+            )
 
         result = kelly.calculate_kelly_fraction(win_rate=0.0, profit_factor=0.0)
         assert result == 0.0, "Should return 0 for zero profit factor"
@@ -327,22 +326,24 @@ class TestEdgeCases:
 
         # Add 20 trades
         for i in range(20):
-            kelly.add_trade(Trade(
-                symbol='TEST',
-                entry_time=datetime.now(),
-                exit_time=datetime.now(),
-                entry_price=100,
-                exit_price=105,
-                quantity=10,
-                pnl=50,
-                pnl_pct=0.05,
-                is_winner=True
-            ))
+            kelly.add_trade(
+                Trade(
+                    symbol="TEST",
+                    entry_time=datetime.now(),
+                    exit_time=datetime.now(),
+                    entry_price=100,
+                    exit_price=105,
+                    quantity=10,
+                    pnl=50,
+                    pnl_pct=0.05,
+                    is_winner=True,
+                )
+            )
 
         # Metrics should only consider last 10 trades
         summary = kelly.get_performance_summary()
-        assert summary['recent_trades'] == 10
+        assert summary["recent_trades"] == 10
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

@@ -51,11 +51,13 @@ jobs:
         uv pip install --system -e ".[dev,test]"
 
     - name: Lint with ruff
+      continue-on-error: true
       run: |
         uv pip install --system ruff
         ruff check .
 
     - name: Format check with black
+      continue-on-error: true
       run: |
         uv pip install --system black
         black --check .

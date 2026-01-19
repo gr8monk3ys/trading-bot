@@ -1,13 +1,16 @@
-import numpy as np
 import logging
 from typing import Dict, List
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 class RiskCalculationError(Exception):
     """Raised when risk calculations fail due to invalid data."""
+
     pass
+
 
 class RiskManager:
     def __init__(
@@ -120,7 +123,9 @@ class RiskManager:
         try:
             # Validate input
             if not price_history or len(price_history) < 2:
-                logger.warning(f"Insufficient price history for {symbol}: {len(price_history) if price_history else 0} points")
+                logger.warning(
+                    f"Insufficient price history for {symbol}: {len(price_history) if price_history else 0} points"
+                )
                 return 1.0  # Maximum risk for insufficient data
 
             daily_vol = self._calculate_volatility(price_history)
@@ -154,11 +159,7 @@ class RiskManager:
             return 1.0  # Return maximum risk on data error
 
     def calculate_position_correlation(
-        self,
-        symbol1: str,
-        symbol2: str,
-        price_history1: List[float],
-        price_history2: List[float]
+        self, symbol1: str, symbol2: str, price_history1: List[float], price_history2: List[float]
     ) -> float:
         """
         Calculate correlation between two positions.
@@ -194,7 +195,9 @@ class RiskManager:
 
             # Check for zero prices (avoid division by zero)
             if np.any(prices1[:-1] == 0) or np.any(prices2[:-1] == 0):
-                logger.warning(f"Zero prices detected in correlation calculation: {symbol1}, {symbol2}")
+                logger.warning(
+                    f"Zero prices detected in correlation calculation: {symbol1}, {symbol2}"
+                )
                 return 1.0
 
             returns1 = np.diff(prices1) / prices1[:-1]
@@ -220,44 +223,47 @@ class RiskManager:
         except (IndexError, TypeError) as e:
             logger.error(f"Data error calculating correlation between {symbol1} and {symbol2}: {e}")
             return 1.0  # Return maximum correlation on error
-            
+
     def calculate_portfolio_risk(self, positions):
         """Calculate total portfolio risk."""
         try:
             total_risk = 0
             position_weights = []
-            
+
             # Calculate position weights
-            total_value = sum(pos['value'] for pos in positions.values())
+            total_value = sum(pos["value"] for pos in positions.values())
             for symbol, pos in positions.items():
-                weight = pos['value'] / total_value if total_value > 0 else 0
+                weight = pos["value"] / total_value if total_value > 0 else 0
                 position_weights.append(weight)
-                
+
                 # Add individual position risk
-                total_risk += weight * pos.get('risk', self.max_position_risk)
-            
+                total_risk += weight * pos.get("risk", self.max_position_risk)
+
             # Add correlation impact
             for i, (sym1, pos1) in enumerate(positions.items()):
                 for j, (sym2, pos2) in enumerate(positions.items()):
                     if i < j:
                         corr = self.position_correlations.get((sym1, sym2), 0)
-                        total_risk += (position_weights[i] * position_weights[j] * 
-                                     pos1.get('risk', self.max_position_risk) * 
-                                     pos2.get('risk', self.max_position_risk) * 
-                                     corr)
-            
+                        total_risk += (
+                            position_weights[i]
+                            * position_weights[j]
+                            * pos1.get("risk", self.max_position_risk)
+                            * pos2.get("risk", self.max_position_risk)
+                            * corr
+                        )
+
             return total_risk
-            
+
         except Exception as e:
             logger.error(f"Error calculating portfolio risk: {e}")
             return self.max_portfolio_risk
-            
+
     def adjust_position_size(
         self,
         symbol: str,
         desired_size: float,
         price_history: List[float],
-        current_positions: Dict[str, Dict]
+        current_positions: Dict[str, Dict],
     ) -> float:
         """
         Adjust position size based on risk parameters.
@@ -282,14 +288,14 @@ class RiskManager:
 
             # Store risk for portfolio calculations
             if symbol in current_positions:
-                current_positions[symbol]['risk'] = risk
+                current_positions[symbol]["risk"] = risk
 
             # Calculate correlations with existing positions
             max_correlation = 0
             for other_symbol, pos in current_positions.items():
-                if other_symbol != symbol and 'price_history' in pos:
+                if other_symbol != symbol and "price_history" in pos:
                     correlation = self.calculate_position_correlation(
-                        symbol, other_symbol, price_history, pos['price_history']
+                        symbol, other_symbol, price_history, pos["price_history"]
                     )
                     self.position_correlations[(symbol, other_symbol)] = correlation
                     self.position_correlations[(other_symbol, symbol)] = correlation
@@ -325,9 +331,7 @@ class RiskManager:
 
             # Apply all adjustments
             adjusted_size = desired_size * min(
-                risk_adjustment,
-                correlation_adjustment,
-                portfolio_adjustment
+                risk_adjustment, correlation_adjustment, portfolio_adjustment
             )
 
             return max(adjusted_size, 0)  # Ensure non-negative position size

@@ -19,27 +19,25 @@ Usage:
 """
 
 import asyncio
-import sys
 import os
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+import sys
+from datetime import datetime
+from typing import Optional
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from rich.console import Console
-from rich.table import Table
-from rich.layout import Layout
-from rich.panel import Panel
-from rich.live import Live
-from rich.text import Text
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich import box
 from rich.align import Align
+from rich.console import Console
+from rich.layout import Layout
+from rich.live import Live
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from brokers.alpaca_broker import AlpacaBroker
 from utils.circuit_breaker import CircuitBreaker
-
 
 console = Console()
 
@@ -97,11 +95,7 @@ class EnhancedTradingDashboard:
         header_text.append(" 🤖", style="bold")
         header_text.append(f"\n{now.strftime('%Y-%m-%d %H:%M:%S')}", style="dim")
 
-        return Panel(
-            Align.center(header_text),
-            box=box.DOUBLE,
-            style="cyan"
-        )
+        return Panel(Align.center(header_text), box=box.DOUBLE, style="cyan")
 
     async def create_account_panel(self) -> Panel:
         """Create account summary panel."""
@@ -127,17 +121,14 @@ class EnhancedTradingDashboard:
 
             # Equity
             equity_color = "green" if day_pnl >= 0 else "red"
-            table.add_row(
-                "💰 Equity",
-                f"[{equity_color}]${equity:,.2f}[/{equity_color}]"
-            )
+            table.add_row("💰 Equity", f"[{equity_color}]${equity:,.2f}[/{equity_color}]")
 
             # Day P/L
             pnl_color = "green" if day_pnl >= 0 else "red"
             pnl_symbol = "+" if day_pnl >= 0 else ""
             table.add_row(
                 "📊 Day P/L",
-                f"[{pnl_color}]{pnl_symbol}${day_pnl:,.2f} ({pnl_symbol}{day_pnl_pct:.2f}%)[/{pnl_color}]"
+                f"[{pnl_color}]{pnl_symbol}${day_pnl:,.2f} ({pnl_symbol}{day_pnl_pct:.2f}%)[/{pnl_color}]",
             )
 
             # Cash & Buying Power
@@ -146,10 +137,7 @@ class EnhancedTradingDashboard:
 
             # Drawdown
             dd_color = "green" if drawdown < 5 else "yellow" if drawdown < 10 else "red"
-            table.add_row(
-                "📉 Drawdown",
-                f"[{dd_color}]{drawdown:.2f}%[/{dd_color}]"
-            )
+            table.add_row("📉 Drawdown", f"[{dd_color}]{drawdown:.2f}%[/{dd_color}]")
 
             # Market status
             clock = await self.broker.get_clock()
@@ -160,7 +148,7 @@ class EnhancedTradingDashboard:
                 table,
                 title="[bold]Account Summary[/bold]",
                 border_style="green" if day_pnl >= 0 else "red",
-                box=box.ROUNDED
+                box=box.ROUNDED,
             )
         except Exception as e:
             return Panel(f"[red]Error: {e}[/red]", title="Account Summary")
@@ -175,7 +163,7 @@ class EnhancedTradingDashboard:
                     Align.center("[dim]No open positions[/dim]"),
                     title="[bold]Open Positions[/bold]",
                     border_style="blue",
-                    box=box.ROUNDED
+                    box=box.ROUNDED,
                 )
 
             # Create positions table
@@ -216,7 +204,7 @@ class EnhancedTradingDashboard:
                     f"${current:.2f}",
                     f"${value:,.2f}",
                     f"[{pnl_color}]{pnl_symbol}${pnl:,.2f}[/{pnl_color}]",
-                    f"[{pnl_color}]{pnl_symbol}{pnl_pct:.2f}%[/{pnl_color}]"
+                    f"[{pnl_color}]{pnl_symbol}{pnl_pct:.2f}%[/{pnl_color}]",
                 )
 
             # Add total row
@@ -229,14 +217,14 @@ class EnhancedTradingDashboard:
                 "",
                 f"[bold]${total_value:,.2f}[/bold]",
                 f"[bold {total_pnl_color}]{total_pnl_symbol}${total_pnl:,.2f}[/bold {total_pnl_color}]",
-                ""
+                "",
             )
 
             return Panel(
                 table,
                 title=f"[bold]Open Positions ({len(positions)})[/bold]",
                 border_style="blue",
-                box=box.ROUNDED
+                box=box.ROUNDED,
             )
         except Exception as e:
             return Panel(f"[red]Error: {e}[/red]", title="Open Positions")
@@ -275,24 +263,29 @@ class EnhancedTradingDashboard:
             table.add_row("⚡ Circuit Breaker", cb_status)
 
             # Daily Loss Limit
-            loss_pct_color = "green" if daily_loss_pct < 1 else "yellow" if daily_loss_pct < 2 else "red"
+            loss_pct_color = (
+                "green" if daily_loss_pct < 1 else "yellow" if daily_loss_pct < 2 else "red"
+            )
             table.add_row(
                 "📊 Daily Loss",
-                f"[{loss_pct_color}]{daily_loss_pct:.2f}% / 3.00% max[/{loss_pct_color}]"
+                f"[{loss_pct_color}]{daily_loss_pct:.2f}% / 3.00% max[/{loss_pct_color}]",
             )
 
             # Position Count
-            pos_color = "green" if position_count <= 5 else "yellow" if position_count <= 8 else "red"
-            table.add_row(
-                "💼 Positions",
-                f"[{pos_color}]{position_count} / 10 max[/{pos_color}]"
+            pos_color = (
+                "green" if position_count <= 5 else "yellow" if position_count <= 8 else "red"
             )
+            table.add_row("💼 Positions", f"[{pos_color}]{position_count} / 10 max[/{pos_color}]")
 
             # Largest Position
-            conc_color = "green" if largest_position_pct < 10 else "yellow" if largest_position_pct < 15 else "red"
+            conc_color = (
+                "green"
+                if largest_position_pct < 10
+                else "yellow" if largest_position_pct < 15 else "red"
+            )
             table.add_row(
                 "🎯 Max Position",
-                f"[{conc_color}]{largest_position_pct:.1f}% of equity[/{conc_color}]"
+                f"[{conc_color}]{largest_position_pct:.1f}% of equity[/{conc_color}]",
             )
 
             # Win/Loss Ratio Today
@@ -301,7 +294,7 @@ class EnhancedTradingDashboard:
                 wr_color = "green" if win_rate >= 55 else "yellow" if win_rate >= 45 else "red"
                 table.add_row(
                     "📈 Win Rate",
-                    f"[{wr_color}]{win_rate:.1f}% ({self.wins_today}W/{self.losses_today}L)[/{wr_color}]"
+                    f"[{wr_color}]{win_rate:.1f}% ({self.wins_today}W/{self.losses_today}L)[/{wr_color}]",
                 )
             else:
                 table.add_row("📈 Win Rate", "[dim]No trades yet[/dim]")
@@ -310,7 +303,7 @@ class EnhancedTradingDashboard:
                 table,
                 title="[bold]Risk Status[/bold]",
                 border_style="green" if not cb_triggered else "red",
-                box=box.ROUNDED
+                box=box.ROUNDED,
             )
         except Exception as e:
             return Panel(f"[red]Error: {e}[/red]", title="Risk Status")
@@ -331,10 +324,7 @@ class EnhancedTradingDashboard:
         table.add_row("⚖️  Rebalancing", "[green]✓ Every 4h[/green]")
 
         return Panel(
-            table,
-            title="[bold]Active Strategies[/bold]",
-            border_style="cyan",
-            box=box.ROUNDED
+            table, title="[bold]Active Strategies[/bold]", border_style="cyan", box=box.ROUNDED
         )
 
     def create_footer(self) -> Panel:
@@ -347,10 +337,7 @@ class EnhancedTradingDashboard:
         footer_text.append(" to refresh  •  ", style="dim")
         footer_text.append(f"Auto-refresh: {self.refresh_interval}s", style="dim")
 
-        return Panel(
-            Align.center(footer_text),
-            style="dim"
-        )
+        return Panel(Align.center(footer_text), style="dim")
 
     async def create_layout(self) -> Layout:
         """Create dashboard layout."""
@@ -360,25 +347,20 @@ class EnhancedTradingDashboard:
         layout.split_column(
             Layout(name="header", size=5),
             Layout(name="main", ratio=1),
-            Layout(name="footer", size=3)
+            Layout(name="footer", size=3),
         )
 
         # Split main area
-        layout["main"].split_row(
-            Layout(name="left", ratio=3),
-            Layout(name="right", ratio=2)
-        )
+        layout["main"].split_row(Layout(name="left", ratio=3), Layout(name="right", ratio=2))
 
         # Split left column
         layout["left"].split_column(
-            Layout(name="account", size=12),
-            Layout(name="positions", ratio=1)
+            Layout(name="account", size=12), Layout(name="positions", ratio=1)
         )
 
         # Split right column
         layout["right"].split_column(
-            Layout(name="risk", size=15),
-            Layout(name="strategies", ratio=1)
+            Layout(name="risk", size=15), Layout(name="strategies", ratio=1)
         )
 
         # Populate layout

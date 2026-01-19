@@ -22,11 +22,15 @@ import asyncio
 import logging
 
 from brokers.alpaca_broker import AlpacaBroker
-from utils.extended_hours import ExtendedHoursManager, GapTradingStrategy, EarningsReactionStrategy, format_session_info
+from utils.extended_hours import (
+    EarningsReactionStrategy,
+    ExtendedHoursManager,
+    GapTradingStrategy,
+    format_session_info,
+)
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 logger = logging.getLogger(__name__)
@@ -34,19 +38,15 @@ logger = logging.getLogger(__name__)
 
 async def main():
     """Run extended hours trading example."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("🧪 EXTENDED HOURS TRADING EXAMPLE")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Initialize broker (paper trading)
     broker = AlpacaBroker(paper=True)
 
     # Initialize extended hours manager
-    ext_hours = ExtendedHoursManager(
-        broker=broker,
-        enable_pre_market=True,
-        enable_after_hours=True
-    )
+    ext_hours = ExtendedHoursManager(broker=broker, enable_pre_market=True, enable_after_hours=True)
 
     # Get current session info
     session_info = ext_hours.get_session_info()
@@ -57,7 +57,7 @@ async def main():
     earnings_strategy = EarningsReactionStrategy(min_move_pct=0.03)  # 3% move threshold
 
     # Stocks to monitor
-    symbols = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA']
+    symbols = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]
 
     print("\n📊 Extended Hours Configuration:")
     print(f"   Pre-Market Trading: {'ENABLED' if ext_hours.enable_pre_market else 'DISABLED'}")
@@ -76,9 +76,9 @@ async def main():
     print("\n")
 
     try:
-        print("="*80)
+        print("=" * 80)
         print("📈 EXTENDED HOURS MONITORING STARTED")
-        print("="*80)
+        print("=" * 80)
         print("\nPress Ctrl+C to stop\n")
 
         # Monitor loop
@@ -93,7 +93,7 @@ async def main():
             print(f"⏰ {session_info['current_time']}")
             print(f"📅 Session: {session_info['session_name']}")
 
-            if session == 'closed':
+            if session == "closed":
                 print("🔴 Market is CLOSED - no trading")
                 print("-" * 80)
                 continue
@@ -171,9 +171,9 @@ async def main():
         account = await broker.get_account()
         final_equity = float(account.equity)
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("📊 EXTENDED HOURS TRADING SESSION COMPLETE")
-        print("="*80)
+        print("=" * 80)
         print(f"Final Equity: ${final_equity:,.2f}")
 
         positions = await broker.get_positions()
@@ -188,9 +188,9 @@ async def main():
 
 async def example_gap_trade():
     """Example of a gap trade in pre-market."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("📈 GAP TRADING EXAMPLE")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     broker = AlpacaBroker(paper=True)
     ext_hours = ExtendedHoursManager(broker)
@@ -200,7 +200,7 @@ async def example_gap_trade():
         print("❌ Not in pre-market session")
         return
 
-    symbol = 'AAPL'
+    symbol = "AAPL"
     prev_close = 175.00  # Previous day's close
     pre_market_price = 180.00  # Pre-market price (3% gap up!)
 
@@ -228,9 +228,9 @@ async def example_gap_trade():
         # Execute extended hours trade
         result = await ext_hours.execute_extended_hours_trade(
             symbol=symbol,
-            side='sell',  # Fade the gap
+            side="sell",  # Fade the gap
             quantity=quantity,
-            strategy='limit'  # ALWAYS use limit in extended hours
+            strategy="limit",  # ALWAYS use limit in extended hours
         )
 
         if result:

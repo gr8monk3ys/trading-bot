@@ -24,7 +24,8 @@ Usage:
 
 import logging
 from datetime import datetime, time
-from typing import Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple
+
 import pytz
 
 from brokers.order_builder import OrderBuilder
@@ -43,12 +44,12 @@ class ExtendedHoursManager:
     """
 
     # Trading session times (Eastern Time)
-    PRE_MARKET_START = time(4, 0)    # 4:00 AM
-    PRE_MARKET_END = time(9, 30)     # 9:30 AM
-    REGULAR_START = time(9, 30)      # 9:30 AM
-    REGULAR_END = time(16, 0)        # 4:00 PM
+    PRE_MARKET_START = time(4, 0)  # 4:00 AM
+    PRE_MARKET_END = time(9, 30)  # 9:30 AM
+    REGULAR_START = time(9, 30)  # 9:30 AM
+    REGULAR_END = time(16, 0)  # 4:00 PM
     AFTER_HOURS_START = time(16, 0)  # 4:00 PM
-    AFTER_HOURS_END = time(20, 0)    # 8:00 PM
+    AFTER_HOURS_END = time(20, 0)  # 8:00 PM
 
     def __init__(self, broker, enable_pre_market: bool = True, enable_after_hours: bool = True):
         """
@@ -65,11 +66,11 @@ class ExtendedHoursManager:
 
         # Extended hours trading parameters (more conservative)
         self.extended_hours_params = {
-            'max_spread_pct': 0.005,      # Max 0.5% spread (tighter than regular)
-            'position_size_multiplier': 0.5,  # 50% of regular position size
-            'limit_order_offset_pct': 0.001,  # 0.1% from mid-price for limit orders
-            'max_slippage_pct': 0.003,    # Max 0.3% slippage tolerance
-            'min_volume': 10000,          # Minimum daily volume to trade
+            "max_spread_pct": 0.005,  # Max 0.5% spread (tighter than regular)
+            "position_size_multiplier": 0.5,  # 50% of regular position size
+            "limit_order_offset_pct": 0.001,  # 0.1% from mid-price for limit orders
+            "max_slippage_pct": 0.003,  # Max 0.3% slippage tolerance
+            "min_volume": 10000,  # Minimum daily volume to trade
         }
 
         logger.info("ExtendedHoursManager initialized:")
@@ -84,19 +85,19 @@ class ExtendedHoursManager:
             True if pre-market or after-hours
         """
         session = self.get_current_session()
-        return session in ['pre_market', 'after_hours']
+        return session in ["pre_market", "after_hours"]
 
     def is_pre_market(self) -> bool:
         """Check if current time is pre-market."""
-        return self.get_current_session() == 'pre_market'
+        return self.get_current_session() == "pre_market"
 
     def is_after_hours(self) -> bool:
         """Check if current time is after-hours."""
-        return self.get_current_session() == 'after_hours'
+        return self.get_current_session() == "after_hours"
 
     def is_regular_hours(self) -> bool:
         """Check if current time is regular market hours."""
-        return self.get_current_session() == 'regular'
+        return self.get_current_session() == "regular"
 
     def get_current_session(self) -> str:
         """
@@ -106,17 +107,17 @@ class ExtendedHoursManager:
             'pre_market', 'regular', 'after_hours', or 'closed'
         """
         # Get current time in Eastern Time
-        eastern = pytz.timezone('US/Eastern')
+        eastern = pytz.timezone("US/Eastern")
         now = datetime.now(eastern).time()
 
         if self.PRE_MARKET_START <= now < self.PRE_MARKET_END:
-            return 'pre_market' if self.enable_pre_market else 'closed'
+            return "pre_market" if self.enable_pre_market else "closed"
         elif self.REGULAR_START <= now < self.REGULAR_END:
-            return 'regular'
+            return "regular"
         elif self.AFTER_HOURS_START <= now < self.AFTER_HOURS_END:
-            return 'after_hours' if self.enable_after_hours else 'closed'
+            return "after_hours" if self.enable_after_hours else "closed"
         else:
-            return 'closed'
+            return "closed"
 
     async def can_trade_extended_hours(self, symbol: str) -> Tuple[bool, str]:
         """
@@ -131,7 +132,7 @@ class ExtendedHoursManager:
         session = self.get_current_session()
 
         # Not in extended hours
-        if session not in ['pre_market', 'after_hours']:
+        if session not in ["pre_market", "after_hours"]:
             return False, f"Not in extended hours (current: {session})"
 
         # Check if symbol is eligible (most stocks are, but check anyway)
@@ -164,27 +165,27 @@ class ExtendedHoursManager:
             # For now, this is a placeholder
 
             quote = {
-                'symbol': symbol,
-                'bid': 0.0,  # Replace with actual bid
-                'ask': 0.0,  # Replace with actual ask
-                'bid_size': 0,
-                'ask_size': 0,
-                'timestamp': datetime.now()
+                "symbol": symbol,
+                "bid": 0.0,  # Replace with actual bid
+                "ask": 0.0,  # Replace with actual ask
+                "bid_size": 0,
+                "ask_size": 0,
+                "timestamp": datetime.now(),
             }
 
             # Calculate spread
-            if quote['bid'] > 0 and quote['ask'] > 0:
-                spread = quote['ask'] - quote['bid']
-                mid_price = (quote['bid'] + quote['ask']) / 2
+            if quote["bid"] > 0 and quote["ask"] > 0:
+                spread = quote["ask"] - quote["bid"]
+                mid_price = (quote["bid"] + quote["ask"]) / 2
                 spread_pct = spread / mid_price if mid_price > 0 else 0
 
-                quote['spread'] = spread
-                quote['mid_price'] = mid_price
-                quote['spread_pct'] = spread_pct
+                quote["spread"] = spread
+                quote["mid_price"] = mid_price
+                quote["spread_pct"] = spread_pct
 
                 # Check if spread is acceptable
-                max_spread = self.extended_hours_params['max_spread_pct']
-                quote['acceptable_spread'] = spread_pct <= max_spread
+                max_spread = self.extended_hours_params["max_spread_pct"]
+                quote["acceptable_spread"] = spread_pct <= max_spread
 
             return quote
 
@@ -202,20 +203,18 @@ class ExtendedHoursManager:
         Returns:
             Adjusted position value (smaller for extended hours)
         """
-        multiplier = self.extended_hours_params['position_size_multiplier']
+        multiplier = self.extended_hours_params["position_size_multiplier"]
         adjusted = position_value * multiplier
 
-        logger.debug(f"Extended hours position adjustment: ${position_value:.2f} -> ${adjusted:.2f} "
-                    f"({multiplier:.0%} of regular)")
+        logger.debug(
+            f"Extended hours position adjustment: ${position_value:.2f} -> ${adjusted:.2f} "
+            f"({multiplier:.0%} of regular)"
+        )
 
         return adjusted
 
     async def execute_extended_hours_trade(
-        self,
-        symbol: str,
-        side: str,
-        quantity: float,
-        strategy: str = 'limit'
+        self, symbol: str, side: str, quantity: float, strategy: str = "limit"
     ) -> Optional[dict]:
         """
         Execute trade during extended hours with appropriate safeguards.
@@ -232,8 +231,10 @@ class ExtendedHoursManager:
         session = self.get_current_session()
 
         # Validate we're in extended hours
-        if session not in ['pre_market', 'after_hours']:
-            logger.warning(f"Cannot execute extended hours trade - not in extended hours (current: {session})")
+        if session not in ["pre_market", "after_hours"]:
+            logger.warning(
+                f"Cannot execute extended hours trade - not in extended hours (current: {session})"
+            )
             return None
 
         # Check symbol eligibility
@@ -251,26 +252,26 @@ class ExtendedHoursManager:
                 return None
 
             # Check spread
-            if not quote.get('acceptable_spread', False):
+            if not quote.get("acceptable_spread", False):
                 logger.warning(f"Spread too wide for {symbol}: {quote.get('spread_pct', 0):.2%}")
                 return None
 
             # Use limit orders (safer for extended hours)
-            if strategy == 'limit':
+            if strategy == "limit":
                 # Calculate limit price based on mid-price
-                mid_price = quote['mid_price']
-                offset_pct = self.extended_hours_params['limit_order_offset_pct']
+                mid_price = quote["mid_price"]
+                offset_pct = self.extended_hours_params["limit_order_offset_pct"]
 
-                if side == 'buy':
+                if side == "buy":
                     # Buy slightly above mid to increase fill probability
                     limit_price = mid_price * (1 + offset_pct)
                     # But don't exceed ask
-                    limit_price = min(limit_price, quote['ask'])
+                    limit_price = min(limit_price, quote["ask"])
                 else:
                     # Sell slightly below mid
                     limit_price = mid_price * (1 - offset_pct)
                     # But don't go below bid
-                    limit_price = max(limit_price, quote['bid'])
+                    limit_price = max(limit_price, quote["bid"])
 
                 logger.info(f"Extended hours {side.upper()} {symbol}:")
                 logger.info(f"  Quantity: {quantity:.4f}")
@@ -279,27 +280,27 @@ class ExtendedHoursManager:
                 logger.info(f"  Session: {session}")
 
                 # Create limit order with extended hours flag
-                order = (OrderBuilder(symbol, side, quantity)
-                        .limit(limit_price)
-                        .extended_hours()  # Enable extended hours trading
-                        .day()
-                        .build())
+                order = (
+                    OrderBuilder(symbol, side, quantity)
+                    .limit(limit_price)
+                    .extended_hours()  # Enable extended hours trading
+                    .day()
+                    .build()
+                )
 
             else:
                 # Market order (riskier in extended hours due to low liquidity)
                 logger.warning(f"Using MARKET order in {session} for {symbol} - higher risk!")
 
-                order = (OrderBuilder(symbol, side, quantity)
-                        .market()
-                        .extended_hours()
-                        .day()
-                        .build())
+                order = OrderBuilder(symbol, side, quantity).market().extended_hours().day().build()
 
             # Submit order
             result = await self.broker.submit_order_advanced(order)
 
             if result:
-                logger.info(f"✅ Extended hours {side.upper()} order submitted: {symbol} x {quantity:.4f}")
+                logger.info(
+                    f"✅ Extended hours {side.upper()} order submitted: {symbol} x {quantity:.4f}"
+                )
             else:
                 logger.error(f"❌ Extended hours order failed: {symbol}")
 
@@ -319,35 +320,35 @@ class ExtendedHoursManager:
         Returns:
             Dict with strategy recommendations
         """
-        if session == 'pre_market':
+        if session == "pre_market":
             return {
-                'primary': 'gap_trading',
-                'description': 'Trade gaps from overnight news/earnings',
-                'focus': 'Earnings announcements, news catalysts, futures direction',
-                'risk': 'High - low liquidity, news-driven volatility',
-                'best_symbols': 'Stocks with earnings or major news',
-                'tips': [
-                    'Use limit orders only',
-                    'Wait for price stabilization',
-                    'Monitor futures (ES, NQ) for direction',
-                    'Focus on high-volume stocks',
-                    'Reduce position size 50%'
-                ]
+                "primary": "gap_trading",
+                "description": "Trade gaps from overnight news/earnings",
+                "focus": "Earnings announcements, news catalysts, futures direction",
+                "risk": "High - low liquidity, news-driven volatility",
+                "best_symbols": "Stocks with earnings or major news",
+                "tips": [
+                    "Use limit orders only",
+                    "Wait for price stabilization",
+                    "Monitor futures (ES, NQ) for direction",
+                    "Focus on high-volume stocks",
+                    "Reduce position size 50%",
+                ],
             }
-        elif session == 'after_hours':
+        elif session == "after_hours":
             return {
-                'primary': 'earnings_reaction',
-                'description': 'Trade post-earnings moves',
-                'focus': 'Earnings reports, guidance, analyst calls',
-                'risk': 'High - emotional reactions, low liquidity',
-                'best_symbols': 'Stocks that just reported earnings',
-                'tips': [
-                    'Wait 15-30 minutes after earnings release',
-                    'Use limit orders with wide margins',
-                    'Check options market for direction',
-                    'Avoid first 5 minutes (most volatile)',
-                    'Scale in/out of positions'
-                ]
+                "primary": "earnings_reaction",
+                "description": "Trade post-earnings moves",
+                "focus": "Earnings reports, guidance, analyst calls",
+                "risk": "High - emotional reactions, low liquidity",
+                "best_symbols": "Stocks that just reported earnings",
+                "tips": [
+                    "Wait 15-30 minutes after earnings release",
+                    "Use limit orders with wide margins",
+                    "Check options market for direction",
+                    "Avoid first 5 minutes (most volatile)",
+                    "Scale in/out of positions",
+                ],
             }
         else:
             return {}
@@ -361,7 +362,7 @@ class ExtendedHoursManager:
         """
         session = self.get_current_session()
 
-        if session not in ['pre_market', 'after_hours']:
+        if session not in ["pre_market", "after_hours"]:
             return []
 
         opportunities = []
@@ -403,51 +404,58 @@ class ExtendedHoursManager:
             Dict with session details
         """
         session = self.get_current_session()
-        eastern = pytz.timezone('US/Eastern')
+        eastern = pytz.timezone("US/Eastern")
         now = datetime.now(eastern)
 
         info = {
-            'session': session,
-            'current_time': now.strftime('%Y-%m-%d %H:%M:%S %Z'),
-            'is_extended': session in ['pre_market', 'after_hours'],
-            'can_trade': session in ['pre_market', 'after_hours', 'regular']
+            "session": session,
+            "current_time": now.strftime("%Y-%m-%d %H:%M:%S %Z"),
+            "is_extended": session in ["pre_market", "after_hours"],
+            "can_trade": session in ["pre_market", "after_hours", "regular"],
         }
 
-        if session == 'pre_market':
-            info.update({
-                'session_name': 'Pre-Market',
-                'start_time': '4:00 AM ET',
-                'end_time': '9:30 AM ET',
-                'recommended_strategy': 'Gap trading on news/earnings',
-                'liquidity': 'Low',
-                'volatility': 'High',
-                'position_size_adj': '50% of regular'
-            })
-        elif session == 'after_hours':
-            info.update({
-                'session_name': 'After-Hours',
-                'start_time': '4:00 PM ET',
-                'end_time': '8:00 PM ET',
-                'recommended_strategy': 'Earnings reactions',
-                'liquidity': 'Low',
-                'volatility': 'High',
-                'position_size_adj': '50% of regular'
-            })
-        elif session == 'regular':
-            info.update({
-                'session_name': 'Regular Hours',
-                'start_time': '9:30 AM ET',
-                'end_time': '4:00 PM ET',
-                'recommended_strategy': 'Standard strategies',
-                'liquidity': 'Normal',
-                'volatility': 'Normal',
-                'position_size_adj': '100%'
-            })
+        if session == "pre_market":
+            info.update(
+                {
+                    "session_name": "Pre-Market",
+                    "start_time": "4:00 AM ET",
+                    "end_time": "9:30 AM ET",
+                    "recommended_strategy": "Gap trading on news/earnings",
+                    "liquidity": "Low",
+                    "volatility": "High",
+                    "position_size_adj": "50% of regular",
+                }
+            )
+        elif session == "after_hours":
+            info.update(
+                {
+                    "session_name": "After-Hours",
+                    "start_time": "4:00 PM ET",
+                    "end_time": "8:00 PM ET",
+                    "recommended_strategy": "Earnings reactions",
+                    "liquidity": "Low",
+                    "volatility": "High",
+                    "position_size_adj": "50% of regular",
+                }
+            )
+        elif session == "regular":
+            info.update(
+                {
+                    "session_name": "Regular Hours",
+                    "start_time": "9:30 AM ET",
+                    "end_time": "4:00 PM ET",
+                    "recommended_strategy": "Standard strategies",
+                    "liquidity": "Normal",
+                    "volatility": "Normal",
+                    "position_size_adj": "100%",
+                }
+            )
 
         return info
 
 
 # ==================== HELPER FUNCTIONS ====================
+
 
 def format_session_info(info: Dict) -> str:
     """
@@ -466,7 +474,7 @@ def format_session_info(info: Dict) -> str:
     output.append(f"Current Time: {info['current_time']}")
     output.append(f"Session Hours: {info['start_time']} - {info['end_time']}")
 
-    if info['is_extended']:
+    if info["is_extended"]:
         output.append("\n⚠️  EXTENDED HOURS TRADING")
         output.append(f"Liquidity: {info['liquidity']} | Volatility: {info['volatility']}")
         output.append(f"Position Size: {info['position_size_adj']}")
@@ -481,6 +489,7 @@ def format_session_info(info: Dict) -> str:
 
 
 # ==================== EXTENDED HOURS STRATEGIES ====================
+
 
 class GapTradingStrategy:
     """
@@ -498,7 +507,9 @@ class GapTradingStrategy:
         """
         self.gap_threshold = gap_threshold
 
-    async def analyze_gap(self, symbol: str, prev_close: float, current_price: float) -> Optional[Dict]:
+    async def analyze_gap(
+        self, symbol: str, prev_close: float, current_price: float
+    ) -> Optional[Dict]:
         """
         Analyze gap and return trade signal.
 
@@ -519,26 +530,26 @@ class GapTradingStrategy:
         if gap_pct > 0:
             # Look for gap fill opportunities (fade the gap)
             return {
-                'symbol': symbol,
-                'signal': 'sell',  # Fade the gap
-                'strategy': 'gap_fade',
-                'gap_pct': gap_pct,
-                'entry': current_price,
-                'target': prev_close,  # Gap fill target
-                'stop': current_price * 1.01,  # 1% stop
-                'reason': f'Gap up {gap_pct:.1%} - fade opportunity'
+                "symbol": symbol,
+                "signal": "sell",  # Fade the gap
+                "strategy": "gap_fade",
+                "gap_pct": gap_pct,
+                "entry": current_price,
+                "target": prev_close,  # Gap fill target
+                "stop": current_price * 1.01,  # 1% stop
+                "reason": f"Gap up {gap_pct:.1%} - fade opportunity",
             }
         else:
             # Gap down - look for bounce
             return {
-                'symbol': symbol,
-                'signal': 'buy',  # Buy the dip
-                'strategy': 'gap_bounce',
-                'gap_pct': gap_pct,
-                'entry': current_price,
-                'target': prev_close,  # Bounce target
-                'stop': current_price * 0.99,  # 1% stop
-                'reason': f'Gap down {gap_pct:.1%} - bounce opportunity'
+                "symbol": symbol,
+                "signal": "buy",  # Buy the dip
+                "strategy": "gap_bounce",
+                "gap_pct": gap_pct,
+                "entry": current_price,
+                "target": prev_close,  # Bounce target
+                "stop": current_price * 0.99,  # 1% stop
+                "reason": f"Gap down {gap_pct:.1%} - bounce opportunity",
             }
 
 
@@ -557,11 +568,7 @@ class EarningsReactionStrategy:
         self.min_move_pct = min_move_pct
 
     async def analyze_earnings_move(
-        self,
-        symbol: str,
-        close_price: float,
-        ah_price: float,
-        earnings_beat: bool
+        self, symbol: str, close_price: float, ah_price: float, earnings_beat: bool
     ) -> Optional[Dict]:
         """
         Analyze post-earnings move.
@@ -583,26 +590,26 @@ class EarningsReactionStrategy:
         # Earnings beat + positive move = continuation
         if earnings_beat and move_pct > 0:
             return {
-                'symbol': symbol,
-                'signal': 'buy',
-                'strategy': 'earnings_continuation',
-                'move_pct': move_pct,
-                'entry': ah_price * 1.001,  # Slightly above current
-                'target': ah_price * 1.03,  # 3% more upside
-                'stop': close_price,  # Back to close
-                'reason': f'Beat + {move_pct:.1%} move - continuation play'
+                "symbol": symbol,
+                "signal": "buy",
+                "strategy": "earnings_continuation",
+                "move_pct": move_pct,
+                "entry": ah_price * 1.001,  # Slightly above current
+                "target": ah_price * 1.03,  # 3% more upside
+                "stop": close_price,  # Back to close
+                "reason": f"Beat + {move_pct:.1%} move - continuation play",
             }
         # Earnings miss + negative move = fade (bounce)
         elif not earnings_beat and move_pct < 0:
             return {
-                'symbol': symbol,
-                'signal': 'buy',
-                'strategy': 'earnings_oversold_bounce',
-                'move_pct': move_pct,
-                'entry': ah_price * 0.999,
-                'target': ah_price * 1.02,  # 2% bounce
-                'stop': ah_price * 0.98,  # 2% stop
-                'reason': f'Miss + {move_pct:.1%} drop - oversold bounce'
+                "symbol": symbol,
+                "signal": "buy",
+                "strategy": "earnings_oversold_bounce",
+                "move_pct": move_pct,
+                "entry": ah_price * 0.999,
+                "target": ah_price * 1.02,  # 2% bounce
+                "stop": ah_price * 0.98,  # 2% stop
+                "reason": f"Miss + {move_pct:.1%} drop - oversold bounce",
             }
 
         return None

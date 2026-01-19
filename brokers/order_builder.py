@@ -7,15 +7,16 @@ bracket orders, OCO (One-Cancels-Other), OTO (One-Triggers-Other), and trailing 
 """
 
 import logging
-from typing import Optional, Dict, Any, Literal
+from typing import Any, Dict, Literal, Optional
+
+from alpaca.trading.enums import OrderClass, OrderSide, OrderType, TimeInForce
 from alpaca.trading.requests import (
-    MarketOrderRequest,
     LimitOrderRequest,
-    StopOrderRequest,
+    MarketOrderRequest,
     StopLimitOrderRequest,
-    TrailingStopOrderRequest
+    StopOrderRequest,
+    TrailingStopOrderRequest,
 )
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass, OrderType
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class OrderBuilder:
     # P1 FIX: Maximum allowed quantity to prevent accidental large orders
     MAX_QUANTITY = 1_000_000
 
-    def __init__(self, symbol: str, side: Literal['buy', 'sell'], qty: float):
+    def __init__(self, symbol: str, side: Literal["buy", "sell"], qty: float):
         """
         Initialize order builder.
 
@@ -65,9 +66,9 @@ class OrderBuilder:
         self.symbol = symbol
 
         # P1 FIX: Validate side
-        if not side or side.lower() not in ('buy', 'sell'):
+        if not side or side.lower() not in ("buy", "sell"):
             raise ValueError(f"Side must be 'buy' or 'sell', got: {side}")
-        self.side = OrderSide.BUY if side.lower() == 'buy' else OrderSide.SELL
+        self.side = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
 
         # P1 FIX: Validate quantity
         try:
@@ -105,12 +106,12 @@ class OrderBuilder:
     # ORDER TYPE METHODS
     # =========================================================================
 
-    def market(self) -> 'OrderBuilder':
+    def market(self) -> "OrderBuilder":
         """Create a market order (executes at current price)."""
         self._order_type = OrderType.MARKET
         return self
 
-    def limit(self, limit_price: float) -> 'OrderBuilder':
+    def limit(self, limit_price: float) -> "OrderBuilder":
         """
         Create a limit order.
 
@@ -121,7 +122,7 @@ class OrderBuilder:
         self._limit_price = self._validate_price(limit_price)
         return self
 
-    def stop(self, stop_price: float) -> 'OrderBuilder':
+    def stop(self, stop_price: float) -> "OrderBuilder":
         """
         Create a stop order (converts to market when stop price hit).
 
@@ -132,7 +133,7 @@ class OrderBuilder:
         self._stop_price = self._validate_price(stop_price)
         return self
 
-    def stop_limit(self, stop_price: float, limit_price: float) -> 'OrderBuilder':
+    def stop_limit(self, stop_price: float, limit_price: float) -> "OrderBuilder":
         """
         Create a stop-limit order.
 
@@ -146,10 +147,8 @@ class OrderBuilder:
         return self
 
     def trailing_stop(
-        self,
-        trail_price: Optional[float] = None,
-        trail_percent: Optional[float] = None
-    ) -> 'OrderBuilder':
+        self, trail_price: Optional[float] = None, trail_percent: Optional[float] = None
+    ) -> "OrderBuilder":
         """
         Create a trailing stop order.
 
@@ -173,32 +172,32 @@ class OrderBuilder:
     # TIME IN FORCE METHODS
     # =========================================================================
 
-    def day(self) -> 'OrderBuilder':
+    def day(self) -> "OrderBuilder":
         """Valid only during trading day (cancels at market close)."""
         self._time_in_force = TimeInForce.DAY
         return self
 
-    def gtc(self) -> 'OrderBuilder':
+    def gtc(self) -> "OrderBuilder":
         """Good-Till-Canceled (expires after 90 days)."""
         self._time_in_force = TimeInForce.GTC
         return self
 
-    def ioc(self) -> 'OrderBuilder':
+    def ioc(self) -> "OrderBuilder":
         """Immediate-Or-Cancel (fills immediately or cancels)."""
         self._time_in_force = TimeInForce.IOC
         return self
 
-    def fok(self) -> 'OrderBuilder':
+    def fok(self) -> "OrderBuilder":
         """Fill-Or-Kill (entire order fills or cancels)."""
         self._time_in_force = TimeInForce.FOK
         return self
 
-    def opg(self) -> 'OrderBuilder':
+    def opg(self) -> "OrderBuilder":
         """Market/Limit on Open (executes in opening auction)."""
         self._time_in_force = TimeInForce.OPG
         return self
 
-    def cls(self) -> 'OrderBuilder':
+    def cls(self) -> "OrderBuilder":
         """Market/Limit on Close (executes in closing auction)."""
         self._time_in_force = TimeInForce.CLS
         return self
@@ -208,11 +207,8 @@ class OrderBuilder:
     # =========================================================================
 
     def bracket(
-        self,
-        take_profit: float,
-        stop_loss: float,
-        stop_limit: Optional[float] = None
-    ) -> 'OrderBuilder':
+        self, take_profit: float, stop_loss: float, stop_limit: Optional[float] = None
+    ) -> "OrderBuilder":
         """
         Create a bracket order (entry + take-profit + stop-loss).
 
@@ -225,30 +221,25 @@ class OrderBuilder:
         """
         self._order_class = OrderClass.BRACKET
 
-        self._take_profit = {
-            'limit_price': self._validate_price(take_profit)
-        }
+        self._take_profit = {"limit_price": self._validate_price(take_profit)}
 
-        self._stop_loss = {
-            'stop_price': self._validate_price(stop_loss)
-        }
+        self._stop_loss = {"stop_price": self._validate_price(stop_loss)}
 
         if stop_limit:
-            self._stop_loss['limit_price'] = self._validate_price(stop_limit)
+            self._stop_loss["limit_price"] = self._validate_price(stop_limit)
 
         # Bracket orders only support day or gtc
         if self._time_in_force not in [TimeInForce.DAY, TimeInForce.GTC]:
-            logger.warning(f"Bracket orders only support DAY or GTC, changing from {self._time_in_force}")
+            logger.warning(
+                f"Bracket orders only support DAY or GTC, changing from {self._time_in_force}"
+            )
             self._time_in_force = TimeInForce.GTC
 
         return self
 
     def oco(
-        self,
-        take_profit: float,
-        stop_loss: float,
-        stop_limit: Optional[float] = None
-    ) -> 'OrderBuilder':
+        self, take_profit: float, stop_loss: float, stop_limit: Optional[float] = None
+    ) -> "OrderBuilder":
         """
         Create an OCO (One-Cancels-Other) order - for exiting existing positions.
 
@@ -266,16 +257,12 @@ class OrderBuilder:
             logger.warning("OCO orders require LIMIT type, setting order type to LIMIT")
             self._order_type = OrderType.LIMIT
 
-        self._take_profit = {
-            'limit_price': self._validate_price(take_profit)
-        }
+        self._take_profit = {"limit_price": self._validate_price(take_profit)}
 
-        self._stop_loss = {
-            'stop_price': self._validate_price(stop_loss)
-        }
+        self._stop_loss = {"stop_price": self._validate_price(stop_loss)}
 
         if stop_limit:
-            self._stop_loss['limit_price'] = self._validate_price(stop_limit)
+            self._stop_loss["limit_price"] = self._validate_price(stop_limit)
 
         return self
 
@@ -283,8 +270,8 @@ class OrderBuilder:
         self,
         take_profit: Optional[float] = None,
         stop_loss: Optional[float] = None,
-        stop_limit: Optional[float] = None
-    ) -> 'OrderBuilder':
+        stop_limit: Optional[float] = None,
+    ) -> "OrderBuilder":
         """
         Create an OTO (One-Triggers-Other) order - entry with one exit.
 
@@ -303,16 +290,12 @@ class OrderBuilder:
         self._order_class = OrderClass.OTO
 
         if take_profit:
-            self._take_profit = {
-                'limit_price': self._validate_price(take_profit)
-            }
+            self._take_profit = {"limit_price": self._validate_price(take_profit)}
 
         if stop_loss:
-            self._stop_loss = {
-                'stop_price': self._validate_price(stop_loss)
-            }
+            self._stop_loss = {"stop_price": self._validate_price(stop_loss)}
             if stop_limit:
-                self._stop_loss['limit_price'] = self._validate_price(stop_limit)
+                self._stop_loss["limit_price"] = self._validate_price(stop_limit)
 
         return self
 
@@ -320,7 +303,7 @@ class OrderBuilder:
     # ADDITIONAL OPTIONS
     # =========================================================================
 
-    def extended_hours(self, enabled: bool = True) -> 'OrderBuilder':
+    def extended_hours(self, enabled: bool = True) -> "OrderBuilder":
         """
         Enable extended hours trading (pre-market and after-hours).
 
@@ -338,7 +321,7 @@ class OrderBuilder:
 
         return self
 
-    def client_order_id(self, order_id: str) -> 'OrderBuilder':
+    def client_order_id(self, order_id: str) -> "OrderBuilder":
         """
         Set a client order ID for tracking.
 
@@ -369,62 +352,54 @@ class OrderBuilder:
 
         # Build base kwargs common to all order types
         base_kwargs = {
-            'symbol': self.symbol,
-            'qty': self.qty,
-            'side': self.side,
-            'time_in_force': self._time_in_force,
+            "symbol": self.symbol,
+            "qty": self.qty,
+            "side": self.side,
+            "time_in_force": self._time_in_force,
         }
 
         # Add optional fields
         if self._client_order_id:
-            base_kwargs['client_order_id'] = self._client_order_id
+            base_kwargs["client_order_id"] = self._client_order_id
         if self._extended_hours:
-            base_kwargs['extended_hours'] = True
+            base_kwargs["extended_hours"] = True
 
         # Add order class and legs for bracket/OCO/OTO
         if self._order_class != OrderClass.SIMPLE:
-            base_kwargs['order_class'] = self._order_class
+            base_kwargs["order_class"] = self._order_class
 
             if self._take_profit:
-                base_kwargs['take_profit'] = self._take_profit
+                base_kwargs["take_profit"] = self._take_profit
             if self._stop_loss:
-                base_kwargs['stop_loss'] = self._stop_loss
+                base_kwargs["stop_loss"] = self._stop_loss
 
         # Build specific order type
         if self._order_type == OrderType.MARKET:
             return MarketOrderRequest(**base_kwargs)
 
         elif self._order_type == OrderType.LIMIT:
-            return LimitOrderRequest(
-                limit_price=self._limit_price,
-                **base_kwargs
-            )
+            return LimitOrderRequest(limit_price=self._limit_price, **base_kwargs)
 
         elif self._order_type == OrderType.STOP:
-            return StopOrderRequest(
-                stop_price=self._stop_price,
-                **base_kwargs
-            )
+            return StopOrderRequest(stop_price=self._stop_price, **base_kwargs)
 
         elif self._order_type == OrderType.STOP_LIMIT:
             return StopLimitOrderRequest(
-                stop_price=self._stop_price,
-                limit_price=self._limit_price,
-                **base_kwargs
+                stop_price=self._stop_price, limit_price=self._limit_price, **base_kwargs
             )
 
         elif self._order_type == OrderType.TRAILING_STOP:
             trailing_kwargs = base_kwargs.copy()
 
             if self._trail_price:
-                trailing_kwargs['trail_price'] = self._trail_price
+                trailing_kwargs["trail_price"] = self._trail_price
             else:
-                trailing_kwargs['trail_percent'] = self._trail_percent
+                trailing_kwargs["trail_percent"] = self._trail_percent
 
             # Trailing stops only support DAY or GTC
             if self._time_in_force not in [TimeInForce.DAY, TimeInForce.GTC]:
                 logger.warning("Trailing stop only supports DAY/GTC, using GTC")
-                trailing_kwargs['time_in_force'] = TimeInForce.GTC
+                trailing_kwargs["time_in_force"] = TimeInForce.GTC
 
             return TrailingStopOrderRequest(**trailing_kwargs)
 
@@ -478,20 +453,23 @@ class OrderBuilder:
 
     def __repr__(self) -> str:
         """String representation for debugging."""
-        return (f"OrderBuilder(symbol={self.symbol}, side={self.side}, qty={self.qty}, "
-                f"type={self._order_type}, tif={self._time_in_force}, "
-                f"class={self._order_class})")
+        return (
+            f"OrderBuilder(symbol={self.symbol}, side={self.side}, qty={self.qty}, "
+            f"type={self._order_type}, tif={self._time_in_force}, "
+            f"class={self._order_class})"
+        )
 
 
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def market_order(symbol: str, side: str, qty: float, **kwargs) -> Any:
     """Quick market order creation."""
     builder = OrderBuilder(symbol, side, qty).market()
 
-    if 'gtc' in kwargs and kwargs['gtc']:
+    if "gtc" in kwargs and kwargs["gtc"]:
         builder.gtc()
 
     return builder.build()
@@ -501,9 +479,9 @@ def limit_order(symbol: str, side: str, qty: float, limit_price: float, **kwargs
     """Quick limit order creation."""
     builder = OrderBuilder(symbol, side, qty).limit(limit_price)
 
-    if 'gtc' in kwargs and kwargs['gtc']:
+    if "gtc" in kwargs and kwargs["gtc"]:
         builder.gtc()
-    if 'extended_hours' in kwargs and kwargs['extended_hours']:
+    if "extended_hours" in kwargs and kwargs["extended_hours"]:
         builder.extended_hours().day()
 
     return builder.build()
@@ -516,7 +494,7 @@ def bracket_order(
     entry_price: Optional[float] = None,
     take_profit: float = None,
     stop_loss: float = None,
-    stop_limit: Optional[float] = None
+    stop_limit: Optional[float] = None,
 ) -> Any:
     """Quick bracket order creation."""
     builder = OrderBuilder(symbol, side, qty)
@@ -526,10 +504,6 @@ def bracket_order(
     else:
         builder.market()
 
-    builder.bracket(
-        take_profit=take_profit,
-        stop_loss=stop_loss,
-        stop_limit=stop_limit
-    ).gtc()
+    builder.bracket(take_profit=take_profit, stop_loss=stop_loss, stop_limit=stop_limit).gtc()
 
     return builder.build()

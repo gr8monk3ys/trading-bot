@@ -22,8 +22,7 @@ from brokers.alpaca_broker import AlpacaBroker
 from strategies.ensemble_strategy import EnsembleStrategy
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 logger = logging.getLogger(__name__)
@@ -31,9 +30,9 @@ logger = logging.getLogger(__name__)
 
 async def main():
     """Run ensemble strategy example."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("🧪 ENSEMBLE STRATEGY EXAMPLE")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Initialize broker (paper trading)
     broker = AlpacaBroker(paper=True)
@@ -41,11 +40,11 @@ async def main():
     # Stock symbols to trade
     # Ensemble works best with diverse stocks
     symbols = [
-        'SPY',   # S&P 500 ETF (follows market)
-        'QQQ',   # Nasdaq 100 ETF (tech-heavy)
-        'AAPL',  # Large cap tech
-        'MSFT',  # Large cap tech
-        'JPM',   # Financial
+        "SPY",  # S&P 500 ETF (follows market)
+        "QQQ",  # Nasdaq 100 ETF (tech-heavy)
+        "AAPL",  # Large cap tech
+        "MSFT",  # Large cap tech
+        "JPM",  # Financial
     ]
 
     print("📊 Strategy Configuration:")
@@ -61,18 +60,17 @@ async def main():
         broker=broker,
         symbols=symbols,
         parameters={
-            'position_size': 0.10,  # 10% per position
-            'max_positions': 3,     # Max 3 concurrent positions
-            'stop_loss': 0.025,     # 2.5% stop loss
-            'take_profit': 0.05,    # 5% take profit
-            'min_agreement_pct': 0.60,  # 60% agreement needed
-            'trailing_stop': 0.015,  # 1.5% trailing stop
-
+            "position_size": 0.10,  # 10% per position
+            "max_positions": 3,  # Max 3 concurrent positions
+            "stop_loss": 0.025,  # 2.5% stop loss
+            "take_profit": 0.05,  # 5% take profit
+            "min_agreement_pct": 0.60,  # 60% agreement needed
+            "trailing_stop": 0.015,  # 1.5% trailing stop
             # Regime detection
-            'adx_trending_threshold': 25,
-            'adx_ranging_threshold': 20,
-            'atr_volatility_threshold': 0.02,
-        }
+            "adx_trending_threshold": 25,
+            "adx_ranging_threshold": 20,
+            "atr_volatility_threshold": 0.02,
+        },
     )
 
     # Initialize strategy
@@ -81,9 +79,9 @@ async def main():
         return
 
     print("✅ Strategy initialized successfully")
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("📈 LIVE TRADING STARTED")
-    print("="*80)
+    print("=" * 80)
     print("\nHow it works:")
     print("1. Detects market regime (trending/ranging/volatile)")
     print("2. Weights strategies based on regime")
@@ -119,17 +117,19 @@ async def main():
                 pnl_pct = float(pos.unrealized_plpc) * 100
 
                 # Get regime for this symbol
-                regime = strategy.market_regime.get(symbol, 'unknown')
+                regime = strategy.market_regime.get(symbol, "unknown")
                 sub_signals = strategy.sub_strategy_signals.get(symbol, {})
 
                 print(f"   {symbol}: ${pnl:+,.2f} ({pnl_pct:+.2f}%) | Regime: {regime}")
 
                 # Show which strategies are bullish/bearish
                 if sub_signals:
-                    signals_str = ", ".join([
-                        f"{name.replace('_', ' ').title()}: {data['signal']}"
-                        for name, data in sub_signals.items()
-                    ])
+                    signals_str = ", ".join(
+                        [
+                            f"{name.replace('_', ' ').title()}: {data['signal']}"
+                            for name, data in sub_signals.items()
+                        ]
+                    )
                     print(f"      Sub-signals: {signals_str}")
 
             print("-" * 80)
@@ -142,9 +142,9 @@ async def main():
         account = await broker.get_account()
         final_equity = float(account.equity)
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("📊 ENSEMBLE STRATEGY SESSION COMPLETE")
-        print("="*80)
+        print("=" * 80)
         print(f"Final Equity: ${final_equity:,.2f}")
 
         positions = await broker.get_positions()

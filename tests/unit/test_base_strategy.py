@@ -20,14 +20,15 @@ Tests cover:
 - Cleanup and shutdown
 """
 
-import pytest
 import asyncio
-import numpy as np
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
 
 # Mock the utility modules before importing BaseStrategy
 import sys
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
+
+import numpy as np
+import pytest
 
 # Create mock modules
 mock_circuit_breaker = Mock()
@@ -46,11 +47,11 @@ mock_streak.StreakSizer = Mock()
 mock_mtf = Mock()
 mock_mtf.MultiTimeframeAnalyzer = Mock()
 
-sys.modules['utils.circuit_breaker'] = mock_circuit_breaker
-sys.modules['utils.kelly_criterion'] = mock_kelly
-sys.modules['utils.volatility_regime'] = mock_volatility
-sys.modules['utils.streak_sizing'] = mock_streak
-sys.modules['utils.multi_timeframe_analyzer'] = mock_mtf
+sys.modules["utils.circuit_breaker"] = mock_circuit_breaker
+sys.modules["utils.kelly_criterion"] = mock_kelly
+sys.modules["utils.volatility_regime"] = mock_volatility
+sys.modules["utils.streak_sizing"] = mock_streak
+sys.modules["utils.multi_timeframe_analyzer"] = mock_mtf
 
 
 # ============================================================================
@@ -65,7 +66,7 @@ class ConcreteStrategy(BaseStrategy):
 
     async def analyze_symbol(self, symbol):
         """Implement abstract method."""
-        return 'buy'
+        return "buy"
 
     async def execute_trade(self, symbol, signal):
         """Implement abstract method."""
@@ -75,6 +76,7 @@ class ConcreteStrategy(BaseStrategy):
 # ============================================================================
 # Test Initialization
 # ============================================================================
+
 
 class TestBaseStrategyInit:
     """Test BaseStrategy initialization."""
@@ -107,16 +109,12 @@ class TestBaseStrategyInit:
 
     def test_init_with_parameters(self):
         """Should accept parameters."""
-        params = {
-            'interval': 30,
-            'symbols': ['AAPL', 'MSFT'],
-            'position_size': 0.15
-        }
+        params = {"interval": 30, "symbols": ["AAPL", "MSFT"], "position_size": 0.15}
         strategy = ConcreteStrategy(parameters=params)
 
         assert strategy.interval == 30
-        assert strategy.symbols == ['AAPL', 'MSFT']
-        assert strategy.parameters['position_size'] == 0.15
+        assert strategy.symbols == ["AAPL", "MSFT"]
+        assert strategy.parameters["position_size"] == 0.15
 
     def test_init_circuit_breaker_default(self):
         """Should initialize circuit breaker with default max_daily_loss."""
@@ -127,7 +125,7 @@ class TestBaseStrategyInit:
 
     def test_init_circuit_breaker_custom(self):
         """Should initialize circuit breaker with custom max_daily_loss."""
-        params = {'max_daily_loss': 0.05}
+        params = {"max_daily_loss": 0.05}
         strategy = ConcreteStrategy(parameters=params)
 
         # Just verify it has a circuit_breaker attribute
@@ -141,7 +139,7 @@ class TestBaseStrategyInit:
 
     def test_init_kelly_enabled(self):
         """Should initialize Kelly Criterion when enabled."""
-        params = {'use_kelly_criterion': True, 'kelly_fraction': 0.25}
+        params = {"use_kelly_criterion": True, "kelly_fraction": 0.25}
 
         strategy = ConcreteStrategy(parameters=params)
 
@@ -162,7 +160,7 @@ class TestBaseStrategyInit:
 
     def test_init_streak_sizing_enabled(self):
         """Should initialize streak sizer when enabled."""
-        params = {'use_streak_sizing': True}
+        params = {"use_streak_sizing": True}
 
         strategy = ConcreteStrategy(parameters=params)
 
@@ -180,6 +178,7 @@ class TestBaseStrategyInit:
 # Test Initialize Method
 # ============================================================================
 
+
 class TestInitialize:
     """Test async initialize method."""
 
@@ -188,15 +187,15 @@ class TestInitialize:
         """Should update parameters from kwargs."""
         strategy = ConcreteStrategy()
 
-        await strategy.initialize(symbols=['AAPL'], interval=120)
+        await strategy.initialize(symbols=["AAPL"], interval=120)
 
-        assert strategy.symbols == ['AAPL']
+        assert strategy.symbols == ["AAPL"]
         assert strategy.interval == 120
 
     @pytest.mark.asyncio
     async def test_initialize_calls_initialize_parameters(self):
         """Should call _initialize_parameters."""
-        strategy = ConcreteStrategy(parameters={'position_size': 0.15})
+        strategy = ConcreteStrategy(parameters={"position_size": 0.15})
 
         result = await strategy.initialize()
 
@@ -224,7 +223,7 @@ class TestInitialize:
         strategy = ConcreteStrategy()
 
         # Force an error
-        with patch.object(strategy, '_initialize_parameters', side_effect=Exception("Test error")):
+        with patch.object(strategy, "_initialize_parameters", side_effect=Exception("Test error")):
             result = await strategy.initialize()
 
         assert result is False
@@ -233,6 +232,7 @@ class TestInitialize:
 # ============================================================================
 # Test _initialize_parameters
 # ============================================================================
+
 
 class TestInitializeParameters:
     """Test _initialize_parameters method."""
@@ -253,11 +253,7 @@ class TestInitializeParameters:
     @pytest.mark.asyncio
     async def test_initialize_parameters_custom(self):
         """Should use custom parameter values."""
-        params = {
-            'sentiment_threshold': 0.8,
-            'position_size': 0.2,
-            'stop_loss_pct': 0.03
-        }
+        params = {"sentiment_threshold": 0.8, "position_size": 0.2, "stop_loss_pct": 0.03}
         strategy = ConcreteStrategy(parameters=params)
         await strategy._initialize_parameters()
 
@@ -269,6 +265,7 @@ class TestInitializeParameters:
 # ============================================================================
 # Test Lifecycle Methods
 # ============================================================================
+
 
 class TestLifecycleMethods:
     """Test lifecycle methods."""
@@ -310,25 +307,26 @@ class TestLifecycleMethods:
 
     def test_get_parameters(self):
         """get_parameters should return parameters."""
-        params = {'position_size': 0.1}
+        params = {"position_size": 0.1}
         strategy = ConcreteStrategy(parameters=params)
 
         result = strategy.get_parameters()
 
-        assert result['position_size'] == 0.1
+        assert result["position_size"] == 0.1
 
     def test_set_parameters(self):
         """set_parameters should update parameters."""
         strategy = ConcreteStrategy()
 
-        strategy.set_parameters({'position_size': 0.2})
+        strategy.set_parameters({"position_size": 0.2})
 
-        assert strategy.parameters['position_size'] == 0.2
+        assert strategy.parameters["position_size"] == 0.2
 
 
 # ============================================================================
 # Test Circuit Breaker Integration
 # ============================================================================
+
 
 class TestCircuitBreaker:
     """Test circuit breaker integration."""
@@ -359,6 +357,7 @@ class TestCircuitBreaker:
 # ============================================================================
 # Test Position Size Enforcement
 # ============================================================================
+
 
 class TestPositionSizeEnforcement:
     """Test enforce_position_size_limit method."""
@@ -436,6 +435,7 @@ class TestPositionSizeEnforcement:
 # Test Kelly Criterion Position Sizing
 # ============================================================================
 
+
 class TestKellyPositionSizing:
     """Test calculate_kelly_position_size method."""
 
@@ -509,6 +509,7 @@ class TestKellyPositionSizing:
 # Test Trade Tracking
 # ============================================================================
 
+
 class TestTradeTracking:
     """Test track_position_entry and record_completed_trade."""
 
@@ -564,7 +565,7 @@ class TestTradeTracking:
 
         # Record exit
         exit_time = datetime(2024, 1, 2, 10, 0, 0)
-        strategy.record_completed_trade("AAPL", 160.00, exit_time, 100, side='long')
+        strategy.record_completed_trade("AAPL", 160.00, exit_time, 100, side="long")
 
         mock_kelly_instance.add_trade.assert_called_once()
 
@@ -582,7 +583,7 @@ class TestTradeTracking:
         strategy.track_position_entry("AAPL", 150.00)
 
         # Record exit (short = profit when price goes down)
-        strategy.record_completed_trade("AAPL", 140.00, datetime.now(), 100, side='short')
+        strategy.record_completed_trade("AAPL", 140.00, datetime.now(), 100, side="short")
 
         mock_kelly_instance.add_trade.assert_called_once()
 
@@ -590,6 +591,7 @@ class TestTradeTracking:
 # ============================================================================
 # Test Volatility Adjustments
 # ============================================================================
+
 
 class TestVolatilityAdjustments:
     """Test apply_volatility_adjustments method."""
@@ -604,13 +606,15 @@ class TestVolatilityAdjustments:
 
         assert pos_size == 0.10
         assert stop_loss == 0.03
-        assert regime == 'normal'
+        assert regime == "normal"
 
     @pytest.mark.asyncio
     async def test_applies_adjustments_when_enabled(self):
         """Should apply adjustments when enabled."""
         mock_regime = AsyncMock()
-        mock_regime.get_current_regime = AsyncMock(return_value=('high', {'pos_mult': 0.5, 'stop_mult': 1.5}))
+        mock_regime.get_current_regime = AsyncMock(
+            return_value=("high", {"pos_mult": 0.5, "stop_mult": 1.5})
+        )
         mock_regime.adjust_position_size = Mock(return_value=0.05)  # 10% * 0.5
         mock_regime.adjust_stop_loss = Mock(return_value=0.045)  # 3% * 1.5
 
@@ -621,7 +625,7 @@ class TestVolatilityAdjustments:
 
         assert pos_size == 0.05
         assert stop_loss == 0.045
-        assert regime == 'high'
+        assert regime == "high"
 
     @pytest.mark.asyncio
     async def test_handles_error(self):
@@ -636,12 +640,13 @@ class TestVolatilityAdjustments:
 
         assert pos_size == 0.10
         assert stop_loss == 0.03
-        assert regime == 'normal'
+        assert regime == "normal"
 
 
 # ============================================================================
 # Test Streak Adjustments
 # ============================================================================
+
 
 class TestStreakAdjustments:
     """Test apply_streak_adjustments method."""
@@ -685,6 +690,7 @@ class TestStreakAdjustments:
 # Test Multi-Timeframe Signal
 # ============================================================================
 
+
 class TestMultiTimeframeSignal:
     """Test check_multi_timeframe_signal method."""
 
@@ -702,11 +708,9 @@ class TestMultiTimeframeSignal:
     async def test_returns_signal_when_confirmed(self):
         """Should return signal when confirmed."""
         mock_mtf = AsyncMock()
-        mock_mtf.analyze = AsyncMock(return_value={
-            'should_enter': True,
-            'signal': 'buy',
-            'confidence': 0.85
-        })
+        mock_mtf.analyze = AsyncMock(
+            return_value={"should_enter": True, "signal": "buy", "confidence": 0.85}
+        )
 
         strategy = ConcreteStrategy()
         strategy.multi_timeframe = mock_mtf
@@ -715,17 +719,15 @@ class TestMultiTimeframeSignal:
 
         result = await strategy.check_multi_timeframe_signal("AAPL")
 
-        assert result == 'buy'
+        assert result == "buy"
 
     @pytest.mark.asyncio
     async def test_returns_none_when_rejected(self):
         """Should return None when signal rejected."""
         mock_mtf = AsyncMock()
-        mock_mtf.analyze = AsyncMock(return_value={
-            'should_enter': False,
-            'signal': 'buy',
-            'confidence': 0.50
-        })
+        mock_mtf.analyze = AsyncMock(
+            return_value={"should_enter": False, "signal": "buy", "confidence": 0.50}
+        )
 
         strategy = ConcreteStrategy()
         strategy.multi_timeframe = mock_mtf
@@ -766,6 +768,7 @@ class TestMultiTimeframeSignal:
 # ============================================================================
 # Test Position Helpers
 # ============================================================================
+
 
 class TestPositionHelpers:
     """Test is_short_position and get_position_pnl methods."""
@@ -845,10 +848,10 @@ class TestPositionHelpers:
 
         result = await strategy.get_position_pnl("AAPL")
 
-        assert result['unrealized_pl'] == 500.00
-        assert result['unrealized_plpc'] == 0.05
-        assert result['qty'] == 100
-        assert result['is_short'] is False
+        assert result["unrealized_pl"] == 500.00
+        assert result["unrealized_plpc"] == 0.05
+        assert result["qty"] == 100
+        assert result["is_short"] is False
 
     @pytest.mark.asyncio
     async def test_get_position_pnl_returns_none_for_no_position(self):
@@ -878,6 +881,7 @@ class TestPositionHelpers:
 # ============================================================================
 # Test Create Order
 # ============================================================================
+
 
 class TestCreateOrder:
     """Test create_order method."""
@@ -918,6 +922,7 @@ class TestCreateOrder:
 # ============================================================================
 # Test Volatility Calculation
 # ============================================================================
+
 
 class TestVolatilityCalculation:
     """Test _calculate_volatility method."""
@@ -961,6 +966,7 @@ class TestVolatilityCalculation:
 # Test Performance Metrics
 # ============================================================================
 
+
 class TestPerformanceMetrics:
     """Test update_performance_metrics method."""
 
@@ -994,6 +1000,7 @@ class TestPerformanceMetrics:
 # ============================================================================
 # Test Cleanup and Shutdown
 # ============================================================================
+
 
 class TestCleanupAndShutdown:
     """Test cleanup and shutdown methods."""
@@ -1041,6 +1048,7 @@ class TestCleanupAndShutdown:
 # Test Abstract Methods
 # ============================================================================
 
+
 class TestAbstractMethods:
     """Test that abstract methods raise NotImplementedError."""
 
@@ -1065,6 +1073,7 @@ class TestAbstractMethods:
 # Test Legacy Initialize
 # ============================================================================
 
+
 class TestLegacyInitialize:
     """Test _legacy_initialize method."""
 
@@ -1074,15 +1083,15 @@ class TestLegacyInitialize:
         strategy.portfolio_value = 100000
 
         strategy._legacy_initialize(
-            symbols=['AAPL', 'MSFT'],
+            symbols=["AAPL", "MSFT"],
             cash_at_risk=0.4,
             max_positions=5,
             stop_loss_pct=0.03,
             take_profit_pct=0.15,
-            max_drawdown=0.10
+            max_drawdown=0.10,
         )
 
-        assert strategy.symbols == ['AAPL', 'MSFT']
+        assert strategy.symbols == ["AAPL", "MSFT"]
         assert strategy.cash_at_risk == 0.4
         assert strategy.max_positions == 5
         assert strategy.stop_loss_pct == 0.03
