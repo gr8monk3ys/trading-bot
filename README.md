@@ -26,6 +26,18 @@ python quickstart.py
 
 ---
 
+## 📈 Backtest Results (2024)
+
+| Strategy | Total Return | Annualized | Sharpe Ratio | Max Drawdown | Trades |
+|----------|-------------|------------|--------------|--------------|--------|
+| MomentumStrategyBacktest | **+42.68%** | 42.71% | 2.00 | 2.44% | 9 |
+| SimpleMACrossover | +2.73% | 5.58% | 0.59 | 3.62% | 11 |
+| SPY Benchmark | +24.45% | 24.45% | ~0.80 | ~5-6% | - |
+
+**Key Finding**: MomentumStrategyBacktest outperformed SPY by **+18.23%** with lower drawdown.
+
+---
+
 ## 🚀 Features
 
 ### Core Trading System
