@@ -4,8 +4,6 @@ Utilities package for the trading bot
 This package contains utility functions and classes used throughout the trading bot.
 """
 
-from utils.sentiment_analysis import analyze_sentiment
-from utils.stock_scanner import StockScanner
 from utils.visualization import (
     create_performance_report,
     plot_drawdown_periods,
@@ -17,8 +15,6 @@ from utils.visualization import (
 )
 
 __all__ = [
-    "analyze_sentiment",
-    "StockScanner",
     "plot_equity_curve",
     "plot_returns_distribution",
     "plot_drawdown_periods",
