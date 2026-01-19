@@ -138,7 +138,7 @@ class TestPositionSizeAdjustment:
         base_size = 0.10  # 10%
         adjusted = detector.adjust_position_size(base_size, 1.4)
 
-        assert adjusted == 0.14  # 14%
+        assert adjusted == pytest.approx(0.14)  # 14%
 
     def test_position_size_decrease_high_vol(self):
         """Test position decrease in high volatility."""
@@ -147,7 +147,7 @@ class TestPositionSizeAdjustment:
         base_size = 0.10  # 10%
         adjusted = detector.adjust_position_size(base_size, 0.4)
 
-        assert adjusted == 0.04  # 4%
+        assert adjusted == pytest.approx(0.04)  # 4%
 
     def test_position_size_respects_minimum(self):
         """Test position size doesn't go below minimum."""
@@ -178,7 +178,7 @@ class TestStopLossAdjustment:
         base_stop = 0.03  # 3%
         adjusted = detector.adjust_stop_loss(base_stop, 0.7)
 
-        assert adjusted == 0.021  # 2.1%
+        assert adjusted == pytest.approx(0.021)  # 2.1%
 
     def test_stop_loss_wider_high_vol(self):
         """Test wider stops in high volatility."""

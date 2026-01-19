@@ -114,13 +114,13 @@ def generate_price_history(
     Returns:
         List of prices
     """
-    if seed is not None:
-        np.random.seed(seed)
+    # Use local RNG to avoid polluting global random state
+    rng = np.random.default_rng(seed)
 
     prices = [start_price]
     for _ in range(num_points - 1):
         # Generate log-normal returns
-        ret = np.random.normal(trend, volatility)
+        ret = rng.normal(trend, volatility)
         new_price = prices[-1] * (1 + ret)
         prices.append(max(new_price, 0.01))  # Ensure positive prices
 
@@ -147,14 +147,14 @@ def generate_correlated_price_histories(
     Returns:
         Tuple of (prices1, prices2)
     """
-    if seed is not None:
-        np.random.seed(seed)
+    # Use local RNG to avoid polluting global random state
+    rng = np.random.default_rng(seed)
 
     # Generate correlated random returns
-    returns1 = np.random.normal(0, 0.02, num_points - 1)
+    returns1 = rng.normal(0, 0.02, num_points - 1)
 
     # Generate second series with target correlation
-    noise = np.random.normal(0, 0.02, num_points - 1)
+    noise = rng.normal(0, 0.02, num_points - 1)
     returns2 = correlation * returns1 + np.sqrt(1 - correlation**2) * noise
 
     # Convert returns to prices
