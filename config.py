@@ -103,7 +103,7 @@ SYMBOLS = [
 
 # Dynamic Symbol Selection (NEW - WORKING!)
 SYMBOL_SELECTION = {
-    "USE_DYNAMIC_SELECTION": False,  # DISABLED for initial paper trading - use static list
+    "USE_DYNAMIC_SELECTION": True,  # ENABLED - automatically scan for best opportunities
     "TOP_N_SYMBOLS": 20,  # Number of stocks to trade (more = more diversification)
     "MIN_MOMENTUM_SCORE": 1.0,  # Minimum 5-day price movement % to consider
     "RESCAN_INTERVAL_HOURS": 24,  # Rescan market every N hours for new opportunities
