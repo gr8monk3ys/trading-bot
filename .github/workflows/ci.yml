@@ -74,7 +74,7 @@ jobs:
         ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
         PAPER: "True"
       run: |
-        pytest tests/ -v --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=xml
+        pytest tests/unit/ -v --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=xml
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
