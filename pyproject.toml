@@ -38,6 +38,10 @@ dependencies = [
     "transformers>=4.30.0",
     "scikit-learn>=1.3.0",
 
+    # Visualization
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+
     # Utilities
     "python-dotenv>=1.0.0",
     "aiohttp>=3.9.0",
