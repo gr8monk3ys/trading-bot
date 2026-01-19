@@ -38,6 +38,9 @@ class BacktestBroker:
         self.slippage_bps = slippage_bps
         self.spread_bps = spread_bps
         self.enable_partial_fills = enable_partial_fills
+
+        # Current date for backtesting (set by BacktestEngine)
+        self._current_date = None
         
     def set_price_data(self, symbol, data):
         """Set historical price data for a symbol"""
@@ -47,17 +50,50 @@ class BacktestBroker:
         """Get price for a symbol at given date"""
         if symbol not in self.price_data:
             raise ValueError(f"No price data for {symbol}")
-            
+
         # Get closest date
         df = self.price_data[symbol]
-        if date in df.index:
-            return df.loc[date, 'close']
-        
+
+        # Handle timezone comparison
+        try:
+            import pytz
+            if df.index.tz is not None and (not hasattr(date, 'tzinfo') or date.tzinfo is None):
+                date = date.replace(tzinfo=pytz.UTC) if hasattr(date, 'replace') else date
+        except (ImportError, AttributeError):
+            pass
+
+        # Try exact match first
+        try:
+            if date in df.index:
+                return df.loc[date, 'close']
+        except TypeError:
+            # Fallback: normalize to naive timestamps
+            df_naive = df.copy()
+            try:
+                df_naive.index = df_naive.index.tz_localize(None)
+            except TypeError:
+                pass  # Already naive
+            date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') and date.tzinfo else date
+            if date_naive in df_naive.index:
+                return df_naive.loc[date_naive, 'close']
+
         # Get closest previous date
-        idx = df.index.get_indexer([date], method='pad')[0]
-        if idx >= 0:
-            return df.iloc[idx]['close']
-        
+        try:
+            idx = df.index.get_indexer([date], method='pad')[0]
+            if idx >= 0:
+                return df.iloc[idx]['close']
+        except TypeError:
+            # Fallback for timezone issues
+            df_naive = df.copy()
+            try:
+                df_naive.index = df_naive.index.tz_localize(None)
+            except TypeError:
+                pass
+            date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') and date.tzinfo else date
+            idx = df_naive.index.get_indexer([date_naive], method='pad')[0]
+            if idx >= 0:
+                return df_naive.iloc[idx]['close']
+
         raise ValueError(f"No price data for {symbol} at {date}")
         
     def get_historical_prices(self, symbol, days=30, end_date=None):
@@ -181,7 +217,7 @@ class BacktestBroker:
         Returns:
             Order dict with execution details
         """
-        current_date = datetime.now()
+        current_date = self._current_date if self._current_date else datetime.now()
 
         # Get base price (mid price)
         base_price = price if price else self.get_price(symbol, current_date)
@@ -279,3 +315,95 @@ class BacktestBroker:
     def get_trades(self):
         """Get all trades"""
         return self.trades
+
+    # =========================================================================
+    # ASYNC WRAPPERS FOR STRATEGY COMPATIBILITY
+    # =========================================================================
+
+    async def get_account(self):
+        """Async wrapper for getting account info (for strategy compatibility)."""
+        class MockAccount:
+            def __init__(self, balance, portfolio_value):
+                self.equity = str(portfolio_value)
+                self.cash = str(balance)
+                self.buying_power = str(balance)
+
+        portfolio_value = self.get_portfolio_value()
+        return MockAccount(self.balance, portfolio_value)
+
+    async def submit_order_advanced(self, order_request):
+        """Async wrapper for submitting orders (for strategy compatibility)."""
+        # Extract order details from the order request object
+        symbol = getattr(order_request, 'symbol', None)
+        qty = getattr(order_request, 'qty', None) or getattr(order_request, 'quantity', None)
+        side = getattr(order_request, 'side', 'buy')
+        order_type = getattr(order_request, 'type', 'market') or getattr(order_request, 'order_type', 'market')
+
+        if symbol is None or qty is None:
+            return None
+
+        # Convert side to string if it's an enum
+        if hasattr(side, 'value'):
+            side = side.value
+
+        # Place the order
+        result = self.place_order(symbol, int(qty), side, order_type=str(order_type))
+
+        # Return a mock order response
+        class MockOrder:
+            def __init__(self, order_dict):
+                self.id = order_dict['id']
+                self.symbol = order_dict['symbol']
+                self.qty = str(order_dict['quantity'])
+                self.filled_qty = str(order_dict['filled_qty'])
+                self.filled_avg_price = str(order_dict['filled_avg_price'])
+                self.status = order_dict['status']
+                self.side = order_dict['side']
+
+        return MockOrder(result)
+
+    async def get_latest_quote(self, symbol):
+        """Async wrapper for getting latest quote (for strategy compatibility)."""
+        current_date = self._current_date if self._current_date else datetime.now()
+        price = self.get_price(symbol, current_date)
+
+        class MockQuote:
+            def __init__(self, p):
+                self.ask_price = p
+                self.bid_price = p * 0.999  # Small spread
+
+        return MockQuote(price)
+
+    async def get_bars(self, symbol, start=None, end=None, timeframe='1Day', limit=100):
+        """Async wrapper for getting price bars (for strategy compatibility)."""
+        if symbol not in self.price_data:
+            return []
+
+        df = self.price_data[symbol]
+
+        class MockBar:
+            def __init__(self, timestamp, o, h, l, c, v):
+                self.timestamp = timestamp
+                self.open = o
+                self.high = h
+                self.low = l
+                self.close = c
+                self.volume = v
+
+        bars = []
+        for idx, row in df.tail(limit).iterrows():
+            bars.append(MockBar(idx, row['open'], row['high'], row['low'], row['close'], row['volume']))
+
+        return bars
+
+    async def get_all_positions(self):
+        """Async wrapper for getting all positions (for strategy compatibility)."""
+        # Convert dict positions to mock position objects
+        class MockPosition:
+            def __init__(self, position_dict):
+                self.symbol = position_dict['symbol']
+                self.qty = str(position_dict['quantity'])
+                self.quantity = position_dict['quantity']
+                self.entry_price = position_dict['entry_price']
+
+        return [MockPosition(pos) for pos in self.positions.values()]

@@ -55,6 +55,7 @@ class PerformanceMetrics:
             daily_returns = np.diff(equity_array) / equity_array[:-1]
             
             # Calculate metrics
+            avg_win, avg_loss = self._calculate_avg_win_loss(trades)
             metrics = {
                 'total_return': total_return,
                 'annualized_return': self._calculate_annualized_return(total_return, start_date, end_date),
@@ -64,8 +65,11 @@ class PerformanceMetrics:
                 'win_rate': self._calculate_win_rate(trades),
                 'profit_factor': self._calculate_profit_factor(trades),
                 'avg_trade': self._calculate_avg_trade(trades),
+                'avg_win': avg_win,
+                'avg_loss': avg_loss,
                 'volatility': np.std(daily_returns) if len(daily_returns) > 0 else 0,
                 'trade_count': len(trades),
+                'num_trades': len(trades),  # Alias for compatibility
                 'final_equity': equity_array[-1] if len(equity_array) > 0 else initial_capital
             }
             
@@ -98,10 +102,13 @@ class PerformanceMetrics:
             'win_rate': 0,
             'profit_factor': 0,
             'avg_trade': 0,
+            'avg_win': 0,
+            'avg_loss': 0,
             'volatility': 0,
             'calmar_ratio': 0,
             'recovery_factor': 0,
             'trade_count': 0,
+            'num_trades': 0,
             'final_equity': 0
         }
         
@@ -186,9 +193,33 @@ class PerformanceMetrics:
         """Calculate average trade P&L."""
         if not trades:
             return 0
-            
+
         total_pnl = sum(trade.get('pnl', 0) for trade in trades)
         return total_pnl / len(trades)
+
+    def _calculate_avg_win_loss(self, trades: List[Dict[str, Any]]) -> tuple:
+        """Calculate average win and average loss separately.
+
+        Returns:
+            Tuple of (avg_win, avg_loss) as percentages
+        """
+        if not trades:
+            return 0.0, 0.0
+
+        wins = [trade.get('pnl', 0) for trade in trades if trade.get('pnl', 0) > 0]
+        losses = [trade.get('pnl', 0) for trade in trades if trade.get('pnl', 0) < 0]
+
+        avg_win = np.mean(wins) if wins else 0.0
+        avg_loss = np.mean(losses) if losses else 0.0
+
+        # Convert to percentage relative to trade size if possible
+        # For now return as raw P&L values normalized
+        total_pnl = sum(abs(trade.get('pnl', 0)) for trade in trades)
+        if total_pnl > 0:
+            avg_win = avg_win / total_pnl if avg_win else 0
+            avg_loss = abs(avg_loss) / total_pnl if avg_loss else 0
+
+        return avg_win, avg_loss
         
     def analyze_strategy(self, backtest_result: Dict[str, Any]) -> Dict[str, Any]:
         """
