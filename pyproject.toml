@@ -21,10 +21,10 @@ classifiers = [
 dependencies = [
     # Core trading
     "alpaca-py>=0.22.0",
-    "lumibot>=3.5.1",
+    # Note: lumibot removed - caused import crashes, built custom implementation
 
     # Data & Analysis
-    "pandas>=2.0.0,<2.1.0",
+    "pandas>=2.0.0",
     "numpy>=1.24.0,<2.0.0",
     "scipy>=1.11.0",
     "statsmodels>=0.14.0",
