@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Algorithmic trading bot built on Alpaca Trading API with async Python architecture.
 
-**Core Stack:** Python 3.10, asyncio, pandas, numpy, TA-Lib, pytest-asyncio
+**Core Stack:** Python 3.10+, asyncio, pandas, numpy, TA-Lib, pytest-asyncio
+
+**Version:** 3.0.0
 
 **Validated Components:**
 - MomentumStrategy: RSI/MACD trend following with trailing stops (backtested, paper trading validated)
@@ -24,9 +26,9 @@ Algorithmic trading bot built on Alpaca Trading API with async Python architectu
 - MomentumStrategyBacktest: +42.68% return, 2.0 Sharpe, 2.44% max drawdown
 - SPY Benchmark: +24.45% (strategy outperformed by +18%)
 
-**Untested/Broken:**
+**Untested/Needs Validation:**
 - BracketMomentumStrategy, EnsembleStrategy, ExtendedHoursStrategy: Need validation
-- PairsTradingStrategy: Requires statsmodels dependency
+- PairsTradingStrategy: Market-neutral stat arb (statsmodels included)
 - Deleted: MLPredictionStrategy, SentimentStockStrategy, OptionsStrategy
 
 ## Key Commands
@@ -54,6 +56,18 @@ pytest tests/ --cov=strategies --cov=utils --cov-report=html
 
 # Test API connection
 python tests/test_connection.py
+```
+
+### Linting & Formatting
+```bash
+# Format code with black
+black strategies/ brokers/ engine/ utils/
+
+# Lint with ruff
+ruff check strategies/ brokers/ engine/ utils/
+
+# Type checking (lenient mode configured)
+mypy strategies/ brokers/ engine/ utils/
 ```
 
 ### Running the Bot
@@ -175,6 +189,11 @@ await broker.submit_order_advanced(order)
 - Win rate, profit factor, average win/loss
 - Generates insights based on metrics
 
+**engine/walk_forward.py** - Walk-forward validation:
+- Detects overfitting (compares in-sample vs out-of-sample)
+- Rolling train/test windows across market conditions
+- Industry standard: OOS < 50% of IS performance = overfit
+
 **engine/strategy_manager.py** - Multi-strategy orchestration:
 - Auto-discovers strategies in `strategies/` directory
 - Sharpe-ratio weighted capital allocation
@@ -251,13 +270,13 @@ Instead of fixed 5% take-profit, trails winners:
 - Captures 10%+ moves instead of always exiting at 5%
 
 ### Market Regime Detection
-Automatically detects market conditions:
-| Regime | Detection | Strategy Used |
-|--------|-----------|---------------|
-| BULL | SMA50 > SMA200, ADX > 25 | Momentum (long) |
-| BEAR | SMA50 < SMA200, ADX > 25 | Momentum (short) |
-| SIDEWAYS | ADX < 20 | Mean Reversion |
-| VOLATILE | ATR > 3% | Reduced exposure |
+Automatically detects market conditions (see `utils/market_regime.py`):
+| Regime | Detection | Strategy Used | Position Mult |
+|--------|-----------|---------------|---------------|
+| BULL | SMA50 > SMA200, ADX > 25 | Momentum (long) | 1.2x |
+| BEAR | SMA50 < SMA200, ADX > 25 | Momentum (short) | 0.8x |
+| SIDEWAYS | ADX < 20 | Mean Reversion | 1.0x |
+| VOLATILE | ATR > 3% of price | Defensive | 0.5x |
 
 ### Realistic Backtesting
 Always use `RealisticBacktester` for honest results:
@@ -290,10 +309,11 @@ From `.windsurfrules`:
 ## Critical Gotchas
 
 1. **Async context**: All broker operations need `await`
-2. **NumPy version**: Pinned to <2.0.0 for compatibility
+2. **NumPy version**: Pinned to `>=1.24.0,<3.0.0` for compatibility
 3. **Market hours**: Bot won't run if market closed unless `--force` flag used
 4. **Paper vs Live**: Controlled by `PAPER` env var; paper is default
 5. **Strategy discovery**: Must inherit `BaseStrategy` and be in `strategies/` directory
+6. **pytest asyncio**: Uses `asyncio_mode = "auto"` - no need for `@pytest.mark.asyncio` decorator
 
 ## Test Organization
 

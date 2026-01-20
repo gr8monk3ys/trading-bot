@@ -118,7 +118,7 @@ class BaseStrategy(ABC):
             self.symbols = self.parameters.get("symbols", [])
 
             # Initialize any other strategy-specific parameters
-            await self._initialize_parameters()
+            self._initialize_parameters()
 
             # CRITICAL SAFETY: Initialize circuit breaker with broker
             if self.broker:
@@ -152,7 +152,7 @@ class BaseStrategy(ABC):
             self.logger.error(f"Error initializing strategy: {e}", exc_info=True)
             return False
 
-    async def _initialize_parameters(self):
+    def _initialize_parameters(self):
         """Initialize strategy-specific parameters. Override in subclass."""
         self.sentiment_threshold = self.parameters.get("sentiment_threshold", 0.6)
         self.position_size = self.parameters.get("position_size", 0.1)
@@ -791,20 +791,42 @@ class BaseStrategy(ABC):
             return cash, last_price, 0
 
     async def _update_stop_loss(self, position):
-        """Update the stop-loss level for a position based on volatility."""
+        """
+        Update the stop-loss level for a position based on volatility.
+
+        Uses the wider (more protective) of:
+        - Volatility-based stop (2 standard deviations)
+        - Configured stop_loss_pct parameter
+
+        Note: This calculates the optimal stop loss but does not automatically
+        update broker orders. Subclasses should override to implement
+        broker-specific order modification if needed.
+        """
         try:
             symbol = position.symbol
-            current_price = position.current_price  # Assuming Position object has current_price
+            current_price = float(position.current_price)
+            avg_entry_price = float(position.avg_entry_price)
             volatility = self._calculate_volatility(symbol)
 
-            # Example: Set stop-loss at 2 standard deviations below the current price
-            stop_loss = current_price - (2 * volatility * current_price)
+            # Calculate volatility-based stop (2 standard deviations below entry)
+            vol_stop_loss = avg_entry_price * (1 - 2 * volatility) if volatility > 0 else 0
 
-            # TODO: compare to the parameter and take the greater of the two.
+            # Calculate parameter-based stop loss
+            param_stop_loss = avg_entry_price * (1 - self.stop_loss_pct)
 
-            self.logger.info(f"Updating stop-loss for {symbol} to {stop_loss:.2f}")
+            # Use the wider stop loss (higher price = less likely to be triggered)
+            # This provides better protection in volatile conditions
+            stop_loss = max(vol_stop_loss, param_stop_loss)
 
-            # TODO: Implement logic to update the stop-loss order with the broker
+            # Only log if stop loss is meaningful (not zero or negative)
+            if stop_loss > 0:
+                self.logger.debug(
+                    f"Stop-loss for {symbol}: ${stop_loss:.2f} "
+                    f"(vol-based: ${vol_stop_loss:.2f}, param-based: ${param_stop_loss:.2f})"
+                )
+
+            # Note: Broker order updates should be handled by strategy subclasses
+            # as order modification APIs vary by broker and order type
 
         except Exception as e:
             self.logger.error(f"Error updating stop-loss for {symbol}: {e}", exc_info=True)
