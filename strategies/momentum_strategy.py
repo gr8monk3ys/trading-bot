@@ -169,8 +169,8 @@ class MomentumStrategy(BaseStrategy):
                 )
 
             # Short selling parameters (NEW FEATURE)
-            # P0 FIX: Changed defaults to False to match default_parameters()
-            self.enable_short_selling = self.parameters.get("enable_short_selling", False)
+            # Default matches default_parameters() which has True for maximum profit mode
+            self.enable_short_selling = self.parameters.get("enable_short_selling", True)
             self.short_position_size = self.parameters.get("short_position_size", 0.08)
             self.short_stop_loss = self.parameters.get("short_stop_loss", 0.04)
 
@@ -178,9 +178,9 @@ class MomentumStrategy(BaseStrategy):
                 logger.info("✅ Short selling enabled - can profit from bear markets!")
 
             # Multi-timeframe analysis (NEW FEATURE)
-            # P0 FIX: Changed default to False to match default_parameters()
-            self.use_multi_timeframe = self.parameters.get("use_multi_timeframe", False)
-            self.mtf_require_alignment = self.parameters.get("mtf_require_alignment", False)
+            # Default matches default_parameters() which has True for maximum profit mode
+            self.use_multi_timeframe = self.parameters.get("use_multi_timeframe", True)
+            self.mtf_require_alignment = self.parameters.get("mtf_require_alignment", True)
             self.mtf_analyzer = None
 
             if self.use_multi_timeframe:
@@ -191,7 +191,7 @@ class MomentumStrategy(BaseStrategy):
                 logger.info(f"✅ Multi-timeframe filtering enabled: {', '.join(mtf_timeframes)}")
 
             # Bollinger Band mean reversion filter (NEW FEATURE)
-            self.use_bollinger_filter = self.parameters.get("use_bollinger_filter", False)
+            self.use_bollinger_filter = self.parameters.get("use_bollinger_filter", True)
             self.bb_period = self.parameters.get("bb_period", 20)
             self.bb_std = self.parameters.get("bb_std", 2.0)
             self.bb_buy_threshold = self.parameters.get("bb_buy_threshold", 0.3)
@@ -282,6 +282,93 @@ class MomentumStrategy(BaseStrategy):
         except Exception as e:
             logger.error(f"Error in on_bar for {symbol}: {e}", exc_info=True)
 
+    def _safe_last(self, arr):
+        """Extract last value from array, returning None if empty or NaN."""
+        if arr is None or len(arr) == 0:
+            return None
+        val = arr[-1]
+        if isinstance(val, float) and np.isnan(val):
+            return None
+        return float(val) if not np.isnan(val) else None
+
+    def _calculate_indicators_from_arrays(self, closes, highs, lows, volumes):
+        """
+        Calculate all technical indicators from price arrays.
+
+        Args:
+            closes: numpy array of close prices
+            highs: numpy array of high prices
+            lows: numpy array of low prices
+            volumes: numpy array of volumes
+
+        Returns:
+            dict: Dictionary of calculated indicator values
+        """
+        # Calculate RSI
+        rsi = talib.RSI(closes, timeperiod=self.rsi_period)
+
+        # Calculate MACD
+        macd, signal, hist = talib.MACD(
+            closes,
+            fastperiod=self.macd_fast,
+            slowperiod=self.macd_slow,
+            signalperiod=self.macd_signal,
+        )
+
+        # Calculate ADX
+        adx = talib.ADX(highs, lows, closes, timeperiod=self.adx_period)
+
+        # Calculate moving averages
+        fast_ma = talib.SMA(closes, timeperiod=self.fast_ma)
+        medium_ma = talib.SMA(closes, timeperiod=self.medium_ma)
+        slow_ma = talib.SMA(closes, timeperiod=self.slow_ma)
+
+        # Calculate volume moving average
+        volume_ma = talib.SMA(volumes, timeperiod=self.volume_ma_period)
+
+        # Calculate ATR for stop loss
+        atr = talib.ATR(highs, lows, closes, timeperiod=self.atr_period)
+
+        # Calculate Bollinger Bands for mean reversion filter
+        bb_upper, bb_middle, bb_lower = None, None, None
+        bb_position = None
+
+        if self.use_bollinger_filter and len(closes) >= self.bb_period:
+            bb_upper, bb_middle, bb_lower = talib.BBANDS(
+                closes,
+                timeperiod=self.bb_period,
+                nbdevup=self.bb_std,
+                nbdevdn=self.bb_std,
+                matype=0,
+            )
+
+            # Calculate Bollinger Band position (0 = at lower band, 1 = at upper band)
+            current_close = self._safe_last(closes)
+            bb_lower_val = self._safe_last(bb_lower)
+            bb_upper_val = self._safe_last(bb_upper)
+
+            if current_close and bb_lower_val and bb_upper_val and bb_upper_val != bb_lower_val:
+                bb_position = (current_close - bb_lower_val) / (bb_upper_val - bb_lower_val)
+
+        return {
+            "rsi": self._safe_last(rsi),
+            "macd": self._safe_last(macd),
+            "macd_signal": self._safe_last(signal),
+            "macd_hist": self._safe_last(hist),
+            "adx": self._safe_last(adx),
+            "fast_ma": self._safe_last(fast_ma),
+            "medium_ma": self._safe_last(medium_ma),
+            "slow_ma": self._safe_last(slow_ma),
+            "volume": self._safe_last(volumes),
+            "volume_ma": self._safe_last(volume_ma),
+            "atr": self._safe_last(atr),
+            "close": self._safe_last(closes),
+            "bb_upper": self._safe_last(bb_upper) if bb_upper is not None else None,
+            "bb_middle": self._safe_last(bb_middle) if bb_middle is not None else None,
+            "bb_lower": self._safe_last(bb_lower) if bb_lower is not None else None,
+            "bb_position": bb_position,
+        }
+
     async def _update_indicators(self, symbol):
         """Update technical indicators for a symbol."""
         try:
@@ -295,79 +382,10 @@ class MomentumStrategy(BaseStrategy):
             lows = np.array([bar["low"] for bar in self.price_history[symbol]])
             volumes = np.array([bar["volume"] for bar in self.price_history[symbol]])
 
-            # Calculate RSI
-            rsi = talib.RSI(closes, timeperiod=self.rsi_period)
-
-            # Calculate MACD
-            macd, signal, hist = talib.MACD(
-                closes,
-                fastperiod=self.macd_fast,
-                slowperiod=self.macd_slow,
-                signalperiod=self.macd_signal,
+            # Calculate and store indicators using shared method
+            self.indicators[symbol] = self._calculate_indicators_from_arrays(
+                closes, highs, lows, volumes
             )
-
-            # Calculate ADX
-            adx = talib.ADX(highs, lows, closes, timeperiod=self.adx_period)
-
-            # Calculate moving averages
-            fast_ma = talib.SMA(closes, timeperiod=self.fast_ma)
-            medium_ma = talib.SMA(closes, timeperiod=self.medium_ma)
-            slow_ma = talib.SMA(closes, timeperiod=self.slow_ma)
-
-            # Calculate volume moving average
-            volume_ma = talib.SMA(volumes, timeperiod=self.volume_ma_period)
-
-            # Calculate ATR for stop loss
-            atr = talib.ATR(highs, lows, closes, timeperiod=self.atr_period)
-
-            # Calculate Bollinger Bands for mean reversion filter
-            bb_upper, bb_middle, bb_lower = talib.BBANDS(
-                closes,
-                timeperiod=self.bb_period,
-                nbdevup=self.bb_std,
-                nbdevdn=self.bb_std,
-                matype=0,  # SMA
-            )
-
-            # P0 FIX: Helper to safely extract last value, returning None for NaN
-            def safe_last(arr):
-                """Extract last value from array, returning None if empty or NaN."""
-                if len(arr) == 0:
-                    return None
-                val = arr[-1]
-                if np.isnan(val):
-                    return None
-                return float(val)
-
-            # Calculate Bollinger Band position (0 = at lower band, 1 = at upper band)
-            current_close = safe_last(closes)
-            bb_lower_val = safe_last(bb_lower)
-            bb_upper_val = safe_last(bb_upper)
-
-            bb_position = None
-            if current_close and bb_lower_val and bb_upper_val and bb_upper_val != bb_lower_val:
-                bb_position = (current_close - bb_lower_val) / (bb_upper_val - bb_lower_val)
-
-            # Store indicators with NaN handling
-            self.indicators[symbol] = {
-                "rsi": safe_last(rsi),
-                "macd": safe_last(macd),
-                "macd_signal": safe_last(signal),
-                "macd_hist": safe_last(hist),
-                "adx": safe_last(adx),
-                "fast_ma": safe_last(fast_ma),
-                "medium_ma": safe_last(medium_ma),
-                "slow_ma": safe_last(slow_ma),
-                "volume": safe_last(volumes),
-                "volume_ma": safe_last(volume_ma),
-                "atr": safe_last(atr),
-                "close": safe_last(closes),
-                # Bollinger Bands
-                "bb_upper": bb_upper_val,
-                "bb_middle": safe_last(bb_middle),
-                "bb_lower": bb_lower_val,
-                "bb_position": bb_position,  # 0-1 scale (0=lower band, 1=upper band)
-            }
 
         except Exception as e:
             logger.error(f"Error updating indicators for {symbol}: {e}", exc_info=True)
@@ -532,252 +550,206 @@ class MomentumStrategy(BaseStrategy):
             logger.error(f"Error generating signal for {symbol}: {e}", exc_info=True)
             return "neutral"
 
+    def _build_current_positions_dict(self, positions):
+        """Build a dictionary of current positions with price history for risk analysis."""
+        current_positions = {}
+        for pos in positions:
+            pos_symbol = pos.symbol
+            if pos_symbol in self.price_history:
+                price_history = self.price_history[pos_symbol]
+                close_prices = [bar["close"] for bar in price_history]
+                current_positions[pos_symbol] = {
+                    "value": abs(float(pos.market_value)),
+                    "price_history": close_prices,
+                    "risk": None,
+                }
+        return current_positions
+
+    async def _calculate_position_value(self, symbol, price, buying_power, is_short=False):
+        """
+        Calculate position value using Kelly criterion or fixed sizing.
+
+        Returns:
+            float: The calculated position value
+        """
+        use_kelly = self.parameters.get("use_kelly_criterion", True)
+
+        if use_kelly and hasattr(self, "kelly") and self.kelly is not None:
+            position_value, position_fraction, _ = await self.calculate_kelly_position_size(
+                symbol, price
+            )
+            if is_short:
+                # Apply short position reduction (shorts use 80% of Kelly size)
+                position_value = position_value * 0.8
+                logger.info(
+                    f"📊 KELLY SHORT: {symbol} position = {position_fraction * 0.8:.1%} (${position_value:,.2f})"
+                )
+            else:
+                logger.info(
+                    f"📊 KELLY SIZING: {symbol} position = {position_fraction:.1%} (${position_value:,.2f})"
+                )
+        else:
+            # Use fixed position sizing
+            size_pct = self.short_position_size if is_short else self.position_size
+            position_value = buying_power * size_pct
+
+        return position_value
+
+    async def _apply_risk_adjustments(self, symbol, position_value, positions):
+        """Apply risk manager adjustments to position value."""
+        current_positions = self._build_current_positions_dict(positions)
+
+        if len(self.price_history[symbol]) > 20:
+            close_prices = [bar["close"] for bar in self.price_history[symbol]]
+            position_value = self.risk_manager.adjust_position_size(
+                symbol, position_value, close_prices, current_positions
+            )
+
+        return position_value
+
+    async def _execute_buy_signal(self, symbol, positions, buying_power, current_time):
+        """Execute a buy signal for the given symbol."""
+        if len(positions) >= self.max_positions:
+            logger.info(f"Max positions reached ({self.max_positions}), skipping buy for {symbol}")
+            return
+
+        price = self.current_prices[symbol]
+        position_value = await self._calculate_position_value(symbol, price, buying_power)
+        position_value = await self._apply_risk_adjustments(symbol, position_value, positions)
+
+        if position_value <= 0:
+            logger.info(f"Risk manager rejected position for {symbol}")
+            return
+
+        # Enforce maximum position size limit
+        position_value, quantity = await self.enforce_position_size_limit(
+            symbol, position_value, price
+        )
+
+        if quantity < 0.01:
+            logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
+            return
+
+        # Calculate take-profit and stop-loss levels
+        take_profit_price = price * (1 + self.take_profit)
+        stop_loss_price = price * (1 - self.stop_loss)
+
+        logger.info(f"Creating bracket order for {symbol}:")
+        logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} shares")
+        logger.info(f"  Take-profit: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
+        logger.info(f"  Stop-loss: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
+
+        order = (
+            OrderBuilder(symbol, "buy", quantity)
+            .market()
+            .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+            .gtc()
+            .build()
+        )
+
+        result = await self.broker.submit_order_advanced(order)
+
+        if result:
+            logger.info(
+                f"BUY bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
+            )
+            self.stop_prices[symbol] = stop_loss_price
+            self.target_prices[symbol] = take_profit_price
+            self.entry_prices[symbol] = price
+            self.peak_prices[symbol] = price
+            self.last_signal_time[symbol] = current_time
+
+    async def _execute_short_signal(self, symbol, positions, buying_power, current_time):
+        """Execute a short signal for the given symbol."""
+        if len(positions) >= self.max_positions:
+            logger.info(f"Max positions reached ({self.max_positions}), skipping short for {symbol}")
+            return
+
+        price = self.current_prices[symbol]
+        position_value = await self._calculate_position_value(symbol, price, buying_power, is_short=True)
+        position_value = await self._apply_risk_adjustments(symbol, position_value, positions)
+
+        if position_value <= 0:
+            logger.info(f"Risk manager rejected SHORT position for {symbol}")
+            return
+
+        # Enforce maximum position size limit
+        position_value, quantity = await self.enforce_position_size_limit(
+            symbol, position_value, price
+        )
+
+        if quantity < 0.01:
+            logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
+            return
+
+        # For shorts: profit when price DROPS, loss when price RISES
+        take_profit_price = price * (1 - self.take_profit)
+        stop_loss_price = price * (1 + self.short_stop_loss)
+
+        logger.info(f"🔻 Creating SHORT bracket order for {symbol}:")
+        logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
+        logger.info(f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)")
+        logger.info(f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)")
+
+        order = (
+            OrderBuilder(symbol, "sell", quantity)
+            .market()
+            .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+            .gtc()
+            .build()
+        )
+
+        result = await self.broker.submit_order_advanced(order)
+
+        if result:
+            logger.info(
+                f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
+            )
+            logger.info(f"   (Will profit if price drops below ${take_profit_price:.2f})")
+            self.stop_prices[symbol] = stop_loss_price
+            self.target_prices[symbol] = take_profit_price
+            self.entry_prices[symbol] = price
+            self.peak_prices[symbol] = price
+            self.last_signal_time[symbol] = current_time
+
+    async def _execute_sell_signal(self, symbol, current_position, current_time):
+        """Execute a sell signal to close an existing long position."""
+        quantity = float(current_position.qty)
+        price = self.current_prices[symbol]
+
+        order = OrderBuilder(symbol, "sell", quantity).market().day().build()
+        result = await self.broker.submit_order_advanced(order)
+
+        if result:
+            logger.info(f"SELL order submitted for {symbol}: {quantity} shares at ~${price:.2f}")
+            self.stop_prices.pop(symbol, None)
+            self.target_prices.pop(symbol, None)
+            self.last_signal_time[symbol] = current_time
+
     async def _execute_signal(self, symbol, signal):
-        """Execute a trading signal."""
+        """Execute a trading signal by dispatching to the appropriate handler."""
         try:
-            # Check if we have enough time since last signal to avoid overtrading
+            # Check cooldown to avoid overtrading
             current_time = datetime.now()
             if (
                 self.last_signal_time.get(symbol)
                 and (current_time - self.last_signal_time[symbol]).total_seconds() < 3600
-            ):  # 1 hour cooldown
+            ):
                 return
 
-            # Get current positions
+            # Get current positions and account info
             positions = await self.broker.get_positions()
             current_position = next((p for p in positions if p.symbol == symbol), None)
-
-            # Get account info
             account = await self.broker.get_account()
             buying_power = float(account.buying_power)
 
-            # Execute buy signal
+            # Dispatch to appropriate handler
             if signal == "buy" and not current_position:
-                # Check if we're already at max positions
-                if len(positions) >= self.max_positions:
-                    logger.info(
-                        f"Max positions reached ({self.max_positions}), skipping buy for {symbol}"
-                    )
-                    return
-
-                # Calculate position size
-                price = self.current_prices[symbol]
-
-                # KELLY CRITERION: Use optimal sizing if enabled
-                # Research: Half-Kelly provides 75% of max profit with 25% variance
-                use_kelly = self.parameters.get("use_kelly_criterion", False)
-                if use_kelly and hasattr(self, "kelly") and self.kelly is not None:
-                    # Use Kelly Criterion for optimal position sizing
-                    position_value, position_fraction, quantity_estimate = (
-                        await self.calculate_kelly_position_size(symbol, price)
-                    )
-                    logger.info(
-                        f"📊 KELLY SIZING: {symbol} position = {position_fraction:.1%} (${position_value:,.2f})"
-                    )
-                else:
-                    # Use fixed position sizing (default 10%)
-                    position_value = buying_power * self.position_size
-
-                # Risk-adjust position size
-                current_positions = {}
-                for pos in positions:
-                    pos_symbol = pos.symbol
-                    if pos_symbol in self.price_history:
-                        price_history = self.price_history[pos_symbol]
-                        close_prices = [bar["close"] for bar in price_history]
-                        current_positions[pos_symbol] = {
-                            "value": float(pos.market_value),
-                            "price_history": close_prices,
-                            "risk": None,
-                        }
-
-                # Use risk manager to adjust position size if we have price history
-                if len(self.price_history[symbol]) > 20:
-                    close_prices = [bar["close"] for bar in self.price_history[symbol]]
-                    adjusted_value = self.risk_manager.adjust_position_size(
-                        symbol, position_value, close_prices, current_positions
-                    )
-                    position_value = adjusted_value
-
-                if position_value <= 0:
-                    logger.info(f"Risk manager rejected position for {symbol}")
-                    return
-
-                # CRITICAL SAFETY: Enforce maximum position size limit (5% of portfolio)
-                position_value, quantity = await self.enforce_position_size_limit(
-                    symbol, position_value, price
-                )
-
-                # Allow fractional shares (Alpaca minimum is typically 0.01)
-                if quantity < 0.01:
-                    logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
-                    return
-
-                # Calculate take-profit and stop-loss levels
-                take_profit_price = price * (1 + self.take_profit)
-                stop_loss_price = price * (1 - self.stop_loss)
-
-                # Create bracket order using OrderBuilder
-                logger.info(f"Creating bracket order for {symbol}:")
-                logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} shares")
-                logger.info(f"  Take-profit: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
-                logger.info(f"  Stop-loss: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
-
-                # Use fractional shares for precise position sizing
-                order = (
-                    OrderBuilder(symbol, "buy", quantity)
-                    .market()
-                    .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-                    .gtc()
-                    .build()
-                )
-
-                result = await self.broker.submit_order_advanced(order)
-
-                if result:
-                    logger.info(
-                        f"BUY bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
-                    )
-
-                    # Store stop loss and take profit levels for tracking
-                    self.stop_prices[symbol] = stop_loss_price
-                    self.target_prices[symbol] = take_profit_price
-
-                    # Track entry price and peak for trailing stops
-                    self.entry_prices[symbol] = price
-                    self.peak_prices[symbol] = price
-
-                    # Update last signal time
-                    self.last_signal_time[symbol] = current_time
-
-            # Execute SHORT signal (NEW FEATURE - SHORT SELLING)
+                await self._execute_buy_signal(symbol, positions, buying_power, current_time)
             elif signal == "short" and not current_position and self.enable_short_selling:
-                # Check if we're already at max positions
-                if len(positions) >= self.max_positions:
-                    logger.info(
-                        f"Max positions reached ({self.max_positions}), skipping short for {symbol}"
-                    )
-                    return
-
-                # Calculate position size (use smaller size for shorts - more conservative)
-                price = self.current_prices[symbol]
-
-                # KELLY CRITERION: Use optimal sizing if enabled (reduced for shorts)
-                use_kelly = self.parameters.get("use_kelly_criterion", False)
-                if use_kelly and hasattr(self, "kelly") and self.kelly is not None:
-                    position_value, position_fraction, quantity_estimate = (
-                        await self.calculate_kelly_position_size(symbol, price)
-                    )
-                    # Apply short position reduction (shorts use 80% of Kelly size)
-                    position_value = position_value * 0.8
-                    logger.info(
-                        f"📊 KELLY SHORT: {symbol} position = {position_fraction * 0.8:.1%} (${position_value:,.2f})"
-                    )
-                else:
-                    position_value = buying_power * self.short_position_size
-
-                # Risk-adjust position size
-                current_positions = {}
-                for pos in positions:
-                    pos_symbol = pos.symbol
-                    if pos_symbol in self.price_history:
-                        price_history = self.price_history[pos_symbol]
-                        close_prices = [bar["close"] for bar in price_history]
-                        current_positions[pos_symbol] = {
-                            "value": abs(float(pos.market_value)),
-                            "price_history": close_prices,
-                            "risk": None,
-                        }
-
-                # Use risk manager to adjust position size
-                if len(self.price_history[symbol]) > 20:
-                    close_prices = [bar["close"] for bar in self.price_history[symbol]]
-                    adjusted_value = self.risk_manager.adjust_position_size(
-                        symbol, position_value, close_prices, current_positions
-                    )
-                    position_value = adjusted_value
-
-                if position_value <= 0:
-                    logger.info(f"Risk manager rejected SHORT position for {symbol}")
-                    return
-
-                # CRITICAL SAFETY: Enforce maximum position size limit
-                position_value, quantity = await self.enforce_position_size_limit(
-                    symbol, position_value, price
-                )
-
-                # Allow fractional shares
-                if quantity < 0.01:
-                    logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
-                    return
-
-                # Calculate take-profit and stop-loss levels (INVERTED for shorts)
-                # For shorts: profit when price DROPS, loss when price RISES
-                take_profit_price = price * (1 - self.take_profit)  # Price drops 6%
-                stop_loss_price = price * (1 + self.short_stop_loss)  # Price rises 4% (STOP)
-
-                # Create bracket SHORT order using OrderBuilder
-                logger.info(f"🔻 Creating SHORT bracket order for {symbol}:")
-                logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
-                logger.info(
-                    f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)"
-                )
-                logger.info(
-                    f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)"
-                )
-
-                # Short = SELL without owning (Alpaca handles the borrowing)
-                order = (
-                    OrderBuilder(symbol, "sell", quantity)  # SELL to open short
-                    .market()
-                    .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-                    .gtc()
-                    .build()
-                )
-
-                result = await self.broker.submit_order_advanced(order)
-
-                if result:
-                    logger.info(
-                        f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
-                    )
-                    logger.info(f"   (Will profit if price drops below ${take_profit_price:.2f})")
-
-                    # Store stop loss and take profit levels for tracking
-                    self.stop_prices[symbol] = stop_loss_price
-                    self.target_prices[symbol] = take_profit_price
-
-                    # Track entry price and trough for trailing stops (shorts track lowest price)
-                    self.entry_prices[symbol] = price
-                    self.peak_prices[symbol] = price  # For shorts, this tracks the lowest price
-
-                    # Update last signal time
-                    self.last_signal_time[symbol] = current_time
-
-            # Execute sell signal (close existing long position)
+                await self._execute_short_signal(symbol, positions, buying_power, current_time)
             elif signal == "sell" and current_position and float(current_position.qty) > 0:
-                # We have a position and should sell it
-                quantity = float(current_position.qty)
-                price = self.current_prices[symbol]
-
-                # Create market sell order using OrderBuilder
-                order = OrderBuilder(symbol, "sell", quantity).market().day().build()
-
-                result = await self.broker.submit_order_advanced(order)
-
-                if result:
-                    logger.info(
-                        f"SELL order submitted for {symbol}: {quantity} shares at ~${price:.2f}"
-                    )
-
-                    # Clear stop and target prices
-                    if symbol in self.stop_prices:
-                        del self.stop_prices[symbol]
-                    if symbol in self.target_prices:
-                        del self.target_prices[symbol]
-
-                    # Update last signal time
-                    self.last_signal_time[symbol] = current_time
+                await self._execute_sell_signal(symbol, current_position, current_time)
 
         except Exception as e:
             logger.error(f"Error executing signal for {symbol}: {e}", exc_info=True)
@@ -959,83 +931,15 @@ class MomentumStrategy(BaseStrategy):
                 if len(df) < self.slow_ma:
                     continue
 
-                # Extract price data
+                # Extract price data and calculate indicators using shared method
                 closes = df["close"].values
                 highs = df["high"].values
                 lows = df["low"].values
                 volumes = df["volume"].values
 
-                # Calculate RSI
-                rsi = talib.RSI(closes, timeperiod=self.rsi_period)
-
-                # Calculate MACD
-                macd, signal, hist = talib.MACD(
-                    closes,
-                    fastperiod=self.macd_fast,
-                    slowperiod=self.macd_slow,
-                    signalperiod=self.macd_signal,
+                self.indicators[symbol] = self._calculate_indicators_from_arrays(
+                    closes, highs, lows, volumes
                 )
-
-                # Calculate ADX
-                adx = talib.ADX(highs, lows, closes, timeperiod=self.adx_period)
-
-                # Calculate moving averages
-                fast_ma = talib.SMA(closes, timeperiod=self.fast_ma)
-                medium_ma = talib.SMA(closes, timeperiod=self.medium_ma)
-                slow_ma = talib.SMA(closes, timeperiod=self.slow_ma)
-
-                # Calculate volume moving average
-                volume_ma = talib.SMA(volumes, timeperiod=self.volume_ma_period)
-
-                # P1 Fix: Calculate Bollinger Bands for generate_signals (was missing)
-                bb_upper, bb_middle, bb_lower = None, None, None
-                bb_position = None
-                if self.use_bollinger_filter and len(closes) >= self.bb_period:
-                    bb_upper, bb_middle, bb_lower = talib.BBANDS(
-                        closes, timeperiod=self.bb_period, nbdevup=self.bb_std, nbdevdn=self.bb_std
-                    )
-                    # Calculate BB position (0-1 scale)
-                    bb_upper_val = (
-                        bb_upper[-1] if len(bb_upper) > 0 and not np.isnan(bb_upper[-1]) else None
-                    )
-                    bb_lower_val = (
-                        bb_lower[-1] if len(bb_lower) > 0 and not np.isnan(bb_lower[-1]) else None
-                    )
-                    current_close = closes[-1] if len(closes) > 0 else None
-                    if (
-                        bb_upper_val
-                        and bb_lower_val
-                        and bb_upper_val != bb_lower_val
-                        and current_close
-                    ):
-                        bb_position = (current_close - bb_lower_val) / (bb_upper_val - bb_lower_val)
-
-                # P2 Fix: Helper for safe last value extraction
-                def safe_last(arr):
-                    if arr is None or len(arr) == 0:
-                        return None
-                    val = arr[-1]
-                    return None if (isinstance(val, float) and np.isnan(val)) else val
-
-                # Store indicators
-                self.indicators[symbol] = {
-                    "rsi": safe_last(rsi),
-                    "macd": safe_last(macd),
-                    "macd_signal": safe_last(signal),
-                    "macd_hist": safe_last(hist),
-                    "adx": safe_last(adx),
-                    "fast_ma": safe_last(fast_ma),
-                    "medium_ma": safe_last(medium_ma),
-                    "slow_ma": safe_last(slow_ma),
-                    "volume": volumes[-1] if len(volumes) > 0 else None,
-                    "volume_ma": safe_last(volume_ma),
-                    "close": closes[-1] if len(closes) > 0 else None,
-                    # P1 Fix: Add BB indicators for _generate_signal to use
-                    "bb_upper": safe_last(bb_upper) if bb_upper is not None else None,
-                    "bb_middle": safe_last(bb_middle) if bb_middle is not None else None,
-                    "bb_lower": safe_last(bb_lower) if bb_lower is not None else None,
-                    "bb_position": bb_position,
-                }
 
                 # Generate signal
                 signal = await self._generate_signal(symbol)

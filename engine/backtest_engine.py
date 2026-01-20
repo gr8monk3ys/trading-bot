@@ -110,7 +110,7 @@ class BacktestEngine:
         # Post-process results to fill missing values and calculate metrics
         for i, result_df in enumerate(results):
             # Forward fill equity values for non-trading days
-            result_df.fillna(method="ffill", inplace=True)
+            result_df.ffill(inplace=True)
 
             # Calculate cumulative returns
             result_df["cum_returns"] = (1 + result_df["returns"].fillna(0)).cumprod() - 1

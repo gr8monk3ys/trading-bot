@@ -73,9 +73,9 @@ class ExtendedHoursStrategy(BaseStrategy):
         self.earnings_today = []  # Symbols with earnings today
         self.last_check_time = None
 
-    async def _initialize_parameters(self):
+    def _initialize_parameters(self):
         """Initialize strategy-specific parameters."""
-        await super()._initialize_parameters()
+        super()._initialize_parameters()
 
         # Extended hours configuration
         self.enable_pre_market = self.parameters.get("enable_pre_market", True)

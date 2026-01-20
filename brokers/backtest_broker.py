@@ -36,9 +36,8 @@ class BacktestBroker:
             spread_bps: Bid-ask spread in basis points (default 3.0 = 0.03%)
             enable_partial_fills: Whether to simulate partial fills on large orders
         """
-        self.api_key = api_key
-        self.api_secret = api_secret
-        self.paper = paper
+        # Note: api_key, api_secret, paper are accepted for API compatibility
+        # but not stored (unused in backtesting, avoids accidental credential exposure)
         self.balance = initial_balance
         self.positions = {}
         self.orders = []
