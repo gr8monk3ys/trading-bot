@@ -25,6 +25,15 @@ import pytest
 sys.modules["config"] = Mock(
     ALPACA_CREDS={"API_KEY": "test_api_key", "API_SECRET": "test_api_secret"},
     SYMBOLS=["AAPL", "MSFT", "GOOGL"],
+    BACKTEST_PARAMS={
+        "SLIPPAGE_PCT": 0.004,
+        "BID_ASK_SPREAD": 0.001,
+        "COMMISSION_PER_SHARE": 0.0,
+        "EXECUTION_DELAY_BARS": 1,
+        "USE_SLIPPAGE": True,
+    },
+    TRADING_PARAMS={},
+    RISK_PARAMS={},
 )
 
 from alpaca.trading.enums import QueryOrderStatus

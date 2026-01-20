@@ -1101,6 +1101,7 @@ class TestExecuteSignal:
     @pytest.fixture
     def trading_strategy(self):
         """Create a strategy ready for trading."""
+        import logging
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy.__new__(MomentumStrategy)
@@ -1118,6 +1119,10 @@ class TestExecuteSignal:
         strategy.stop_prices = {}
         strategy.target_prices = {}
         strategy.price_history = {"AAPL": []}
+        # Add missing attributes used by _execute_signal
+        strategy.entry_prices = {}
+        strategy.peak_prices = {}
+        strategy.logger = logging.getLogger("test")
 
         strategy.risk_manager = Mock()
         strategy.risk_manager.adjust_position_size = Mock(return_value=10000)
