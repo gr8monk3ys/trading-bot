@@ -25,7 +25,7 @@ dependencies = [
 
     # Data & Analysis
     "pandas>=2.0.0",
-    "numpy>=1.24.0,<2.0.0",
+    "numpy>=1.24.0,<3.0.0",
     "scipy>=1.11.0",
     "statsmodels>=0.14.0",
 
