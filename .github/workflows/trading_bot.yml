@@ -58,7 +58,7 @@ jobs:
           python simple_backtest.py 2>&1 | tee backtest_results.txt
 
       - name: Upload Backtest Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: backtest-results-${{ github.run_id }}
           path: backtest_results.txt
