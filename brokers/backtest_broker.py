@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 class BacktestBroker:
     """Simple broker for backtesting purposes with realistic slippage modeling"""
 
+    # Slippage modeling constants
+    DEFAULT_AVG_DAILY_VOLUME = 1_000_000  # Conservative assumption for liquidity modeling
+    MAX_IMPACT_MULTIPLIER = 2.0  # Cap market impact at 2x base slippage
+    LIMIT_ORDER_SLIPPAGE_FACTOR = 0.3  # Limit orders pay 30% of market order slippage
+    BASIS_POINTS_DIVISOR = 10_000.0  # Convert basis points to decimal
+    MAX_FILL_PERCENTAGE = 0.10  # Max 10% of daily volume per order
+
     def __init__(
         self,
         api_key=None,
@@ -161,24 +168,26 @@ class BacktestBroker:
             Execution price after slippage
         """
         # 1. Bid-ask spread cost (always paid on market orders)
-        spread_cost = base_price * (self.spread_bps / 10000.0)
+        spread_cost = base_price * (self.spread_bps / self.BASIS_POINTS_DIVISOR)
 
         # 2. Slippage (impact of order size)
         # Larger orders have more market impact
-        # Assume average daily volume of 1M shares, calculate impact
-        avg_daily_volume = 1000000  # Conservative assumption
-        volume_pct = quantity / avg_daily_volume
+        volume_pct = quantity / self.DEFAULT_AVG_DAILY_VOLUME
 
         # Market impact: roughly sqrt(volume_pct) * slippage_bps
         # This models that large orders move the market non-linearly
-        impact_multiplier = min(np.sqrt(volume_pct * 100), 2.0)  # Cap at 2x
-        slippage_cost = base_price * (self.slippage_bps / 10000.0) * impact_multiplier
+        impact_multiplier = min(
+            np.sqrt(volume_pct * 100), self.MAX_IMPACT_MULTIPLIER
+        )
+        slippage_cost = (
+            base_price * (self.slippage_bps / self.BASIS_POINTS_DIVISOR) * impact_multiplier
+        )
 
         # 3. Market orders pay more slippage than limit orders
         if order_type == "market":
             total_slippage = spread_cost + slippage_cost
         else:  # limit orders pay less (assuming they get filled at limit)
-            total_slippage = slippage_cost * 0.3  # 30% of market order slippage
+            total_slippage = slippage_cost * self.LIMIT_ORDER_SLIPPAGE_FACTOR
 
         # 4. Apply slippage direction
         if side == "buy":
@@ -205,13 +214,11 @@ class BacktestBroker:
         if not self.enable_partial_fills:
             return quantity
 
-        # Assume average daily volume of 1M shares
-        avg_daily_volume = 1000000
+        # Calculate volume percentage relative to assumed daily volume
+        volume_pct = quantity / self.DEFAULT_AVG_DAILY_VOLUME
 
-        # If order is >10% of daily volume, may not fill completely
-        volume_pct = quantity / avg_daily_volume
-
-        if volume_pct > 0.10:  # Order is >10% of daily volume
+        # If order exceeds max fill percentage, may not fill completely
+        if volume_pct > self.MAX_FILL_PERCENTAGE:
             # Fill 70-95% of the order (randomized for realism)
             fill_rate = 0.7 + (np.random.rand() * 0.25)
             filled_qty = int(quantity * fill_rate)

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # NOTE: Removed lumibot.strategies.Strategy import - it crashes at import time
 # We don't actually need it - we'll create our own simple base class
@@ -25,7 +25,12 @@ class BaseStrategy(ABC):
     which has import-time initialization issues that crash the bot.
     """
 
-    def __init__(self, name=None, broker=None, parameters=None):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        broker: Optional[Any] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Initialize the strategy."""
         # Basic attributes
         self.name = name or self.__class__.__name__
@@ -107,7 +112,7 @@ class BaseStrategy(ABC):
         else:
             self.multi_timeframe = None
 
-    async def initialize(self, **kwargs):
+    async def initialize(self, **kwargs: Any) -> bool:
         """Initialize strategy parameters."""
         try:
             # Update parameters
@@ -152,7 +157,7 @@ class BaseStrategy(ABC):
             self.logger.error(f"Error initializing strategy: {e}", exc_info=True)
             return False
 
-    def _initialize_parameters(self):
+    def _initialize_parameters(self) -> None:
         """Initialize strategy-specific parameters. Override in subclass."""
         self.sentiment_threshold = self.parameters.get("sentiment_threshold", 0.6)
         self.position_size = self.parameters.get("position_size", 0.1)
@@ -225,7 +230,9 @@ class BaseStrategy(ABC):
         is_halted = await self.circuit_breaker.check_and_halt()
         return not is_halted
 
-    async def enforce_position_size_limit(self, symbol, desired_position_value, current_price):
+    async def enforce_position_size_limit(
+        self, symbol: str, desired_position_value: float, current_price: float
+    ) -> Tuple[float, float]:
         """
         CRITICAL SAFETY: Enforce maximum position size limit.
 
@@ -286,7 +293,9 @@ class BaseStrategy(ABC):
             # FAIL SAFE: Return 0 to prevent trading on error
             return 0, 0
 
-    async def calculate_kelly_position_size(self, symbol, current_price):
+    async def calculate_kelly_position_size(
+        self, symbol: str, current_price: float
+    ) -> Tuple[float, float, float]:
         """
         Calculate optimal position size using Kelly Criterion.
 
@@ -344,7 +353,9 @@ class BaseStrategy(ABC):
             # account_value may not be defined if error occurred early
             return 0, 0, 0
 
-    def track_position_entry(self, symbol, entry_price, entry_time=None):
+    def track_position_entry(
+        self, symbol: str, entry_price: float, entry_time: Optional[datetime] = None
+    ) -> None:
         """
         Track position entry for Kelly Criterion trade recording.
 
@@ -362,7 +373,14 @@ class BaseStrategy(ABC):
 
         self.logger.debug(f"Tracking entry for {symbol} at ${entry_price:.2f}")
 
-    def record_completed_trade(self, symbol, exit_price, exit_time, quantity, side="long"):
+    def record_completed_trade(
+        self,
+        symbol: str,
+        exit_price: float,
+        exit_time: datetime,
+        quantity: float,
+        side: str = "long",
+    ) -> None:
         """
         Record a completed trade for Kelly Criterion analysis.
 
@@ -689,12 +707,12 @@ class BaseStrategy(ABC):
         self.current_drawdown = 0
 
     @abstractmethod
-    async def analyze_symbol(self, symbol):
+    async def analyze_symbol(self, symbol: str) -> Dict[str, Any]:
         """Analyze a symbol and return trading signals."""
         pass
 
     @abstractmethod
-    async def execute_trade(self, symbol, signal):
+    async def execute_trade(self, symbol: str, signal: Dict[str, Any]) -> None:
         """Execute a trade based on the signal.
 
         P1 FIX: Added async to match implementations in subclasses.
@@ -702,8 +720,14 @@ class BaseStrategy(ABC):
         pass
 
     def create_order(
-        self, symbol, quantity, side, type="market", limit_price=None, stop_price=None
-    ):
+        self,
+        symbol: str,
+        quantity: float,
+        side: str,
+        type: str = "market",
+        limit_price: Optional[float] = None,
+        stop_price: Optional[float] = None,
+    ) -> Dict[str, Any]:
         """
         Create an order object.
 
