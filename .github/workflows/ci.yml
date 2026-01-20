@@ -69,13 +69,12 @@ jobs:
         mypy strategies/ brokers/ engine/ utils/
 
     - name: Run tests
-      continue-on-error: true  # Tests need API credentials and proper mocking
       env:
         ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
         ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
         PAPER: "True"
       run: |
-        pytest tests/unit/ -v --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=xml || true
+        pytest tests/unit/ -v --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=xml --cov-fail-under=30
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
@@ -92,7 +91,7 @@ jobs:
     - name: Run Bandit security linter
       run: |
         pip install bandit[toml]
-        bandit -r strategies/ brokers/ engine/ utils/ -f json -o bandit-report.json || true
+        bandit -r strategies/ brokers/ engine/ utils/ -f json -o bandit-report.json
 
     - name: Check for secrets
       uses: trufflesecurity/trufflehog@main
@@ -120,7 +119,7 @@ jobs:
         safety check --json || true
 
   build:
-    needs: [security, dependency-check]
+    needs: [test, security, dependency-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 

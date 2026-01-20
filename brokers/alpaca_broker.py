@@ -486,7 +486,8 @@ class AlpacaBroker:
     async def get_account(self):
         """Get account information."""
         try:
-            account = self.trading_client.get_account()
+            # Use asyncio.to_thread to avoid blocking the event loop
+            account = await asyncio.to_thread(self.trading_client.get_account)
             return account
         except Exception as e:
             logger.error(f"Error getting account info: {e}", exc_info=DEBUG_MODE)
@@ -495,7 +496,8 @@ class AlpacaBroker:
     async def get_market_status(self):
         """Get current market status."""
         try:
-            clock = self.trading_client.get_clock()
+            # Use asyncio.to_thread to avoid blocking the event loop
+            clock = await asyncio.to_thread(self.trading_client.get_clock)
             return {
                 "is_open": clock.is_open,
                 "next_open": clock.next_open,
@@ -511,7 +513,8 @@ class AlpacaBroker:
     async def get_positions(self):
         """Get current positions."""
         try:
-            positions = self.trading_client.get_all_positions()
+            # Use asyncio.to_thread to avoid blocking the event loop
+            positions = await asyncio.to_thread(self.trading_client.get_all_positions)
             return positions
         except Exception as e:
             logger.error(f"Error getting positions: {e}", exc_info=DEBUG_MODE)
@@ -523,7 +526,8 @@ class AlpacaBroker:
         try:
             # P2 FIX: Validate symbol before API call
             symbol = self._validate_symbol(symbol)
-            position = self.trading_client.get_position(symbol)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            position = await asyncio.to_thread(self.trading_client.get_position, symbol)
             return position
         except ValueError as e:
             logger.error(f"Invalid symbol: {e}")
@@ -569,8 +573,8 @@ class AlpacaBroker:
             else:
                 raise ValueError(f"Unsupported order type: {order.get('type')}")
 
-            # Submit the order
-            result = self.trading_client.submit_order(order_request)
+            # Submit the order (use asyncio.to_thread to avoid blocking)
+            result = await asyncio.to_thread(self.trading_client.submit_order, order_request)
             logger.info(f"Order submitted: {result.id} for {result.symbol} ({result.qty} shares)")
             return result
 
@@ -597,8 +601,8 @@ class AlpacaBroker:
             if isinstance(order_request, OrderBuilder):
                 order_request = order_request.build()
 
-            # Submit the order
-            result = self.trading_client.submit_order(order_request)
+            # Submit the order (use asyncio.to_thread to avoid blocking)
+            result = await asyncio.to_thread(self.trading_client.submit_order, order_request)
             logger.info(
                 f"Advanced order submitted: {result.id} for {result.symbol} "
                 f"({result.qty} shares, type={result.type}, class={result.order_class})"
@@ -621,7 +625,8 @@ class AlpacaBroker:
             True if successful
         """
         try:
-            self.trading_client.cancel_order_by_id(order_id)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            await asyncio.to_thread(self.trading_client.cancel_order_by_id, order_id)
             logger.info(f"Canceled order: {order_id}")
             return True
         except Exception as e:
@@ -632,7 +637,8 @@ class AlpacaBroker:
     async def cancel_all_orders(self):
         """Cancel all open orders."""
         try:
-            result = self.trading_client.cancel_orders()
+            # Use asyncio.to_thread to avoid blocking the event loop
+            result = await asyncio.to_thread(self.trading_client.cancel_orders)
             logger.info("Canceled all open orders")
             return result
         except Exception as e:
@@ -682,7 +688,10 @@ class AlpacaBroker:
                 replace_params["client_order_id"] = client_order_id
 
             replace_request = ReplaceOrderRequest(**replace_params)
-            result = self.trading_client.replace_order_by_id(order_id, replace_request)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            result = await asyncio.to_thread(
+                self.trading_client.replace_order_by_id, order_id, replace_request
+            )
 
             logger.info(f"Replaced order: {order_id}")
             return result
@@ -695,7 +704,8 @@ class AlpacaBroker:
     async def get_order_by_id(self, order_id: str):
         """Get order by ID."""
         try:
-            order = self.trading_client.get_order_by_id(order_id)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            order = await asyncio.to_thread(self.trading_client.get_order_by_id, order_id)
             return order
         except Exception as e:
             logger.error(f"Error getting order {order_id}: {e}", exc_info=DEBUG_MODE)
@@ -705,7 +715,10 @@ class AlpacaBroker:
     async def get_order_by_client_id(self, client_order_id: str):
         """Get order by client order ID."""
         try:
-            order = self.trading_client.get_order_by_client_id(client_order_id)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            order = await asyncio.to_thread(
+                self.trading_client.get_order_by_client_id, client_order_id
+            )
             return order
         except Exception as e:
             logger.error(
@@ -724,7 +737,8 @@ class AlpacaBroker:
         """
         try:
             request_params = GetOrdersRequest(status=status or QueryOrderStatus.OPEN, limit=limit)
-            orders = self.trading_client.get_orders(request_params)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            orders = await asyncio.to_thread(self.trading_client.get_orders, request_params)
             return orders
         except Exception as e:
             logger.error(f"Error getting orders: {e}", exc_info=DEBUG_MODE)
@@ -738,7 +752,10 @@ class AlpacaBroker:
             symbol = self._validate_symbol(symbol)
 
             request_params = StockLatestTradeRequest(symbol_or_symbols=[symbol])
-            response = self.data_client.get_stock_latest_trade(request_params)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            response = await asyncio.to_thread(
+                self.data_client.get_stock_latest_trade, request_params
+            )
 
             if symbol in response:
                 return float(response[symbol].price)
@@ -782,7 +799,8 @@ class AlpacaBroker:
                 symbol_or_symbols=[symbol], timeframe=timeframe, start=start, end=end
             )
 
-            bars = self.data_client.get_stock_bars(request_params)
+            # Use asyncio.to_thread to avoid blocking the event loop
+            bars = await asyncio.to_thread(self.data_client.get_stock_bars, request_params)
 
             if symbol in bars.data:
                 return bars.data[symbol]

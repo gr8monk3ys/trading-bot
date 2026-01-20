@@ -101,6 +101,9 @@ class EnhancedMomentumStrategy(BaseStrategy):
             # === TIMING ===
             "min_bars_required": 50,  # Need enough data for indicators
             "signal_cooldown_minutes": 30,  # Avoid overtrading
+            # === SIGNAL THRESHOLDS ===
+            "buy_conditions_required": 3,  # Minimum buy conditions to trigger (out of 4)
+            "sell_conditions_required": 2,  # Minimum sell conditions to trigger (out of 3)
         }
 
     async def initialize(self, **kwargs):
@@ -282,8 +285,12 @@ class EnhancedMomentumStrategy(BaseStrategy):
                 macd_hist[-1] < 0,  # MACD bearish
             ]
 
+            # Get configurable thresholds
+            buy_threshold = self.parameters.get("buy_conditions_required", 3)
+            sell_threshold = self.parameters.get("sell_conditions_required", 2)
+
             # Check buy signal
-            if sum(buy_conditions) >= 3:  # At least 3 of 4 conditions
+            if sum(buy_conditions) >= buy_threshold:  # Configurable threshold
                 signal = "buy"
                 logger.info(
                     f"📈 {symbol} BUY signal (RSI-2={current_rsi:.1f}, "
@@ -291,7 +298,7 @@ class EnhancedMomentumStrategy(BaseStrategy):
                 )
 
             # Check sell signal
-            elif sum(sell_conditions) >= 2:  # At least 2 of 3 conditions
+            elif sum(sell_conditions) >= sell_threshold:  # Configurable threshold
                 signal = "sell"
                 logger.info(
                     f"📉 {symbol} SELL signal (RSI-2={current_rsi:.1f}, "
@@ -444,10 +451,11 @@ class EnhancedMomentumStrategy(BaseStrategy):
             result = await self.broker.submit_order_advanced(order)
 
             if result:
+                stop_str = f"${stop_price:.2f}" if stop_price else "N/A"
+                target_str = f"${target_price:.2f}" if target_price else "N/A"
                 logger.info(
                     f"✅ {signal.upper()} {quantity} {symbol} @ ~${current_price:.2f} "
-                    f"(Stop: ${stop_price:.2f if stop_price else 'N/A'}, "
-                    f"Target: ${target_price:.2f if target_price else 'N/A'})"
+                    f"(Stop: {stop_str}, Target: {target_str})"
                 )
 
                 # Store stop and target
@@ -515,7 +523,14 @@ class EnhancedMomentumStrategy(BaseStrategy):
         win_rate = self.win_count / total_trades if total_trades > 0 else 0
         avg_win = self.total_wins / self.win_count if self.win_count > 0 else 0
         avg_loss = self.total_losses / self.loss_count if self.loss_count > 0 else 0
-        profit_factor = self.total_wins / self.total_losses if self.total_losses > 0 else 0
+        # When all trades are winners (no losses), profit_factor is effectively infinite
+        # Return float('inf') to correctly represent this edge case
+        if self.total_losses > 0:
+            profit_factor = self.total_wins / self.total_losses
+        elif self.total_wins > 0:
+            profit_factor = float("inf")  # All winners, no losers
+        else:
+            profit_factor = 0.0  # No trades yet
 
         return {
             "total_trades": total_trades,

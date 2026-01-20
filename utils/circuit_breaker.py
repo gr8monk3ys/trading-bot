@@ -50,6 +50,7 @@ class CircuitBreaker:
         self.halt_triggered_at = None
         self.last_reset_date = None
         self.broker = None
+        self._last_logged_loss_pct = 0  # Track last logged loss for throttling
 
         logger.info(f"Circuit Breaker initialized: max daily loss = {max_daily_loss:.1%}")
 
@@ -128,8 +129,10 @@ class CircuitBreaker:
                 await self._trigger_halt(current_equity, drawdown_from_peak, "rapid_drawdown")
                 return True
 
-            # Log status periodically (every 1% loss)
-            if daily_loss > 0 and int(daily_loss * 100) % 1 == 0:
+            # Log status when loss changes by 1 percentage point (throttle logging)
+            current_loss_pct = int(daily_loss * 100)
+            if daily_loss > 0 and current_loss_pct != self._last_logged_loss_pct:
+                self._last_logged_loss_pct = current_loss_pct
                 logger.info(
                     f"Daily P/L: {-daily_loss:.1%} "
                     f"(${current_equity - self.starting_equity:,.2f}) | "

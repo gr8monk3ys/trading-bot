@@ -233,7 +233,11 @@ class PerformanceTracker:
 
         cursor.execute(
             """
-            INSERT INTO trades VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO trades (
+                trade_id, strategy, symbol, side, entry_time, exit_time,
+                entry_price, exit_price, quantity, pnl, pnl_pct, fees,
+                holding_period_seconds, is_winner, tags
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 trade.trade_id,
