@@ -64,7 +64,7 @@ jobs:
         run: uv run pytest tests/unit/ -v --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=xml --cov-fail-under=30
 
       - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: ./coverage.xml
           flags: unittests
