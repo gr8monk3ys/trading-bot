@@ -25,12 +25,14 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements
-COPY requirements.txt .
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Copy dependency files
+COPY pyproject.toml uv.lock* ./
+
+# Install Python dependencies with uv
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Stage 2: Runtime
 FROM python:3.10-slim
@@ -44,9 +46,11 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /usr/lib/libta_lib.* /usr/lib/
 COPY --from=builder /usr/include/ta-lib/ /usr/include/ta-lib/
 
-# Copy Python packages from builder
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
 
 # Create non-root user for security
 RUN useradd -m -u 1000 trader && \
@@ -56,7 +60,7 @@ RUN useradd -m -u 1000 trader && \
 # Set working directory
 WORKDIR /app
 
-# Copy application code
+# Copy application code and dependency files
 COPY --chown=trader:trader . .
 
 # Switch to non-root user
@@ -69,7 +73,9 @@ HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
 # Default environment variables
 ENV PYTHONUNBUFFERED=1 \
     PAPER=True \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=INFO \
+    VIRTUAL_ENV=/app/.venv \
+    PATH="/app/.venv/bin:$PATH"
 
 # Expose metrics port (if using Prometheus)
 EXPOSE 8000

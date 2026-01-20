@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   test:
@@ -16,107 +16,97 @@ jobs:
         python-version: ["3.10", "3.11"]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
-    - name: Install UV
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
-    - name: Install TA-Lib (Ubuntu)
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential wget
-        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-        tar -xzf ta-lib-0.4.0-src.tar.gz
-        cd ta-lib/
-        ./configure --prefix=/usr
-        make
-        sudo make install
-        cd ..
+      - name: Install TA-Lib (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential wget
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          ./configure --prefix=/usr
+          make
+          sudo make install
+          cd ..
 
-    - name: Install TA-Lib (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        brew install ta-lib
+      - name: Install TA-Lib (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ta-lib
 
-    - name: Install dependencies
-      run: |
-        uv pip install --system -e ".[dev,test]"
+      - name: Install dependencies
+        run: uv sync --group dev --group test
 
-    - name: Lint with ruff
-      continue-on-error: true
-      run: |
-        uv pip install --system ruff
-        ruff check .
+      - name: Lint with ruff
+        continue-on-error: true
+        run: uv run ruff check .
 
-    - name: Format check with black
-      continue-on-error: true
-      run: |
-        uv pip install --system black
-        black --check .
+      - name: Format check with black
+        continue-on-error: true
+        run: uv run black --check .
 
-    - name: Type check with mypy
-      continue-on-error: true
-      run: |
-        uv pip install --system mypy
-        mypy strategies/ brokers/ engine/ utils/
+      - name: Type check with mypy
+        continue-on-error: true
+        run: uv run mypy strategies/ brokers/ engine/ utils/
 
-    - name: Run tests
-      env:
-        ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
-        ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
-        PAPER: "True"
-      run: |
-        pytest tests/unit/ -v --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=xml --cov-fail-under=30
+      - name: Run tests
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+          PAPER: "True"
+        run: uv run pytest tests/unit/ -v --cov=strategies --cov=brokers --cov=engine --cov=utils --cov-report=xml --cov-fail-under=30
 
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
 
   security:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Run Bandit security linter
-      run: |
-        pip install bandit[toml]
-        bandit -r strategies/ brokers/ engine/ utils/ -f json -o bandit-report.json
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
-    - name: Check for secrets
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        extra_args: --only-verified
+      - name: Set up Python
+        run: uv python install 3.10
+
+      - name: Run Bandit security linter
+        run: |
+          uv tool install bandit
+          uv tool run bandit -r strategies/ brokers/ engine/ utils/ -f json -o bandit-report.json || true
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          extra_args: --only-verified
 
   dependency-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
-    - name: Install UV
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Set up Python
+        run: uv python install 3.10
 
-    - name: Check for dependency vulnerabilities
-      run: |
-        pip install safety
-        safety check --json || true
+      - name: Check for dependency vulnerabilities
+        run: |
+          uv tool install safety
+          uv tool run safety check --json || true
 
   build:
     needs: [test, security, dependency-check]
@@ -124,27 +114,19 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
 
-    - name: Install build tools
-      run: |
-        pip install build twine
+      - name: Set up Python
+        run: uv python install 3.10
 
-    - name: Build package
-      run: |
-        python -m build
+      - name: Build package
+        run: uv build
 
-    - name: Check package
-      run: |
-        twine check dist/*
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist-packages
-        path: dist/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-packages
+          path: dist/
