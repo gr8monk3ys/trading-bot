@@ -209,8 +209,8 @@ class TestAnalyzerInitialization:
             secret_key=mock_api_credentials["secret_key"],
         )
 
-        assert analyzer.api_key == mock_api_credentials["api_key"]
-        assert analyzer.secret_key == mock_api_credentials["secret_key"]
+        assert analyzer._api_key == mock_api_credentials["api_key"]
+        assert analyzer._secret_key == mock_api_credentials["secret_key"]
         assert analyzer.use_gpu is False
         assert analyzer._news_client is None
         assert analyzer._finbert_loaded is False

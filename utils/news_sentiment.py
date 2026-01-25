@@ -114,8 +114,8 @@ class NewsSentimentAnalyzer:
             use_gpu: Whether to use GPU for FinBERT inference (requires CUDA)
             cache_ttl_minutes: How long to cache sentiment results
         """
-        self.api_key = api_key
-        self.secret_key = secret_key
+        self._api_key = api_key
+        self._secret_key = secret_key
         self.use_gpu = use_gpu
         self.logger = logging.getLogger(__name__)
 
@@ -141,8 +141,8 @@ class NewsSentimentAnalyzer:
                 from alpaca.data.historical.news import NewsClient
 
                 self._news_client = NewsClient(
-                    api_key=self.api_key,
-                    secret_key=self.secret_key,
+                    api_key=self._api_key,
+                    secret_key=self._secret_key,
                 )
                 self.logger.debug("Alpaca NewsClient initialized")
             except ImportError as e:
@@ -391,8 +391,8 @@ class NewsSentimentAnalyzer:
             if include_summary and article.summary:
                 texts.append(article.summary)
 
-        # Analyze sentiment
-        sentiments = self.analyze_sentiment(texts)
+        # Analyze sentiment (run blocking inference in thread pool)
+        sentiments = await asyncio.to_thread(self.analyze_sentiment, texts)
 
         # Aggregate results
         sentiment, confidence, score = self._aggregate_sentiment(sentiments)

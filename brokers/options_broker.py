@@ -34,12 +34,6 @@ class OptionType(Enum):
     PUT = "put"
 
 
-class OptionRight(Enum):
-    """Option right indicator for OCC symbol."""
-    CALL = "C"
-    PUT = "P"
-
-
 @dataclass
 class OptionContract:
     """
@@ -105,12 +99,20 @@ class OptionContract:
         today = date.today()
         return (self.expiration - today).days
 
-    @property
-    def is_itm(self) -> Optional[bool]:
-        """Check if option is in-the-money (requires current underlying price)."""
-        # Note: This requires knowing the current underlying price
-        # which isn't stored in the contract. Returns None.
-        return None
+    def is_itm(self, underlying_price: float) -> bool:
+        """
+        Check if option is in-the-money.
+
+        Args:
+            underlying_price: Current price of the underlying asset.
+
+        Returns:
+            True if the option is in-the-money, False otherwise.
+        """
+        if self.option_type == OptionType.CALL:
+            return underlying_price > self.strike
+        else:  # PUT
+            return underlying_price < self.strike
 
     def __repr__(self) -> str:
         """String representation."""
@@ -253,8 +255,8 @@ class OptionsBroker:
             secret_key: Alpaca secret key (defaults to env var)
             paper: Use paper trading environment (default True)
         """
-        self.api_key = api_key or ALPACA_CREDS.get("API_KEY", "")
-        self.secret_key = secret_key or ALPACA_CREDS.get("API_SECRET", "")
+        self._api_key = api_key or ALPACA_CREDS.get("API_KEY", "")
+        self._secret_key = secret_key or ALPACA_CREDS.get("API_SECRET", "")
 
         # Handle paper parameter - can be string or bool
         if isinstance(paper, str):
@@ -278,8 +280,8 @@ class OptionsBroker:
             try:
                 from alpaca.trading.client import TradingClient
                 self._trading_client = TradingClient(
-                    self.api_key,
-                    self.secret_key,
+                    self._api_key,
+                    self._secret_key,
                     paper=self.paper
                 )
                 self.logger.debug("Initialized options trading client")
@@ -294,8 +296,8 @@ class OptionsBroker:
             try:
                 from alpaca.data.historical.option import OptionHistoricalDataClient
                 self._options_client = OptionHistoricalDataClient(
-                    self.api_key,
-                    self.secret_key
+                    self._api_key,
+                    self._secret_key
                 )
                 self.logger.debug("Initialized options data client")
             except ImportError:
@@ -1160,16 +1162,15 @@ class OptionsBroker:
     def calculate_breakeven(
         self,
         option_type: OptionType,
-        side: str,
         strike: float,
-        premium: float
+        premium: float,
+        **kwargs,
     ) -> float:
         """
         Calculate breakeven price for an option position.
 
         Args:
             option_type: CALL or PUT
-            side: "buy" or "sell"
             strike: Strike price
             premium: Option premium
 
@@ -1177,15 +1178,9 @@ class OptionsBroker:
             Breakeven underlying price
         """
         if option_type == OptionType.CALL:
-            if side.lower() == "buy":
-                return strike + premium
-            else:
-                return strike + premium
+            return strike + premium
         else:  # PUT
-            if side.lower() == "buy":
-                return strike - premium
-            else:
-                return strike - premium
+            return strike - premium
 
     def clear_cache(self) -> None:
         """Clear option chain cache."""
