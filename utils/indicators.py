@@ -29,10 +29,34 @@ Usage:
 """
 
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import talib
+
+
+# ==================== UTILITY FUNCTIONS ====================
+
+
+def safe_last(arr: Union[np.ndarray, list, None]) -> Optional[float]:
+    """
+    Safely extract the last value from an array.
+
+    Returns None if array is empty, None, or last value is NaN.
+    Used across strategies to extract indicator values safely.
+
+    Args:
+        arr: Numpy array or list of values
+
+    Returns:
+        Last value as float, or None if invalid
+    """
+    if arr is None or len(arr) == 0:
+        return None
+    val = arr[-1]
+    if isinstance(val, (int, float)) and np.isnan(val):
+        return None
+    return float(val)
 
 
 class TechnicalIndicators:

@@ -19,6 +19,9 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# Named constants for magic numbers
+RAPID_DRAWDOWN_RATIO = 0.67  # Rapid drawdown triggers at 67% of max daily loss
+
 
 class CircuitBreaker:
     """
@@ -124,7 +127,7 @@ class CircuitBreaker:
                 return True
 
             # Also check for rapid drawdown from peak (additional safety)
-            rapid_drawdown_threshold = self.max_daily_loss * 0.67  # 2% if daily limit is 3%
+            rapid_drawdown_threshold = self.max_daily_loss * RAPID_DRAWDOWN_RATIO
             if drawdown_from_peak >= rapid_drawdown_threshold:
                 await self._trigger_halt(current_equity, drawdown_from_peak, "rapid_drawdown")
                 return True
