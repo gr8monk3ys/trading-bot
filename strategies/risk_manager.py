@@ -6,6 +6,24 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def safe_divide(numerator: float, denominator: float, default: float = 1.0) -> float:
+    """
+    Safely divide, returning default if denominator is zero or invalid.
+
+    Args:
+        numerator: The dividend
+        denominator: The divisor
+        default: Value to return if division is invalid
+
+    Returns:
+        Result of division or default value
+    """
+    if denominator is None or denominator == 0:
+        logger.warning("Division by zero prevented in risk calculation")
+        return default
+    return numerator / denominator
+
+
 class RiskCalculationError(Exception):
     """Raised when risk calculations fail due to invalid data."""
 
@@ -132,14 +150,6 @@ class RiskManager:
             var_95 = self._calculate_var(price_history)
             es_95 = self._calculate_expected_shortfall(price_history)
             max_drawdown = self._calculate_max_drawdown(price_history)
-
-            # P2 FIX: Safe division with fallback to max risk if thresholds are invalid
-            def safe_divide(numerator, denominator, default=1.0):
-                """Safely divide, returning default if denominator is zero or invalid."""
-                if denominator is None or denominator == 0:
-                    logger.warning("Division by zero prevented in risk calculation")
-                    return default
-                return numerator / denominator
 
             # Combine metrics into a risk score (0 to 1)
             risk_score = (

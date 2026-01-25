@@ -15,6 +15,7 @@ Expected Sharpe Ratio: 0.95-1.25 (research target)
 """
 
 import logging
+import warnings
 from datetime import datetime
 
 import numpy as np
@@ -84,6 +85,12 @@ class EnsembleStrategy(BaseStrategy):
 
     async def initialize(self, **kwargs):
         """Initialize ensemble strategy."""
+        warnings.warn(
+            f"{self.__class__.__name__} is experimental and has not been fully validated. "
+            "Use in production at your own risk.",
+            category=UserWarning,
+            stacklevel=2,
+        )
         try:
             await super().initialize(**kwargs)
 

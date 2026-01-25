@@ -13,6 +13,7 @@ sets profit targets and stop losses using bracket orders.
 
 import asyncio
 import logging
+import warnings
 from datetime import datetime
 
 import numpy as np
@@ -65,6 +66,12 @@ class BracketMomentumStrategy(BaseStrategy):
 
     async def initialize(self, **kwargs):
         """Initialize the bracket momentum strategy."""
+        warnings.warn(
+            f"{self.__class__.__name__} is experimental and has not been fully validated. "
+            "Use in production at your own risk.",
+            category=UserWarning,
+            stacklevel=2,
+        )
         try:
             # Initialize the base strategy
             await super().initialize(**kwargs)

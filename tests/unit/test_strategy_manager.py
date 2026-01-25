@@ -146,7 +146,7 @@ class DummyStrategy(BaseStrategy):
         # Should not raise, just log error
         try:
             manager_without_load._load_available_strategies()
-        except:
+        except Exception:
             pass  # Import errors are logged, not raised
 
     def test_load_strategies_skips_init_and_base(self, manager_without_load, tmp_path):
@@ -821,4 +821,4 @@ class TestEdgeCases:
         except FileNotFoundError:
             pass  # Expected
         except Exception:
-            pass  # Any exception is acceptable here
+            pass  # Any other exception is acceptable here
