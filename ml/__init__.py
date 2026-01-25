@@ -4,6 +4,7 @@ Machine Learning module for trading strategies.
 Contains:
 - LSTM-based price prediction
 - DQN reinforcement learning agent for trading decisions
+- Shared PyTorch utilities
 
 Usage:
     from ml import LSTMPredictor, DQNAgent
@@ -17,6 +18,9 @@ Usage:
     action = agent.select_action(state)
 """
 
+# Shared PyTorch utilities
+from ml.torch_utils import import_torch, get_torch_device
+
 # LSTM predictor (existing)
 from ml.lstm_predictor import LSTMPredictor, PredictionResult, TrainingMetrics
 
@@ -28,10 +32,12 @@ from ml.rl_agent import (
     Experience,
     ReplayBuffer,
     DQNNetwork,
-    DuelingDQNNetwork,
 )
 
 __all__ = [
+    # Utilities
+    "import_torch",
+    "get_torch_device",
     # LSTM
     "LSTMPredictor",
     "PredictionResult",
@@ -43,5 +49,4 @@ __all__ = [
     "Experience",
     "ReplayBuffer",
     "DQNNetwork",
-    "DuelingDQNNetwork",
 ]

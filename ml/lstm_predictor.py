@@ -33,32 +33,12 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from ml.torch_utils import import_torch, get_torch_device
+
 logger = logging.getLogger(__name__)
 
-# Lazy imports for heavy dependencies
-_torch = None
-_nn = None
+# Lazy import for sklearn
 _MinMaxScaler = None
-
-
-def _import_torch():
-    """Lazy import PyTorch to reduce startup time."""
-    global _torch, _nn
-    if _torch is None:
-        try:
-            import torch
-            import torch.nn as nn
-
-            _torch = torch
-            _nn = nn
-            logger.debug("PyTorch imported successfully")
-        except ImportError as e:
-            logger.error(f"Failed to import PyTorch: {e}")
-            raise ImportError(
-                "PyTorch is required for LSTM predictions. "
-                "Install with: pip install torch"
-            ) from e
-    return _torch, _nn
 
 
 def _import_sklearn():
@@ -143,7 +123,7 @@ class LSTMNetwork:
             output_size: Size of output (1 for single price prediction)
             dropout: Dropout rate between LSTM layers
         """
-        torch, nn = _import_torch()
+        torch, nn, _, _ = import_torch()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -156,7 +136,7 @@ class LSTMNetwork:
 
     def _build_model(self):
         """Build and return the PyTorch model."""
-        torch, nn = _import_torch()
+        torch, nn, _, _ = import_torch()
 
         class _LSTMModel(nn.Module):
             """Internal LSTM model class."""
@@ -262,16 +242,7 @@ class LSTMPredictor:
         self.model_dir = model_dir
 
         # Determine device (GPU or CPU)
-        torch, _ = _import_torch()
-        if use_gpu and torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            logger.info("LSTM Predictor using GPU acceleration")
-        elif use_gpu and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-            logger.info("LSTM Predictor using MPS (Apple Silicon) acceleration")
-        else:
-            self.device = torch.device("cpu")
-            logger.info("LSTM Predictor using CPU")
+        self.device = get_torch_device(use_gpu)
 
         # Storage for trained models and scalers
         self.models: Dict[str, any] = {}  # symbol -> trained model
@@ -403,7 +374,7 @@ class LSTMPredictor:
         """
         import time
 
-        torch, nn = _import_torch()
+        torch, nn, _, _ = import_torch()
         start_time = time.time()
 
         # Validate input data
@@ -514,7 +485,7 @@ class LSTMPredictor:
             train_losses.append(avg_train_loss)
 
             # Validation
-            model.train(False)  # Set to evaluation mode
+            model.eval()
             with torch.no_grad():
                 val_outputs = model(X_val_t)
                 val_loss = criterion(val_outputs, y_val_t).item()
@@ -597,7 +568,7 @@ class LSTMPredictor:
         Returns:
             PredictionResult or None if prediction fails
         """
-        torch, _ = _import_torch()
+        torch, _, _, _ = import_torch()
 
         # Check if model exists
         if symbol not in self.models:
@@ -634,7 +605,7 @@ class LSTMPredictor:
 
             # Get model and make prediction
             model = self.models[symbol]
-            model.train(False)  # Set to evaluation mode
+            model.eval()
 
             with torch.no_grad():
                 predicted_normalized = model(X).item()
@@ -699,7 +670,7 @@ class LSTMPredictor:
         Returns:
             True if model loaded successfully, False otherwise
         """
-        torch, _ = _import_torch()
+        torch, _, _, _ = import_torch()
         MinMaxScaler = _import_sklearn()
 
         model_path = os.path.join(self.model_dir, f"{symbol}_lstm.pt")
@@ -710,7 +681,10 @@ class LSTMPredictor:
 
         try:
             # Load checkpoint
-            checkpoint = torch.load(model_path, map_location=self.device)
+            # Note: weights_only=False needed because checkpoint includes
+            # non-tensor metadata (scaler, config, metrics).
+            # Only load model files from trusted sources.
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
 
             # Recreate model architecture
             network = LSTMNetwork(
@@ -722,7 +696,7 @@ class LSTMPredictor:
 
             # Load model weights
             model.load_state_dict(checkpoint["model_state_dict"])
-            model.train(False)  # Set to evaluation mode
+            model.eval()
 
             self.models[symbol] = model
 
@@ -774,7 +748,7 @@ class LSTMPredictor:
         Returns:
             True if saved successfully, False otherwise
         """
-        torch, _ = _import_torch()
+        torch, _, _, _ = import_torch()
 
         if symbol not in self.models:
             logger.warning(f"No model to save for {symbol}")

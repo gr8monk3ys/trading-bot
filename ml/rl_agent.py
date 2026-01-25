@@ -26,34 +26,7 @@ from collections import deque
 import random
 import os
 
-# Lazy imports for PyTorch - only load when needed
-_torch = None
-_nn = None
-_optim = None
-
-
-def _import_torch():
-    """
-    Lazy import PyTorch modules.
-
-    Returns:
-        Tuple of (torch, nn, optim) modules
-    """
-    global _torch, _nn, _optim
-    if _torch is None:
-        try:
-            import torch
-            import torch.nn as nn
-            import torch.optim as optim
-            _torch = torch
-            _nn = nn
-            _optim = optim
-        except ImportError as e:
-            raise ImportError(
-                "PyTorch is required for the DQN agent. "
-                "Install with: pip install torch"
-            ) from e
-    return _torch, _nn, _optim
+from ml.torch_utils import import_torch, get_torch_device
 
 
 @dataclass
@@ -130,7 +103,7 @@ class DQNNetwork:
         if hidden_sizes is None:
             hidden_sizes = [128, 64]
 
-        torch, nn, _ = _import_torch()
+        torch, nn, _, _ = import_torch()
 
         layers = []
         prev_size = state_size
@@ -230,18 +203,10 @@ class DQNAgent:
         self.model_dir = model_dir
         self.logger = logging.getLogger(__name__)
 
-        torch, nn, optim = _import_torch()
+        torch, nn, optim, _ = import_torch()
 
         # Device selection
-        if use_gpu and torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            self.logger.info("DQN Agent using GPU (CUDA)")
-        elif use_gpu and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-            self.device = torch.device("mps")
-            self.logger.info("DQN Agent using GPU (MPS)")
-        else:
-            self.device = torch.device("cpu")
-            self.logger.info("DQN Agent using CPU")
+        self.device = get_torch_device(use_gpu)
 
         # Policy network (online network)
         self.policy_net = DQNNetwork(
@@ -398,7 +363,7 @@ class DQNAgent:
         Returns:
             Action index (0=HOLD, 1=BUY, 2=SELL)
         """
-        torch, _, _ = _import_torch()
+        torch, _, _, _ = import_torch()
 
         # Epsilon-greedy exploration
         if training and random.random() < self.epsilon:
@@ -432,7 +397,7 @@ class DQNAgent:
         Returns:
             Array of Q-values for each action
         """
-        torch, _, _ = _import_torch()
+        torch, _, _, _ = import_torch()
 
         # Set to eval mode for deterministic output
         was_training = self.policy_net.training
@@ -529,6 +494,32 @@ class DQNAgent:
         self.replay_buffer.push(exp)
         self.total_reward += reward
 
+    def _compute_target_q_values(self, next_states, rewards, dones):
+        """
+        Compute target Q-values for training.
+
+        Uses the target network to estimate future Q-values via:
+            target_q = reward + gamma * max_a' Q_target(s', a')
+
+        Subclasses can override this to implement alternative
+        target computation (e.g., Double DQN).
+
+        Args:
+            next_states: Batch of next-state tensors
+            rewards: Batch of reward tensors
+            dones: Batch of done-flag tensors (1.0 if terminal)
+
+        Returns:
+            Tensor of target Q-values for the batch
+        """
+        torch, _, _, _ = import_torch()
+
+        with torch.no_grad():
+            next_q = self.target_net(next_states).max(1)[0]
+            target_q = rewards + (1 - dones) * self.gamma * next_q
+
+        return target_q
+
     def train_step(self) -> Optional[float]:
         """
         Perform one training step using experience replay.
@@ -539,7 +530,7 @@ class DQNAgent:
         Returns:
             Loss value, or None if insufficient samples
         """
-        torch, _, _ = _import_torch()
+        torch, _, _, _ = import_torch()
 
         if len(self.replay_buffer) < self.batch_size:
             return None
@@ -567,10 +558,8 @@ class DQNAgent:
         # Current Q-values: Q(s, a)
         current_q = self.policy_net(states).gather(1, actions.unsqueeze(1))
 
-        # Target Q-values: r + gamma * max_a' Q_target(s', a')
-        with torch.no_grad():
-            next_q = self.target_net(next_states).max(1)[0]
-            target_q = rewards + (1 - dones) * self.gamma * next_q
+        # Target Q-values (delegated to allow override by subclasses)
+        target_q = self._compute_target_q_values(next_states, rewards, dones)
 
         # Compute loss (Huber loss)
         loss = self.criterion(current_q.squeeze(), target_q)
@@ -613,7 +602,7 @@ class DQNAgent:
         self.total_reward = 0.0
 
         avg_reward = (
-            np.mean(self.episode_rewards[-100:])
+            np.mean(list(self.episode_rewards)[-100:])
             if self.episode_rewards else 0.0
         )
 
@@ -661,7 +650,7 @@ class DQNAgent:
             "buffer_size": len(self.replay_buffer),
             "device": str(self.device),
             "avg_reward_100": (
-                np.mean(self.episode_rewards[-100:])
+                np.mean(list(self.episode_rewards)[-100:])
                 if self.episode_rewards else 0.0
             )
         }
@@ -678,7 +667,7 @@ class DQNAgent:
         Returns:
             Full path to saved file
         """
-        torch, _, _ = _import_torch()
+        torch, _, _, _ = import_torch()
 
         path = os.path.join(self.model_dir, filename)
         torch.save({
@@ -709,7 +698,7 @@ class DQNAgent:
         Returns:
             True if loaded successfully, False if file not found
         """
-        torch, _, _ = _import_torch()
+        torch, _, _, _ = import_torch()
 
         path = os.path.join(self.model_dir, filename)
         if not os.path.exists(path):
@@ -717,7 +706,10 @@ class DQNAgent:
             return False
 
         try:
-            checkpoint = torch.load(path, map_location=self.device)
+            # Note: weights_only=False needed because checkpoint includes
+            # non-tensor metadata (steps, episodes, epsilon, rewards).
+            # Only load model files from trusted sources.
+            checkpoint = torch.load(path, map_location=self.device, weights_only=False)
 
             # Verify architecture matches
             if checkpoint.get("state_size") != self.state_size:
@@ -767,44 +759,27 @@ class DoubleDQNAgent(DQNAgent):
     Double Q-learning", AAAI 2016
     """
 
-    def train_step(self) -> Optional[float]:
+    def _compute_target_q_values(self, next_states, rewards, dones):
         """
-        Perform one training step using Double DQN.
+        Compute target Q-values using Double DQN.
 
         The key difference from vanilla DQN:
         - Action selection: argmax_a Q_policy(s', a)
         - Action assessment: Q_target(s', argmax_a Q_policy(s', a))
 
+        This decouples action selection from evaluation, reducing
+        overestimation bias.
+
+        Args:
+            next_states: Batch of next-state tensors
+            rewards: Batch of reward tensors
+            dones: Batch of done-flag tensors (1.0 if terminal)
+
         Returns:
-            Loss value, or None if insufficient samples
+            Tensor of target Q-values for the batch
         """
-        torch, _, _ = _import_torch()
+        torch, _, _, _ = import_torch()
 
-        if len(self.replay_buffer) < self.batch_size:
-            return None
-
-        batch = self.replay_buffer.sample(self.batch_size)
-
-        states = torch.FloatTensor(
-            np.array([e.state for e in batch])
-        ).to(self.device)
-        actions = torch.LongTensor(
-            [e.action for e in batch]
-        ).to(self.device)
-        rewards = torch.FloatTensor(
-            [e.reward for e in batch]
-        ).to(self.device)
-        next_states = torch.FloatTensor(
-            np.array([e.next_state for e in batch])
-        ).to(self.device)
-        dones = torch.FloatTensor(
-            [1.0 if e.done else 0.0 for e in batch]
-        ).to(self.device)
-
-        # Current Q-values
-        current_q = self.policy_net(states).gather(1, actions.unsqueeze(1))
-
-        # Double DQN: Use policy net to select action, target net for assessment
         with torch.no_grad():
             # Select best action using policy network
             next_actions = self.policy_net(next_states).argmax(1)
@@ -814,89 +789,4 @@ class DoubleDQNAgent(DQNAgent):
             ).squeeze()
             target_q = rewards + (1 - dones) * self.gamma * next_q
 
-        loss = self.criterion(current_q.squeeze(), target_q)
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
-        self.optimizer.step()
-
-        self.steps += 1
-
-        if self.steps % self.target_update_freq == 0:
-            self.target_net.load_state_dict(self.policy_net.state_dict())
-
-        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
-
-        return loss.item()
-
-
-class DuelingDQNNetwork:
-    """
-    Dueling DQN network architecture.
-
-    Separates state-value V(s) and advantage A(s,a) estimation,
-    which can improve learning efficiency.
-
-    Reference: Wang et al., "Dueling Network Architectures for
-    Deep Reinforcement Learning", ICML 2016
-    """
-
-    def __init__(
-        self,
-        state_size: int,
-        action_size: int = 3,
-        hidden_sizes: List[int] = None
-    ):
-        if hidden_sizes is None:
-            hidden_sizes = [128, 64]
-
-        torch, nn, _ = _import_torch()
-
-        # Shared feature layers
-        feature_layers = []
-        prev_size = state_size
-        for hidden_size in hidden_sizes[:-1]:
-            feature_layers.extend([
-                nn.Linear(prev_size, hidden_size),
-                nn.ReLU(),
-                nn.Dropout(0.2)
-            ])
-            prev_size = hidden_size
-
-        self.features = nn.Sequential(*feature_layers)
-
-        # Value stream
-        self.value_stream = nn.Sequential(
-            nn.Linear(prev_size, hidden_sizes[-1]),
-            nn.ReLU(),
-            nn.Linear(hidden_sizes[-1], 1)
-        )
-
-        # Advantage stream
-        self.advantage_stream = nn.Sequential(
-            nn.Linear(prev_size, hidden_sizes[-1]),
-            nn.ReLU(),
-            nn.Linear(hidden_sizes[-1], action_size)
-        )
-
-        # Combine into single module for state_dict compatibility
-        self.model = nn.ModuleDict({
-            'features': self.features,
-            'value': self.value_stream,
-            'advantage': self.advantage_stream
-        })
-
-    def forward(self, x):
-        """
-        Forward pass with dueling architecture.
-
-        Q(s,a) = V(s) + A(s,a) - mean(A(s,:))
-        """
-        features = self.features(x)
-        value = self.value_stream(features)
-        advantage = self.advantage_stream(features)
-
-        # Combine: Q = V + (A - mean(A))
-        q_values = value + (advantage - advantage.mean(dim=1, keepdim=True))
-        return q_values
+        return target_q
