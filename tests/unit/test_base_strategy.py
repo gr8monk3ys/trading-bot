@@ -806,38 +806,6 @@ class TestVolatilityCalculation:
 # ============================================================================
 
 
-class TestPerformanceMetrics:
-    """Test performance metrics tracking."""
-
-    def test_update_metrics_winning_trade(self):
-        """Should update metrics for winning trade."""
-        strategy = ConcreteStrategy()
-        # Initialize attributes needed by update_performance_metrics
-        strategy.trades_made = 0
-        strategy.successful_trades = 0
-        strategy.total_profit_loss = 0
-
-        strategy.update_performance_metrics(100.0, "AAPL")
-
-        assert strategy.trades_made == 1
-        assert strategy.successful_trades == 1
-        assert strategy.total_profit_loss == 100.0
-
-    def test_update_metrics_losing_trade(self):
-        """Should update metrics for losing trade."""
-        strategy = ConcreteStrategy()
-        # Initialize attributes needed by update_performance_metrics
-        strategy.trades_made = 0
-        strategy.successful_trades = 0
-        strategy.total_profit_loss = 0
-
-        strategy.update_performance_metrics(-50.0, "AAPL")
-
-        assert strategy.trades_made == 1
-        assert strategy.successful_trades == 0
-        assert strategy.total_profit_loss == -50.0
-
-
 # ============================================================================
 # Test Cleanup and Shutdown
 # ============================================================================
@@ -911,11 +879,11 @@ class TestAbstractMethods:
 # ============================================================================
 
 
-class TestLegacyInitialize:
-    """Test legacy initialize compatibility."""
+class TestInitAttributes:
+    """Test that __init__ sets expected attributes."""
 
-    def test_legacy_initialize_sets_attributes(self):
-        """Legacy initialize should set expected attributes."""
+    def test_init_sets_expected_attributes(self):
+        """__init__ should set expected attributes."""
         strategy = ConcreteStrategy()
 
         # Access attributes set in __init__

@@ -159,8 +159,7 @@ async def run_backtest(strategy_names, days=30, symbols=None, output_dir=None):
             logger.error(f"Strategy '{strategy_name}' not found")
             continue
 
-        strategy = strategy_class()
-        strategy._legacy_initialize(symbols=symbols)
+        strategy = strategy_class(parameters={"symbols": symbols})
         strategies.append(strategy)
 
     # Create engine

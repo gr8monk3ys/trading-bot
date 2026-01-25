@@ -246,8 +246,7 @@ class SimpleBacktester:
         # Initialize strategies
         strategies = []
         for strategy_class in strategy_classes:
-            strategy = strategy_class()
-            strategy._legacy_initialize(symbols=symbols)
+            strategy = strategy_class(parameters={"symbols": symbols})
             strategies.append(strategy)
 
         # Track equity curve
@@ -399,7 +398,7 @@ class SimpleBacktester:
         # Initialize all strategies
         for strategy in strategies:
             strategy.data = self.data
-            strategy._legacy_initialize(symbols=symbols)
+            strategy.symbols = symbols
 
         # Process daily
         trading_dates = sorted(self.data[symbols[0]].index)
@@ -591,8 +590,7 @@ class SimpleBacktester:
         # Initialize strategies
         strategies = []
         for strategy_class in strategy_classes:
-            strategy = strategy_class()
-            strategy._legacy_initialize(symbols=symbols)
+            strategy = strategy_class(parameters={"symbols": symbols})
             strategies.append(strategy)
 
         # Track equity curve
