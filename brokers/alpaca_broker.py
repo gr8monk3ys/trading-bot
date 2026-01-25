@@ -4,12 +4,18 @@ import os
 import random
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Optional
+from typing import Dict, List, Optional
 
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.live import StockDataStream
-from alpaca.data.requests import StockBarsRequest, StockLatestTradeRequest
-from alpaca.data.timeframe import TimeFrame
+from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
+from alpaca.data.live import CryptoDataStream, StockDataStream
+from alpaca.data.requests import (
+    CryptoBarsRequest,
+    CryptoLatestQuoteRequest,
+    CryptoLatestTradeRequest,
+    StockBarsRequest,
+    StockLatestTradeRequest,
+)
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.requests import (
@@ -23,6 +29,11 @@ from alpaca.trading.requests import (
 # lumibot.credentials.py trying to instantiate Alpaca broker before config is ready
 # We don't actually need lumibot's Broker class - we built our own implementation
 from config import ALPACA_CREDS, SYMBOLS
+from utils.crypto_utils import (
+    CRYPTO_PAIRS,
+    is_crypto_symbol,
+    normalize_crypto_symbol,
+)
 
 # P2 FIX: Environment-aware logging - only show full tracebacks in debug mode
 # This prevents sensitive information from leaking in production logs
@@ -155,10 +166,13 @@ class AlpacaBroker:
 
     Direct implementation without lumibot dependency to avoid import-time crashes.
     Provides all necessary broker functionality for live and paper trading.
+    Supports both stocks and 24/7 cryptocurrency trading.
     """
 
     NAME = "alpaca"
     IS_BACKTESTING_BROKER = False
+
+    # CRYPTO_PAIRS is now imported from utils.crypto_utils for consistency
 
     def __init__(self, paper=True):
         """Initialize the AlpacaBroker."""
@@ -191,6 +205,10 @@ class AlpacaBroker:
                     "Alpaca API credentials not found. Please set them in your environment variables."
                 )
 
+            # Store credentials for crypto client initialization (lazy loaded)
+            self._api_key = _api_key
+            self._api_secret = _api_secret
+
             # Initialize the trading client
             self.trading_client = TradingClient(
                 api_key=_api_key,
@@ -199,10 +217,14 @@ class AlpacaBroker:
                 url_override="https://paper-api.alpaca.markets" if self.paper else None,
             )
 
-            # Initialize the data client
+            # Initialize the data client for stocks
             self.data_client = StockHistoricalDataClient(api_key=_api_key, secret_key=_api_secret)
 
-            # Initialize the stream for WebSockets
+            # Crypto clients (lazy initialized to avoid unnecessary connections)
+            self._crypto_data_client = None
+            self._crypto_stream = None
+
+            # Initialize the stream for WebSockets (stocks)
             self.stream = StockDataStream(
                 api_key=_api_key,
                 secret_key=_api_secret,
@@ -211,11 +233,63 @@ class AlpacaBroker:
 
             self._subscribed_symbols = set()  # Keep track of subscribed symbols
 
+            # Performance optimization: TTL-based price cache to reduce API calls
+            self._price_cache = {}  # {symbol: (price, timestamp)}
+            self._price_cache_ttl = timedelta(seconds=5)  # Cache prices for 5 seconds
+
             # P0 FIX: Removed unused config dict that stored credentials in memory
 
         except Exception as e:
             logger.error(f"Error initializing AlpacaBroker: {e}", exc_info=DEBUG_MODE)
             raise
+
+    # =========================================================================
+    # CRYPTO HELPER METHODS
+    # =========================================================================
+
+    def _get_crypto_data_client(self) -> CryptoHistoricalDataClient:
+        """
+        Lazy load crypto data client.
+
+        Returns:
+            CryptoHistoricalDataClient instance
+        """
+        if self._crypto_data_client is None:
+            # Crypto data client does not require authentication for public data
+            self._crypto_data_client = CryptoHistoricalDataClient()
+            logger.info("Initialized crypto data client")
+        return self._crypto_data_client
+
+    def is_crypto(self, symbol: str) -> bool:
+        """
+        Check if symbol is a cryptocurrency pair.
+
+        Delegates to utils.crypto_utils.is_crypto_symbol for consistency.
+
+        Args:
+            symbol: Symbol to check (e.g., "BTC/USD", "BTCUSD", "BTC-USD")
+
+        Returns:
+            True if the symbol is a crypto pair, False otherwise
+        """
+        return is_crypto_symbol(symbol)
+
+    def normalize_crypto_symbol(self, symbol: str) -> str:
+        """
+        Normalize crypto symbol to Alpaca format (e.g., BTCUSD -> BTC/USD).
+
+        Delegates to utils.crypto_utils.normalize_crypto_symbol for consistency.
+
+        Args:
+            symbol: Crypto symbol in any format
+
+        Returns:
+            Normalized symbol in Alpaca format (e.g., "BTC/USD")
+
+        Raises:
+            ValueError: If symbol is not a recognized crypto pair
+        """
+        return normalize_crypto_symbol(symbol)
 
     async def is_connected(self) -> bool:
         """Thread-safe check if websocket is connected."""
@@ -548,6 +622,98 @@ class AlpacaBroker:
             return []
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def get_asset(self, symbol: str) -> Optional[dict]:
+        """
+        Get asset information including extended hours and overnight trading status.
+
+        This method retrieves comprehensive asset details from Alpaca, including
+        whether the symbol supports overnight trading via Blue Ocean ATS.
+
+        Args:
+            symbol: Stock symbol (e.g., "AAPL")
+
+        Returns:
+            Dict with asset attributes:
+            - symbol: Stock symbol
+            - name: Company name
+            - exchange: Primary exchange
+            - tradeable: Whether the asset can be traded
+            - marginable: Whether margin trading is allowed
+            - shortable: Whether short selling is allowed
+            - fractionable: Whether fractional shares are allowed
+            - overnight_tradeable: Whether overnight trading is available (Blue Ocean ATS)
+            - overnight_halted: Whether overnight trading is currently halted
+            - easy_to_borrow: Whether shares are easy to borrow for shorting
+
+            Returns None on error or if asset not found.
+
+        Example:
+            asset = await broker.get_asset("AAPL")
+            if asset and asset["overnight_tradeable"]:
+                # Can trade overnight via Blue Ocean ATS
+                pass
+        """
+        try:
+            # Validate symbol
+            symbol = self._validate_symbol(symbol)
+
+            # Use asyncio.to_thread to avoid blocking the event loop
+            asset = await asyncio.to_thread(
+                self.trading_client.get_asset,
+                symbol
+            )
+
+            return {
+                "symbol": asset.symbol,
+                "name": getattr(asset, "name", None),
+                "exchange": getattr(asset, "exchange", None),
+                "asset_class": getattr(asset, "asset_class", None),
+                "tradeable": getattr(asset, "tradable", False),
+                "marginable": getattr(asset, "marginable", False),
+                "shortable": getattr(asset, "shortable", False),
+                "fractionable": getattr(asset, "fractionable", False),
+                "easy_to_borrow": getattr(asset, "easy_to_borrow", False),
+                # Overnight trading attributes (Blue Ocean ATS)
+                "overnight_tradeable": getattr(asset, "overnight_tradeable", False),
+                "overnight_halted": getattr(asset, "overnight_halted", False),
+                # Extended hours status
+                "status": getattr(asset, "status", None),
+            }
+
+        except ValueError as e:
+            logger.error(f"Invalid symbol: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching asset {symbol}: {e}", exc_info=DEBUG_MODE)
+            return None
+
+    async def is_overnight_tradeable(self, symbol: str) -> bool:
+        """
+        Check if a symbol supports overnight trading via Blue Ocean ATS.
+
+        This is a convenience method that wraps get_asset() to quickly check
+        overnight trading eligibility.
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            True if overnight trading is available and not halted,
+            False otherwise
+        """
+        try:
+            asset = await self.get_asset(symbol)
+            if asset:
+                return (
+                    asset.get("overnight_tradeable", False) and
+                    not asset.get("overnight_halted", True)
+                )
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking overnight status for {symbol}: {e}")
+            return False
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def submit_order(self, order):
         """Submit an order."""
         try:
@@ -603,9 +769,16 @@ class AlpacaBroker:
 
             # Submit the order (use asyncio.to_thread to avoid blocking)
             result = await asyncio.to_thread(self.trading_client.submit_order, order_request)
+
+            # Build size info for logging (qty or notional)
+            if hasattr(result, 'notional') and result.notional is not None:
+                size_info = f"${float(result.notional):.2f} notional"
+            else:
+                size_info = f"{result.qty} shares"
+
             logger.info(
                 f"Advanced order submitted: {result.id} for {result.symbol} "
-                f"({result.qty} shares, type={result.type}, class={result.order_class})"
+                f"({size_info}, type={result.type}, class={result.order_class})"
             )
             return result
 
@@ -746,11 +919,20 @@ class AlpacaBroker:
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_last_price(self, symbol):
-        """Get last price for a symbol."""
+        """Get last price for a symbol with TTL-based caching."""
         try:
             # P2 FIX: Validate symbol before API call
             symbol = self._validate_symbol(symbol)
 
+            # Performance optimization: Check cache first
+            now = datetime.now()
+            if symbol in self._price_cache:
+                cached_price, cached_time = self._price_cache[symbol]
+                if now - cached_time < self._price_cache_ttl:
+                    logger.debug(f"Price cache hit for {symbol}: ${cached_price:.2f}")
+                    return cached_price
+
+            # Cache miss - fetch from API
             request_params = StockLatestTradeRequest(symbol_or_symbols=[symbol])
             # Use asyncio.to_thread to avoid blocking the event loop
             response = await asyncio.to_thread(
@@ -758,7 +940,10 @@ class AlpacaBroker:
             )
 
             if symbol in response:
-                return float(response[symbol].price)
+                price = float(response[symbol].price)
+                # Cache the result before returning
+                self._price_cache[symbol] = (price, now)
+                return price
             else:
                 logger.warning(f"No price data found for {symbol}")
                 return None
@@ -766,6 +951,52 @@ class AlpacaBroker:
         except Exception as e:
             logger.error(f"Error getting last price for {symbol}: {e}", exc_info=DEBUG_MODE)
             return None
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def get_last_prices(self, symbols: List[str]) -> Dict[str, Optional[float]]:
+        """
+        Get last trade prices for multiple symbols in a single API call.
+
+        More efficient than calling get_last_price() multiple times.
+
+        Args:
+            symbols: List of stock symbols to get prices for
+
+        Returns:
+            Dict mapping symbol to price (None if not available)
+        """
+        if not symbols:
+            return {}
+
+        try:
+            # Validate and normalize symbols
+            validated_symbols = [self._validate_symbol(s) for s in symbols]
+
+            request_params = StockLatestTradeRequest(symbol_or_symbols=validated_symbols)
+            response = await asyncio.to_thread(
+                self.data_client.get_stock_latest_trade, request_params
+            )
+
+            result = {}
+            now = datetime.now()
+            for symbol in validated_symbols:
+                if symbol in response:
+                    price = float(response[symbol].price)
+                    result[symbol] = price
+                    # Update cache for individual symbol lookups
+                    self._price_cache[symbol] = (price, now)
+                else:
+                    result[symbol] = None
+
+            logger.debug(f"Fetched batch prices for {len(result)} symbols")
+            return result
+
+        except ValueError as e:
+            logger.error(f"Invalid symbol in batch: {e}")
+            return {s: None for s in symbols}
+        except Exception as e:
+            logger.error(f"Error fetching batch prices for {symbols}: {e}", exc_info=DEBUG_MODE)
+            return {s: None for s in symbols}
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_bars(self, symbol, timeframe=TimeFrame.Day, limit=100, start=None, end=None):
@@ -813,31 +1044,956 @@ class AlpacaBroker:
             return []
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
-    async def get_news(self, symbol, start, end):
+    async def get_news(self, symbols, start=None, end=None, limit=50):
         """
-        Get news for a symbol.
+        Get news for symbols using Alpaca News API.
 
-        ⚠️  WARNING: News API not yet implemented!
+        Args:
+            symbols: Single symbol string or list of symbols
+            start: Start datetime (default: 24 hours ago)
+            end: End datetime (default: now)
+            limit: Maximum number of articles to return
 
-        The alpaca-py library's news API is not yet integrated.
-        This method returns an empty list to prevent fake data from being used.
-
-        DO NOT use SentimentStockStrategy until this is properly implemented.
-
-        To implement:
-        1. Use Alpaca News API when available in alpaca-py
-        2. Alternative: Integrate NewsAPI.org or Alpha Vantage News
-        3. Validate news data before returning
+        Returns:
+            List of news articles or empty list on error
         """
         try:
-            # Log warning about missing news API
-            logger.warning(f"⚠️  News API not implemented - returning empty news for {symbol}")
-            logger.warning("   SentimentStockStrategy will not work without real news data!")
+            from alpaca.data.historical.news import NewsClient
+            from alpaca.data.requests import NewsRequest
 
-            # Return empty list instead of fake data
-            # This prevents sentiment strategy from making trades on fabricated information
+            # Normalize symbols to list
+            if isinstance(symbols, str):
+                symbols = [symbols]
+
+            # P2 FIX: Validate symbols before API call
+            symbols = [self._validate_symbol(s) for s in symbols]
+
+            # Set default dates if not provided
+            if end is None:
+                end = datetime.now()
+            if start is None:
+                start = end - timedelta(hours=24)
+            # Initialize news client (lazy load)
+            if not hasattr(self, "_news_client") or self._news_client is None:
+                _api_key = ALPACA_CREDS["API_KEY"]
+                _api_secret = ALPACA_CREDS["API_SECRET"]
+                self._news_client = NewsClient(
+                    api_key=_api_key,
+                    secret_key=_api_secret,
+                )
+
+            request = NewsRequest(
+                symbols=symbols,
+                start=start,
+                end=end,
+                limit=limit,
+            )
+
+            # Use asyncio.to_thread to avoid blocking the event loop
+            news_response = await asyncio.to_thread(self._news_client.get_news, request)
+
+            # Convert to list of dicts for easier consumption
+            articles = []
+            for item in news_response.news:
+                articles.append({
+                    "id": str(item.id),
+                    "headline": item.headline or "",
+                    "summary": item.summary or "",
+                    "author": item.author or "",
+                    "source": item.source or "",
+                    "url": item.url or "",
+                    "symbols": list(item.symbols) if item.symbols else [],
+                    "created_at": item.created_at,
+                    "updated_at": item.updated_at,
+                })
+
+            logger.debug(f"Fetched {len(articles)} news articles for {symbols}")
+            return articles
+
+        except ImportError as e:
+            logger.error(
+                f"News API import error: {e}. "
+                "Ensure alpaca-py is installed with news support."
+            )
             return []
+        except ValueError as e:
+            logger.error(f"Invalid symbol: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Error getting news for {symbols}: {e}", exc_info=DEBUG_MODE)
+            return []
+
+    # =========================================================================
+    # CRYPTO TRADING METHODS
+    # =========================================================================
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def get_crypto_bars(
+        self,
+        symbol: str,
+        timeframe: str = "1Min",
+        start: datetime = None,
+        end: datetime = None,
+        limit: int = 100,
+    ) -> List[dict]:
+        """
+        Get historical crypto bars.
+
+        Crypto trading is available 24/7, unlike stocks which are limited to market hours.
+
+        Args:
+            symbol: Crypto pair (e.g., "BTC/USD" or "BTCUSD")
+            timeframe: Bar timeframe ("1Min", "5Min", "15Min", "1Hour", "1Day")
+            start: Start datetime (defaults to 1 day ago)
+            end: End datetime (defaults to now)
+            limit: Maximum bars to return
+
+        Returns:
+            List of bar dicts with open, high, low, close, volume, vwap, timestamp
+        """
+        try:
+            symbol = self.normalize_crypto_symbol(symbol)
+
+            if start is None:
+                start = datetime.now() - timedelta(days=1)
+            if end is None:
+                end = datetime.now()
+
+            # Map timeframe strings to TimeFrame objects
+            tf_map = {
+                "1Min": TimeFrame.Minute,
+                "5Min": TimeFrame(5, TimeFrameUnit.Minute),
+                "15Min": TimeFrame(15, TimeFrameUnit.Minute),
+                "30Min": TimeFrame(30, TimeFrameUnit.Minute),
+                "1Hour": TimeFrame.Hour,
+                "4Hour": TimeFrame(4, TimeFrameUnit.Hour),
+                "1Day": TimeFrame.Day,
+                "Day": TimeFrame.Day,
+                "Hour": TimeFrame.Hour,
+                "Minute": TimeFrame.Minute,
+            }
+
+            tf = tf_map.get(timeframe, TimeFrame.Minute)
+
+            client = self._get_crypto_data_client()
+            request = CryptoBarsRequest(
+                symbol_or_symbols=symbol,
+                timeframe=tf,
+                start=start,
+                end=end,
+                limit=limit,
+            )
+
+            bars = await asyncio.to_thread(client.get_crypto_bars, request)
+
+            result = []
+            if symbol in bars:
+                for bar in bars[symbol]:
+                    result.append({
+                        "timestamp": bar.timestamp,
+                        "open": float(bar.open),
+                        "high": float(bar.high),
+                        "low": float(bar.low),
+                        "close": float(bar.close),
+                        "volume": float(bar.volume),
+                        "vwap": float(bar.vwap) if bar.vwap else None,
+                        "trade_count": int(bar.trade_count) if bar.trade_count else None,
+                    })
+
+            logger.debug(f"Fetched {len(result)} crypto bars for {symbol}")
+            return result
+
+        except ValueError as e:
+            logger.error(f"Invalid crypto symbol: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Error fetching crypto bars for {symbol}: {e}", exc_info=DEBUG_MODE)
+            return []
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def get_crypto_quote(self, symbol: str) -> Optional[dict]:
+        """
+        Get latest crypto quote (bid/ask).
+
+        Args:
+            symbol: Crypto pair (e.g., "BTC/USD" or "BTCUSD")
+
+        Returns:
+            Dict with bid, ask, bid_size, ask_size, timestamp or None on error
+        """
+        try:
+            symbol = self.normalize_crypto_symbol(symbol)
+
+            client = self._get_crypto_data_client()
+            request = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
+
+            quote = await asyncio.to_thread(client.get_crypto_latest_quote, request)
+
+            if symbol in quote:
+                q = quote[symbol]
+                return {
+                    "symbol": symbol,
+                    "bid": float(q.bid_price),
+                    "ask": float(q.ask_price),
+                    "bid_size": float(q.bid_size),
+                    "ask_size": float(q.ask_size),
+                    "timestamp": q.timestamp,
+                }
+
+            logger.warning(f"No quote data found for {symbol}")
+            return None
+
+        except ValueError as e:
+            logger.error(f"Invalid crypto symbol: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching crypto quote for {symbol}: {e}", exc_info=DEBUG_MODE)
+            return None
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def get_crypto_last_price(self, symbol: str) -> Optional[float]:
+        """
+        Get last trade price for crypto pair.
+
+        Args:
+            symbol: Crypto pair (e.g., "BTC/USD" or "BTCUSD")
+
+        Returns:
+            Last trade price as float, or None on error
+        """
+        try:
+            symbol = self.normalize_crypto_symbol(symbol)
+
+            # Check cache first
+            now = datetime.now()
+            cache_key = f"crypto:{symbol}"
+            if cache_key in self._price_cache:
+                cached_price, cached_time = self._price_cache[cache_key]
+                if now - cached_time < self._price_cache_ttl:
+                    logger.debug(f"Crypto price cache hit for {symbol}: ${cached_price:.2f}")
+                    return cached_price
+
+            client = self._get_crypto_data_client()
+            request = CryptoLatestTradeRequest(symbol_or_symbols=symbol)
+
+            trade = await asyncio.to_thread(client.get_crypto_latest_trade, request)
+
+            if symbol in trade:
+                price = float(trade[symbol].price)
+                # Cache the result
+                self._price_cache[cache_key] = (price, now)
+                return price
+
+            logger.warning(f"No trade data found for {symbol}")
+            return None
+
+        except ValueError as e:
+            logger.error(f"Invalid crypto symbol: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching crypto price for {symbol}: {e}", exc_info=DEBUG_MODE)
+            return None
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def submit_crypto_order(
+        self,
+        symbol: str,
+        side: str,
+        qty: float = None,
+        notional: float = None,
+        order_type: str = "market",
+        limit_price: float = None,
+        time_in_force: str = "gtc",
+    ) -> Optional[dict]:
+        """
+        Submit a cryptocurrency order.
+
+        Crypto orders can be placed 24/7, unlike stock orders which are limited to market hours.
+        Supports both quantity-based and notional (dollar amount) orders.
+
+        Args:
+            symbol: Crypto pair (e.g., "BTC/USD" or "BTCUSD")
+            side: "buy" or "sell"
+            qty: Quantity in base currency (e.g., 0.5 BTC). Mutually exclusive with notional.
+            notional: Dollar amount to buy/sell (e.g., 1000 for $1000). Mutually exclusive with qty.
+            order_type: "market" or "limit"
+            limit_price: Price for limit orders (required if order_type is "limit")
+            time_in_force: "gtc" (good-till-canceled), "ioc" (immediate-or-cancel), "fok" (fill-or-kill)
+
+        Returns:
+            Order dict with id, symbol, side, qty, notional, type, status, created_at
+            or None on error
+
+        Raises:
+            ValueError: If neither qty nor notional is specified, or if both are specified
+        """
+        try:
+            symbol = self.normalize_crypto_symbol(symbol)
+
+            # Validate qty/notional
+            if qty is None and notional is None:
+                raise ValueError("Either qty or notional must be specified")
+            if qty is not None and notional is not None:
+                raise ValueError("Specify either qty or notional, not both")
+
+            # Validate side
+            if side.lower() not in ("buy", "sell"):
+                raise ValueError(f"Side must be 'buy' or 'sell', got: {side}")
+            order_side = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
+
+            # Map time_in_force
+            tif_map = {
+                "gtc": TimeInForce.GTC,
+                "ioc": TimeInForce.IOC,
+                "fok": TimeInForce.FOK,
+            }
+            tif = tif_map.get(time_in_force.lower(), TimeInForce.GTC)
+
+            # Build order request
+            if order_type.lower() == "market":
+                if notional is not None:
+                    # Notional order (dollar amount)
+                    request = MarketOrderRequest(
+                        symbol=symbol,
+                        notional=float(notional),
+                        side=order_side,
+                        time_in_force=tif,
+                    )
+                else:
+                    # Quantity order
+                    request = MarketOrderRequest(
+                        symbol=symbol,
+                        qty=float(qty),
+                        side=order_side,
+                        time_in_force=tif,
+                    )
+
+            elif order_type.lower() == "limit":
+                if limit_price is None:
+                    raise ValueError("limit_price required for limit orders")
+                if notional is not None:
+                    raise ValueError("Limit orders do not support notional, use qty instead")
+
+                request = LimitOrderRequest(
+                    symbol=symbol,
+                    qty=float(qty),
+                    side=order_side,
+                    limit_price=float(limit_price),
+                    time_in_force=tif,
+                )
+
+            else:
+                raise ValueError(f"Unsupported order type: {order_type}")
+
+            # Submit the order
+            order = await asyncio.to_thread(self.trading_client.submit_order, request)
+
+            result = {
+                "id": str(order.id),
+                "symbol": order.symbol,
+                "side": order.side.value,
+                "qty": str(order.qty) if order.qty else None,
+                "notional": str(order.notional) if order.notional else None,
+                "type": order.type.value,
+                "status": order.status.value,
+                "created_at": order.created_at,
+            }
+
+            logger.info(
+                f"Crypto order submitted: {result['id']} - {result['side']} "
+                f"{result['qty'] or '$' + result['notional']} {symbol}"
+            )
+            return result
+
+        except ValueError as e:
+            logger.error(f"Invalid crypto order parameters: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error submitting crypto order: {e}", exc_info=DEBUG_MODE)
+            return None
+
+    def setup_crypto_stream(self, symbols: List[str]) -> CryptoDataStream:
+        """
+        Setup crypto WebSocket streaming for real-time data.
+
+        Unlike stock streams which are only available during market hours,
+        crypto streams are available 24/7.
+
+        Args:
+            symbols: List of crypto pairs to stream (e.g., ["BTC/USD", "ETH/USD"])
+
+        Returns:
+            CryptoDataStream instance for subscribing to real-time data
+        """
+        # Normalize all symbols
+        normalized_symbols = [self.normalize_crypto_symbol(s) for s in symbols]
+
+        self._crypto_stream = CryptoDataStream(
+            api_key=self._api_key,
+            secret_key=self._api_secret,
+        )
+
+        logger.info(f"Setup crypto stream for symbols: {normalized_symbols}")
+        return self._crypto_stream
+
+    async def get_crypto_positions(self) -> List[dict]:
+        """
+        Get all crypto positions.
+
+        Returns:
+            List of crypto position dicts with symbol, qty, market_value, cost_basis, etc.
+        """
+        try:
+            positions = await self.get_positions()
+
+            crypto_positions = []
+            for pos in positions:
+                # Check if the position symbol is a crypto pair
+                if self.is_crypto(pos.symbol):
+                    crypto_positions.append({
+                        "symbol": pos.symbol,
+                        "qty": float(pos.qty),
+                        "market_value": float(pos.market_value),
+                        "cost_basis": float(pos.cost_basis),
+                        "unrealized_pl": float(pos.unrealized_pl),
+                        "unrealized_plpc": float(pos.unrealized_plpc),
+                        "current_price": float(pos.current_price),
+                        "avg_entry_price": float(pos.avg_entry_price),
+                        "side": pos.side,
+                    })
+
+            return crypto_positions
 
         except Exception as e:
-            logger.error(f"Error getting news for {symbol}: {e}", exc_info=DEBUG_MODE)
+            logger.error(f"Error getting crypto positions: {e}", exc_info=DEBUG_MODE)
             return []
+
+    async def is_crypto_tradeable(self, symbol: str) -> bool:
+        """
+        Check if a crypto pair is tradeable.
+
+        Crypto is tradeable 24/7, but we still validate the symbol is supported.
+
+        Args:
+            symbol: Crypto symbol to check
+
+        Returns:
+            True if the symbol is a supported crypto pair
+        """
+        try:
+            self.normalize_crypto_symbol(symbol)
+            return True
+        except ValueError:
+            return False
+
+    # =========================================================================
+    # WebSocket Real-Time Streaming Methods
+    # =========================================================================
+
+    def setup_websocket(self, feed: str = "iex") -> None:
+        """
+        Initialize the WebSocket manager for real-time data streaming.
+
+        This method sets up the WebSocketManager instance that can be used
+        to subscribe to real-time bars, quotes, and trades.
+
+        Args:
+            feed: Data feed type ("iex" for free tier, "sip" for paid premium)
+
+        Example:
+            broker = AlpacaBroker(paper=True)
+            broker.setup_websocket(feed="iex")
+            broker.register_bar_handler(my_strategy.on_bar)
+            await broker.start_streaming(["AAPL", "MSFT"])
+        """
+        from utils.websocket_manager import WebSocketManager
+
+        # Get credentials (use same pattern as __init__)
+        _api_key = ALPACA_CREDS["API_KEY"]
+        _api_secret = ALPACA_CREDS["API_SECRET"]
+
+        self._websocket_manager = WebSocketManager(
+            api_key=_api_key,
+            secret_key=_api_secret,
+            feed=feed
+        )
+
+        logger.info(f"WebSocket manager initialized with feed={feed}")
+
+    async def start_streaming(
+        self,
+        symbols: list,
+        subscribe_bars: bool = True,
+        subscribe_quotes: bool = False,
+        subscribe_trades: bool = False
+    ) -> bool:
+        """
+        Start streaming real-time data for specified symbols.
+
+        Args:
+            symbols: List of stock symbols to stream
+            subscribe_bars: Subscribe to real-time bars (default: True)
+            subscribe_quotes: Subscribe to real-time quotes (default: False)
+            subscribe_trades: Subscribe to real-time trades (default: False)
+
+        Returns:
+            True if streaming started successfully
+
+        Raises:
+            RuntimeError: If WebSocket manager not initialized
+
+        Example:
+            await broker.start_streaming(
+                symbols=["AAPL", "MSFT", "GOOGL"],
+                subscribe_bars=True,
+                subscribe_quotes=True
+            )
+        """
+        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+            # Auto-initialize if not done
+            self.setup_websocket()
+
+        # Subscribe to requested data types
+        if subscribe_bars:
+            self._websocket_manager.subscribe_bars(symbols)
+
+        if subscribe_quotes:
+            self._websocket_manager.subscribe_quotes(symbols)
+
+        if subscribe_trades:
+            self._websocket_manager.subscribe_trades(symbols)
+
+        # Start the connection
+        await self._websocket_manager.start()
+
+        # Wait for connection
+        connected = await self._websocket_manager.wait_for_connection(timeout=10.0)
+
+        if connected:
+            logger.info(f"Streaming started for {len(symbols)} symbols")
+        else:
+            logger.warning("Streaming started but connection not confirmed")
+
+        return connected
+
+    async def stop_streaming(self) -> None:
+        """
+        Stop the WebSocket streaming connection.
+
+        Gracefully shuts down the WebSocket connection and cleans up resources.
+        """
+        if hasattr(self, '_websocket_manager') and self._websocket_manager:
+            await self._websocket_manager.stop()
+            logger.info("Streaming stopped")
+        else:
+            logger.warning("No streaming connection to stop")
+
+    def register_bar_handler(self, handler, symbols: Optional[list] = None) -> None:
+        """
+        Register a callback handler for real-time bar data.
+
+        Args:
+            handler: Async callback function with signature:
+                     async def handler(bar: Bar) -> None
+                     Bar has attributes: symbol, open, high, low, close, volume, timestamp
+            symbols: Optional list of symbols to receive bars for.
+                     If None, handler receives all bars (global handler).
+
+        Example:
+            async def on_bar(bar):
+                print(f"{bar.symbol} closed at ${bar.close}")
+
+            broker.register_bar_handler(on_bar, ["AAPL", "MSFT"])
+        """
+        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+            self.setup_websocket()
+
+        if symbols:
+            self._websocket_manager.subscribe_bars(symbols, handler)
+        else:
+            self._websocket_manager.add_global_bar_handler(handler)
+
+        logger.debug(f"Registered bar handler for: {symbols or 'all symbols'}")
+
+    def register_quote_handler(self, handler, symbols: Optional[list] = None) -> None:
+        """
+        Register a callback handler for real-time quote data.
+
+        Args:
+            handler: Async callback function with signature:
+                     async def handler(quote: Quote) -> None
+                     Quote has: symbol, bid_price, ask_price, bid_size, ask_size, timestamp
+            symbols: Optional list of symbols. If None, receives all quotes.
+
+        Example:
+            async def on_quote(quote):
+                spread = quote.ask_price - quote.bid_price
+                print(f"{quote.symbol} spread: ${spread:.4f}")
+
+            broker.register_quote_handler(on_quote, ["AAPL"])
+        """
+        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+            self.setup_websocket()
+
+        if symbols:
+            self._websocket_manager.subscribe_quotes(symbols, handler)
+        else:
+            self._websocket_manager.add_global_quote_handler(handler)
+
+        logger.debug(f"Registered quote handler for: {symbols or 'all symbols'}")
+
+    def register_trade_handler(self, handler, symbols: Optional[list] = None) -> None:
+        """
+        Register a callback handler for real-time trade data.
+
+        Args:
+            handler: Async callback function with signature:
+                     async def handler(trade: Trade) -> None
+                     Trade has: symbol, price, size, timestamp, exchange, conditions
+            symbols: Optional list of symbols. If None, receives all trades.
+
+        Example:
+            async def on_trade(trade):
+                print(f"{trade.symbol} traded {trade.size} @ ${trade.price}")
+
+            broker.register_trade_handler(on_trade)
+        """
+        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+            self.setup_websocket()
+
+        if symbols:
+            self._websocket_manager.subscribe_trades(symbols, handler)
+        else:
+            self._websocket_manager.add_global_trade_handler(handler)
+
+        logger.debug(f"Registered trade handler for: {symbols or 'all symbols'}")
+
+    def get_streaming_status(self) -> dict:
+        """
+        Get current streaming connection status.
+
+        Returns:
+            Dict with connection status, subscriptions, and statistics
+
+        Example:
+            status = broker.get_streaming_status()
+            print(f"Connected: {status['is_connected']}")
+            print(f"Messages received: {status['message_count']}")
+        """
+        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+            return {
+                "initialized": False,
+                "is_running": False,
+                "is_connected": False,
+                "subscriptions": {},
+                "message_count": 0
+            }
+
+        return {
+            "initialized": True,
+            **self._websocket_manager.get_connection_stats(),
+            "subscriptions": self._websocket_manager.get_subscription_info()
+        }
+
+    # =========================================================================
+    # Portfolio History API Methods
+    # =========================================================================
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def get_portfolio_history(
+        self,
+        period: str = "1M",
+        timeframe: str = "1D",
+        extended_hours: bool = True,
+        date_start: Optional[datetime] = None,
+        date_end: Optional[datetime] = None,
+    ) -> Optional[dict]:
+        """
+        Get portfolio history from Alpaca.
+
+        This method retrieves historical portfolio data including equity values,
+        profit/loss, and timestamps for performance tracking and analysis.
+
+        Args:
+            period: Time period - "1D", "1W", "1M", "3M", "6M", "1A", "all"
+                   Ignored if date_start is provided.
+            timeframe: Resolution - "1Min", "5Min", "15Min", "1H", "1D"
+            extended_hours: Include extended hours data in the results
+            date_start: Custom start date (overrides period if provided)
+            date_end: Custom end date (defaults to now)
+
+        Returns:
+            Dict with:
+            - timestamp: List of Unix timestamps
+            - equity: List of equity values
+            - profit_loss: List of daily P&L values
+            - profit_loss_pct: List of daily P&L percentages
+            - base_value: Starting portfolio value
+            - timeframe: Timeframe used
+            Returns None on error.
+
+        Example:
+            history = await broker.get_portfolio_history(period="1M", timeframe="1D")
+            if history:
+                for ts, eq in zip(history["timestamp"], history["equity"]):
+                    print(f"{datetime.fromtimestamp(ts)}: ${eq:,.2f}")
+        """
+        try:
+            from alpaca.trading.requests import GetPortfolioHistoryRequest
+
+            # Build request parameters
+            request_params = {
+                "timeframe": timeframe,
+                "extended_hours": extended_hours,
+            }
+
+            # Use date_start/date_end if provided, otherwise use period
+            if date_start:
+                request_params["date_start"] = date_start.strftime("%Y-%m-%d")
+                if date_end:
+                    request_params["date_end"] = date_end.strftime("%Y-%m-%d")
+            else:
+                request_params["period"] = period
+
+            request = GetPortfolioHistoryRequest(**request_params)
+
+            # Execute API call in thread pool to avoid blocking
+            history = await asyncio.to_thread(
+                self.trading_client.get_portfolio_history, request
+            )
+
+            # Convert to serializable dict
+            # Handle potential None values in the response
+            return {
+                "timestamp": list(history.timestamp) if history.timestamp else [],
+                "equity": list(history.equity) if history.equity else [],
+                "profit_loss": list(history.profit_loss) if history.profit_loss else [],
+                "profit_loss_pct": (
+                    list(history.profit_loss_pct) if history.profit_loss_pct else []
+                ),
+                "base_value": history.base_value,
+                "timeframe": str(history.timeframe) if history.timeframe else timeframe,
+            }
+
+        except ImportError as e:
+            logger.error(
+                f"Portfolio History API import error: {e}. "
+                "Ensure alpaca-py is up to date."
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching portfolio history: {e}", exc_info=DEBUG_MODE)
+            return None
+
+    async def get_equity_curve(self, days: int = 30) -> list:
+        """
+        Get equity curve for the last N days.
+
+        Convenience method that returns a list of (timestamp, equity) tuples
+        for easy plotting and analysis.
+
+        Args:
+            days: Number of days of history to retrieve (default: 30)
+
+        Returns:
+            List of (timestamp, equity) tuples sorted chronologically.
+            Returns empty list on error.
+
+        Example:
+            curve = await broker.get_equity_curve(days=30)
+            for timestamp, equity in curve:
+                date = datetime.fromtimestamp(timestamp)
+                print(f"{date.strftime('%Y-%m-%d')}: ${equity:,.2f}")
+        """
+        # Map days to Alpaca period strings
+        period_map = {
+            1: "1D",
+            7: "1W",
+            30: "1M",
+            90: "3M",
+            180: "6M",
+            365: "1A",
+        }
+
+        # Find the smallest period that covers the requested days
+        period = "all"
+        for threshold, period_str in sorted(period_map.items()):
+            if days <= threshold:
+                period = period_str
+                break
+
+        history = await self.get_portfolio_history(period=period, timeframe="1D")
+        if not history or not history.get("equity"):
+            return []
+
+        # Combine timestamps and equity into tuples
+        timestamps = history.get("timestamp", [])
+        equity_values = history.get("equity", [])
+
+        # Ensure both lists have the same length
+        min_len = min(len(timestamps), len(equity_values))
+        return list(zip(timestamps[:min_len], equity_values[:min_len]))
+
+    async def get_performance_summary(self, period: str = "1M") -> Optional[dict]:
+        """
+        Get performance summary for a period.
+
+        Calculates key performance metrics from portfolio history including
+        total return, max drawdown, and equity range.
+
+        Args:
+            period: Time period - "1D", "1W", "1M", "3M", "6M", "1A", "all"
+
+        Returns:
+            Dict with:
+            - period: The requested period
+            - start_equity: Equity at start of period
+            - end_equity: Equity at end of period
+            - total_return: Absolute return in dollars
+            - total_return_pct: Return as percentage
+            - max_equity: Highest equity value in period
+            - min_equity: Lowest equity value in period
+            - max_drawdown: Maximum drawdown as percentage
+            - data_points: Number of data points in the period
+            Returns None on error or if no data available.
+
+        Example:
+            summary = await broker.get_performance_summary(period="1M")
+            if summary:
+                print(f"1-Month Return: {summary['total_return_pct']:.2f}%")
+                print(f"Max Drawdown: {summary['max_drawdown']:.2f}%")
+        """
+        history = await self.get_portfolio_history(period=period)
+        if not history or not history.get("equity"):
+            return None
+
+        equity = history["equity"]
+        pnl = history.get("profit_loss", [])
+
+        # Filter out None values from equity list
+        equity = [e for e in equity if e is not None]
+        if not equity:
+            return None
+
+        start_equity = equity[0]
+        end_equity = equity[-1]
+
+        # Calculate total return
+        if pnl:
+            # Filter None values
+            pnl = [p for p in pnl if p is not None]
+            total_return = sum(pnl) if pnl else 0
+        else:
+            total_return = end_equity - start_equity
+
+        # Calculate percentage return
+        if start_equity > 0:
+            total_return_pct = ((end_equity / start_equity) - 1) * 100
+        else:
+            total_return_pct = 0.0
+
+        return {
+            "period": period,
+            "start_equity": start_equity,
+            "end_equity": end_equity,
+            "total_return": total_return,
+            "total_return_pct": total_return_pct,
+            "max_equity": max(equity),
+            "min_equity": min(equity),
+            "max_drawdown": self._calculate_max_drawdown(equity),
+            "data_points": len(equity),
+        }
+
+    def _calculate_max_drawdown(self, equity: list) -> float:
+        """
+        Calculate maximum drawdown from equity curve.
+
+        Maximum drawdown is the largest peak-to-trough decline in portfolio
+        value, expressed as a percentage.
+
+        Args:
+            equity: List of equity values (chronological order)
+
+        Returns:
+            Maximum drawdown as a percentage (e.g., 5.5 for 5.5% drawdown).
+            Returns 0.0 if equity list is empty or all values are None.
+        """
+        if not equity:
+            return 0.0
+
+        # Filter out None values
+        equity = [e for e in equity if e is not None]
+        if not equity:
+            return 0.0
+
+        peak = equity[0]
+        max_dd = 0.0
+
+        for value in equity:
+            if value > peak:
+                peak = value
+            if peak > 0:
+                drawdown = (peak - value) / peak
+                max_dd = max(max_dd, drawdown)
+
+        return max_dd * 100  # Return as percentage
+
+    async def get_intraday_equity(
+        self, timeframe: str = "1H"
+    ) -> Optional[dict]:
+        """
+        Get intraday equity data for today.
+
+        Useful for monitoring real-time portfolio performance throughout
+        the trading day.
+
+        Args:
+            timeframe: Resolution - "1Min", "5Min", "15Min", "1H"
+
+        Returns:
+            Dict with timestamp, equity, profit_loss, profit_loss_pct
+            for today's trading session. Returns None on error.
+
+        Example:
+            intraday = await broker.get_intraday_equity(timeframe="15Min")
+            if intraday:
+                print(f"Current P&L: ${intraday['profit_loss'][-1]:,.2f}")
+        """
+        return await self.get_portfolio_history(
+            period="1D",
+            timeframe=timeframe,
+            extended_hours=True,
+        )
+
+    async def get_historical_performance(
+        self,
+        start_date: datetime,
+        end_date: Optional[datetime] = None,
+        timeframe: str = "1D",
+    ) -> Optional[dict]:
+        """
+        Get historical portfolio performance for a custom date range.
+
+        Args:
+            start_date: Start of the date range
+            end_date: End of the date range (defaults to now)
+            timeframe: Resolution - "1Min", "5Min", "15Min", "1H", "1D"
+
+        Returns:
+            Dict with portfolio history data for the specified range.
+            Returns None on error.
+
+        Example:
+            from datetime import datetime
+            start = datetime(2024, 1, 1)
+            end = datetime(2024, 6, 30)
+            history = await broker.get_historical_performance(start, end)
+            if history:
+                print(f"6-month equity data: {len(history['equity'])} points")
+        """
+        return await self.get_portfolio_history(
+            timeframe=timeframe,
+            extended_hours=True,
+            date_start=start_date,
+            date_end=end_date or datetime.now(),
+        )
