@@ -257,7 +257,8 @@ class BacktestEngine:
             f"Loading historical data for {len(symbols)} symbols from {start_dt.date()} to {end_dt.date()}..."
         )
 
-        for symbol in symbols:
+        async def _load_symbol_data(symbol: str) -> None:
+            """Load historical data for a single symbol."""
             try:
                 bars = await data_broker.get_bars(
                     symbol,
@@ -287,6 +288,12 @@ class BacktestEngine:
 
             except Exception as e:
                 logger.warning(f"Failed to load data for {symbol}: {e}")
+
+        # Load all symbols in parallel for faster data fetching
+        await asyncio.gather(
+            *[_load_symbol_data(symbol) for symbol in symbols],
+            return_exceptions=True,
+        )
 
         # Instantiate strategy with backtest broker and symbols
         strategy = strategy_class(broker=backtest_broker, parameters={"symbols": symbols})

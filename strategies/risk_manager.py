@@ -96,8 +96,13 @@ class RiskManager:
         returns = np.diff(price_history) / prices
         return np.percentile(returns, 5) * np.sqrt(252)
 
-    def _calculate_expected_shortfall(self, price_history):
-        """Calculate Expected Shortfall (ES) at 95% confidence level."""
+    def _calculate_expected_shortfall(self, price_history, var_value=None):
+        """Calculate Expected Shortfall (ES) at 95% confidence level.
+
+        Args:
+            price_history: List of historical prices.
+            var_value: Optional pre-computed VaR value to avoid redundant calculation.
+        """
         if len(price_history) < 2:
             return 0.0
         # Avoid division by zero
@@ -106,7 +111,7 @@ class RiskManager:
             logger.warning("Zero prices detected in ES calculation")
             return -0.15  # Return large negative ES to signal high risk
         returns = np.diff(price_history) / prices
-        var_95 = self._calculate_var(price_history)
+        var_95 = var_value if var_value is not None else self._calculate_var(price_history)
         tail_returns = returns[returns <= var_95]
         if len(tail_returns) == 0:
             return var_95  # Return VaR if no tail returns
@@ -148,7 +153,7 @@ class RiskManager:
 
             daily_vol = self._calculate_volatility(price_history)
             var_95 = self._calculate_var(price_history)
-            es_95 = self._calculate_expected_shortfall(price_history)
+            es_95 = self._calculate_expected_shortfall(price_history, var_value=var_95)
             max_drawdown = self._calculate_max_drawdown(price_history)
 
             # Combine metrics into a risk score (0 to 1)

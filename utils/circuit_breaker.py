@@ -15,6 +15,7 @@ Usage:
 """
 
 import logging
+import time
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,11 @@ class CircuitBreaker:
         self.broker = None
         self._last_logged_loss_pct = 0  # Track last logged loss for throttling
 
+        # Account data cache with TTL to reduce redundant API calls
+        self._account_cache = None
+        self._account_cache_time = None
+        self._account_cache_ttl = 5  # seconds
+
         logger.info(f"Circuit Breaker initialized: max daily loss = {max_daily_loss:.1%}")
 
     async def initialize(self, broker):
@@ -83,6 +89,25 @@ class CircuitBreaker:
             logger.error(f"Failed to initialize circuit breaker: {e}")
             raise
 
+    async def _get_account_cached(self):
+        """Get account data with simple TTL cache to reduce API calls.
+
+        Returns cached account data if the cache is less than _account_cache_ttl
+        seconds old. Otherwise fetches fresh data from the broker.
+        """
+        now = time.monotonic()
+        if (
+            self._account_cache is not None
+            and self._account_cache_time is not None
+            and (now - self._account_cache_time) < self._account_cache_ttl
+        ):
+            return self._account_cache
+
+        account = await self.broker.get_account()
+        self._account_cache = account
+        self._account_cache_time = now
+        return account
+
     async def check_and_halt(self) -> bool:
         """
         Check if daily loss limit has been exceeded and halt trading if needed.
@@ -107,8 +132,8 @@ class CircuitBreaker:
             return True
 
         try:
-            # Get current account status
-            account = await self.broker.get_account()
+            # Get current account status (cached for ~5 seconds to reduce API calls)
+            account = await self._get_account_cached()
             current_equity = float(account.equity)
 
             # Update peak equity for the day

@@ -277,6 +277,9 @@ class TestCheckAndHalt:
         )
         initialized_cb._trigger_halt = AsyncMock()
         initialized_cb.auto_close_positions = False
+        # Clear account cache so the new mock value is fetched
+        initialized_cb._account_cache = None
+        initialized_cb._account_cache_time = None
 
         result = await initialized_cb.check_and_halt()
 
