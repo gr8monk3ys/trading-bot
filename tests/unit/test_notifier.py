@@ -366,19 +366,14 @@ class TestSendSlack:
             mock_response = MagicMock()
             mock_response.status = 200
 
-            with patch("utils.notifier.aiohttp.ClientSession") as mock_session_class:
-                mock_post_context = AsyncMock()
-                mock_post_context.__aenter__.return_value = mock_response
-                mock_post_context.__aexit__.return_value = None
+            mock_post_context = AsyncMock()
+            mock_post_context.__aenter__.return_value = mock_response
+            mock_post_context.__aexit__.return_value = None
 
-                mock_session = MagicMock()
-                mock_session.post.return_value = mock_post_context
+            mock_session = MagicMock()
+            mock_session.post.return_value = mock_post_context
 
-                mock_session_context = MagicMock()
-                mock_session_context.__aenter__ = AsyncMock(return_value=mock_session)
-                mock_session_context.__aexit__ = AsyncMock(return_value=None)
-                mock_session_class.return_value = mock_session_context
-
+            with patch.object(notifier, "_get_session", new_callable=AsyncMock, return_value=mock_session):
                 await notifier._send_slack("Test Title", "Test Message")
 
                 mock_session.post.assert_called_once()
@@ -398,18 +393,14 @@ class TestSendSlack:
             mock_response = MagicMock()
             mock_response.status = 200
 
-            with patch("utils.notifier.aiohttp.ClientSession") as mock_session_class:
-                mock_post_context = AsyncMock()
-                mock_post_context.__aenter__.return_value = mock_response
-                mock_post_context.__aexit__.return_value = None
+            mock_post_context = AsyncMock()
+            mock_post_context.__aenter__.return_value = mock_response
+            mock_post_context.__aexit__.return_value = None
 
-                mock_session = MagicMock()
-                mock_session.post.return_value = mock_post_context
+            mock_session = MagicMock()
+            mock_session.post.return_value = mock_post_context
 
-                mock_session_context = MagicMock()
-                mock_session_context.__aenter__ = AsyncMock(return_value=mock_session)
-                mock_session_context.__aexit__ = AsyncMock(return_value=None)
-                mock_session_class.return_value = mock_session_context
+            with patch.object(notifier, "_get_session", new_callable=AsyncMock, return_value=mock_session):
 
                 await notifier._send_slack("Test Title", "Test Message", urgent=True)
 
@@ -480,7 +471,7 @@ class TestSendEmail:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
-            notifier._send_email("Test Title", "Test Message")
+            notifier._send_email_sync("Test Title", "Test Message")
 
             mock_smtp.assert_called_once_with("smtp.gmail.com", 587)
             mock_server.starttls.assert_called_once()
@@ -502,7 +493,7 @@ class TestSendEmail:
             mock_server = MagicMock()
             mock_smtp.return_value.__enter__.return_value = mock_server
 
-            notifier._send_email("Test Title", "Test Message", urgent=True)
+            notifier._send_email_sync("Test Title", "Test Message", urgent=True)
 
             call_args = mock_server.send_message.call_args[0][0]
             assert "[URGENT]" in call_args["Subject"]
@@ -522,4 +513,4 @@ class TestSendEmail:
             mock_smtp.return_value.__enter__.side_effect = Exception("SMTP error")
 
             # Should not raise
-            notifier._send_email("Test Title", "Test Message")
+            notifier._send_email_sync("Test Title", "Test Message")

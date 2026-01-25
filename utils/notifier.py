@@ -81,7 +81,6 @@ class Notifier:
         self.telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
         # Email
-        self.email_enabled = os.getenv("EMAIL_NOTIFICATIONS", "false").lower() == "true"
         self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
         self.smtp_user = os.getenv("SMTP_USER")
@@ -98,6 +97,9 @@ class Notifier:
         self.discord_rate_limiter = RateLimiter(max_calls=30, period_seconds=60)
         self.telegram_rate_limiter = RateLimiter(max_calls=20, period_seconds=60)
 
+        # Shared HTTP session (lazily created)
+        self._http_session: Optional[aiohttp.ClientSession] = None
+
         # Log enabled channels
         if self.slack_enabled:
             logger.info("Slack notifications enabled")
@@ -109,6 +111,18 @@ class Notifier:
             logger.info("Email notifications enabled")
         if not any([self.slack_enabled, self.discord_enabled, self.telegram_enabled, self.email_enabled]):
             logger.info("Notifications disabled (console only)")
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Lazily create and return the shared aiohttp.ClientSession."""
+        if self._http_session is None or self._http_session.closed:
+            self._http_session = aiohttp.ClientSession()
+        return self._http_session
+
+    async def close(self):
+        """Close the shared HTTP session."""
+        if self._http_session is not None and not self._http_session.closed:
+            await self._http_session.close()
+            self._http_session = None
 
     async def send_trade_notification(
         self, symbol: str, side: str, quantity: float, price: float, pnl: Optional[float] = None
@@ -218,13 +232,13 @@ class Notifier:
         if self.telegram_enabled:
             tasks.append(self._send_telegram(title, message, urgent))
 
-        # Execute all async notifications in parallel
+        # Send via Email (async, via thread)
+        if self.email_enabled:
+            tasks.append(self._send_email(title, message, urgent))
+
+        # Execute all notifications in parallel
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Send via Email (synchronous, run last)
-        if self.email_enabled:
-            self._send_email(title, message, urgent)
 
     async def _send_slack(self, title: str, message: str, urgent: bool = False):
         """Send notification to Slack webhook."""
@@ -252,12 +266,12 @@ class Notifier:
                 )
 
             # Send via webhook
-            async with aiohttp.ClientSession() as session:
-                async with session.post(self.slack_webhook_url, json=slack_message) as response:
-                    if response.status == 200:
-                        logger.debug("Slack notification sent successfully")
-                    else:
-                        logger.error(f"Slack notification failed: {response.status}")
+            session = await self._get_session()
+            async with session.post(self.slack_webhook_url, json=slack_message) as response:
+                if response.status == 200:
+                    logger.debug("Slack notification sent successfully")
+                else:
+                    logger.error(f"Slack notification failed: {response.status}")
 
         except Exception as e:
             logger.error(f"Error sending Slack notification: {e}")
@@ -303,22 +317,22 @@ class Notifier:
                 "embeds": [embed]
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.discord_webhook_url,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as response:
-                    if response.status == 204:
-                        logger.debug("Discord notification sent successfully")
-                        self.discord_rate_limiter.record_call()
-                    elif response.status == 429:
-                        # Rate limited by Discord
-                        retry_after = response.headers.get("Retry-After", "60")
-                        logger.warning(f"Discord rate limited, retry after {retry_after}s")
-                    else:
-                        text = await response.text()
-                        logger.error(f"Discord notification failed: {response.status} - {text}")
+            session = await self._get_session()
+            async with session.post(
+                self.discord_webhook_url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                if response.status == 204:
+                    logger.debug("Discord notification sent successfully")
+                    self.discord_rate_limiter.record_call()
+                elif response.status == 429:
+                    # Rate limited by Discord
+                    retry_after = response.headers.get("Retry-After", "60")
+                    logger.warning(f"Discord rate limited, retry after {retry_after}s")
+                else:
+                    text = await response.text()
+                    logger.error(f"Discord notification failed: {response.status} - {text}")
 
         except asyncio.TimeoutError:
             logger.error("Discord notification timed out")
@@ -357,22 +371,22 @@ class Notifier:
                 "disable_web_page_preview": True
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as response:
-                    result = await response.json()
-                    if result.get("ok"):
-                        logger.debug("Telegram notification sent successfully")
-                        self.telegram_rate_limiter.record_call()
-                    elif result.get("error_code") == 429:
-                        # Rate limited by Telegram
-                        retry_after = result.get("parameters", {}).get("retry_after", 60)
-                        logger.warning(f"Telegram rate limited, retry after {retry_after}s")
-                    else:
-                        logger.error(f"Telegram notification failed: {result}")
+            session = await self._get_session()
+            async with session.post(
+                url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                result = await response.json()
+                if result.get("ok"):
+                    logger.debug("Telegram notification sent successfully")
+                    self.telegram_rate_limiter.record_call()
+                elif result.get("error_code") == 429:
+                    # Rate limited by Telegram
+                    retry_after = result.get("parameters", {}).get("retry_after", 60)
+                    logger.warning(f"Telegram rate limited, retry after {retry_after}s")
+                else:
+                    logger.error(f"Telegram notification failed: {result}")
 
         except asyncio.TimeoutError:
             logger.error("Telegram notification timed out")
@@ -403,18 +417,18 @@ class Notifier:
             if embed:
                 payload["embeds"] = [embed]
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.discord_webhook_url,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as response:
-                    if response.status == 204:
-                        self.discord_rate_limiter.record_call()
-                        return True
-                    else:
-                        logger.error(f"Discord error: {response.status}")
-                        return False
+            session = await self._get_session()
+            async with session.post(
+                self.discord_webhook_url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                if response.status == 204:
+                    self.discord_rate_limiter.record_call()
+                    return True
+                else:
+                    logger.error(f"Discord error: {response.status}")
+                    return False
         except Exception as e:
             logger.error(f"Discord send failed: {e}")
             return False
@@ -447,19 +461,19 @@ class Notifier:
                 "disable_web_page_preview": True
             }
 
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url,
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as response:
-                    result = await response.json()
-                    if result.get("ok"):
-                        self.telegram_rate_limiter.record_call()
-                        return True
-                    else:
-                        logger.error(f"Telegram error: {result}")
-                        return False
+            session = await self._get_session()
+            async with session.post(
+                url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                result = await response.json()
+                if result.get("ok"):
+                    self.telegram_rate_limiter.record_call()
+                    return True
+                else:
+                    logger.error(f"Telegram error: {result}")
+                    return False
         except Exception as e:
             logger.error(f"Telegram send failed: {e}")
             return False
@@ -526,13 +540,13 @@ class Notifier:
         if self.slack_enabled:
             tasks.append(self._send_slack(f"Trade: {action} {symbol}", message, urgent=False))
 
+        # Email (async, via thread)
+        if self.email_enabled:
+            tasks.append(self._send_email(f"Trade: {action} {symbol}", message, urgent=False))
+
         # Execute all in parallel
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Email (synchronous)
-        if self.email_enabled:
-            self._send_email(f"Trade: {action} {symbol}", message, urgent=False)
 
     async def notify_alert(self, title: str, message: str, level: str = "info"):
         """
@@ -573,11 +587,12 @@ class Notifier:
         if self.slack_enabled:
             tasks.append(self._send_slack(title, message, urgent=urgent))
 
+        # Email (async, via thread)
+        if self.email_enabled:
+            tasks.append(self._send_email(title, message, urgent=urgent))
+
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-
-        if self.email_enabled:
-            self._send_email(title, message, urgent=urgent)
 
     async def notify_daily_summary_formatted(
         self,
@@ -632,17 +647,22 @@ class Notifier:
             message += f"Win Rate: {win_rate:.1f}%"
             tasks.append(self._send_slack(f"Daily Summary - {direction}", message, urgent=False))
 
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-
+        # Email (async, via thread)
         if self.email_enabled:
             message = f"P&L: ${pnl:,.2f} ({pnl_pct:+.2f}%)\n"
             message += f"Trades: {trades}\n"
             message += f"Win Rate: {win_rate:.1f}%"
-            self._send_email(f"Daily Summary - {direction}", message, urgent=False)
+            tasks.append(self._send_email(f"Daily Summary - {direction}", message, urgent=False))
 
-    def _send_email(self, title: str, message: str, urgent: bool = False):
-        """Send notification via email."""
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _send_email(self, title: str, message: str, urgent: bool = False):
+        """Send notification via email asynchronously."""
+        await asyncio.to_thread(self._send_email_sync, title, message, urgent)
+
+    def _send_email_sync(self, title: str, message: str, urgent: bool = False):
+        """Send notification via email (synchronous implementation)."""
         try:
             # Create message
             msg = MIMEMultipart()
@@ -673,81 +693,3 @@ Sent at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
         except Exception as e:
             logger.error(f"Error sending email notification: {e}")
-
-
-# Example usage and testing
-async def test_notifier():
-    """Test notification system."""
-    notifier = Notifier()
-
-    print("\nTesting notification system...")
-    print(f"  Slack enabled: {notifier.slack_enabled}")
-    print(f"  Discord enabled: {notifier.discord_enabled}")
-    print(f"  Telegram enabled: {notifier.telegram_enabled}")
-    print(f"  Email enabled: {notifier.email_enabled}")
-
-    # Test trade notification (legacy)
-    await notifier.send_trade_notification(symbol="AAPL", side="buy", quantity=10, price=150.50)
-
-    # Test trade with P/L (legacy)
-    await notifier.send_trade_notification(
-        symbol="MSFT", side="sell", quantity=5, price=300.00, pnl=150.50
-    )
-
-    # Test circuit breaker alert
-    await notifier.send_circuit_breaker_alert(daily_loss=0.035, max_loss=0.03)
-
-    # Test daily summary (legacy)
-    await notifier.send_daily_summary(
-        {
-            "total_trades": 10,
-            "win_rate": 0.60,
-            "total_pnl": 1250.50,
-            "sharpe_ratio": 1.85,
-            "max_drawdown_pct": 0.08,
-        }
-    )
-
-    # Test new formatted trade notification
-    await notifier.notify_trade(
-        symbol="GOOGL",
-        side="buy",
-        qty=5,
-        price=175.25,
-        strategy="MomentumStrategy"
-    )
-
-    # Test new alert notification
-    await notifier.notify_alert(
-        title="High Volatility Detected",
-        message="VIX is above 25, reducing position sizes",
-        level="warning"
-    )
-
-    # Test new formatted daily summary
-    await notifier.notify_daily_summary_formatted(
-        pnl=1250.50,
-        pnl_pct=2.5,
-        trades=10,
-        win_rate=60.0
-    )
-
-    # Test direct Discord/Telegram methods
-    if notifier.discord_enabled:
-        success = await notifier.send_discord(
-            "Direct Discord test message",
-            {"title": "Test Embed", "description": "Testing direct Discord API", "color": 0x00FF00}
-        )
-        print(f"  Discord direct send: {'success' if success else 'failed'}")
-
-    if notifier.telegram_enabled:
-        success = await notifier.send_telegram("<b>Direct Telegram test</b>\nTesting direct Telegram API")
-        print(f"  Telegram direct send: {'success' if success else 'failed'}")
-
-    print("Notification tests complete!")
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(test_notifier())
