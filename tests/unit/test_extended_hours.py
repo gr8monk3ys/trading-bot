@@ -15,7 +15,9 @@ from utils.extended_hours import (
     ExtendedHoursManager,
     GapTradingStrategy,
     EarningsReactionStrategy,
+    TradingSession,
     format_session_info,
+    ET,
 )
 
 
@@ -54,6 +56,17 @@ def manager_ah_only(mock_broker):
 def manager_disabled(mock_broker):
     """Manager with extended hours disabled."""
     return ExtendedHoursManager(mock_broker, enable_pre_market=False, enable_after_hours=False)
+
+
+@pytest.fixture
+def manager_overnight_disabled(mock_broker):
+    """Manager with overnight trading disabled."""
+    return ExtendedHoursManager(
+        mock_broker,
+        enable_overnight=False,
+        enable_pre_market=True,
+        enable_after_hours=True,
+    )
 
 
 @pytest.fixture
@@ -136,97 +149,67 @@ class TestGetCurrentSession:
 
     def test_pre_market_session(self, manager):
         """Test pre-market session detection."""
-        eastern = pytz.timezone("US/Eastern")
-        # 6:00 AM Eastern
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 6, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager.get_current_session()
-            assert session == "pre_market"
+        # 6:00 AM Eastern on a Tuesday
+        dt = ET.localize(datetime(2024, 1, 2, 6, 0))
+        session = manager.get_current_session(dt)
+        assert session == TradingSession.PRE_MARKET
 
     def test_regular_session(self, manager):
         """Test regular hours session detection."""
-        eastern = pytz.timezone("US/Eastern")
-        # 11:00 AM Eastern
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 11, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager.get_current_session()
-            assert session == "regular"
+        # 11:00 AM Eastern on a Tuesday
+        dt = ET.localize(datetime(2024, 1, 2, 11, 0))
+        session = manager.get_current_session(dt)
+        assert session == TradingSession.REGULAR
 
     def test_after_hours_session(self, manager):
         """Test after-hours session detection."""
-        eastern = pytz.timezone("US/Eastern")
-        # 5:00 PM Eastern
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 17, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager.get_current_session()
-            assert session == "after_hours"
+        # 5:00 PM Eastern on a Tuesday
+        dt = ET.localize(datetime(2024, 1, 2, 17, 0))
+        session = manager.get_current_session(dt)
+        assert session == TradingSession.AFTER_HOURS
 
-    def test_closed_session(self, manager):
-        """Test closed session detection."""
-        eastern = pytz.timezone("US/Eastern")
-        # 10:00 PM Eastern
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 22, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager.get_current_session()
-            assert session == "closed"
+    def test_closed_session(self, manager_overnight_disabled):
+        """Test closed session detection (when overnight disabled)."""
+        # 10:00 PM Eastern on a Tuesday - overnight if enabled, closed if disabled
+        dt = ET.localize(datetime(2024, 1, 2, 22, 0))
+        session = manager_overnight_disabled.get_current_session(dt)
+        assert session == TradingSession.CLOSED
 
     def test_pre_market_disabled_returns_closed(self, manager_ah_only):
         """Test disabled pre-market returns closed."""
-        eastern = pytz.timezone("US/Eastern")
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 6, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager_ah_only.get_current_session()
-            assert session == "closed"
+        dt = ET.localize(datetime(2024, 1, 2, 6, 0))
+        session = manager_ah_only.get_current_session(dt)
+        assert session == TradingSession.CLOSED
 
     def test_after_hours_disabled_returns_closed(self, manager_pre_only):
         """Test disabled after-hours returns closed."""
-        eastern = pytz.timezone("US/Eastern")
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 17, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager_pre_only.get_current_session()
-            assert session == "closed"
+        dt = ET.localize(datetime(2024, 1, 2, 17, 0))
+        session = manager_pre_only.get_current_session(dt)
+        assert session == TradingSession.CLOSED
 
     def test_early_pre_market(self, manager):
         """Test early pre-market (4:00 AM)."""
-        eastern = pytz.timezone("US/Eastern")
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 4, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager.get_current_session()
-            assert session == "pre_market"
+        dt = ET.localize(datetime(2024, 1, 2, 4, 0))
+        session = manager.get_current_session(dt)
+        assert session == TradingSession.PRE_MARKET
 
     def test_late_after_hours(self, manager):
         """Test late after-hours (7:59 PM)."""
-        eastern = pytz.timezone("US/Eastern")
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 19, 59))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager.get_current_session()
-            assert session == "after_hours"
+        dt = ET.localize(datetime(2024, 1, 2, 19, 59))
+        session = manager.get_current_session(dt)
+        assert session == TradingSession.AFTER_HOURS
 
     def test_market_open_boundary(self, manager):
         """Test at market open boundary (9:30 AM)."""
-        eastern = pytz.timezone("US/Eastern")
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 9, 30))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager.get_current_session()
-            assert session == "regular"
+        dt = ET.localize(datetime(2024, 1, 2, 9, 30))
+        session = manager.get_current_session(dt)
+        assert session == TradingSession.REGULAR
 
     def test_market_close_boundary(self, manager):
         """Test at market close boundary (4:00 PM)."""
-        eastern = pytz.timezone("US/Eastern")
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 16, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            session = manager.get_current_session()
-            assert session == "after_hours"
+        dt = ET.localize(datetime(2024, 1, 2, 16, 0))
+        session = manager.get_current_session(dt)
+        assert session == TradingSession.AFTER_HOURS
 
 
 # ============================================================================
@@ -559,16 +542,14 @@ class TestGetSessionInfo:
             assert info["is_extended"] is True
             assert info["can_trade"] is True
 
-    def test_closed_info(self, manager):
-        """Test closed session info."""
-        eastern = pytz.timezone("US/Eastern")
-        mock_dt = eastern.localize(datetime(2024, 1, 2, 22, 0))
-        with patch("utils.extended_hours.datetime") as mock_datetime:
-            mock_datetime.now.return_value = mock_dt
-            info = manager.get_session_info()
-            assert info["session"] == "closed"
-            assert info["is_extended"] is False
-            assert info["can_trade"] is False
+    def test_closed_info(self, manager_overnight_disabled):
+        """Test closed session info (Saturday - fully closed)."""
+        # Use Saturday to get CLOSED session (not overnight)
+        dt = ET.localize(datetime(2024, 1, 6, 12, 0))  # Saturday noon
+        info = manager_overnight_disabled.get_session_info(dt)
+        assert info["session"] == "closed"
+        assert info["is_extended"] is False
+        assert info["can_trade"] is False
 
 
 # ============================================================================
@@ -588,6 +569,8 @@ class TestFormatSessionInfo:
             "start_time": "4:00 AM ET",
             "end_time": "9:30 AM ET",
             "is_extended": True,
+            "is_overnight": False,
+            "is_regular_hours": False,
             "can_trade": True,
             "liquidity": "Low",
             "volatility": "High",
@@ -609,6 +592,8 @@ class TestFormatSessionInfo:
             "start_time": "9:30 AM ET",
             "end_time": "4:00 PM ET",
             "is_extended": False,
+            "is_overnight": False,
+            "is_regular_hours": True,
             "can_trade": True,
             "liquidity": "Normal",
             "volatility": "Normal",

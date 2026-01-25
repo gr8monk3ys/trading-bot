@@ -34,6 +34,7 @@ Usage:
 """
 
 import logging
+import warnings
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -109,6 +110,12 @@ class ExtendedHoursStrategy(BaseStrategy):
 
     async def initialize(self, **kwargs):
         """Initialize strategy."""
+        warnings.warn(
+            f"{self.__class__.__name__} is experimental and has not been fully validated. "
+            "Use in production at your own risk.",
+            category=UserWarning,
+            stacklevel=2,
+        )
         # Call parent initialization
         success = await super().initialize(**kwargs)
         if not success:

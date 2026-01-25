@@ -1,46 +1,86 @@
 """
 Extended Hours Trading Manager
 
-Handles pre-market (4:00 AM - 9:30 AM EST) and after-hours (4:00 PM - 8:00 PM EST) trading.
+Handles extended and overnight trading sessions via Blue Ocean ATS.
+
+Trading Sessions (Eastern Time):
+- Pre-Market: 4:00 AM - 9:30 AM ET
+- Regular Hours: 9:30 AM - 4:00 PM ET
+- After-Hours: 4:00 PM - 8:00 PM ET
+- Overnight: 8:00 PM - 4:00 AM ET (next day) - 24/5 via Blue Ocean ATS
+  * Available Sunday 8:00 PM ET to Friday 4:00 AM ET
 
 Key Considerations:
 - Lower liquidity (wider spreads, use limit orders)
 - More volatility (news reactions)
 - Different strategies (news-driven, gap trading)
 - Risk management (smaller position sizes)
+- Overnight: Check symbol-specific overnight_tradeable status
 
 Usage:
-    from utils.extended_hours import ExtendedHoursManager
+    from utils.extended_hours import ExtendedHoursManager, TradingSession
 
-    manager = ExtendedHoursManager(broker)
+    manager = ExtendedHoursManager(broker, enable_overnight=True)
 
-    # Check if we can trade now
-    if manager.is_extended_hours():
-        session = manager.get_current_session()  # 'pre_market' or 'after_hours'
+    # Get current session
+    session = manager.get_current_session()  # Returns TradingSession enum
 
-        # Trade with extended hours settings
+    # Check if we can trade now (includes overnight if enabled)
+    if manager.is_market_open(include_overnight=True):
         await manager.execute_extended_hours_trade(symbol, side, quantity)
+
+    # Check overnight tradability for specific symbol
+    if await manager.check_overnight_tradeable(broker, "AAPL"):
+        # Symbol supports overnight trading
+        pass
 """
 
 import logging
 from datetime import datetime, time
-from typing import Dict, Optional, Tuple
+from enum import Enum
+from typing import Dict, Optional, Tuple, TYPE_CHECKING
 
 import pytz
 
 from brokers.order_builder import OrderBuilder
 
+if TYPE_CHECKING:
+    from brokers.alpaca_broker import AlpacaBroker
+
 logger = logging.getLogger(__name__)
+
+# Eastern Time timezone constant
+ET = pytz.timezone("America/New_York")
+
+
+class TradingSession(Enum):
+    """
+    Enumeration of trading session types.
+
+    Sessions represent different market hours with varying liquidity,
+    volatility, and trading rules.
+    """
+    CLOSED = "closed"              # Market fully closed (weekend, holidays)
+    PRE_MARKET = "pre_market"      # 4:00 AM - 9:30 AM ET
+    REGULAR = "regular"            # 9:30 AM - 4:00 PM ET
+    AFTER_HOURS = "after_hours"    # 4:00 PM - 8:00 PM ET
+    OVERNIGHT = "overnight"        # 8:00 PM - 4:00 AM ET (Blue Ocean ATS)
 
 
 class ExtendedHoursManager:
     """
-    Manager for extended hours trading (pre-market and after-hours).
+    Manager for extended hours and overnight trading.
 
     Market Hours (Eastern Time):
     - Pre-Market: 4:00 AM - 9:30 AM
     - Regular Hours: 9:30 AM - 4:00 PM
     - After-Hours: 4:00 PM - 8:00 PM
+    - Overnight: 8:00 PM - 4:00 AM (next day) - via Blue Ocean ATS
+
+    24/5 Trading Schedule:
+    - Opens: Sunday 8:00 PM ET
+    - Closes: Friday 4:00 AM ET (end of overnight session)
+    - Closed: Friday 4:00 AM - Sunday 8:00 PM ET
     """
 
     # Trading session times (Eastern Time)
@@ -50,19 +90,29 @@ class ExtendedHoursManager:
     REGULAR_END = time(16, 0)  # 4:00 PM
     AFTER_HOURS_START = time(16, 0)  # 4:00 PM
     AFTER_HOURS_END = time(20, 0)  # 8:00 PM
+    OVERNIGHT_START = time(20, 0)  # 8:00 PM
+    OVERNIGHT_END = time(4, 0)  # 4:00 AM (next day)
 
-    def __init__(self, broker, enable_pre_market: bool = True, enable_after_hours: bool = True):
+    def __init__(
+        self,
+        broker=None,
+        enable_pre_market: bool = True,
+        enable_after_hours: bool = True,
+        enable_overnight: bool = True,
+    ):
         """
         Initialize extended hours manager.
 
         Args:
-            broker: Trading broker instance
+            broker: Trading broker instance (optional, can be set later)
             enable_pre_market: Allow pre-market trading (default: True)
             enable_after_hours: Allow after-hours trading (default: True)
+            enable_overnight: Allow overnight trading via Blue Ocean ATS (default: True)
         """
         self.broker = broker
         self.enable_pre_market = enable_pre_market
         self.enable_after_hours = enable_after_hours
+        self.enable_overnight = enable_overnight
 
         # Extended hours trading parameters (more conservative)
         self.extended_hours_params = {
@@ -73,51 +123,135 @@ class ExtendedHoursManager:
             "min_volume": 10000,  # Minimum daily volume to trade
         }
 
+        # Overnight-specific parameters (even more conservative)
+        self.overnight_params = {
+            "position_size_multiplier": 0.3,  # 30% of regular position size
+            "max_spread_pct": 0.01,  # Max 1.0% spread (overnight has wider spreads)
+            "limit_order_offset_pct": 0.002,  # 0.2% from mid-price
+            "max_slippage_pct": 0.005,  # Max 0.5% slippage tolerance
+            "max_positions": 3,  # Limit concurrent overnight positions
+        }
+
         logger.info("ExtendedHoursManager initialized:")
         logger.info(f"  Pre-market: {'ENABLED' if enable_pre_market else 'DISABLED'}")
         logger.info(f"  After-hours: {'ENABLED' if enable_after_hours else 'DISABLED'}")
+        logger.info(f"  Overnight (Blue Ocean): {'ENABLED' if enable_overnight else 'DISABLED'}")
 
     def is_extended_hours(self) -> bool:
         """
-        Check if current time is during extended hours.
+        Check if current time is during extended hours (pre-market or after-hours).
+
+        Note: Does not include overnight session. Use is_overnight() for that.
 
         Returns:
             True if pre-market or after-hours
         """
         session = self.get_current_session()
-        return session in ["pre_market", "after_hours"]
+        return session in [TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS]
 
     def is_pre_market(self) -> bool:
         """Check if current time is pre-market."""
-        return self.get_current_session() == "pre_market"
+        return self.get_current_session() == TradingSession.PRE_MARKET
 
     def is_after_hours(self) -> bool:
         """Check if current time is after-hours."""
-        return self.get_current_session() == "after_hours"
+        return self.get_current_session() == TradingSession.AFTER_HOURS
 
     def is_regular_hours(self) -> bool:
         """Check if current time is regular market hours."""
-        return self.get_current_session() == "regular"
+        return self.get_current_session() == TradingSession.REGULAR
 
-    def get_current_session(self) -> str:
+    def is_overnight(self) -> bool:
+        """Check if current time is overnight session (Blue Ocean ATS)."""
+        return self.get_current_session() == TradingSession.OVERNIGHT
+
+    def get_current_session(self, dt: datetime = None) -> TradingSession:
         """
-        Get current market session.
+        Get current trading session.
+
+        Args:
+            dt: Datetime to check (default: now). Can be naive or timezone-aware.
 
         Returns:
-            'pre_market', 'regular', 'after_hours', or 'closed'
+            TradingSession enum value
         """
-        # Get current time in Eastern Time
-        eastern = pytz.timezone("US/Eastern")
-        now = datetime.now(eastern).time()
-
-        if self.PRE_MARKET_START <= now < self.PRE_MARKET_END:
-            return "pre_market" if self.enable_pre_market else "closed"
-        elif self.REGULAR_START <= now < self.REGULAR_END:
-            return "regular"
-        elif self.AFTER_HOURS_START <= now < self.AFTER_HOURS_END:
-            return "after_hours" if self.enable_after_hours else "closed"
+        # Handle datetime input
+        if dt is None:
+            dt = datetime.now(ET)
+        elif dt.tzinfo is None:
+            dt = ET.localize(dt)
         else:
-            return "closed"
+            dt = dt.astimezone(ET)
+
+        current_time = dt.time()
+        weekday = dt.weekday()  # Monday = 0, Sunday = 6
+
+        # Check if fully closed (Saturday or Friday overnight after cutoff)
+        if weekday == 5:  # Saturday - fully closed
+            return TradingSession.CLOSED
+
+        # Sunday - only overnight session after 8 PM
+        if weekday == 6:  # Sunday
+            if current_time >= self.OVERNIGHT_START:
+                return TradingSession.OVERNIGHT if self.enable_overnight else TradingSession.CLOSED
+            return TradingSession.CLOSED
+
+        # Friday special handling - overnight closes at 4 AM
+        if weekday == 4:  # Friday
+            # After 8 PM Friday = closed (no overnight into Saturday)
+            if current_time >= self.AFTER_HOURS_END:
+                return TradingSession.CLOSED
+
+        # Check overnight session (8 PM previous day to 4 AM)
+        # This applies to Mon-Fri before 4 AM (overnight from previous night)
+        if current_time < self.OVERNIGHT_END:  # Before 4 AM
+            return TradingSession.OVERNIGHT if self.enable_overnight else TradingSession.CLOSED
+
+        # Pre-market: 4:00 AM - 9:30 AM
+        if self.PRE_MARKET_START <= current_time < self.PRE_MARKET_END:
+            return TradingSession.PRE_MARKET if self.enable_pre_market else TradingSession.CLOSED
+
+        # Regular hours: 9:30 AM - 4:00 PM
+        if self.REGULAR_START <= current_time < self.REGULAR_END:
+            return TradingSession.REGULAR
+
+        # After-hours: 4:00 PM - 8:00 PM
+        if self.AFTER_HOURS_START <= current_time < self.AFTER_HOURS_END:
+            return TradingSession.AFTER_HOURS if self.enable_after_hours else TradingSession.CLOSED
+
+        # Overnight: 8:00 PM onwards (Mon-Thu only, Friday goes to CLOSED)
+        if current_time >= self.OVERNIGHT_START:
+            return TradingSession.OVERNIGHT if self.enable_overnight else TradingSession.CLOSED
+
+        return TradingSession.CLOSED
+
+    def is_market_open(
+        self,
+        include_extended: bool = True,
+        include_overnight: bool = None,
+    ) -> bool:
+        """
+        Check if any trading session is currently active.
+
+        Args:
+            include_extended: Include pre-market and after-hours (default: True)
+            include_overnight: Include overnight session (default: follows enable_overnight)
+
+        Returns:
+            True if trading is possible in current session
+        """
+        if include_overnight is None:
+            include_overnight = self.enable_overnight
+
+        session = self.get_current_session()
+
+        if session == TradingSession.REGULAR:
+            return True
+        if include_extended and session in (TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS):
+            return True
+        if include_overnight and session == TradingSession.OVERNIGHT:
+            return True
+        return False
 
     async def can_trade_extended_hours(self, symbol: str) -> Tuple[bool, str]:
         """
@@ -132,8 +266,8 @@ class ExtendedHoursManager:
         session = self.get_current_session()
 
         # Not in extended hours
-        if session not in ["pre_market", "after_hours"]:
-            return False, f"Not in extended hours (current: {session})"
+        if session not in [TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS]:
+            return False, f"Not in extended hours (current: {session.value})"
 
         # Check if symbol is eligible (most stocks are, but check anyway)
         try:
@@ -144,10 +278,75 @@ class ExtendedHoursManager:
             # 3. Not a penny stock
             # 4. Alpaca supports extended hours for this symbol
 
-            return True, f"Eligible for {session} trading"
+            return True, f"Eligible for {session.value} trading"
 
         except Exception as e:
             return False, f"Error checking eligibility: {e}"
+
+    async def can_trade_overnight(self, symbol: str) -> Tuple[bool, str]:
+        """
+        Check if a symbol can be traded during overnight session.
+
+        Overnight trading requires:
+        1. Current time is in overnight session
+        2. Symbol has overnight_tradeable flag set
+        3. Symbol is not halted for overnight trading
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Tuple of (can_trade, reason)
+        """
+        session = self.get_current_session()
+
+        # Not in overnight session
+        if session != TradingSession.OVERNIGHT:
+            return False, f"Not in overnight session (current: {session.value})"
+
+        # Check if overnight is enabled
+        if not self.enable_overnight:
+            return False, "Overnight trading is disabled"
+
+        # Check symbol-specific overnight tradability
+        if self.broker is not None:
+            is_tradeable = await self.check_overnight_tradeable(self.broker, symbol)
+            if not is_tradeable:
+                return False, f"{symbol} is not available for overnight trading"
+
+        return True, f"Eligible for overnight trading"
+
+    async def check_overnight_tradeable(self, broker: "AlpacaBroker", symbol: str) -> bool:
+        """
+        Check if a symbol can be traded in overnight session via Blue Ocean ATS.
+
+        Args:
+            broker: AlpacaBroker instance
+            symbol: Stock symbol
+
+        Returns:
+            True if overnight trading is available for this symbol
+        """
+        try:
+            asset = await broker.get_asset(symbol)
+            if asset:
+                # Check overnight_tradeable flag and ensure not halted
+                overnight_tradeable = asset.get("overnight_tradeable", False)
+                overnight_halted = asset.get("overnight_halted", True)
+
+                is_available = overnight_tradeable and not overnight_halted
+
+                if not is_available:
+                    logger.debug(
+                        f"{symbol} overnight status: tradeable={overnight_tradeable}, "
+                        f"halted={overnight_halted}"
+                    )
+
+                return is_available
+            return False
+        except Exception as e:
+            logger.warning(f"Could not check overnight status for {symbol}: {e}")
+            return False
 
     async def get_extended_hours_quote(self, symbol: str) -> Optional[Dict]:
         """
@@ -213,11 +412,52 @@ class ExtendedHoursManager:
 
         return adjusted
 
+    def adjust_position_size_for_overnight(self, position_value: float) -> float:
+        """
+        Reduce position size for overnight trading (more aggressive reduction).
+
+        Overnight trading has lower liquidity and wider spreads than
+        regular extended hours, so positions should be even smaller.
+
+        Args:
+            position_value: Regular hours position value
+
+        Returns:
+            Adjusted position value (30% of regular by default)
+        """
+        multiplier = self.overnight_params["position_size_multiplier"]
+        adjusted = position_value * multiplier
+
+        logger.debug(
+            f"Overnight position adjustment: ${position_value:.2f} -> ${adjusted:.2f} "
+            f"({multiplier:.0%} of regular)"
+        )
+
+        return adjusted
+
+    def get_position_size_multiplier(self) -> float:
+        """
+        Get position size multiplier for the current session.
+
+        Returns:
+            Multiplier to apply to regular position size (0.3 - 1.0)
+        """
+        session = self.get_current_session()
+
+        if session == TradingSession.REGULAR:
+            return 1.0
+        elif session in [TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS]:
+            return self.extended_hours_params["position_size_multiplier"]
+        elif session == TradingSession.OVERNIGHT:
+            return self.overnight_params["position_size_multiplier"]
+        else:  # CLOSED
+            return 0.0
+
     async def execute_extended_hours_trade(
         self, symbol: str, side: str, quantity: float, strategy: str = "limit"
     ) -> Optional[dict]:
         """
-        Execute trade during extended hours with appropriate safeguards.
+        Execute trade during extended hours or overnight session with appropriate safeguards.
 
         Args:
             symbol: Stock symbol
@@ -230,17 +470,26 @@ class ExtendedHoursManager:
         """
         session = self.get_current_session()
 
-        # Validate we're in extended hours
-        if session not in ["pre_market", "after_hours"]:
+        # Validate we're in an eligible session
+        valid_sessions = [TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS]
+        if self.enable_overnight:
+            valid_sessions.append(TradingSession.OVERNIGHT)
+
+        if session not in valid_sessions:
             logger.warning(
-                f"Cannot execute extended hours trade - not in extended hours (current: {session})"
+                f"Cannot execute extended hours trade - not in extended hours "
+                f"(current: {session.value})"
             )
             return None
 
-        # Check symbol eligibility
-        can_trade, reason = await self.can_trade_extended_hours(symbol)
+        # Check symbol eligibility based on session type
+        if session == TradingSession.OVERNIGHT:
+            can_trade, reason = await self.can_trade_overnight(symbol)
+        else:
+            can_trade, reason = await self.can_trade_extended_hours(symbol)
+
         if not can_trade:
-            logger.warning(f"Cannot trade {symbol} in extended hours: {reason}")
+            logger.warning(f"Cannot trade {symbol} in {session.value}: {reason}")
             return None
 
         try:
@@ -315,11 +564,16 @@ class ExtendedHoursManager:
         Get recommended strategies for each extended hours session.
 
         Args:
-            session: 'pre_market' or 'after_hours'
+            session: 'pre_market', 'after_hours', or 'overnight'
+                     (accepts TradingSession enum values or string names)
 
         Returns:
             Dict with strategy recommendations
         """
+        # Handle TradingSession enum
+        if isinstance(session, TradingSession):
+            session = session.value
+
         if session == "pre_market":
             return {
                 "primary": "gap_trading",
@@ -350,19 +604,42 @@ class ExtendedHoursManager:
                     "Scale in/out of positions",
                 ],
             }
+        elif session == "overnight":
+            return {
+                "primary": "low_risk_positioning",
+                "description": "Position for next day with low-risk overnight trades",
+                "focus": "Index-following stocks, ETFs, anticipating next-day news",
+                "risk": "Medium - very low liquidity, wide spreads",
+                "best_symbols": "Blue-chip stocks, major ETFs (SPY, QQQ) if overnight-enabled",
+                "venue": "Blue Ocean ATS",
+                "tips": [
+                    "Only trade overnight-enabled symbols",
+                    "Use limit orders ONLY (never market orders)",
+                    "Reduce position size to 30% of regular",
+                    "Monitor international markets for direction",
+                    "Set wider stop-losses due to low liquidity",
+                    "Check symbol overnight_tradeable flag before trading",
+                    "Avoid illiquid symbols even if overnight-enabled",
+                    "Consider timezone - Asian/European market movements",
+                ],
+            }
         else:
             return {}
 
     async def get_extended_hours_opportunities(self) -> list:
         """
-        Scan for trading opportunities during extended hours.
+        Scan for trading opportunities during extended hours or overnight.
 
         Returns:
             List of opportunity dicts
         """
         session = self.get_current_session()
 
-        if session not in ["pre_market", "after_hours"]:
+        valid_sessions = [TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS]
+        if self.enable_overnight:
+            valid_sessions.append(TradingSession.OVERNIGHT)
+
+        if session not in valid_sessions:
             return []
 
         opportunities = []
@@ -376,7 +653,7 @@ class ExtendedHoursManager:
             # 5. Return ranked opportunities
 
             # Placeholder for now
-            logger.info(f"Scanning for {session} opportunities...")
+            logger.info(f"Scanning for {session.value} opportunities...")
 
             # Example opportunity structure:
             # opportunities.append({
@@ -388,33 +665,56 @@ class ExtendedHoursManager:
             #     'entry_price': 175.50,
             #     'target_price': 173.00,
             #     'stop_price': 177.00,
-            #     'risk_reward': 2.5
+            #     'risk_reward': 2.5,
+            #     'session': session.value,  # Track which session
+            #     'overnight_tradeable': True,  # For overnight session
             # })
 
         except Exception as e:
-            logger.error(f"Error scanning extended hours opportunities: {e}")
+            logger.error(f"Error scanning {session.value} opportunities: {e}")
 
         return opportunities
 
-    def get_session_info(self) -> Dict:
+    def get_session_info(self, dt: datetime = None) -> Dict:
         """
         Get detailed information about current session.
 
+        Args:
+            dt: Optional datetime to check (default: now)
+
         Returns:
-            Dict with session details
+            Dict with session details including:
+            - session: TradingSession enum value
+            - session_name: Human-readable session name
+            - current_time_et: Current time in ET
+            - day_of_week: Current day name
+            - is_regular_hours: True if regular market hours
+            - is_extended_hours: True if pre-market or after-hours
+            - is_overnight: True if overnight session
+            - can_trade: True if any trading is possible
+            - Additional session-specific info (times, strategies, etc.)
         """
-        session = self.get_current_session()
-        eastern = pytz.timezone("US/Eastern")
-        now = datetime.now(eastern)
+        session = self.get_current_session(dt)
+
+        if dt is None:
+            now = datetime.now(ET)
+        elif dt.tzinfo is None:
+            now = ET.localize(dt)
+        else:
+            now = dt.astimezone(ET)
 
         info = {
-            "session": session,
+            "session": session.value,
             "current_time": now.strftime("%Y-%m-%d %H:%M:%S %Z"),
-            "is_extended": session in ["pre_market", "after_hours"],
-            "can_trade": session in ["pre_market", "after_hours", "regular"],
+            "current_time_et": now.strftime("%H:%M:%S"),
+            "day_of_week": now.strftime("%A"),
+            "is_regular_hours": session == TradingSession.REGULAR,
+            "is_extended": session in [TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS],
+            "is_overnight": session == TradingSession.OVERNIGHT,
+            "can_trade": self.is_market_open(),
         }
 
-        if session == "pre_market":
+        if session == TradingSession.PRE_MARKET:
             info.update(
                 {
                     "session_name": "Pre-Market",
@@ -426,7 +726,7 @@ class ExtendedHoursManager:
                     "position_size_adj": "50% of regular",
                 }
             )
-        elif session == "after_hours":
+        elif session == TradingSession.AFTER_HOURS:
             info.update(
                 {
                     "session_name": "After-Hours",
@@ -438,7 +738,7 @@ class ExtendedHoursManager:
                     "position_size_adj": "50% of regular",
                 }
             )
-        elif session == "regular":
+        elif session == TradingSession.REGULAR:
             info.update(
                 {
                     "session_name": "Regular Hours",
@@ -448,6 +748,35 @@ class ExtendedHoursManager:
                     "liquidity": "Normal",
                     "volatility": "Normal",
                     "position_size_adj": "100%",
+                }
+            )
+        elif session == TradingSession.OVERNIGHT:
+            info.update(
+                {
+                    "session_name": "Overnight (Blue Ocean ATS)",
+                    "start_time": "8:00 PM ET",
+                    "end_time": "4:00 AM ET",
+                    "recommended_strategy": "Low-risk positions, news anticipation",
+                    "liquidity": "Very Low",
+                    "volatility": "Low-Medium",
+                    "position_size_adj": "30% of regular",
+                    "notes": [
+                        "Trades execute via Blue Ocean ATS",
+                        "Check symbol overnight_tradeable status",
+                        "Wider spreads than daytime sessions",
+                        "Limited to overnight-enabled symbols",
+                    ],
+                }
+            )
+        else:  # CLOSED
+            info.update(
+                {
+                    "session_name": "Market Closed",
+                    "recommended_strategy": "Wait for market open",
+                    "notes": [
+                        "No trading available",
+                        "Weekend: Saturday all day, Sunday before 8 PM ET",
+                    ],
                 }
             )
 
@@ -469,19 +798,35 @@ def format_session_info(info: Dict) -> str:
     """
     output = []
     output.append("=" * 80)
-    output.append(f"📅 MARKET SESSION: {info['session_name']}")
+    output.append(f"MARKET SESSION: {info['session_name']}")
     output.append("=" * 80)
     output.append(f"Current Time: {info['current_time']}")
-    output.append(f"Session Hours: {info['start_time']} - {info['end_time']}")
 
-    if info["is_extended"]:
-        output.append("\n⚠️  EXTENDED HOURS TRADING")
+    if "start_time" in info and "end_time" in info:
+        output.append(f"Session Hours: {info['start_time']} - {info['end_time']}")
+
+    if info.get("is_overnight"):
+        output.append("\nOVERNIGHT TRADING (Blue Ocean ATS)")
+        output.append(f"Liquidity: {info.get('liquidity', 'Very Low')} | Volatility: {info.get('volatility', 'Low-Medium')}")
+        output.append(f"Position Size: {info.get('position_size_adj', '30% of regular')}")
+        output.append(f"Strategy: {info.get('recommended_strategy', 'Low-risk positioning')}")
+        if "notes" in info:
+            output.append("\nImportant Notes:")
+            for note in info["notes"]:
+                output.append(f"  - {note}")
+    elif info.get("is_extended"):
+        output.append("\nEXTENDED HOURS TRADING")
         output.append(f"Liquidity: {info['liquidity']} | Volatility: {info['volatility']}")
         output.append(f"Position Size: {info['position_size_adj']}")
         output.append(f"Strategy: {info['recommended_strategy']}")
-    else:
-        output.append("\n✅ Regular Market Hours")
+    elif info.get("is_regular_hours"):
+        output.append("\nRegular Market Hours")
         output.append("Full liquidity and normal strategies available")
+    else:
+        output.append("\nMarket Closed")
+        if "notes" in info:
+            for note in info["notes"]:
+                output.append(f"  - {note}")
 
     output.append("=" * 80)
 
