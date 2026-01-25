@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Type
@@ -172,6 +173,44 @@ class BacktestEngine:
             f"Max Drawdown: {max_drawdown:.2%}, Sharpe Ratio: {sharpe_ratio:.2f}"
         )
 
+    async def _process_symbol_signal(
+        self, symbol: str, strategy, backtest_broker, day_num: int
+    ) -> None:
+        """Process a single symbol's signal in parallel.
+
+        Performance optimization: This method allows multiple symbols to be
+        analyzed and traded concurrently using asyncio.gather().
+
+        Args:
+            symbol: The symbol to process
+            strategy: The strategy instance
+            backtest_broker: The backtest broker instance
+            day_num: Current day number (for debug logging)
+        """
+        if symbol not in backtest_broker.price_data:
+            return
+
+        try:
+            signal = await strategy.analyze_symbol(symbol)
+            if signal:
+                # Handle both string and dict signal formats
+                if isinstance(signal, str):
+                    action = signal
+                else:
+                    action = signal.get("action") if isinstance(signal, dict) else "neutral"
+
+                if day_num < 5:  # Log first few days for debugging
+                    logger.debug(f"  {symbol} signal: {action}")
+
+                if action not in ["hold", "neutral", None]:
+                    logger.info(f"  Trade signal: {symbol} - {action}")
+                    # Convert string signal to dict for execute_trade
+                    if isinstance(signal, str):
+                        signal = {"action": signal, "symbol": symbol}
+                    await strategy.execute_trade(symbol, signal)
+        except Exception as e:
+            logger.warning(f"Error processing {symbol}: {e}")
+
     async def run_backtest(
         self,
         strategy_class: Type,
@@ -318,33 +357,16 @@ class BacktestEngine:
                     except Exception as e:
                         logger.debug(f"Error in generate_signals: {e}")
 
-                # Analyze and potentially trade each symbol
-                for symbol in symbols:
-                    if symbol not in backtest_broker.price_data:
-                        continue
-
-                    try:
-                        signal = await strategy.analyze_symbol(symbol)
-                        if signal:
-                            # Handle both string and dict signal formats
-                            if isinstance(signal, str):
-                                action = signal
-                            else:
-                                action = (
-                                    signal.get("action") if isinstance(signal, dict) else "neutral"
-                                )
-
-                            if day_num < 5:  # Log first few days for debugging
-                                logger.debug(f"  {symbol} signal: {action}")
-
-                            if action not in ["hold", "neutral", None]:
-                                logger.info(f"  Trade signal: {symbol} - {action}")
-                                # Convert string signal to dict for execute_trade
-                                if isinstance(signal, str):
-                                    signal = {"action": signal, "symbol": symbol}
-                                await strategy.execute_trade(symbol, signal)
-                    except Exception as e:
-                        logger.warning(f"Error analyzing {symbol} on {current_date.date()}: {e}")
+                # Performance optimization: Process all symbols in parallel using asyncio.gather
+                # This significantly speeds up backtests with many symbols by running
+                # analyze_symbol and execute_trade concurrently
+                await asyncio.gather(
+                    *[
+                        self._process_symbol_signal(symbol, strategy, backtest_broker, day_num)
+                        for symbol in symbols
+                    ],
+                    return_exceptions=True,  # Don't fail on individual symbol errors
+                )
 
                 # Record equity at end of day
                 portfolio_value = backtest_broker.get_portfolio_value(current_date)

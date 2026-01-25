@@ -35,8 +35,8 @@ class TradingDashboard:
         return True
 
     def clear_screen(self):
-        """Clear terminal screen."""
-        os.system("clear" if os.name == "posix" else "cls")
+        """Clear terminal screen using ANSI escape codes."""
+        print("\033[H\033[J", end="")
 
     async def render(self):
         """Render dashboard."""

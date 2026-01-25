@@ -128,6 +128,64 @@ SYMBOLS = [
     "TSLA",  # Tesla
 ]
 
+# Cryptocurrency pairs - Supported for 24/7 trading
+# These can be used in addition to or instead of stock symbols
+CRYPTO_SYMBOLS = [
+    "BTC/USD",   # Bitcoin
+    "ETH/USD",   # Ethereum
+    "SOL/USD",   # Solana
+    "AVAX/USD",  # Avalanche
+    "DOGE/USD",  # Dogecoin
+    "SHIB/USD",  # Shiba Inu
+    "LTC/USD",   # Litecoin
+    "BCH/USD",   # Bitcoin Cash
+    "LINK/USD",  # Chainlink
+    "UNI/USD",   # Uniswap
+    "AAVE/USD",  # Aave
+    "DOT/USD",   # Polkadot
+    "MATIC/USD", # Polygon
+    "XLM/USD",   # Stellar
+    "ATOM/USD",  # Cosmos
+]
+
+# Crypto trading parameters
+CRYPTO_PARAMS = {
+    "ENABLED": True,  # Enable crypto trading
+    "USE_CRYPTO_ONLY": False,  # If True, only trade crypto (not stocks)
+    # Default crypto symbols to trade
+    "DEFAULT_PAIRS": ["BTC/USD", "ETH/USD", "SOL/USD"],
+    # Position sizing for crypto (can be different from stocks due to volatility)
+    "POSITION_SIZE": 0.05,  # 5% of portfolio per crypto position (lower due to volatility)
+    "MAX_POSITION_SIZE": 0.15,  # 15% maximum crypto position size
+    # Crypto-specific risk parameters
+    "STOP_LOSS": 0.05,  # 5% stop loss (higher due to volatility)
+    "TAKE_PROFIT": 0.10,  # 10% take profit (higher due to volatility)
+    # 24/7 trading settings
+    "TRADE_24_7": True,  # Enable around-the-clock trading
+    "TRADING_INTERVAL": 60,  # Seconds between checks (can be more frequent for crypto)
+}
+
+# Overnight trading parameters (Blue Ocean ATS - 24/5 trading)
+# Available: Sunday 8 PM ET to Friday 4 AM ET
+# Enables trading outside regular hours for supported symbols
+OVERNIGHT_PARAMS = {
+    "ENABLED": True,  # Enable overnight trading via Blue Ocean ATS
+    # Position sizing (more conservative due to lower liquidity)
+    "POSITION_SIZE_MULTIPLIER": 0.3,  # 30% of regular position size
+    "MAX_OVERNIGHT_POSITIONS": 3,  # Maximum concurrent overnight positions
+    # Symbols allowed for overnight trading (empty = all overnight-tradeable symbols)
+    "ALLOWED_SYMBOLS": [],  # e.g., ["AAPL", "MSFT", "GOOGL", "SPY", "QQQ"]
+    # Risk parameters
+    "STOP_LOSS_MULTIPLIER": 1.5,  # 1.5x wider stop-loss due to lower liquidity
+    "MAX_SPREAD_PCT": 0.01,  # Max 1.0% bid-ask spread allowed
+    # Order settings
+    "ORDER_TYPE": "limit",  # Always use limit orders in overnight session
+    "LIMIT_ORDER_OFFSET_PCT": 0.002,  # 0.2% offset from mid-price
+    # Monitoring
+    "TRADING_INTERVAL": 300,  # 5 minutes between checks (less frequent than regular)
+    "LOG_OVERNIGHT_TRADES": True,  # Extra logging for overnight trades
+}
+
 # Dynamic Symbol Selection (NEW - WORKING!)
 SYMBOL_SELECTION = {
     "USE_DYNAMIC_SELECTION": True,  # ENABLED - automatically scan for best opportunities
@@ -196,6 +254,113 @@ TECHNICAL_PARAMS = {
     "RSI_PERIOD": 14,  # Relative Strength Index period
     "RSI_OVERBOUGHT": 70,
     "RSI_OVERSOLD": 30,
+}
+
+# News sentiment parameters (FinBERT-based analysis)
+SENTIMENT_PARAMS = {
+    # Enable/disable news sentiment analysis
+    "USE_NEWS_SENTIMENT": True,  # ENABLED for sentiment-aware trading
+    # Sentiment thresholds for signal generation
+    "BULLISH_THRESHOLD": 0.3,  # Score above this = bullish signal
+    "BEARISH_THRESHOLD": -0.3,  # Score below this = bearish signal
+    # News analysis settings
+    "LOOKBACK_HOURS": 24,  # Hours of news to analyze (default: 1 day)
+    "MIN_NEWS_COUNT": 3,  # Minimum articles required for valid sentiment
+    "INCLUDE_SUMMARY": True,  # Analyze article summaries (more accurate, slower)
+    # Caching settings
+    "CACHE_TTL_MINUTES": 15,  # Cache sentiment results for this long
+    # GPU acceleration (requires CUDA)
+    "USE_GPU": False,  # Set to True if GPU available for faster inference
+    # Signal weight (how much sentiment influences final signal)
+    "SENTIMENT_WEIGHT": 0.3,  # 30% weight in combined signal (0.0-1.0)
+}
+
+# Options trading parameters
+OPTIONS_PARAMS = {
+    # Enable/disable options trading (requires Alpaca options approval)
+    "ENABLED": False,  # Set to True after getting options approval
+
+    # Expiration preferences
+    "DEFAULT_EXPIRATION_DAYS": 30,  # Default days to expiration for new positions
+    "MIN_DAYS_TO_EXPIRATION": 7,  # Minimum DTE (avoid last-week decay issues)
+    "MAX_DAYS_TO_EXPIRATION": 45,  # Maximum DTE (balance theta decay vs premium)
+
+    # Position limits
+    "MAX_CONTRACTS": 10,  # Maximum contracts per position
+    "MAX_TOTAL_CONTRACTS": 50,  # Maximum total option contracts across all positions
+    "MAX_NOTIONAL_EXPOSURE": 50000,  # Maximum notional value at risk
+
+    # Delta targeting for income strategies
+    "COVERED_CALL_DELTA_TARGET": 0.30,  # Target delta for covered calls (0.30 = ~30% ITM prob)
+    "CASH_SECURED_PUT_DELTA_TARGET": -0.30,  # Target delta for CSPs
+
+    # Risk management
+    "MAX_LOSS_PER_TRADE": 500,  # Maximum loss per option trade
+    "CLOSE_AT_PROFIT_PCT": 50,  # Close position at 50% of max profit
+    "CLOSE_AT_LOSS_PCT": 200,  # Close position at 200% loss (2x premium paid)
+
+    # Spread requirements (for bid-ask spread quality)
+    "MAX_SPREAD_PCT": 10.0,  # Maximum bid-ask spread as % of mid price
+    "MIN_OPEN_INTEREST": 100,  # Minimum open interest for liquidity
+
+    # Strategy preferences
+    "PREFER_LIMIT_ORDERS": True,  # Always use limit orders (recommended for options)
+    "DEFAULT_ORDER_TYPE": "limit",  # Default order type
+}
+
+# Reinforcement Learning parameters (DQN agent)
+RL_PARAMS = {
+    # Enable/disable RL-based trading
+    "ENABLED": False,  # Disabled by default (experimental feature)
+    # DQN architecture
+    "STATE_SIZE": 20,  # Dimension of state vector
+    "HIDDEN_SIZES": [128, 64],  # Hidden layer sizes
+    # Training hyperparameters
+    "LEARNING_RATE": 0.001,  # Adam optimizer learning rate
+    "GAMMA": 0.99,  # Discount factor for future rewards
+    "EPSILON_START": 1.0,  # Initial exploration rate
+    "EPSILON_END": 0.01,  # Minimum exploration rate
+    "EPSILON_DECAY": 0.995,  # Exploration decay rate per step
+    "BATCH_SIZE": 64,  # Training batch size
+    "BUFFER_SIZE": 10000,  # Replay buffer capacity
+    "TARGET_UPDATE_FREQ": 100,  # Steps between target network updates
+    # Compute settings
+    "USE_GPU": False,  # Set True if GPU available (CUDA or MPS)
+    # Training requirements
+    "MIN_TRAINING_EPISODES": 100,  # Minimum episodes before live trading
+    "MIN_TRAINING_STEPS": 10000,  # Minimum steps before live trading
+    # Model persistence
+    "MODEL_DIR": "models",  # Directory to save/load models
+    "AUTO_SAVE_FREQ": 1000,  # Steps between auto-saves (0 to disable)
+    # Agent variant
+    "USE_DOUBLE_DQN": True,  # Use Double DQN (reduces overestimation bias)
+}
+
+# Machine Learning parameters (LSTM price prediction)
+ML_PARAMS = {
+    # Enable/disable LSTM predictions
+    "LSTM_ENABLED": True,  # Set to False to disable ML predictions
+    # Model architecture
+    "SEQUENCE_LENGTH": 60,  # Number of historical bars for input (60 = 1 hour of minute data)
+    "PREDICTION_HORIZON": 5,  # Predict 5 bars ahead
+    "HIDDEN_SIZE": 64,  # LSTM hidden layer size
+    "NUM_LAYERS": 2,  # Number of stacked LSTM layers
+    "DROPOUT": 0.2,  # Dropout rate for regularization
+    # Training parameters
+    "EPOCHS": 50,  # Training epochs
+    "BATCH_SIZE": 32,  # Mini-batch size
+    "LEARNING_RATE": 0.001,  # Adam optimizer learning rate
+    "EARLY_STOPPING_PATIENCE": 10,  # Epochs to wait before early stopping
+    "VALIDATION_SPLIT": 0.2,  # Fraction of data for validation
+    # Inference parameters
+    "USE_GPU": False,  # Set to True if GPU available for faster training/inference
+    "MIN_CONFIDENCE": 0.6,  # Minimum prediction confidence to act on signal
+    "SIGNAL_WEIGHT": 0.2,  # Weight of ML signal in combined signal (0.0-1.0)
+    # Model persistence
+    "MODEL_DIR": "models",  # Directory to save/load trained models
+    "AUTO_RETRAIN_DAYS": 7,  # Retrain model every N days (0 to disable)
+    # Data requirements
+    "MIN_TRAINING_BARS": 500,  # Minimum historical bars needed for training
 }
 
 # Backtest parameters (NEW - for realistic simulation)

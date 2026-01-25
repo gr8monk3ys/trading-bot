@@ -12,8 +12,16 @@ python-dotenv>=1.0.0
 ta-lib
 yfinance
 statsmodels>=0.14.0  # For pairs trading cointegration tests
+scikit-learn>=1.3.0  # For ML preprocessing (MinMaxScaler, etc.)
 websockets>=11.0  # Updated websockets
 aiohttp>=3.8.0
+aiosqlite>=0.19.0  # Async SQLite for database persistence
 asyncio>=3.4.3
 numexpr>=2.8.4
 bottleneck>=1.3.6
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
