@@ -1,5 +1,7 @@
+import asyncio
 import logging
-from datetime import datetime
+from collections import deque
+from datetime import datetime, timedelta
 
 import numpy as np
 import talib
@@ -7,6 +9,7 @@ import talib
 from brokers.order_builder import OrderBuilder
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
+from utils.indicators import safe_last
 from utils.multi_timeframe import MultiTimeframeAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -203,7 +206,28 @@ class MomentumStrategy(BaseStrategy):
                 )
             self.target_prices = {}
             self.current_prices = {}
-            self.price_history = {symbol: [] for symbol in self.symbols}
+
+            # Performance optimization: Pre-calculate max history size for deque
+            self.max_history = (
+                max(
+                    self.slow_ma,
+                    self.rsi_period,
+                    self.macd_slow + self.macd_signal,
+                    self.adx_period,
+                )
+                + 10  # Extra buffer
+            )
+
+            # Performance optimization: Use deque with maxlen for O(1) append and auto-trimming
+            # This avoids memory churn from list slicing
+            self.price_history = {
+                symbol: deque(maxlen=self.max_history) for symbol in self.symbols
+            }
+
+            # Performance optimization: Position caching to reduce API calls
+            self._positions_cache = None
+            self._positions_cache_time = None
+            self._positions_cache_ttl = timedelta(seconds=1)
 
             # Risk manager initialization
             self.risk_manager = RiskManager(
@@ -238,7 +262,8 @@ class MomentumStrategy(BaseStrategy):
             if self.use_multi_timeframe and self.mtf_analyzer:
                 await self.mtf_analyzer.update(symbol, timestamp, close_price, volume)
 
-            # Update price history
+            # Update price history (deque auto-trims to max_history via maxlen)
+            # Performance optimization: O(1) append, no list slicing needed
             self.price_history[symbol].append(
                 {
                     "timestamp": timestamp,
@@ -249,20 +274,6 @@ class MomentumStrategy(BaseStrategy):
                     "volume": volume,
                 }
             )
-
-            # Keep only necessary history
-            max_history = (
-                max(
-                    self.slow_ma,
-                    self.rsi_period,
-                    self.macd_slow + self.macd_signal,
-                    self.adx_period,
-                )
-                + 10
-            )  # Extra buffer
-
-            if len(self.price_history[symbol]) > max_history:
-                self.price_history[symbol] = self.price_history[symbol][-max_history:]
 
             # Update technical indicators
             await self._update_indicators(symbol)
@@ -737,10 +748,12 @@ class MomentumStrategy(BaseStrategy):
             ):
                 return
 
-            # Get current positions and account info
-            positions = await self.broker.get_positions()
+            # Performance optimization: Fetch positions and account info in parallel
+            positions, account = await asyncio.gather(
+                self.broker.get_positions(),
+                self.broker.get_account()
+            )
             current_position = next((p for p in positions if p.symbol == symbol), None)
-            account = await self.broker.get_account()
             buying_power = float(account.buying_power)
 
             # Dispatch to appropriate handler
@@ -753,6 +766,22 @@ class MomentumStrategy(BaseStrategy):
 
         except Exception as e:
             logger.error(f"Error executing signal for {symbol}: {e}", exc_info=True)
+
+    async def _get_cached_positions(self):
+        """Get positions with 1-second cache to reduce API calls.
+
+        Performance optimization: When checking exit conditions for multiple symbols,
+        this prevents redundant API calls by caching position data for 1 second.
+        """
+        now = datetime.now()
+        if (
+            self._positions_cache is None
+            or self._positions_cache_time is None
+            or now - self._positions_cache_time > self._positions_cache_ttl
+        ):
+            self._positions_cache = await self.broker.get_positions()
+            self._positions_cache_time = now
+        return self._positions_cache
 
     async def _check_exit_conditions(self, symbol):
         """
@@ -769,8 +798,8 @@ class MomentumStrategy(BaseStrategy):
         - This allows capturing 10%+ moves instead of always exiting at 5%
         """
         try:
-            # Get current position
-            positions = await self.broker.get_positions()
+            # Get current position (uses 1-second cache to reduce API calls)
+            positions = await self._get_cached_positions()
             current_position = next((p for p in positions if p.symbol == symbol), None)
 
             if not current_position:

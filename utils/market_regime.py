@@ -27,6 +27,7 @@ Usage:
 """
 
 import logging
+from collections import deque
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, Optional, Tuple
@@ -92,7 +93,7 @@ class MarketRegimeDetector:
         # Cache
         self.last_regime = None
         self.last_detection_time = None
-        self.regime_history = []
+        self.regime_history = deque(maxlen=100)  # Keep last 100 regime changes
 
         logger.info("MarketRegimeDetector initialized")
 

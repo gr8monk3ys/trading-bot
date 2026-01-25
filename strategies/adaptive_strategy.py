@@ -22,7 +22,9 @@ Usage:
     # Strategy automatically detects regime and routes signals
 """
 
+import asyncio
 import logging
+from collections import deque
 from datetime import datetime
 from typing import Dict, List
 
@@ -135,8 +137,6 @@ class AdaptiveStrategy(BaseStrategy):
             self.momentum_strategy = MomentumStrategy(
                 broker=self.broker, parameters=momentum_params
             )
-            await self.momentum_strategy.initialize()
-            logger.info("  MomentumStrategy initialized for trending markets")
 
             # Mean reversion strategy for sideways markets
             mean_rev_params = {
@@ -151,7 +151,13 @@ class AdaptiveStrategy(BaseStrategy):
             self.mean_reversion_strategy = MeanReversionStrategy(
                 broker=self.broker, parameters=mean_rev_params
             )
-            await self.mean_reversion_strategy.initialize()
+
+            # Performance optimization: Initialize sub-strategies in parallel
+            await asyncio.gather(
+                self.momentum_strategy.initialize(),
+                self.mean_reversion_strategy.initialize()
+            )
+            logger.info("  MomentumStrategy initialized for trending markets")
             logger.info("  MeanReversionStrategy initialized for sideways markets")
 
             # Active strategy pointer
@@ -162,7 +168,9 @@ class AdaptiveStrategy(BaseStrategy):
             self.indicators = {symbol: {} for symbol in self.symbols}
             self.signals = dict.fromkeys(self.symbols, "neutral")
             self.current_prices = {}
-            self.price_history = {symbol: [] for symbol in self.symbols}
+            # Performance optimization: Use deque with maxlen for O(1) append and auto-trimming
+            # This avoids memory churn from list slicing
+            self.price_history = {symbol: deque(maxlen=100) for symbol in self.symbols}
             self.regime_switches = 0
             self.last_regime_switch = None
 
@@ -190,7 +198,8 @@ class AdaptiveStrategy(BaseStrategy):
             # Store current price
             self.current_prices[symbol] = close_price
 
-            # Update price history
+            # Update price history (deque auto-trims to maxlen=100 via maxlen)
+            # Performance optimization: O(1) append, no list slicing needed
             self.price_history[symbol].append(
                 {
                     "timestamp": timestamp,
@@ -201,11 +210,6 @@ class AdaptiveStrategy(BaseStrategy):
                     "volume": volume,
                 }
             )
-
-            # Keep only recent history
-            max_history = 100
-            if len(self.price_history[symbol]) > max_history:
-                self.price_history[symbol] = self.price_history[symbol][-max_history:]
 
             # Check and update market regime (cached, not every bar)
             await self._update_regime()
