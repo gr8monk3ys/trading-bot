@@ -26,10 +26,22 @@ Algorithmic trading bot built on Alpaca Trading API with async Python architectu
 - MomentumStrategyBacktest: +42.68% return, 2.0 Sharpe, 2.44% max drawdown
 - SPY Benchmark: +24.45% (strategy outperformed by +18%)
 
+**New Features (2026-01):**
+- WebSocketManager: Real-time streaming with auto-reconnection (`utils/websocket_manager.py`)
+- TradingDatabase: SQLite storage for trades, positions, metrics (`utils/database.py`)
+- NewsSentimentAnalyzer: FinBERT sentiment analysis with Alpaca News API (`utils/news_sentiment.py`)
+- CryptoTrading: 24/7 crypto trading support with 20 pairs (`brokers/alpaca_broker.py`)
+- PortfolioHistory: Performance tracking via Alpaca API (`brokers/alpaca_broker.py`)
+- OvernightTrading: 24/5 overnight session support (`utils/extended_hours.py`)
+- LSTMPredictor: Neural network price prediction (`ml/lstm_predictor.py`)
+- DQNAgent: Reinforcement learning trading agent (`ml/rl_agent.py`)
+- OptionsBroker: Options trading with Greeks (`brokers/options_broker.py`)
+- NotionalOrders: Dollar-based order sizing (`brokers/order_builder.py`)
+- Discord/Telegram: Notification channels (`utils/notifier.py`)
+
 **Untested/Needs Validation:**
 - BracketMomentumStrategy, EnsembleStrategy, ExtendedHoursStrategy: Need validation
 - PairsTradingStrategy: Market-neutral stat arb (statsmodels included)
-- Deleted: MLPredictionStrategy, SentimentStockStrategy, OptionsStrategy
 
 ## Key Commands
 
@@ -199,18 +211,68 @@ await broker.submit_order_advanced(order)
 - Sharpe-ratio weighted capital allocation
 - Periodic rebalancing
 
+**utils/websocket_manager.py** - Real-time market data streaming:
+- Auto-reconnection with exponential backoff
+- Thread-safe subscription management
+- Supports bars, quotes, trades streams
+
+**utils/database.py** - SQLite trade storage:
+- Async operations with aiosqlite
+- Trade, position, and metrics tables
+- Query methods with filters and aggregations
+
+**utils/news_sentiment.py** - News sentiment analysis:
+- Alpaca News API integration
+- FinBERT model for sentiment scoring
+- Lazy loading of ML dependencies
+
+**ml/lstm_predictor.py** - LSTM price prediction:
+- PyTorch neural network for time series
+- Feature engineering with technical indicators
+- Model persistence (save/load)
+
+**ml/rl_agent.py** - DQN trading agent:
+- Deep Q-Network with experience replay
+- Epsilon-greedy exploration
+- Target network for stable training
+
+**brokers/options_broker.py** - Options trading:
+- OCC symbol parsing and building
+- Option chain retrieval
+- Greeks-aware position sizing
+- Covered calls, cash-secured puts
+
+**utils/crypto_utils.py** - Crypto symbol utilities:
+- Centralized crypto pair detection
+- Symbol normalization (BTC -> BTC/USD)
+- 20 supported cryptocurrency pairs
+
 ### Configuration (config.py)
 
-Three parameter groups:
+Parameter groups:
 - `TRADING_PARAMS`: Position sizing, stop-loss, take-profit
 - `RISK_PARAMS`: VaR confidence, correlation limits, drawdown threshold
 - `TECHNICAL_PARAMS`: SMA periods, RSI thresholds
+- `CRYPTO_PARAMS`: Crypto-specific settings (24/7 trading, position limits)
+- `OVERNIGHT_PARAMS`: Overnight trading settings (position multiplier, enabled)
+- `ML_PARAMS`: LSTM configuration (sequence length, hidden size, epochs)
+- `RL_PARAMS`: DQN configuration (epsilon, gamma, batch size)
+- `OPTIONS_PARAMS`: Options trading settings (min delta, max DTE)
+- `SENTIMENT_PARAMS`: News sentiment settings (lookback hours, threshold)
 
 ### Environment Variables (.env)
 ```
 ALPACA_API_KEY=your_key
 ALPACA_SECRET_KEY=your_secret
 PAPER=True
+
+# Optional: Notifications
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+
+# Optional: Database
+DATABASE_URL=sqlite:///trading_bot.db
 ```
 
 ## Implementation Patterns

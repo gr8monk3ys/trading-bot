@@ -48,7 +48,11 @@ python quickstart.py
 - ✅ **Short Selling**: Profit from declining stocks
 - ✅ **Multi-Timeframe Analysis**: Confirm signals across 1min, 5min, 1hour
 - ✅ **Extended Hours Trading**: Pre-market (4AM-9:30AM) & After-hours (4PM-8PM)
+- ✅ **24/5 Overnight Trading**: Blue Ocean ATS overnight sessions (8PM-4AM ET)
 - ✅ **Market-Neutral Strategies**: Pairs trading with cointegration testing
+- ✅ **Cryptocurrency Trading**: 20 crypto pairs with 24/7 support
+- ✅ **Options Trading**: Covered calls, cash-secured puts, Greeks analysis
+- ✅ **Dollar-Based Orders**: Notional orders for precise position sizing
 
 ### Risk Management (Institutional Grade)
 - ✅ **Circuit Breaker**: Auto-halt trading at 3% daily loss
@@ -65,9 +69,16 @@ python quickstart.py
 
 ### Monitoring & Notifications
 - ✅ **Live Dashboard**: Real-time positions, trades, and metrics
-- ✅ **Trade Notifications**: Slack/Email alerts for all executions
+- ✅ **Trade Notifications**: Slack/Email/Discord/Telegram alerts
 - ✅ **Performance Tracking**: SQLite database with full trade history
+- ✅ **Portfolio History API**: Equity curves and drawdown tracking
 - ✅ **Daily Summaries**: Automated performance reports
+
+### Machine Learning (Optional)
+- ✅ **LSTM Price Prediction**: Neural network forecasting with PyTorch
+- ✅ **FinBERT Sentiment**: News sentiment analysis for alpha generation
+- ✅ **DQN Reinforcement Learning**: Self-improving trading agent
+- ✅ **Lazy Loading**: ML dependencies only loaded when used
 
 ---
 
@@ -420,30 +431,37 @@ volatility = analyze_volatility(close, high, low)
 ```
 trading-bot/
 ├── brokers/
-│   ├── alpaca_broker.py          # Alpaca API integration
+│   ├── alpaca_broker.py          # Alpaca API integration + crypto + portfolio history
 │   ├── backtest_broker.py        # Backtesting with slippage
-│   └── order_builder.py          # Advanced order types
+│   ├── order_builder.py          # Advanced order types + notional orders
+│   └── options_broker.py         # ⭐ Options trading with Greeks
 ├── strategies/
 │   ├── base_strategy.py          # Base class with safety features
 │   ├── momentum_strategy.py      # Momentum following
 │   ├── mean_reversion_strategy.py # Buy oversold, sell overbought
 │   ├── bracket_momentum_strategy.py # Bracket orders
-│   ├── ensemble_strategy.py      # ⭐ Multi-strategy combination
-│   └── pairs_trading_strategy.py # ⭐ Market-neutral stat arb
+│   ├── ensemble_strategy.py      # Multi-strategy combination
+│   └── pairs_trading_strategy.py # Market-neutral stat arb
+├── ml/                           # ⭐ Machine Learning
+│   ├── lstm_predictor.py         # LSTM price prediction
+│   └── rl_agent.py               # DQN reinforcement learning
 ├── utils/
-│   ├── indicators.py             # ⭐ 30+ technical indicators library
-│   ├── extended_hours.py         # ⭐ Pre-market & after-hours trading
+│   ├── indicators.py             # 30+ technical indicators library
+│   ├── extended_hours.py         # Pre-market, after-hours & overnight trading
 │   ├── circuit_breaker.py        # Daily loss protection
 │   ├── multi_timeframe.py        # Multi-timeframe analysis
 │   ├── portfolio_rebalancer.py   # Auto-rebalancing
 │   ├── kelly_criterion.py        # Optimal position sizing
 │   ├── performance_tracker.py    # Trade logging & metrics
-│   └── notifier.py               # Slack/email alerts
+│   ├── notifier.py               # Slack/Email/Discord/Telegram alerts
+│   ├── websocket_manager.py      # ⭐ Real-time WebSocket streaming
+│   ├── database.py               # ⭐ SQLite trade storage
+│   ├── news_sentiment.py         # ⭐ FinBERT sentiment analysis
+│   ├── crypto_utils.py           # ⭐ Crypto symbol utilities
+│   └── market_regime.py          # Market regime detection
 ├── examples/                     # Example strategies
-│   ├── ensemble_strategy_example.py      # ⭐ Ensemble trading
-│   ├── pairs_trading_example.py          # ⭐ Pairs trading
-│   └── extended_hours_trading_example.py # ⭐ Extended hours
-├── tests/                        # Test suites
+├── tests/                        # Test suites (2400+ tests)
+├── .planning/                    # Feature roadmap & planning docs
 ├── live_trader.py                # Main trading launcher
 ├── dashboard.py                  # Real-time monitoring
 ├── quickstart.py                 # Interactive setup
