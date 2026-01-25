@@ -13,7 +13,7 @@ with the bot's async architecture.
 
 import asyncio
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional, List, Dict, Any

@@ -135,6 +135,61 @@ class WebSocketManager:
         )
 
     # =========================================================================
+    # Generic Subscription/Unsubscription Helpers
+    # =========================================================================
+
+    def _subscribe(
+        self,
+        symbols: List[str],
+        handler: Optional[Callable],
+        handlers_dict: Dict[str, Set[Callable]],
+        subscribed_set: Set[str],
+        data_type: str,
+    ) -> None:
+        """
+        Generic subscribe method for any data type.
+
+        Args:
+            symbols: List of stock symbols to subscribe to
+            handler: Optional callback function for data updates
+            handlers_dict: Symbol->handlers mapping for this data type
+            subscribed_set: Set tracking subscribed symbols for this data type
+            data_type: Human-readable type name for logging ("bar", "quote", "trade")
+        """
+        symbols = [s.upper() for s in symbols]
+
+        if handler:
+            for symbol in symbols:
+                handlers_dict[symbol].add(handler)
+                logger.debug(f"Registered {data_type} handler for {symbol}")
+
+        subscribed_set.update(symbols)
+
+        logger.info(f"Subscribed to {data_type}s for: {', '.join(symbols)}")
+
+    def _unsubscribe(
+        self,
+        symbols: List[str],
+        handlers_dict: Dict[str, Set[Callable]],
+        subscribed_set: Set[str],
+        data_type: str,
+    ) -> None:
+        """
+        Generic unsubscribe method for any data type.
+
+        Args:
+            symbols: List of stock symbols to unsubscribe from
+            handlers_dict: Symbol->handlers mapping for this data type
+            subscribed_set: Set tracking subscribed symbols for this data type
+            data_type: Human-readable type name for logging ("bar", "quote", "trade")
+        """
+        symbols = [s.upper() for s in symbols]
+        for symbol in symbols:
+            subscribed_set.discard(symbol)
+            handlers_dict.pop(symbol, None)
+        logger.info(f"Unsubscribed from {data_type}s for: {', '.join(symbols)}")
+
+    # =========================================================================
     # Subscription Methods
     # =========================================================================
 
@@ -158,17 +213,7 @@ class WebSocketManager:
 
             manager.subscribe_bars(["AAPL", "MSFT"], on_bar)
         """
-        symbols = [s.upper() for s in symbols]
-
-        if handler:
-            for symbol in symbols:
-                self._bar_handlers[symbol].add(handler)
-                logger.debug(f"Registered bar handler for {symbol}")
-
-        # Track subscriptions
-        self._subscribed_bars.update(symbols)
-
-        logger.info(f"Subscribed to bars for: {', '.join(symbols)}")
+        self._subscribe(symbols, handler, self._bar_handlers, self._subscribed_bars, "bar")
 
     def subscribe_quotes(
         self,
@@ -190,16 +235,7 @@ class WebSocketManager:
 
             manager.subscribe_quotes(["AAPL"], on_quote)
         """
-        symbols = [s.upper() for s in symbols]
-
-        if handler:
-            for symbol in symbols:
-                self._quote_handlers[symbol].add(handler)
-                logger.debug(f"Registered quote handler for {symbol}")
-
-        self._subscribed_quotes.update(symbols)
-
-        logger.info(f"Subscribed to quotes for: {', '.join(symbols)}")
+        self._subscribe(symbols, handler, self._quote_handlers, self._subscribed_quotes, "quote")
 
     def subscribe_trades(
         self,
@@ -220,16 +256,7 @@ class WebSocketManager:
 
             manager.subscribe_trades(["AAPL"], on_trade)
         """
-        symbols = [s.upper() for s in symbols]
-
-        if handler:
-            for symbol in symbols:
-                self._trade_handlers[symbol].add(handler)
-                logger.debug(f"Registered trade handler for {symbol}")
-
-        self._subscribed_trades.update(symbols)
-
-        logger.info(f"Subscribed to trades for: {', '.join(symbols)}")
+        self._subscribe(symbols, handler, self._trade_handlers, self._subscribed_trades, "trade")
 
     def add_global_bar_handler(self, handler: Callable) -> None:
         """
@@ -263,31 +290,69 @@ class WebSocketManager:
 
     def unsubscribe_bars(self, symbols: List[str]) -> None:
         """Remove bar subscriptions for specified symbols."""
-        symbols = [s.upper() for s in symbols]
-        for symbol in symbols:
-            self._subscribed_bars.discard(symbol)
-            self._bar_handlers.pop(symbol, None)
-        logger.info(f"Unsubscribed from bars for: {', '.join(symbols)}")
+        self._unsubscribe(symbols, self._bar_handlers, self._subscribed_bars, "bar")
 
     def unsubscribe_quotes(self, symbols: List[str]) -> None:
         """Remove quote subscriptions for specified symbols."""
-        symbols = [s.upper() for s in symbols]
-        for symbol in symbols:
-            self._subscribed_quotes.discard(symbol)
-            self._quote_handlers.pop(symbol, None)
-        logger.info(f"Unsubscribed from quotes for: {', '.join(symbols)}")
+        self._unsubscribe(symbols, self._quote_handlers, self._subscribed_quotes, "quote")
 
     def unsubscribe_trades(self, symbols: List[str]) -> None:
         """Remove trade subscriptions for specified symbols."""
-        symbols = [s.upper() for s in symbols]
-        for symbol in symbols:
-            self._subscribed_trades.discard(symbol)
-            self._trade_handlers.pop(symbol, None)
-        logger.info(f"Unsubscribed from trades for: {', '.join(symbols)}")
+        self._unsubscribe(symbols, self._trade_handlers, self._subscribed_trades, "trade")
 
     # =========================================================================
     # Internal Handlers
     # =========================================================================
+
+    async def _dispatch_to_handlers(
+        self,
+        data,
+        symbol_handlers: Dict[str, Set[Callable]],
+        global_handlers: Set[Callable],
+        data_type: str,
+    ) -> None:
+        """
+        Generic handler dispatch for incoming stream data.
+
+        Routes incoming data to both symbol-specific and global handlers,
+        supporting both async and sync callback functions.
+
+        Args:
+            data: The incoming data object (Bar, Quote, or Trade).
+                  Must have a `symbol` attribute.
+            symbol_handlers: Dict mapping symbol -> set of handler callables
+            global_handlers: Set of global handler callables for all symbols
+            data_type: Human-readable type name for logging ("bar", "quote", "trade")
+        """
+        try:
+            self._last_message_time = datetime.now()
+            self._message_count += 1
+
+            symbol = data.symbol
+
+            # Call symbol-specific handlers
+            if symbol in symbol_handlers:
+                for handler in symbol_handlers[symbol]:
+                    try:
+                        if asyncio.iscoroutinefunction(handler):
+                            await handler(data)
+                        else:
+                            handler(data)
+                    except Exception as e:
+                        logger.error(f"Error in {data_type} handler for {symbol}: {e}")
+
+            # Call global handlers
+            for handler in global_handlers:
+                try:
+                    if asyncio.iscoroutinefunction(handler):
+                        await handler(data)
+                    else:
+                        handler(data)
+                except Exception as e:
+                    logger.error(f"Error in global {data_type} handler: {e}")
+
+        except Exception as e:
+            logger.error(f"Error handling {data_type} data: {e}")
 
     async def _handle_bar(self, bar: Bar) -> None:
         """
@@ -296,35 +361,9 @@ class WebSocketManager:
         Args:
             bar: Bar data from Alpaca stream
         """
-        try:
-            self._last_message_time = datetime.now()
-            self._message_count += 1
-
-            symbol = bar.symbol
-
-            # Call symbol-specific handlers
-            if symbol in self._bar_handlers:
-                for handler in self._bar_handlers[symbol]:
-                    try:
-                        if asyncio.iscoroutinefunction(handler):
-                            await handler(bar)
-                        else:
-                            handler(bar)
-                    except Exception as e:
-                        logger.error(f"Error in bar handler for {symbol}: {e}")
-
-            # Call global handlers
-            for handler in self._global_bar_handlers:
-                try:
-                    if asyncio.iscoroutinefunction(handler):
-                        await handler(bar)
-                    else:
-                        handler(bar)
-                except Exception as e:
-                    logger.error(f"Error in global bar handler: {e}")
-
-        except Exception as e:
-            logger.error(f"Error handling bar data: {e}")
+        await self._dispatch_to_handlers(
+            bar, self._bar_handlers, self._global_bar_handlers, "bar"
+        )
 
     async def _handle_quote(self, quote: Quote) -> None:
         """
@@ -333,35 +372,9 @@ class WebSocketManager:
         Args:
             quote: Quote data from Alpaca stream
         """
-        try:
-            self._last_message_time = datetime.now()
-            self._message_count += 1
-
-            symbol = quote.symbol
-
-            # Call symbol-specific handlers
-            if symbol in self._quote_handlers:
-                for handler in self._quote_handlers[symbol]:
-                    try:
-                        if asyncio.iscoroutinefunction(handler):
-                            await handler(quote)
-                        else:
-                            handler(quote)
-                    except Exception as e:
-                        logger.error(f"Error in quote handler for {symbol}: {e}")
-
-            # Call global handlers
-            for handler in self._global_quote_handlers:
-                try:
-                    if asyncio.iscoroutinefunction(handler):
-                        await handler(quote)
-                    else:
-                        handler(quote)
-                except Exception as e:
-                    logger.error(f"Error in global quote handler: {e}")
-
-        except Exception as e:
-            logger.error(f"Error handling quote data: {e}")
+        await self._dispatch_to_handlers(
+            quote, self._quote_handlers, self._global_quote_handlers, "quote"
+        )
 
     async def _handle_trade(self, trade: Trade) -> None:
         """
@@ -370,35 +383,9 @@ class WebSocketManager:
         Args:
             trade: Trade data from Alpaca stream
         """
-        try:
-            self._last_message_time = datetime.now()
-            self._message_count += 1
-
-            symbol = trade.symbol
-
-            # Call symbol-specific handlers
-            if symbol in self._trade_handlers:
-                for handler in self._trade_handlers[symbol]:
-                    try:
-                        if asyncio.iscoroutinefunction(handler):
-                            await handler(trade)
-                        else:
-                            handler(trade)
-                    except Exception as e:
-                        logger.error(f"Error in trade handler for {symbol}: {e}")
-
-            # Call global handlers
-            for handler in self._global_trade_handlers:
-                try:
-                    if asyncio.iscoroutinefunction(handler):
-                        await handler(trade)
-                    else:
-                        handler(trade)
-                except Exception as e:
-                    logger.error(f"Error in global trade handler: {e}")
-
-        except Exception as e:
-            logger.error(f"Error handling trade data: {e}")
+        await self._dispatch_to_handlers(
+            trade, self._trade_handlers, self._global_trade_handlers, "trade"
+        )
 
     # =========================================================================
     # Connection Management
@@ -509,7 +496,14 @@ class WebSocketManager:
                     f"trades={len(self._subscribed_trades)})"
                 )
 
-                # Mark as connected once we start running
+                # NOTE: _connected is set here before self._stream.run()
+                # completes the actual WebSocket handshake. The Alpaca
+                # StockDataStream API does not expose a post-connection
+                # callback, so there is a brief window where _connected
+                # is True but the underlying socket may not yet be fully
+                # established. Consumers should rely on receiving data
+                # messages (via _last_message_time) to confirm the stream
+                # is truly active.
                 self._connected = True
                 self._reconnect_attempts = 0
 
