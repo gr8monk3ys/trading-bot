@@ -21,7 +21,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from alpaca.trading.enums import OrderClass, OrderSide, OrderType, TimeInForce
 
-from brokers.order_builder import OrderBuilder, bracket_order, limit_order, market_order
+from brokers.order_builder import (
+    OrderBuilder,
+    bracket_order,
+    limit_order,
+    market_order,
+    notional_limit_order,
+    notional_market_order,
+)
 
 
 class TestOrderBuilderConstructor:
@@ -64,15 +71,21 @@ class TestOrderBuilderConstructor:
         with pytest.raises(ValueError, match="non-empty string"):
             OrderBuilder(None, "buy", 100)
 
-    def test_invalid_symbol_too_long(self):
-        """Test that symbol longer than 5 chars raises error."""
-        with pytest.raises(ValueError, match="Invalid symbol format"):
-            OrderBuilder("TOOLONG", "buy", 100)
+    def test_symbol_up_to_ten_chars_allowed(self):
+        """Test that symbols up to 10 characters are allowed."""
+        # 10 char symbol is valid (e.g., for some ETFs)
+        builder = OrderBuilder("ABCDEFGHIJ", "buy", 100)
+        assert builder.symbol == "ABCDEFGHIJ"
 
-    def test_invalid_symbol_with_numbers(self):
-        """Test that symbol with numbers raises error."""
+    def test_invalid_symbol_too_long(self):
+        """Test that symbol longer than 10 chars raises error."""
         with pytest.raises(ValueError, match="Invalid symbol format"):
-            OrderBuilder("AAP1", "buy", 100)
+            OrderBuilder("TOOLONGNAME", "buy", 100)
+
+    def test_symbol_with_numbers_allowed(self):
+        """Test that symbols with numbers are allowed (e.g., SPY1)."""
+        builder = OrderBuilder("AAP1", "buy", 100)
+        assert builder.symbol == "AAP1"
 
     def test_invalid_side(self):
         """Test that invalid side raises error."""
@@ -524,6 +537,163 @@ class TestReprMethod:
         assert "AAPL" in repr_str
         assert "buy" in repr_str.lower()
         assert "100" in repr_str
+
+
+class TestNotionalOrders:
+    """Test notional (dollar-based) order functionality."""
+
+    def test_notional_sets_dollar_amount(self):
+        """Test that notional sets dollar amount and clears qty."""
+        builder = OrderBuilder("AAPL", "buy").notional(1500).market()
+        assert builder._notional == 1500.0
+        assert builder.qty is None
+
+    def test_notional_builds_correctly(self):
+        """Test building a notional market order."""
+        order = OrderBuilder("AAPL", "buy").notional(1500).market().build()
+        assert order.notional == 1500.0
+        assert order.qty is None
+
+    def test_notional_minimum_validation(self):
+        """Test that notional below $1.00 raises error."""
+        with pytest.raises(ValueError, match="Minimum"):
+            OrderBuilder("AAPL", "buy").notional(0.50)
+
+    def test_notional_maximum_validation(self):
+        """Test that notional above $1,000,000 raises error."""
+        with pytest.raises(ValueError, match="Maximum"):
+            OrderBuilder("AAPL", "buy").notional(2_000_000)
+
+    def test_notional_non_numeric_validation(self):
+        """Test that non-numeric notional raises error."""
+        with pytest.raises(ValueError, match="must be numeric"):
+            OrderBuilder("AAPL", "buy").notional("one thousand")
+
+    def test_notional_and_qty_mutually_exclusive(self):
+        """Test that setting notional clears qty."""
+        builder = OrderBuilder("AAPL", "buy", qty=10)
+        assert builder.qty == 10
+        builder.notional(1500)
+        assert builder._notional == 1500.0
+        assert builder.qty is None
+
+    def test_notional_with_limit_order(self):
+        """Test notional with limit order type."""
+        order = OrderBuilder("AAPL", "buy").notional(1000).limit(150.00).build()
+        assert order.notional == 1000.0
+        assert order.limit_price == 150.00
+
+    def test_notional_with_gtc(self):
+        """Test notional order with GTC time in force."""
+        order = OrderBuilder("AAPL", "buy").notional(1500).market().gtc().build()
+        assert order.notional == 1500.0
+        assert order.time_in_force == TimeInForce.GTC
+
+    def test_notional_rounds_to_two_decimals(self):
+        """Test that notional amount is rounded to 2 decimal places."""
+        builder = OrderBuilder("AAPL", "buy").notional(1500.456)
+        assert builder._notional == 1500.46
+
+    def test_notional_cannot_use_stop_order(self):
+        """Test that notional cannot be used with stop orders."""
+        with pytest.raises(ValueError, match="MARKET or LIMIT"):
+            OrderBuilder("AAPL", "sell").notional(1000).stop(140.00).build()
+
+    def test_notional_cannot_use_trailing_stop(self):
+        """Test that notional cannot be used with trailing stop orders."""
+        with pytest.raises(ValueError, match="MARKET or LIMIT"):
+            OrderBuilder("AAPL", "sell").notional(1000).trailing_stop(trail_percent=2.5).build()
+
+    def test_notional_cannot_use_bracket(self):
+        """Test that notional cannot be used with bracket orders."""
+        with pytest.raises(ValueError, match="cannot be used with"):
+            (
+                OrderBuilder("AAPL", "buy")
+                .notional(1000)
+                .market()
+                .bracket(take_profit=160.00, stop_loss=140.00)
+                .build()
+            )
+
+    def test_notional_cannot_use_oco(self):
+        """Test that notional cannot be used with OCO orders."""
+        with pytest.raises(ValueError, match="cannot be used with"):
+            (
+                OrderBuilder("AAPL", "sell")
+                .notional(1000)
+                .limit(155.00)
+                .oco(take_profit=160.00, stop_loss=140.00)
+                .build()
+            )
+
+    def test_notional_cannot_use_extended_hours(self):
+        """Test that notional cannot be used with extended hours."""
+        with pytest.raises(ValueError, match="extended hours"):
+            (
+                OrderBuilder("AAPL", "buy")
+                .notional(1000)
+                .limit(150.00)
+                .day()
+                .extended_hours()
+                .build()
+            )
+
+    def test_build_without_qty_or_notional_raises_error(self):
+        """Test that building without qty or notional raises error."""
+        with pytest.raises(ValueError, match="Either quantity or notional"):
+            OrderBuilder("AAPL", "buy").market().build()
+
+    def test_notional_sell_order(self):
+        """Test notional sell order."""
+        order = OrderBuilder("AAPL", "sell").notional(2000).market().build()
+        assert order.notional == 2000.0
+        assert order.side == OrderSide.SELL
+
+
+class TestNotionalConvenienceFunctions:
+    """Test convenience functions for notional orders."""
+
+    def test_notional_market_order_basic(self):
+        """Test basic notional market order creation."""
+        order = notional_market_order("AAPL", "buy", 1500.00)
+        assert order.symbol == "AAPL"
+        assert order.notional == 1500.0
+        assert order.side == OrderSide.BUY
+
+    def test_notional_market_order_with_gtc(self):
+        """Test notional market order with GTC."""
+        order = notional_market_order("AAPL", "buy", 1500.00, gtc=True)
+        assert order.time_in_force == TimeInForce.GTC
+
+    def test_notional_limit_order_basic(self):
+        """Test basic notional limit order creation."""
+        order = notional_limit_order("AAPL", "buy", 1500.00, 150.00)
+        assert order.symbol == "AAPL"
+        assert order.notional == 1500.0
+        assert order.limit_price == 150.00
+
+    def test_notional_limit_order_with_gtc(self):
+        """Test notional limit order with GTC."""
+        order = notional_limit_order("AAPL", "buy", 1500.00, 150.00, gtc=True)
+        assert order.time_in_force == TimeInForce.GTC
+
+
+class TestNotionalRepr:
+    """Test __repr__ method with notional orders."""
+
+    def test_repr_with_notional(self):
+        """Test repr shows notional instead of qty."""
+        builder = OrderBuilder("AAPL", "buy").notional(1500).market()
+        repr_str = repr(builder)
+        assert "notional=$1500.00" in repr_str
+        assert "qty=" not in repr_str
+
+    def test_repr_with_qty(self):
+        """Test repr shows qty when using quantity."""
+        builder = OrderBuilder("AAPL", "buy", 100).market()
+        repr_str = repr(builder)
+        assert "qty=100" in repr_str
+        assert "notional=" not in repr_str
 
 
 if __name__ == "__main__":

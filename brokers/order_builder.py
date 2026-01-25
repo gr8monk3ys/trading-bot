@@ -7,6 +7,7 @@ bracket orders, OCO (One-Cancels-Other), OTO (One-Triggers-Other), and trailing 
 """
 
 import logging
+import re
 from typing import Any, Dict, Literal, Optional
 
 from alpaca.trading.enums import OrderClass, OrderSide, OrderType, TimeInForce
@@ -18,6 +19,8 @@ from alpaca.trading.requests import (
     TrailingStopOrderRequest,
 )
 
+from utils.crypto_utils import is_crypto_symbol, normalize_crypto_symbol
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,8 +28,11 @@ class OrderBuilder:
     """
     Fluent interface for building Alpaca orders with all supported features.
 
+    Supports both stocks and cryptocurrencies. Crypto symbols are automatically
+    detected and use appropriate defaults (GTC time-in-force for 24/7 trading).
+
     Examples:
-        # Simple market order
+        # Simple market order (stock)
         order = OrderBuilder('AAPL', 'buy', 100).market().day().build()
 
         # Limit order with GTC
@@ -40,50 +46,89 @@ class OrderBuilder:
                  .market()
                  .bracket(take_profit=120.00, stop_loss=95.00, stop_limit=94.50)
                  .build())
+
+        # Notional (dollar-based) order
+        order = (OrderBuilder('AAPL', 'buy')
+                 .notional(1500.00)  # Buy $1500 worth of AAPL
+                 .market()
+                 .day()
+                 .build())
+
+        # Crypto market order (auto-detects crypto, defaults to GTC)
+        order = OrderBuilder('BTC/USD', 'buy', 0.5).market().build()
+
+        # Crypto notional order (buy $1000 worth of ETH)
+        order = OrderBuilder('ETHUSD', 'buy').notional(1000.00).market().build()
     """
 
     # P1 FIX: Maximum allowed quantity to prevent accidental large orders
     MAX_QUANTITY = 1_000_000
 
-    def __init__(self, symbol: str, side: Literal["buy", "sell"], qty: float):
+    # Maximum notional order amount
+    MAX_NOTIONAL = 1_000_000
+
+    # Minimum notional order amount (Alpaca minimum)
+    MIN_NOTIONAL = 1.0
+
+    # CRYPTO_PAIRS is now imported from utils.crypto_utils for consistency
+
+    def __init__(
+        self, symbol: str, side: Literal["buy", "sell"], qty: Optional[float] = None
+    ):
         """
         Initialize order builder.
 
         Args:
-            symbol: Stock symbol (e.g., 'AAPL')
+            symbol: Stock or crypto symbol (e.g., 'AAPL', 'BTC/USD', 'BTCUSD')
             side: 'buy' or 'sell'
-            qty: Quantity of shares (can be fractional)
+            qty: Quantity of shares/coins (can be fractional). Optional if using notional().
 
         Raises:
-            ValueError: If symbol, side, or quantity is invalid
+            ValueError: If symbol or side is invalid, or if qty is invalid when provided
         """
         # P1 FIX: Validate symbol
         if not symbol or not isinstance(symbol, str):
             raise ValueError("Symbol must be a non-empty string")
         symbol = symbol.upper().strip()
-        if not symbol.isalpha() or len(symbol) > 5:
-            raise ValueError(f"Invalid symbol format: {symbol}. Must be 1-5 letters.")
-        self.symbol = symbol
+
+        # Check if this is a crypto symbol using centralized utility
+        self._is_crypto = is_crypto_symbol(symbol)
+
+        if self._is_crypto:
+            # Normalize crypto symbol to Alpaca format (e.g., BTCUSD -> BTC/USD)
+            self.symbol = normalize_crypto_symbol(symbol)
+        else:
+            # Validate stock symbol format
+            # Allow 1-10 chars: letters, numbers, dots, hyphens (valid for ETFs like BRK.B, SPY1)
+            if not re.match(r'^[A-Z0-9.\-]{1,10}$', symbol):
+                raise ValueError(f"Invalid symbol format: {symbol}. Must be 1-10 alphanumeric characters, dots, or hyphens.")
+            self.symbol = symbol
 
         # P1 FIX: Validate side
         if not side or side.lower() not in ("buy", "sell"):
             raise ValueError(f"Side must be 'buy' or 'sell', got: {side}")
         self.side = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
 
-        # P1 FIX: Validate quantity
-        try:
-            self.qty = float(qty)
-        except (TypeError, ValueError):
-            raise ValueError(f"Quantity must be numeric, got: {qty}")
+        # P1 FIX: Validate quantity (now optional for notional orders)
+        self.qty: Optional[float] = None
+        if qty is not None:
+            try:
+                self.qty = float(qty)
+            except (TypeError, ValueError):
+                raise ValueError(f"Quantity must be numeric, got: {qty}")
 
-        if self.qty <= 0:
-            raise ValueError(f"Quantity must be positive, got: {self.qty}")
-        if self.qty > self.MAX_QUANTITY:
-            raise ValueError(f"Quantity {self.qty} exceeds maximum allowed ({self.MAX_QUANTITY})")
+            if self.qty <= 0:
+                raise ValueError(f"Quantity must be positive, got: {self.qty}")
+            if self.qty > self.MAX_QUANTITY:
+                raise ValueError(f"Quantity {self.qty} exceeds maximum allowed ({self.MAX_QUANTITY})")
+
+        # Notional (dollar amount) parameter - mutually exclusive with qty
+        self._notional: Optional[float] = None
 
         # Order parameters
         self._order_type: Optional[OrderType] = None
-        self._time_in_force: TimeInForce = TimeInForce.DAY  # Default
+        # Crypto defaults to GTC (24/7 trading), stocks default to DAY
+        self._time_in_force: TimeInForce = TimeInForce.GTC if self._is_crypto else TimeInForce.DAY
         self._order_class: OrderClass = OrderClass.SIMPLE  # Default
 
         # Price parameters
@@ -96,11 +141,63 @@ class OrderBuilder:
         self._take_profit: Optional[Dict[str, float]] = None
         self._stop_loss: Optional[Dict[str, float]] = None
 
-        # Extended hours
+        # Extended hours (not applicable to crypto - always 24/7)
         self._extended_hours: bool = False
 
         # Client order ID (for tracking)
         self._client_order_id: Optional[str] = None
+
+    # _detect_crypto and _normalize_crypto_symbol methods have been removed.
+    # Use utils.crypto_utils.is_crypto_symbol and normalize_crypto_symbol instead.
+
+    @property
+    def is_crypto(self) -> bool:
+        """Check if this order is for a cryptocurrency."""
+        return self._is_crypto
+
+    # =========================================================================
+    # QUANTITY METHODS
+    # =========================================================================
+
+    def notional(self, amount: float) -> "OrderBuilder":
+        """
+        Set dollar amount for the order instead of quantity.
+
+        Notional orders allow you to specify a dollar amount to invest
+        rather than a number of shares. This is useful for:
+        - Percentage-based position sizing
+        - Fractional share trading
+        - Portfolio rebalancing
+
+        Args:
+            amount: Dollar amount to invest (minimum $1.00, maximum $1,000,000)
+
+        Returns:
+            Self for method chaining
+
+        Raises:
+            ValueError: If amount is less than $1.00 or greater than $1,000,000
+
+        Example:
+            order = (OrderBuilder("AAPL", "buy")
+                     .notional(1500.00)  # Buy $1500 worth of AAPL
+                     .market()
+                     .day()
+                     .build())
+        """
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            raise ValueError(f"Notional amount must be numeric, got: {amount}")
+
+        if amount < self.MIN_NOTIONAL:
+            raise ValueError(f"Minimum notional order is ${self.MIN_NOTIONAL:.2f}")
+        if amount > self.MAX_NOTIONAL:
+            raise ValueError(f"Maximum notional order is ${self.MAX_NOTIONAL:,.2f}")
+
+        self._notional = round(amount, 2)
+        self.qty = None  # Mutually exclusive with qty
+        return self
 
     # =========================================================================
     # ORDER TYPE METHODS
@@ -353,10 +450,15 @@ class OrderBuilder:
         # Build base kwargs common to all order types
         base_kwargs = {
             "symbol": self.symbol,
-            "qty": self.qty,
             "side": self.side,
             "time_in_force": self._time_in_force,
         }
+
+        # Add qty or notional (mutually exclusive)
+        if self._notional is not None:
+            base_kwargs["notional"] = self._notional
+        else:
+            base_kwargs["qty"] = self.qty
 
         # Add optional fields
         if self._client_order_id:
@@ -429,6 +531,35 @@ class OrderBuilder:
 
     def _validate_order(self):
         """Validate order configuration before building."""
+        # Quantity or notional must be specified
+        if self.qty is None and self._notional is None:
+            raise ValueError(
+                "Either quantity or notional amount must be specified. "
+                "Use qty parameter in constructor or call .notional() method."
+            )
+
+        # Notional order restrictions (Alpaca API constraints)
+        if self._notional is not None:
+            # Notional orders only work with market and limit orders
+            if self._order_type not in [OrderType.MARKET, OrderType.LIMIT]:
+                raise ValueError(
+                    f"Notional orders only support MARKET or LIMIT order types, "
+                    f"got: {self._order_type}"
+                )
+
+            # Notional orders cannot be used with advanced order classes
+            if self._order_class != OrderClass.SIMPLE:
+                raise ValueError(
+                    f"Notional orders cannot be used with {self._order_class} order class. "
+                    "Use quantity-based orders for bracket, OCO, or OTO orders."
+                )
+
+            # Notional orders cannot use extended hours
+            if self._extended_hours:
+                raise ValueError(
+                    "Notional orders cannot be used with extended hours trading"
+                )
+
         # Extended hours validation
         if self._extended_hours:
             if self._order_type != OrderType.LIMIT:
@@ -453,8 +584,12 @@ class OrderBuilder:
 
     def __repr__(self) -> str:
         """String representation for debugging."""
+        if self._notional is not None:
+            size_info = f"notional=${self._notional:.2f}"
+        else:
+            size_info = f"qty={self.qty}"
         return (
-            f"OrderBuilder(symbol={self.symbol}, side={self.side}, qty={self.qty}, "
+            f"OrderBuilder(symbol={self.symbol}, side={self.side}, {size_info}, "
             f"type={self._order_type}, tif={self._time_in_force}, "
             f"class={self._order_class})"
         )
@@ -507,3 +642,129 @@ def bracket_order(
     builder.bracket(take_profit=take_profit, stop_loss=stop_loss, stop_limit=stop_limit).gtc()
 
     return builder.build()
+
+
+def notional_market_order(symbol: str, side: str, amount: float, **kwargs) -> Any:
+    """
+    Quick notional (dollar-based) market order creation.
+
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL')
+        side: 'buy' or 'sell'
+        amount: Dollar amount to invest (minimum $1.00)
+        **kwargs: Optional arguments (gtc=True for Good-Till-Canceled)
+
+    Returns:
+        Alpaca MarketOrderRequest with notional amount
+
+    Example:
+        # Buy $1500 worth of AAPL
+        order = notional_market_order("AAPL", "buy", 1500.00)
+    """
+    builder = OrderBuilder(symbol, side).notional(amount).market()
+
+    if kwargs.get("gtc"):
+        builder.gtc()
+
+    return builder.build()
+
+
+def notional_limit_order(
+    symbol: str, side: str, amount: float, limit_price: float, **kwargs
+) -> Any:
+    """
+    Quick notional (dollar-based) limit order creation.
+
+    Args:
+        symbol: Stock symbol (e.g., 'AAPL')
+        side: 'buy' or 'sell'
+        amount: Dollar amount to invest (minimum $1.00)
+        limit_price: Maximum price for buy, minimum for sell
+        **kwargs: Optional arguments (gtc=True for Good-Till-Canceled)
+
+    Returns:
+        Alpaca LimitOrderRequest with notional amount
+
+    Example:
+        # Buy $1500 worth of AAPL at limit price of $150
+        order = notional_limit_order("AAPL", "buy", 1500.00, 150.00, gtc=True)
+    """
+    builder = OrderBuilder(symbol, side).notional(amount).limit(limit_price)
+
+    if kwargs.get("gtc"):
+        builder.gtc()
+
+    return builder.build()
+
+
+# =============================================================================
+# CRYPTO CONVENIENCE FUNCTIONS
+# =============================================================================
+
+
+def crypto_market_order(symbol: str, side: str, qty: float = None, notional: float = None) -> Any:
+    """
+    Quick crypto market order creation.
+
+    Crypto orders are available 24/7 and default to GTC (Good-Till-Canceled).
+
+    Args:
+        symbol: Crypto pair (e.g., 'BTC/USD', 'BTCUSD', 'ETH/USD')
+        side: 'buy' or 'sell'
+        qty: Quantity in base currency (e.g., 0.5 BTC). Mutually exclusive with notional.
+        notional: Dollar amount (e.g., 1000.00 for $1000). Mutually exclusive with qty.
+
+    Returns:
+        Alpaca MarketOrderRequest for crypto
+
+    Examples:
+        # Buy 0.5 BTC
+        order = crypto_market_order("BTC/USD", "buy", qty=0.5)
+
+        # Buy $1000 worth of ETH
+        order = crypto_market_order("ETHUSD", "buy", notional=1000.00)
+    """
+    if qty is None and notional is None:
+        raise ValueError("Either qty or notional must be specified")
+    if qty is not None and notional is not None:
+        raise ValueError("Specify either qty or notional, not both")
+
+    builder = OrderBuilder(symbol, side, qty)
+
+    if notional is not None:
+        builder.notional(notional)
+
+    return builder.market().build()
+
+
+def crypto_limit_order(
+    symbol: str, side: str, qty: float, limit_price: float
+) -> Any:
+    """
+    Quick crypto limit order creation.
+
+    Crypto orders are available 24/7 and default to GTC (Good-Till-Canceled).
+
+    Args:
+        symbol: Crypto pair (e.g., 'BTC/USD', 'BTCUSD', 'ETH/USD')
+        side: 'buy' or 'sell'
+        qty: Quantity in base currency (e.g., 0.5 BTC)
+        limit_price: Limit price for the order
+
+    Returns:
+        Alpaca LimitOrderRequest for crypto
+
+    Example:
+        # Buy 0.5 BTC at $40,000
+        order = crypto_limit_order("BTC/USD", "buy", 0.5, 40000.00)
+    """
+    return OrderBuilder(symbol, side, qty).limit(limit_price).build()
+
+
+# Re-export is_crypto_symbol from crypto_utils for backward compatibility
+# The function is already imported at module level:
+# from utils.crypto_utils import is_crypto_symbol, normalize_crypto_symbol
+#
+# External code can use either:
+#   from brokers.order_builder import is_crypto_symbol
+#   from utils.crypto_utils import is_crypto_symbol
