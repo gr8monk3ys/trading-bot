@@ -204,8 +204,8 @@ class SimpleSymbolSelector:
         # Popular ETFs for diversification
         etfs = ["SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "EEM", "GLD", "SLV", "TLT"]
 
-        # Combine and dedupe
-        all_symbols = list(set(sp100 + growth_stocks + etfs))
+        # Combine and dedupe (preserving order so sp100 comes first)
+        all_symbols = list(dict.fromkeys(sp100 + growth_stocks + etfs))
 
         logger.info(f"Using {len(all_symbols)} curated liquid stocks")
         return all_symbols[:top_n] if top_n else all_symbols
