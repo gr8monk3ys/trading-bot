@@ -45,6 +45,7 @@ dependencies = [
 
     # Async
     "asyncio>=3.4.3",
+    "aiosqlite>=0.19.0",
 ]
 
 [dependency-groups]
