@@ -13,10 +13,18 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install TA-Lib from source
+# TARGETARCH is set automatically by Docker BuildKit (amd64, arm64, etc.)
+# TA-Lib's 2006-era config.guess fails under QEMU emulation for ARM64,
+# so we pass --build explicitly when cross-compiling.
+ARG TARGETARCH
 RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib/ && \
-    ./configure --prefix=/usr && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      ./configure --prefix=/usr --build=aarch64-unknown-linux-gnu; \
+    else \
+      ./configure --prefix=/usr; \
+    fi && \
     make && \
     make install && \
     cd .. && \
