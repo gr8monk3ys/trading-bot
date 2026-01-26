@@ -15,37 +15,12 @@ Tests cover:
 """
 
 
-# Mock the config module before importing the broker
-import sys
+# Test credentials are provided by the session-scoped _patch_broker_credentials
+# fixture in tests/unit/conftest.py (patches brokers.alpaca_broker.ALPACA_CREDS).
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
-_original_config = sys.modules.get("config")
-sys.modules["config"] = Mock(
-    ALPACA_CREDS={"API_KEY": "test_api_key", "API_SECRET": "test_api_secret"},
-    SYMBOLS=["AAPL", "MSFT", "GOOGL"],
-    BACKTEST_PARAMS={
-        "SLIPPAGE_PCT": 0.004,
-        "BID_ASK_SPREAD": 0.001,
-        "COMMISSION_PER_SHARE": 0.0,
-        "EXECUTION_DELAY_BARS": 1,
-        "USE_SLIPPAGE": True,
-    },
-    TRADING_PARAMS={},
-    RISK_PARAMS={},
-)
-
-# Pre-cache broker module while config is mocked, then restore real config
-# to prevent Mock from leaking to other test files (test ordering matters)
-import brokers.alpaca_broker as _cached_broker_mod  # noqa: E402, F401
-
-if _original_config is not None:
-    sys.modules["config"] = _original_config
-elif "config" in sys.modules:
-    del sys.modules["config"]
-
 from alpaca.trading.enums import QueryOrderStatus
 
 # ============================================================================

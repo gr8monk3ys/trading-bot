@@ -21,6 +21,32 @@ from unittest.mock import AsyncMock, MagicMock
 import numpy as np
 import pytest
 
+import brokers.alpaca_broker as _broker_mod
+
+# =============================================================================
+# SESSION-WIDE CONFIG PATCHING
+# =============================================================================
+# brokers.alpaca_broker is imported early (via brokers/__init__.py during
+# conftest.py strategy imports), binding ALPACA_CREDS from config.py at import
+# time.  In CI, config reads empty env vars → empty API key/secret.  Patch the
+# module-level attribute so any test that creates AlpacaBroker() gets test
+# credentials without needing a real .env file.
+
+_saved_broker_creds = _broker_mod.ALPACA_CREDS
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _patch_broker_credentials():
+    """Provide test API credentials for AlpacaBroker across all unit tests."""
+    _broker_mod.ALPACA_CREDS = {
+        "API_KEY": "test_api_key",
+        "API_SECRET": "test_api_secret",
+        "PAPER": True,
+    }
+    yield
+    _broker_mod.ALPACA_CREDS = _saved_broker_creds
+
+
 # =============================================================================
 # SHARED CONSTANTS
 # =============================================================================
