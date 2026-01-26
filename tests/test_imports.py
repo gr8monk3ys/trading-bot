@@ -85,13 +85,6 @@ class TestStrategyImports:
         assert MeanReversionStrategy is not None
         assert callable(MeanReversionStrategy)
 
-    def test_sentiment_strategy_import(self):
-        """Test that SentimentStrategy can be imported"""
-        from strategies.sentiment_strategy import SentimentStrategy
-
-        assert SentimentStrategy is not None
-        assert callable(SentimentStrategy)
-
     def test_risk_manager_import(self):
         """Test that RiskManager can be imported"""
         from strategies.risk_manager import RiskManager

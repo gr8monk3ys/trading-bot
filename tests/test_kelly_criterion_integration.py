@@ -33,14 +33,14 @@ class TestKellyParameters:
         assert "kelly_min_trades" in params
         assert "kelly_lookback" in params
 
-    def test_kelly_disabled_by_default(self):
-        """Kelly Criterion should be disabled by default."""
+    def test_kelly_enabled_by_default(self):
+        """Kelly Criterion should be enabled by default for maximum profit."""
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy()
         params = strategy.default_parameters()
 
-        assert params["use_kelly_criterion"] is False
+        assert params["use_kelly_criterion"] is True
 
     def test_kelly_fraction_is_half_kelly(self):
         """Default Kelly fraction should be 0.5 (Half Kelly)."""

@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+_original_config = sys.modules.get("config")
 sys.modules["config"] = Mock(
     ALPACA_CREDS={"API_KEY": "test_api_key", "API_SECRET": "test_api_secret"},
     SYMBOLS=["AAPL", "MSFT", "GOOGL"],
@@ -35,6 +36,15 @@ sys.modules["config"] = Mock(
     TRADING_PARAMS={},
     RISK_PARAMS={},
 )
+
+# Pre-cache broker module while config is mocked, then restore real config
+# to prevent Mock from leaking to other test files (test ordering matters)
+import brokers.alpaca_broker as _cached_broker_mod  # noqa: E402, F401
+
+if _original_config is not None:
+    sys.modules["config"] = _original_config
+elif "config" in sys.modules:
+    del sys.modules["config"]
 
 from alpaca.trading.enums import QueryOrderStatus
 
@@ -725,6 +735,7 @@ class TestOrderMethods:
         mock_result.qty = "100"
         mock_result.type = "market"
         mock_result.order_class = "simple"
+        mock_result.notional = None
         mock_trading.return_value.submit_order.return_value = mock_result
 
         # Create a mock OrderBuilder

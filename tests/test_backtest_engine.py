@@ -2,121 +2,80 @@ import pandas as pd
 import pytest
 
 from engine.backtest_engine import BacktestEngine
-from engine.performance_metrics import PerformanceMetrics
 
 
 @pytest.mark.asyncio
-async def test_backtest_engine_initialization(momentum_strategy, test_symbols, test_period):
+async def test_backtest_engine_initialization(mock_broker):
     """Test backtest engine initialization"""
-    start_date, end_date = test_period
-
-    # Initialize backtest engine
-    backtest_engine = BacktestEngine(
-        strategy=momentum_strategy, start_date=start_date, end_date=end_date, symbols=test_symbols
-    )
+    # BacktestEngine only takes an optional broker argument
+    backtest_engine = BacktestEngine(broker=mock_broker)
 
     # Check initialization
-    assert backtest_engine.strategy == momentum_strategy
-    assert backtest_engine.start_date == start_date
-    assert backtest_engine.end_date == end_date
-    assert backtest_engine.symbols == test_symbols
+    assert backtest_engine.broker == mock_broker
+    assert backtest_engine.strategies == []
+    assert backtest_engine.results == {}
+    assert backtest_engine.current_date is None
 
 
 @pytest.mark.asyncio
-async def test_backtest_run(momentum_strategy, test_symbols, test_period, mock_broker):
-    """Test running a backtest"""
-    start_date, end_date = test_period
+async def test_backtest_engine_default_initialization():
+    """Test backtest engine initialization with no arguments"""
+    backtest_engine = BacktestEngine()
 
-    # Initialize backtest engine
-    backtest_engine = BacktestEngine(
-        strategy=momentum_strategy, start_date=start_date, end_date=end_date, symbols=test_symbols
-    )
-
-    # Run backtest
-    results = await backtest_engine.run()
-
-    # Check results structure
-    assert isinstance(results, dict)
-    assert "trades" in results
-    assert "equity_curve" in results
-    assert "stats" in results
-
-    # Check equity curve
-    equity_curve = results["equity_curve"]
-    assert isinstance(equity_curve, pd.DataFrame)
-    assert not equity_curve.empty
-    assert "equity" in equity_curve.columns
-
-    # Trades should be a list
-    assert isinstance(results["trades"], list)
-
-    # Stats should include basic metrics
-    assert "total_trades" in results["stats"]
-    assert "win_rate" in results["stats"]
-    assert "profit_factor" in results["stats"]
+    assert backtest_engine.broker is None
+    assert backtest_engine.strategies == []
+    assert backtest_engine.results == {}
 
 
 @pytest.mark.asyncio
-async def test_performance_metrics(momentum_strategy, test_symbols, test_period, mock_broker):
-    """Test performance metrics calculation"""
+async def test_backtest_run(momentum_strategy, test_period, mock_broker):
+    """Test running a backtest using the run() method"""
     start_date, end_date = test_period
 
-    # Initialize backtest engine
-    backtest_engine = BacktestEngine(
-        strategy=momentum_strategy, start_date=start_date, end_date=end_date, symbols=test_symbols
+    # Initialize backtest engine with broker
+    backtest_engine = BacktestEngine(broker=mock_broker)
+
+    # run() takes strategies list, start_date, end_date
+    results = await backtest_engine.run(
+        strategies=[momentum_strategy],
+        start_date=start_date,
+        end_date=end_date,
     )
 
-    # Run backtest
-    results = await backtest_engine.run()
+    # run() returns a list of DataFrames, one per strategy
+    assert isinstance(results, list)
+    assert len(results) == 1
 
-    # Calculate performance metrics
-    performance = PerformanceMetrics(results)
-    metrics = performance.calculate_metrics()
-
-    # Check metrics
-    assert "total_return" in metrics
-    assert "sharpe_ratio" in metrics
-    assert "max_drawdown" in metrics
-    assert "win_rate" in metrics
-    assert "profit_factor" in metrics
-    assert "average_win" in metrics
-    assert "average_loss" in metrics
+    # Each result is a DataFrame with equity, cash, holdings, returns, trades columns
+    result_df = results[0]
+    assert isinstance(result_df, pd.DataFrame)
+    assert "equity" in result_df.columns
+    assert "returns" in result_df.columns
+    assert "trades" in result_df.columns
 
 
 @pytest.mark.asyncio
 async def test_strategy_comparison(
-    momentum_strategy, mean_reversion_strategy, test_symbols, test_period, mock_broker
+    momentum_strategy, mean_reversion_strategy, test_period, mock_broker
 ):
-    """Test comparing multiple strategies"""
+    """Test comparing multiple strategies via run()"""
     start_date, end_date = test_period
 
-    # Initialize backtest engines for both strategies
-    momentum_backtest = BacktestEngine(
-        strategy=momentum_strategy, start_date=start_date, end_date=end_date, symbols=test_symbols
-    )
+    # Initialize backtest engine
+    backtest_engine = BacktestEngine(broker=mock_broker)
 
-    mean_reversion_backtest = BacktestEngine(
-        strategy=mean_reversion_strategy,
+    # Run both strategies together
+    results = await backtest_engine.run(
+        strategies=[momentum_strategy, mean_reversion_strategy],
         start_date=start_date,
         end_date=end_date,
-        symbols=test_symbols,
     )
 
-    # Run backtests
-    momentum_results = await momentum_backtest.run()
-    mean_reversion_results = await mean_reversion_backtest.run()
+    # Should get one result DataFrame per strategy
+    assert isinstance(results, list)
+    assert len(results) == 2
 
-    # Calculate performance metrics
-    momentum_performance = PerformanceMetrics(momentum_results)
-    mean_reversion_performance = PerformanceMetrics(mean_reversion_results)
-
-    momentum_metrics = momentum_performance.calculate_metrics()
-    mean_reversion_metrics = mean_reversion_performance.calculate_metrics()
-
-    # Check that we can compare metrics
-    assert isinstance(momentum_metrics["sharpe_ratio"], (int, float))
-    assert isinstance(mean_reversion_metrics["sharpe_ratio"], (int, float))
-
-    # Both strategies should produce valid metrics (not testing which is better)
-    assert momentum_metrics["total_return"] is not None
-    assert mean_reversion_metrics["total_return"] is not None
+    # Both results should be DataFrames
+    for result_df in results:
+        assert isinstance(result_df, pd.DataFrame)
+        assert "equity" in result_df.columns

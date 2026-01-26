@@ -56,7 +56,7 @@ class TestMarketRegimeDetectorInit:
         assert detector.market_index == "SPY"
         assert detector.last_regime is None
         assert detector.last_detection_time is None
-        assert detector.regime_history == []
+        assert len(detector.regime_history) == 0
 
     def test_init_custom_parameters(self):
         """Test initialization with custom parameters."""
@@ -575,7 +575,7 @@ class TestGetRegimeHistory:
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
 
-        assert detector.get_regime_history() == []
+        assert len(detector.get_regime_history()) == 0
 
     def test_history_after_changes(self):
         """Test regime history accumulates changes."""

@@ -101,9 +101,8 @@ class TestBacktestBrokerInit:
             spread_bps=5.0,
             enable_partial_fills=False,
         )
-        assert broker.api_key == "test_key"
-        assert broker.api_secret == "test_secret"
-        assert broker.paper == False
+        # api_key, api_secret, paper are accepted for compatibility but not stored
+        # (avoids accidental credential exposure in backtest context)
         assert broker.balance == 50000
         assert broker.slippage_bps == 10.0
         assert broker.spread_bps == 5.0

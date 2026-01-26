@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 # Mock config before importing the module
+_original_config = sys.modules.get("config")
 sys.modules["config"] = MagicMock(
     BACKTEST_PARAMS={
         "TRAIN_RATIO": 0.7,
@@ -33,6 +34,12 @@ sys.modules["config"] = MagicMock(
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from engine.walk_forward import WalkForwardResult, WalkForwardValidator
+
+# Restore real config to prevent Mock from leaking to other test files
+if _original_config is not None:
+    sys.modules["config"] = _original_config
+elif "config" in sys.modules:
+    del sys.modules["config"]
 
 
 # =============================================================================

@@ -15,6 +15,7 @@ Tests the momentum-based trading strategy including:
 Target: Increase coverage from 5.39% to 90%+
 """
 
+from collections import deque
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -406,6 +407,7 @@ class TestUpdateIndicators:
         strategy.atr_period = 14
         strategy.bb_period = 20
         strategy.bb_std = 2.0
+        strategy.use_bollinger_filter = True
         strategy.indicators = {"AAPL": {}}
 
         # Create 60 bars of price history with explicit float types
@@ -996,9 +998,19 @@ class TestOnBar:
         strategy.signals = {"AAPL": "neutral", "MSFT": "neutral"}
         strategy.last_signal_time = {"AAPL": None, "MSFT": None}
         strategy.current_prices = {}
-        strategy.price_history = {"AAPL": [], "MSFT": []}
+        # Use deque with maxlen to match production code (auto-trims on append)
+        max_history = max(strategy.slow_ma, strategy.rsi_period,
+                          strategy.macd_slow + strategy.macd_signal,
+                          strategy.adx_period) + 10
+        strategy.max_history = max_history
+        strategy.price_history = {
+            "AAPL": deque(maxlen=max_history),
+            "MSFT": deque(maxlen=max_history),
+        }
         strategy.stop_prices = {}
         strategy.target_prices = {}
+        strategy.entry_prices = {}
+        strategy.peak_prices = {}
 
         strategy.broker = Mock()
         strategy.broker.get_positions = AsyncMock(return_value=[])
@@ -1308,12 +1320,21 @@ class TestCheckExitConditions:
     @pytest.fixture
     def strategy_with_position(self):
         """Create a strategy with an existing position."""
+        import logging
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy.__new__(MomentumStrategy)
         strategy.current_prices = {"AAPL": 150.0}
         strategy.stop_prices = {"AAPL": 145.0}
         strategy.target_prices = {"AAPL": 160.0}
+        strategy.entry_prices = {}
+        strategy.peak_prices = {}
+        strategy.logger = logging.getLogger("test")
+        # Position cache attributes (used by _get_cached_positions)
+        strategy._positions_cache = None
+        strategy._positions_cache_time = None
+        strategy._positions_cache_ttl = timedelta(seconds=1)
+        strategy.use_trailing_stop = False
 
         mock_position = Mock()
         mock_position.symbol = "AAPL"
@@ -1419,6 +1440,7 @@ class TestGenerateSignals:
         strategy.macd_slow = 26
         strategy.macd_signal = 9
         strategy.adx_period = 14
+        strategy.atr_period = 14
         strategy.fast_ma = 10
         strategy.medium_ma = 20
         strategy.volume_ma_period = 20

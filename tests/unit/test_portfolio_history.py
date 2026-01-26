@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+_original_config = sys.modules.get("config")
 sys.modules["config"] = Mock(
     ALPACA_CREDS={"API_KEY": "test_api_key", "API_SECRET": "test_api_secret"},
     SYMBOLS=["AAPL", "MSFT", "GOOGL"],
@@ -31,6 +32,14 @@ sys.modules["config"] = Mock(
     TRADING_PARAMS={},
     RISK_PARAMS={},
 )
+
+# Pre-cache broker module while config is mocked, then restore real config
+import brokers.alpaca_broker as _cached_broker_mod  # noqa: E402, F401
+
+if _original_config is not None:
+    sys.modules["config"] = _original_config
+elif "config" in sys.modules:
+    del sys.modules["config"]
 
 
 # ============================================================================
