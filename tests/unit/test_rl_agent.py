@@ -16,6 +16,10 @@ from ml.rl_agent import (
     Experience,
     ReplayBuffer,
     DQNNetwork,
+    RewardConfig,
+    DEFAULT_SPREAD_BPS,
+    MARKET_IMPACT_COEFF,
+    DRAWDOWN_PENALTY_COEFF,
 )
 
 
@@ -580,3 +584,577 @@ class TestIntegration:
         # Allow some variance - just check agent is functioning
         assert len(rewards) == 20
         assert agent.episodes == 20
+
+
+# =============================================================================
+# RewardConfig Tests
+# =============================================================================
+
+class TestRewardConfig:
+    """Tests for RewardConfig dataclass."""
+
+    def test_default_values(self):
+        """Test default configuration values."""
+        config = RewardConfig()
+        assert config.spread_bps == DEFAULT_SPREAD_BPS
+        assert config.market_impact_coeff == MARKET_IMPACT_COEFF
+        assert config.drawdown_penalty_coeff == DRAWDOWN_PENALTY_COEFF
+
+    def test_custom_values(self):
+        """Test custom configuration values."""
+        config = RewardConfig(
+            spread_bps=10,
+            market_impact_coeff=0.2,
+            drawdown_penalty_coeff=1.0
+        )
+        assert config.spread_bps == 10
+        assert config.market_impact_coeff == 0.2
+        assert config.drawdown_penalty_coeff == 1.0
+
+    def test_holding_cost_default(self):
+        """Test default holding cost."""
+        config = RewardConfig()
+        assert config.holding_cost_bps == 1.0
+
+    def test_max_drawdown_penalty(self):
+        """Test max drawdown penalty setting."""
+        config = RewardConfig(max_drawdown_penalty=5.0)
+        assert config.max_drawdown_penalty == 5.0
+
+
+# =============================================================================
+# Transaction Cost Tests
+# =============================================================================
+
+class TestTransactionCost:
+    """Tests for institutional-grade transaction cost calculation."""
+
+    @pytest.fixture
+    def agent(self, tmp_path):
+        """Create agent for transaction cost testing."""
+        return DQNAgent(
+            state_size=20,
+            action_size=3,
+            model_dir=str(tmp_path)
+        )
+
+    def test_basic_transaction_cost(self, agent):
+        """Test basic transaction cost calculation."""
+        cost = agent.calculate_transaction_cost(
+            order_size=1000,
+            price=100.0,
+            spread_bps=5,
+            avg_daily_volume=1_000_000
+        )
+        assert cost > 0
+        # Should be at least half the spread
+        assert cost >= 5 / 10000 / 2
+
+    def test_market_impact_increases_with_size(self, agent):
+        """Test market impact increases with order size."""
+        small_cost = agent.calculate_transaction_cost(
+            order_size=1000,
+            price=100.0,
+            avg_daily_volume=1_000_000
+        )
+        large_cost = agent.calculate_transaction_cost(
+            order_size=100000,
+            price=100.0,
+            avg_daily_volume=1_000_000
+        )
+        assert large_cost > small_cost
+
+    def test_zero_order_size(self, agent):
+        """Test transaction cost with zero order size."""
+        cost = agent.calculate_transaction_cost(
+            order_size=0,
+            price=100.0,
+            avg_daily_volume=1_000_000
+        )
+        # Should only be spread cost
+        assert cost == DEFAULT_SPREAD_BPS / 10000 / 2
+
+    def test_market_impact_sqrt_model(self, agent):
+        """Test market impact follows square-root model."""
+        # Impact should scale as sqrt(participation rate)
+        cost_1pct = agent.calculate_transaction_cost(
+            order_size=10000,  # 1% of ADV
+            price=100.0,
+            spread_bps=0,  # Isolate impact
+            avg_daily_volume=1_000_000
+        )
+        cost_4pct = agent.calculate_transaction_cost(
+            order_size=40000,  # 4% of ADV
+            price=100.0,
+            spread_bps=0,
+            avg_daily_volume=1_000_000
+        )
+        # 4% participation = 2x impact of 1% (sqrt(4) = 2)
+        ratio = cost_4pct / cost_1pct
+        assert 1.9 < ratio < 2.1
+
+    def test_high_spread_increases_cost(self, agent):
+        """Test higher spread increases cost."""
+        cost_low_spread = agent.calculate_transaction_cost(
+            order_size=1000,
+            price=100.0,
+            spread_bps=5,
+            avg_daily_volume=1_000_000
+        )
+        cost_high_spread = agent.calculate_transaction_cost(
+            order_size=1000,
+            price=100.0,
+            spread_bps=20,
+            avg_daily_volume=1_000_000
+        )
+        assert cost_high_spread > cost_low_spread
+
+    def test_low_adv_increases_impact(self, agent):
+        """Test lower ADV increases market impact."""
+        cost_high_adv = agent.calculate_transaction_cost(
+            order_size=10000,
+            price=100.0,
+            spread_bps=0,
+            avg_daily_volume=10_000_000
+        )
+        cost_low_adv = agent.calculate_transaction_cost(
+            order_size=10000,
+            price=100.0,
+            spread_bps=0,
+            avg_daily_volume=100_000
+        )
+        assert cost_low_adv > cost_high_adv
+
+
+# =============================================================================
+# Drawdown Penalty Tests
+# =============================================================================
+
+class TestDrawdownPenalty:
+    """Tests for drawdown penalty calculation."""
+
+    @pytest.fixture
+    def agent(self, tmp_path):
+        """Create agent for drawdown testing."""
+        agent = DQNAgent(
+            state_size=20,
+            action_size=3,
+            model_dir=str(tmp_path)
+        )
+        agent.reset_equity_tracking(100000)
+        return agent
+
+    def test_no_drawdown_no_penalty(self, agent):
+        """Test no penalty when at peak equity."""
+        agent.peak_equity = 100000
+        penalty = agent.calculate_drawdown_penalty(current_equity=100000)
+        assert penalty == 0.0
+
+    def test_penalty_increases_with_drawdown(self, agent):
+        """Test penalty increases as drawdown increases."""
+        agent.peak_equity = 100000
+        penalty_5pct = agent.calculate_drawdown_penalty(95000)
+        penalty_10pct = agent.calculate_drawdown_penalty(90000)
+        assert penalty_10pct > penalty_5pct
+
+    def test_penalty_capped(self, agent):
+        """Test penalty is capped at max value."""
+        agent.peak_equity = 100000
+        agent.reward_config.max_drawdown_penalty = 2.0
+        # 50% drawdown
+        penalty = agent.calculate_drawdown_penalty(50000)
+        assert penalty <= 2.0
+
+    def test_peak_equity_updated(self, agent):
+        """Test peak equity is updated on new highs."""
+        agent.peak_equity = 100000
+        agent.calculate_drawdown_penalty(110000)
+        assert agent.peak_equity == 110000
+
+    def test_quadratic_penalty(self, agent):
+        """Test penalty scales quadratically with drawdown."""
+        agent.peak_equity = 100000
+        agent.reward_config.drawdown_penalty_coeff = 1.0  # Simplify
+
+        penalty_10pct = agent.calculate_drawdown_penalty(90000)  # 10%
+        # Reset peak for fair comparison
+        agent.peak_equity = 100000
+        penalty_20pct = agent.calculate_drawdown_penalty(80000)  # 20%
+
+        # Penalty should be 4x for 2x drawdown (quadratic)
+        expected_ratio = 4.0
+        actual_ratio = penalty_20pct / penalty_10pct
+        assert 3.5 < actual_ratio < 4.5
+
+    def test_small_drawdown_small_penalty(self, agent):
+        """Test small drawdown produces small penalty."""
+        agent.peak_equity = 100000
+        penalty = agent.calculate_drawdown_penalty(99500)  # 0.5% drawdown
+        # Quadratic: (0.005)^2 * 0.5 = 0.0000125
+        assert penalty < 0.01
+
+
+# =============================================================================
+# Equity Tracking Tests
+# =============================================================================
+
+class TestEquityTracking:
+    """Tests for equity tracking functionality."""
+
+    @pytest.fixture
+    def agent(self, tmp_path):
+        """Create agent for equity tracking testing."""
+        return DQNAgent(
+            state_size=20,
+            action_size=3,
+            model_dir=str(tmp_path)
+        )
+
+    def test_update_equity(self, agent):
+        """Test equity update."""
+        agent.update_equity(110000)
+        assert agent.current_equity == 110000
+        assert agent.peak_equity == 110000
+
+    def test_peak_equity_tracking(self, agent):
+        """Test peak equity is maintained correctly."""
+        agent.update_equity(100000)
+        agent.update_equity(110000)
+        agent.update_equity(105000)  # Decline
+        assert agent.peak_equity == 110000
+        assert agent.current_equity == 105000
+
+    def test_reset_equity_tracking(self, agent):
+        """Test equity tracking reset."""
+        agent.update_equity(150000)
+        agent.reset_equity_tracking(100000)
+        assert agent.current_equity == 100000
+        assert agent.peak_equity == 100000
+        assert agent.episode_start_equity == 100000
+
+    def test_get_stats_includes_equity(self, agent):
+        """Test stats include equity info."""
+        agent.update_equity(90000)
+        agent.peak_equity = 100000
+        stats = agent.get_stats()
+        assert "current_equity" in stats
+        assert "peak_equity" in stats
+        assert "current_drawdown" in stats
+        assert stats["current_drawdown"] == 0.1  # 10% drawdown
+
+
+# =============================================================================
+# Institutional Reward Calculation Tests
+# =============================================================================
+
+class TestInstitutionalReward:
+    """Tests for institutional-grade reward calculation."""
+
+    @pytest.fixture
+    def agent(self, tmp_path):
+        """Create agent for reward testing."""
+        agent = DQNAgent(
+            state_size=20,
+            action_size=3,
+            model_dir=str(tmp_path)
+        )
+        agent.reset_equity_tracking(100000)
+        return agent
+
+    def test_basic_positive_reward(self, agent):
+        """Test positive reward for profitable position."""
+        reward = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=0.01,  # 1% gain
+            position=1.0,
+            transaction_cost=0.0,
+        )
+        assert reward > 0
+
+    def test_basic_negative_reward(self, agent):
+        """Test negative reward for losing position."""
+        reward = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=-0.01,  # 1% loss
+            position=1.0,
+            transaction_cost=0.0,
+        )
+        assert reward < 0
+
+    def test_transaction_cost_reduces_reward(self, agent):
+        """Test transaction costs reduce reward."""
+        reward_no_cost = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=0.01,
+            position=1.0,
+            transaction_cost=0.0,
+        )
+        reward_with_cost = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=0.01,
+            position=1.0,
+            transaction_cost=0.001,
+        )
+        assert reward_with_cost < reward_no_cost
+
+    def test_hold_no_transaction_cost(self, agent):
+        """Test HOLD action doesn't incur transaction cost."""
+        reward_hold = agent.calculate_reward(
+            action=TradingAction.HOLD,
+            price_change_pct=0.01,
+            position=1.0,
+            transaction_cost=0.001,
+        )
+        reward_buy = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=0.01,
+            position=1.0,
+            transaction_cost=0.001,
+        )
+        # HOLD should have higher reward (no transaction cost)
+        assert reward_hold > reward_buy
+
+    def test_drawdown_penalty_applied(self, agent):
+        """Test drawdown penalty reduces reward."""
+        agent.reset_equity_tracking(100000)
+        agent.peak_equity = 100000
+
+        # No drawdown
+        reward_no_dd = agent.calculate_reward(
+            action=TradingAction.HOLD,
+            price_change_pct=0.0,
+            position=0.0,
+            current_equity=100000,
+        )
+
+        # With drawdown
+        agent.peak_equity = 100000
+        reward_with_dd = agent.calculate_reward(
+            action=TradingAction.HOLD,
+            price_change_pct=0.0,
+            position=0.0,
+            current_equity=90000,  # 10% drawdown
+        )
+        assert reward_with_dd < reward_no_dd
+
+    def test_market_impact_cost(self, agent):
+        """Test market impact is included in cost calculation."""
+        # Small order
+        reward_small = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=0.01,
+            position=1.0,
+            order_size=1000,
+            price=100.0,
+            avg_daily_volume=1_000_000,
+        )
+
+        # Large order (more market impact)
+        reward_large = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=0.01,
+            position=1.0,
+            order_size=100000,
+            price=100.0,
+            avg_daily_volume=1_000_000,
+        )
+        assert reward_large < reward_small
+
+    def test_holding_cost(self, agent):
+        """Test holding cost is applied."""
+        reward_no_pos = agent.calculate_reward(
+            action=TradingAction.HOLD,
+            price_change_pct=0.0,
+            position=0.0,
+        )
+        reward_with_pos = agent.calculate_reward(
+            action=TradingAction.HOLD,
+            price_change_pct=0.0,
+            position=1.0,
+        )
+        # Holding position incurs cost
+        assert reward_with_pos < reward_no_pos
+
+    def test_simple_reward_compatibility(self, agent):
+        """Test simple reward function for backwards compatibility."""
+        reward = agent.calculate_reward_simple(
+            action=TradingAction.BUY,
+            price_change_pct=0.01,
+            position=1.0,
+            transaction_cost=0.001,
+            holding_cost=0.0001,
+        )
+        assert isinstance(reward, float)
+
+    def test_adverse_move_penalty(self, agent):
+        """Test penalty for being on wrong side of large move."""
+        # Long position, big down move
+        reward_adverse = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=-0.05,  # 5% drop
+            position=1.0,
+            transaction_cost=0.0,
+        )
+
+        # Long position, small down move
+        reward_small_loss = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=-0.01,  # 1% drop
+            position=1.0,
+            transaction_cost=0.0,
+        )
+        # Adverse move should have additional penalty
+        assert reward_adverse < reward_small_loss * 3
+
+    def test_profitable_trade_bonus(self, agent):
+        """Test bonus for profitable trades."""
+        # Buy with price increase
+        reward = agent.calculate_reward(
+            action=TradingAction.BUY,
+            price_change_pct=0.02,
+            position=1.0,
+            transaction_cost=0.0,
+        )
+        # Should include PnL bonus
+        expected_base = 1.0 * 0.02 * 100  # 2.0 from PnL
+        assert reward > expected_base
+
+    def test_sell_before_decline_bonus(self, agent):
+        """Test bonus for selling before decline."""
+        reward = agent.calculate_reward(
+            action=TradingAction.SELL,
+            price_change_pct=-0.02,
+            position=0.0,  # Exited position
+            transaction_cost=0.0,
+        )
+        # Should get bonus for correct direction
+        # PnL is 0 (no position), but bonus should be positive
+        assert reward > -0.5  # Not heavily penalized
+
+
+# =============================================================================
+# Episode End Statistics Tests
+# =============================================================================
+
+class TestEpisodeStatistics:
+    """Tests for episode statistics calculation."""
+
+    @pytest.fixture
+    def agent(self, tmp_path):
+        """Create agent for episode stats testing."""
+        return DQNAgent(
+            state_size=20,
+            action_size=3,
+            model_dir=str(tmp_path)
+        )
+
+    def test_end_episode_returns_stats(self, agent):
+        """Test end_episode returns comprehensive statistics."""
+        agent.total_reward = 10.0
+        agent.current_equity = 110000
+        agent.peak_equity = 115000
+        agent.episode_start_equity = 100000
+
+        stats = agent.end_episode()
+
+        assert "episode" in stats
+        assert "episode_reward" in stats
+        assert "episode_return" in stats
+        assert "max_drawdown" in stats
+        assert "final_equity" in stats
+
+    def test_episode_return_calculation(self, agent):
+        """Test episode return is calculated correctly."""
+        agent.episode_start_equity = 100000
+        agent.current_equity = 110000
+        agent.peak_equity = 110000
+        agent.total_reward = 5.0
+
+        stats = agent.end_episode()
+        assert abs(stats["episode_return"] - 0.1) < 0.001  # 10% return
+
+    def test_max_drawdown_calculation(self, agent):
+        """Test max drawdown is calculated correctly."""
+        agent.episode_start_equity = 100000
+        agent.current_equity = 90000
+        agent.peak_equity = 105000  # Peak was 105k, now 90k
+        agent.total_reward = -2.0
+
+        stats = agent.end_episode()
+        # Max drawdown = (105000 - 90000) / 105000 = 0.1428...
+        expected_dd = (105000 - 90000) / 105000
+        assert abs(stats["max_drawdown"] - expected_dd) < 0.001
+
+    def test_episode_resets_tracking(self, agent):
+        """Test equity tracking resets after episode."""
+        agent.episode_start_equity = 100000
+        agent.current_equity = 150000
+        agent.peak_equity = 160000
+
+        agent.end_episode(reset_equity=True)
+
+        assert agent.current_equity == 100000
+        assert agent.peak_equity == 100000
+
+    def test_episode_no_reset_option(self, agent):
+        """Test can preserve equity across episodes."""
+        agent.episode_start_equity = 100000
+        agent.current_equity = 150000
+        agent.peak_equity = 160000
+
+        agent.end_episode(reset_equity=False)
+
+        assert agent.current_equity == 150000
+        assert agent.peak_equity == 160000
+
+
+# =============================================================================
+# Agent Config Tests
+# =============================================================================
+
+class TestAgentConfig:
+    """Tests for agent configuration."""
+
+    def test_agent_uses_config(self, tmp_path):
+        """Test agent uses reward config."""
+        agent = DQNAgent(
+            state_size=20,
+            action_size=3,
+            model_dir=str(tmp_path)
+        )
+        agent.reward_config.spread_bps = 20
+
+        cost = agent.calculate_transaction_cost(
+            order_size=1000,
+            price=100.0,
+            avg_daily_volume=1_000_000
+        )
+
+        # With higher spread, cost should be higher
+        default_agent = DQNAgent(
+            state_size=20,
+            action_size=3,
+            model_dir=str(tmp_path)
+        )
+        default_cost = default_agent.calculate_transaction_cost(
+            order_size=1000,
+            price=100.0,
+            avg_daily_volume=1_000_000
+        )
+
+        assert cost > default_cost
+
+    def test_config_modifiable(self, tmp_path):
+        """Test reward config can be modified."""
+        agent = DQNAgent(
+            state_size=20,
+            action_size=3,
+            model_dir=str(tmp_path)
+        )
+
+        # Modify config
+        agent.reward_config.drawdown_penalty_coeff = 2.0
+        agent.reward_config.max_drawdown_penalty = 10.0
+
+        assert agent.reward_config.drawdown_penalty_coeff == 2.0
+        assert agent.reward_config.max_drawdown_penalty == 10.0

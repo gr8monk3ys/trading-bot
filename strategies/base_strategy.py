@@ -28,11 +28,20 @@ class BaseStrategy(ABC):
     which has import-time initialization issues that crash the bot.
     """
 
-    def __init__(self, name=None, broker=None, parameters=None):
-        """Initialize the strategy."""
+    def __init__(self, name=None, broker=None, parameters=None, order_gateway=None):
+        """Initialize the strategy.
+
+        Args:
+            name: Strategy name (defaults to class name)
+            broker: Broker instance for data queries
+            parameters: Strategy parameters dict
+            order_gateway: OrderGateway instance for order submission (recommended)
+                          If not provided, orders will fail when gateway enforcement is enabled
+        """
         # Basic attributes
         self.name = name or self.__class__.__name__
         self.broker = broker
+        self.order_gateway = order_gateway  # INSTITUTIONAL: All orders should go through gateway
         parameters = parameters or {}
 
         # No parent class to initialize anymore - we're independent!
@@ -777,14 +786,9 @@ class BaseStrategy(ABC):
         """
         Submit an exit order with appropriate safety checks.
 
-        Exit orders have RELAXED safety checks because:
-        - They REDUCE risk (closing positions)
-        - Blocking exits during drawdown could make things WORSE
-
-        However, we still:
-        - Log the exit for audit trail
-        - Verify we actually own the position
-        - Handle errors gracefully
+        INSTITUTIONAL SAFETY: Uses OrderGateway when available for proper
+        audit trail and safety checks. Exit orders have relaxed checks
+        because they REDUCE risk (closing positions).
 
         Args:
             symbol: Stock symbol
@@ -795,8 +799,6 @@ class BaseStrategy(ABC):
         Returns:
             Order result or None on failure
         """
-        from brokers.order_builder import OrderBuilder
-
         try:
             # Verify we own this position
             positions = await self.broker.get_positions()
@@ -813,22 +815,114 @@ class BaseStrategy(ABC):
                 )
                 qty = actual_qty
 
-            # Build and submit order
-            order = OrderBuilder(symbol, side, qty).market().day().build()
-            result = await self.broker.submit_order_advanced(order)
+            # INSTITUTIONAL SAFETY: Route through OrderGateway if available
+            if self.order_gateway:
+                result = await self.order_gateway.submit_exit_order(
+                    symbol=symbol,
+                    quantity=qty,
+                    strategy_name=self.name,
+                    side=side,
+                    reason=reason,
+                )
+                if result.success:
+                    self.logger.info(
+                        f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
+                        f"(Order ID: {result.order_id})"
+                    )
+                    return result
+                else:
+                    self.logger.warning(
+                        f"EXIT ORDER FAILED for {symbol}: {result.rejection_reason}"
+                    )
+                    return None
+            else:
+                # Fallback for backwards compatibility (will fail if gateway enforcement enabled)
+                from brokers.order_builder import OrderBuilder
+                self.logger.warning(
+                    f"⚠️ No OrderGateway configured - using direct broker access for {symbol}"
+                )
+                order = OrderBuilder(symbol, side, qty).market().day().build()
+                result = await self.broker.submit_order_advanced(order)
 
-            if result:
+                if result:
+                    self.logger.info(
+                        f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
+                        f"(Order ID: {result.id})"
+                    )
+                else:
+                    self.logger.warning(f"EXIT ORDER FAILED for {symbol}")
+
+                return result
+
+        except Exception as e:
+            self.logger.error(f"EXIT ORDER ERROR for {symbol}: {e}")
+            return None
+
+    async def submit_entry_order(
+        self,
+        order_request,
+        reason: str = "entry",
+        max_positions: int = None,
+    ):
+        """
+        Submit an entry order through the OrderGateway with full safety checks.
+
+        INSTITUTIONAL SAFETY: ALL entry orders MUST route through OrderGateway
+        for circuit breaker, position conflict, and risk limit enforcement.
+
+        Args:
+            order_request: Order request from OrderBuilder
+            reason: Reason for entry (for logging)
+            max_positions: Maximum number of positions allowed (optional)
+
+        Returns:
+            OrderResult with success status and details, or None on error
+
+        Raises:
+            RuntimeError: If no OrderGateway is configured and gateway enforcement is enabled
+        """
+        if not self.order_gateway:
+            # No gateway configured - try direct submission (will fail if enforcement enabled)
+            self.logger.warning(
+                "⚠️ No OrderGateway configured - attempting direct broker access. "
+                "This will fail if gateway enforcement is enabled."
+            )
+            try:
+                result = await self.broker.submit_order_advanced(order_request)
+                return result
+            except Exception as e:
+                self.logger.error(f"Entry order failed: {e}")
+                return None
+
+        try:
+            # Extract symbol for logging
+            symbol = getattr(order_request, 'symbol', 'UNKNOWN')
+            if hasattr(order_request, 'build'):
+                built = order_request.build()
+                symbol = getattr(built, 'symbol', symbol)
+
+            result = await self.order_gateway.submit_order(
+                order_request=order_request,
+                strategy_name=self.name,
+                max_positions=max_positions,
+                price_history=self.price_history.get(symbol, []),
+                is_exit_order=False,
+            )
+
+            if result.success:
                 self.logger.info(
-                    f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
-                    f"(Order ID: {result.id})"
+                    f"ENTRY ORDER: {reason} - {result.side.upper()} {result.quantity} {symbol} "
+                    f"(Order ID: {result.order_id})"
                 )
             else:
-                self.logger.warning(f"EXIT ORDER FAILED for {symbol}")
+                self.logger.warning(
+                    f"ENTRY ORDER REJECTED for {symbol}: {result.rejection_reason}"
+                )
 
             return result
 
         except Exception as e:
-            self.logger.error(f"EXIT ORDER ERROR for {symbol}: {e}")
+            self.logger.error(f"Entry order error: {e}")
             return None
 
     async def run(self):

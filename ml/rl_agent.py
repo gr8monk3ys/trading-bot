@@ -29,6 +29,27 @@ import os
 from ml.torch_utils import import_torch, get_torch_device
 
 
+# Institutional-grade reward constants
+DEFAULT_SPREAD_BPS = 5  # 5 basis points typical spread
+MARKET_IMPACT_COEFF = 0.1  # Market impact coefficient (sqrt model)
+DEFAULT_AVG_DAILY_VOLUME = 1_000_000  # Default ADV for impact calculation
+DRAWDOWN_PENALTY_COEFF = 0.5  # Penalty multiplier for drawdowns
+MAX_DRAWDOWN_PENALTY = 2.0  # Cap on drawdown penalty per step
+RISK_FREE_RATE_DAILY = 0.05 / 252  # 5% annual risk-free rate, daily
+
+
+@dataclass
+class RewardConfig:
+    """Configuration for institutional-grade reward calculation."""
+    spread_bps: float = DEFAULT_SPREAD_BPS
+    market_impact_coeff: float = MARKET_IMPACT_COEFF
+    avg_daily_volume: float = DEFAULT_AVG_DAILY_VOLUME
+    drawdown_penalty_coeff: float = DRAWDOWN_PENALTY_COEFF
+    max_drawdown_penalty: float = MAX_DRAWDOWN_PENALTY
+    holding_cost_bps: float = 1.0  # 1 bp daily holding cost
+    risk_free_rate_daily: float = RISK_FREE_RATE_DAILY
+
+
 @dataclass
 class TradingAction:
     """Trading action constants."""
@@ -233,6 +254,14 @@ class DQNAgent:
         self.total_reward = 0.0
         self.episode_rewards = deque(maxlen=1000)  # Keep last 1000 episodes
 
+        # Equity tracking for drawdown penalty (institutional-grade reward)
+        self.current_equity = 100000.0  # Default starting equity
+        self.peak_equity = 100000.0
+        self.episode_start_equity = 100000.0
+
+        # Reward configuration
+        self.reward_config = RewardConfig()
+
         # Create model directory
         os.makedirs(model_dir, exist_ok=True)
 
@@ -385,6 +414,64 @@ class DQNAgent:
 
         return action
 
+    def act(
+        self,
+        state: np.ndarray,
+        return_confidence: bool = False,
+        training: bool = False,
+    ) -> int | tuple:
+        """
+        Select action with optional confidence score for ensemble integration.
+
+        Confidence is calculated using softmax over Q-values, representing
+        how certain the agent is about its action choice.
+
+        Args:
+            state: Current state vector
+            return_confidence: If True, return (action, confidence) tuple
+            training: Whether in training mode (enables exploration)
+
+        Returns:
+            Action index, or (action, confidence) tuple if return_confidence=True
+        """
+        if not return_confidence:
+            return self.select_action(state, training=training)
+
+        torch, _, _, _ = import_torch()
+
+        # Set network to eval mode
+        was_training = self.policy_net.training
+        self.policy_net.eval()
+
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            q_values = self.policy_net(state_tensor)
+
+            # Select best action
+            action = q_values.argmax().item()
+
+            # Calculate confidence using softmax
+            # Temperature scaling for sharper/softer confidence
+            temperature = 1.0
+            softmax_probs = torch.softmax(q_values / temperature, dim=1)
+            confidence = softmax_probs[0, action].item()
+
+            # Alternatively, use Q-value spread as confidence
+            # Higher spread = more confident in choice
+            q_np = q_values.cpu().numpy()[0]
+            q_range = q_np.max() - q_np.min()
+            # Normalize to 0-1 (empirically, Q-ranges rarely exceed 10)
+            spread_confidence = min(1.0, q_range / 5.0)
+
+            # Combine softmax and spread confidence
+            final_confidence = 0.7 * confidence + 0.3 * spread_confidence
+
+        # Restore training mode if it was set
+        if was_training:
+            self.policy_net.train()
+
+        return action, final_confidence
+
     def get_q_values(self, state: np.ndarray) -> np.ndarray:
         """
         Get Q-values for all actions given a state.
@@ -413,7 +500,214 @@ class DQNAgent:
 
         return result
 
+    def calculate_transaction_cost(
+        self,
+        order_size: float,
+        price: float,
+        spread_bps: float = None,
+        avg_daily_volume: float = None,
+    ) -> float:
+        """
+        Calculate realistic transaction cost including spread and market impact.
+
+        Uses the square-root market impact model commonly used in institutional
+        trading: impact = coeff * sigma * sqrt(order_size / ADV)
+
+        Args:
+            order_size: Number of shares traded
+            price: Current price per share
+            spread_bps: Bid-ask spread in basis points (default from config)
+            avg_daily_volume: Average daily volume for impact calculation
+
+        Returns:
+            Total transaction cost as decimal (e.g., 0.001 for 0.1%)
+        """
+        cfg = self.reward_config
+
+        if spread_bps is None:
+            spread_bps = cfg.spread_bps
+        if avg_daily_volume is None:
+            avg_daily_volume = cfg.avg_daily_volume
+
+        # Spread cost (always pay half the spread on entry/exit)
+        spread_cost = spread_bps / 10000 / 2
+
+        # Market impact using square-root model
+        # Assumes 1% daily volatility as baseline
+        if avg_daily_volume > 0 and order_size > 0:
+            participation_rate = order_size / avg_daily_volume
+            market_impact = cfg.market_impact_coeff * 0.01 * np.sqrt(participation_rate)
+        else:
+            market_impact = 0.0
+
+        # Total cost = spread + impact
+        total_cost = spread_cost + market_impact
+
+        return total_cost
+
+    def calculate_drawdown_penalty(
+        self,
+        current_equity: float,
+    ) -> float:
+        """
+        Calculate penalty for drawdown from peak equity.
+
+        Encourages the agent to avoid large drawdowns which are critical
+        for institutional risk management.
+
+        Args:
+            current_equity: Current portfolio equity
+
+        Returns:
+            Drawdown penalty (always non-negative)
+        """
+        cfg = self.reward_config
+
+        # Update peak equity
+        if current_equity > self.peak_equity:
+            self.peak_equity = current_equity
+
+        # Calculate drawdown from peak
+        if self.peak_equity > 0:
+            drawdown_pct = (self.peak_equity - current_equity) / self.peak_equity
+        else:
+            drawdown_pct = 0.0
+
+        # Penalty scales with drawdown squared (more severe for larger drawdowns)
+        penalty = cfg.drawdown_penalty_coeff * (drawdown_pct ** 2)
+
+        # Cap the penalty
+        penalty = min(penalty, cfg.max_drawdown_penalty)
+
+        return penalty
+
+    def update_equity(self, equity: float) -> None:
+        """
+        Update current equity for drawdown tracking.
+
+        Call this at each step to maintain accurate drawdown calculations.
+
+        Args:
+            equity: Current portfolio equity value
+        """
+        self.current_equity = equity
+        if equity > self.peak_equity:
+            self.peak_equity = equity
+
+    def reset_equity_tracking(self, starting_equity: float = 100000.0) -> None:
+        """
+        Reset equity tracking at the start of an episode.
+
+        Args:
+            starting_equity: Initial equity value
+        """
+        self.current_equity = starting_equity
+        self.peak_equity = starting_equity
+        self.episode_start_equity = starting_equity
+
     def calculate_reward(
+        self,
+        action: int,
+        price_change_pct: float,
+        position: float,
+        transaction_cost: float = None,
+        holding_cost: float = None,
+        order_size: float = 0.0,
+        price: float = 100.0,
+        current_equity: float = None,
+        spread_bps: float = None,
+        avg_daily_volume: float = None,
+    ) -> float:
+        """
+        Calculate institutional-grade reward for an action.
+
+        Reward components:
+        1. P&L from position and price movement
+        2. Realistic transaction costs (spread + market impact)
+        3. Drawdown penalty (encourages capital preservation)
+        4. Holding costs (borrow fees, opportunity cost)
+        5. Risk-adjusted scaling
+
+        Args:
+            action: Action taken (0=HOLD, 1=BUY, 2=SELL)
+            price_change_pct: Percentage price change (e.g., 0.01 for 1%)
+            position: Position after action (-1 to 1 as fraction of capital)
+            transaction_cost: Override transaction cost (if None, calculated)
+            holding_cost: Override holding cost (if None, from config)
+            order_size: Number of shares traded (for market impact)
+            price: Current price per share (for cost calculation)
+            current_equity: Current portfolio equity (for drawdown penalty)
+            spread_bps: Override spread in basis points
+            avg_daily_volume: Override ADV for impact calculation
+
+        Returns:
+            Reward value (typically in range -10 to +10)
+        """
+        cfg = self.reward_config
+
+        # Update equity tracking if provided
+        if current_equity is not None:
+            self.update_equity(current_equity)
+
+        # === 1. Base P&L from position and price movement ===
+        pnl = position * price_change_pct
+
+        # === 2. Transaction costs (spread + market impact) ===
+        if action != TradingAction.HOLD:
+            if transaction_cost is not None:
+                # Use override if provided (backwards compatibility)
+                cost = transaction_cost
+            else:
+                # Calculate realistic transaction cost
+                cost = self.calculate_transaction_cost(
+                    order_size=order_size,
+                    price=price,
+                    spread_bps=spread_bps,
+                    avg_daily_volume=avg_daily_volume,
+                )
+            pnl -= cost
+
+        # === 3. Holding costs ===
+        if abs(position) > 0:
+            if holding_cost is not None:
+                cost = holding_cost * abs(position)
+            else:
+                # Default holding cost from config (1 bp daily)
+                cost = (cfg.holding_cost_bps / 10000) * abs(position)
+            pnl -= cost
+
+        # === 4. Scale P&L to meaningful reward range ===
+        # Scale by 100 so 1% return = 1 reward unit
+        reward = pnl * 100
+
+        # === 5. Drawdown penalty ===
+        if current_equity is not None:
+            drawdown_penalty = self.calculate_drawdown_penalty(current_equity)
+            reward -= drawdown_penalty
+
+        # === 6. Risk-adjusted bonus for profitable risk-taking ===
+        # Slight bonus for profitable trades to encourage action
+        if action == TradingAction.BUY and price_change_pct > 0.001:
+            # Bonus proportional to gain, capped at 0.1
+            reward += min(0.1, price_change_pct * 5)
+        elif action == TradingAction.SELL and price_change_pct < -0.001:
+            # Bonus for correctly exiting before decline
+            reward += min(0.1, abs(price_change_pct) * 5)
+
+        # === 7. Penalty for large adverse moves ===
+        # Severe penalty for being on wrong side of large moves
+        if action == TradingAction.BUY and price_change_pct < -0.02:
+            # -2% move while long is bad
+            adverse_move = abs(price_change_pct + 0.02)  # Excess beyond 2%
+            reward -= min(0.5, adverse_move * 10)
+        elif action == TradingAction.SELL and price_change_pct > 0.02:
+            # +2% move while short is bad
+            adverse_move = abs(price_change_pct - 0.02)
+            reward -= min(0.5, adverse_move * 10)
+
+        return float(reward)
+
+    def calculate_reward_simple(
         self,
         action: int,
         price_change_pct: float,
@@ -422,55 +716,27 @@ class DQNAgent:
         holding_cost: float = 0.0001
     ) -> float:
         """
-        Calculate reward for an action.
+        Simple reward calculation (legacy API for backwards compatibility).
 
-        Reward is based on:
-        - P&L from position and price movement
-        - Transaction costs for trades
-        - Small penalty for excessive trading
-        - Risk-adjusted scaling
+        For new code, use calculate_reward() with full parameters.
 
         Args:
             action: Action taken (0=HOLD, 1=BUY, 2=SELL)
-            price_change_pct: Percentage price change (e.g., 0.01 for 1%)
+            price_change_pct: Percentage price change
             position: Position after action (-1 to 1)
             transaction_cost: Cost per trade as decimal
-            holding_cost: Cost per period for holding (e.g., borrow cost)
+            holding_cost: Cost per period for holding
 
         Returns:
-            Reward value (typically in range -10 to +10)
+            Reward value
         """
-        # Base reward from position and price movement
-        pnl = position * price_change_pct
-
-        # Transaction cost penalty
-        if action != TradingAction.HOLD:
-            pnl -= transaction_cost
-
-        # Holding cost (borrow fees, opportunity cost)
-        if abs(position) > 0:
-            pnl -= holding_cost * abs(position)
-
-        # Scale reward to meaningful range
-        reward = pnl * 100
-
-        # Penalty for excessive trading (encourages meaningful trades)
-        if action != TradingAction.HOLD:
-            reward -= 0.01
-
-        # Bonus for profitable trades
-        if action == TradingAction.BUY and price_change_pct > 0:
-            reward += 0.05
-        elif action == TradingAction.SELL and price_change_pct < 0:
-            reward += 0.05
-
-        # Penalty for wrong direction
-        if action == TradingAction.BUY and price_change_pct < -0.02:
-            reward -= 0.1
-        elif action == TradingAction.SELL and price_change_pct > 0.02:
-            reward -= 0.1
-
-        return float(reward)
+        return self.calculate_reward(
+            action=action,
+            price_change_pct=price_change_pct,
+            position=position,
+            transaction_cost=transaction_cost,
+            holding_cost=holding_cost,
+        )
 
     def store_experience(
         self,
@@ -588,15 +854,33 @@ class DQNAgent:
 
         return loss.item()
 
-    def end_episode(self) -> Dict[str, float]:
+    def end_episode(self, reset_equity: bool = True) -> Dict[str, float]:
         """
         End the current episode and return statistics.
+
+        Args:
+            reset_equity: Whether to reset equity tracking (default True)
 
         Returns:
             Dictionary with episode statistics
         """
         self.episodes += 1
         episode_reward = self.total_reward
+
+        # Calculate episode return for reporting
+        if self.episode_start_equity > 0:
+            episode_return = (
+                (self.current_equity - self.episode_start_equity)
+                / self.episode_start_equity
+            )
+        else:
+            episode_return = 0.0
+
+        # Calculate max drawdown during episode
+        if self.peak_equity > 0:
+            max_drawdown = (self.peak_equity - self.current_equity) / self.peak_equity
+        else:
+            max_drawdown = 0.0
 
         self.episode_rewards.append(episode_reward)
         self.total_reward = 0.0
@@ -606,14 +890,23 @@ class DQNAgent:
             if self.episode_rewards else 0.0
         )
 
-        return {
+        stats = {
             "episode": self.episodes,
             "episode_reward": episode_reward,
+            "episode_return": episode_return,
+            "max_drawdown": max_drawdown,
+            "final_equity": self.current_equity,
             "avg_reward_100": avg_reward,
             "epsilon": self.epsilon,
             "steps": self.steps,
             "buffer_size": len(self.replay_buffer)
         }
+
+        # Reset equity tracking for next episode
+        if reset_equity:
+            self.reset_equity_tracking(self.episode_start_equity)
+
+        return stats
 
     def reset_epsilon(self, epsilon: float = None) -> None:
         """
@@ -649,6 +942,12 @@ class DQNAgent:
             "epsilon": self.epsilon,
             "buffer_size": len(self.replay_buffer),
             "device": str(self.device),
+            "current_equity": self.current_equity,
+            "peak_equity": self.peak_equity,
+            "current_drawdown": (
+                (self.peak_equity - self.current_equity) / self.peak_equity
+                if self.peak_equity > 0 else 0.0
+            ),
             "avg_reward_100": (
                 np.mean(list(self.episode_rewards)[-100:])
                 if self.episode_rewards else 0.0

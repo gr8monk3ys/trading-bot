@@ -33,7 +33,13 @@ sys.modules["config"] = MagicMock(
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from engine.walk_forward import WalkForwardResult, WalkForwardValidator
+from engine.walk_forward import (
+    WalkForwardResult,
+    WalkForwardValidator,
+    DegradationSignificanceResult,
+    check_degradation_significance,
+    calculate_sharpe_confidence_interval,
+)
 
 # Restore real config to prevent Mock from leaking to other test files
 if _original_config is not None:
@@ -122,7 +128,8 @@ class TestValidatorInit:
         assert validator.train_ratio == 0.7
         assert validator.n_splits == 5
         assert validator.min_train_days == 30
-        assert validator.gap_days == 0
+        # gap_days defaults to 5 (institutional standard embargo period)
+        assert validator.gap_days == 5
         assert validator.results == []
 
     def test_custom_initialization(self, validator_custom):
@@ -682,6 +689,211 @@ class TestRunWalkForwardValidation:
 
         # Just test that it's callable
         assert callable(run_walk_forward_validation)
+
+
+# =============================================================================
+# TEST DEGRADATION SIGNIFICANCE (NEW INSTITUTIONAL FEATURES)
+# =============================================================================
+
+
+class TestDegradationSignificance:
+    """Test statistical significance testing for IS→OOS degradation."""
+
+    def test_significant_degradation_detected(self):
+        """Test that significant degradation is detected."""
+        # IS returns consistently higher than OOS
+        is_returns = [0.15, 0.12, 0.18, 0.14, 0.16, 0.13, 0.17]
+        oos_returns = [0.02, 0.01, 0.03, 0.00, 0.02, -0.01, 0.01]
+
+        result = check_degradation_significance(is_returns, oos_returns)
+
+        # Should detect significant degradation (use == for numpy bool)
+        assert result.degradation_significant == True
+        assert result.wilcoxon_p_value < 0.05
+        assert result.mean_degradation > 0.10  # IS - OOS > 10%
+
+    def test_no_significant_degradation(self):
+        """Test that similar returns show no significant degradation."""
+        # IS and OOS returns similar (some noise)
+        np.random.seed(42)
+        is_returns = [0.05, 0.06, 0.04, 0.05, 0.07, 0.04, 0.06]
+        oos_returns = [0.04, 0.05, 0.06, 0.04, 0.05, 0.06, 0.05]
+
+        result = check_degradation_significance(is_returns, oos_returns)
+
+        # Should not detect significant degradation (use == for numpy bool)
+        assert result.degradation_significant == False
+        assert result.wilcoxon_p_value >= 0.05
+
+    def test_insufficient_data(self):
+        """Test handling of insufficient data."""
+        is_returns = [0.10, 0.12]
+        oos_returns = [0.05, 0.06]
+
+        result = check_degradation_significance(is_returns, oos_returns)
+
+        assert "Insufficient" in result.interpretation
+        assert result.wilcoxon_p_value == 1.0
+
+    def test_mismatched_length_raises_error(self):
+        """Test that mismatched lengths raise ValueError."""
+        is_returns = [0.10, 0.12, 0.15, 0.14, 0.16]
+        oos_returns = [0.05, 0.06]
+
+        with pytest.raises(ValueError, match="same length"):
+            check_degradation_significance(is_returns, oos_returns)
+
+    def test_confidence_interval_covers_mean(self):
+        """Test that CI covers the mean degradation."""
+        is_returns = [0.15, 0.12, 0.18, 0.14, 0.16, 0.13, 0.17]
+        oos_returns = [0.02, 0.01, 0.03, 0.00, 0.02, -0.01, 0.01]
+
+        result = check_degradation_significance(is_returns, oos_returns)
+
+        # Mean should be within CI
+        assert result.degradation_ci_lower <= result.mean_degradation
+        assert result.mean_degradation <= result.degradation_ci_upper
+
+    def test_effect_size_calculated(self):
+        """Test that effect size is calculated."""
+        is_returns = [0.15, 0.12, 0.18, 0.14, 0.16, 0.13, 0.17]
+        oos_returns = [0.02, 0.01, 0.03, 0.00, 0.02, -0.01, 0.01]
+
+        result = check_degradation_significance(is_returns, oos_returns)
+
+        # Effect size should be calculated
+        assert result.effect_size != 0
+        assert result.effect_magnitude in ["negligible", "small", "medium", "large"]
+
+    def test_large_effect_size_for_obvious_degradation(self):
+        """Test that obvious degradation shows large effect size."""
+        # Very obvious degradation
+        is_returns = [0.20, 0.22, 0.18, 0.21, 0.19]
+        oos_returns = [0.00, -0.01, 0.01, 0.00, -0.02]
+
+        result = check_degradation_significance(is_returns, oos_returns)
+
+        assert result.effect_magnitude in ["medium", "large"]
+
+    def test_interpretation_contains_key_info(self):
+        """Test that interpretation contains key information."""
+        is_returns = [0.15, 0.12, 0.18, 0.14, 0.16, 0.13, 0.17]
+        oos_returns = [0.02, 0.01, 0.03, 0.00, 0.02, -0.01, 0.01]
+
+        result = check_degradation_significance(is_returns, oos_returns)
+
+        # Interpretation should mention key elements
+        assert "p=" in result.interpretation
+        assert "Mean degradation" in result.interpretation or "degradation" in result.interpretation.lower()
+
+
+class TestSharpeConfidenceInterval:
+    """Test Sharpe ratio confidence interval calculation."""
+
+    def test_calculates_sharpe_and_ci(self):
+        """Test that Sharpe and CI are calculated."""
+        np.random.seed(42)
+        returns = np.random.normal(0.001, 0.02, 100)
+
+        sharpe, ci_lower, ci_upper = calculate_sharpe_confidence_interval(returns)
+
+        assert ci_lower < sharpe < ci_upper
+        assert ci_lower < ci_upper
+
+    def test_insufficient_data_wide_ci(self):
+        """Test that small samples have wide CI."""
+        returns = np.array([0.01, 0.02, -0.01])
+
+        sharpe, ci_lower, ci_upper = calculate_sharpe_confidence_interval(returns)
+
+        # CI should be wide for small samples
+        ci_width = ci_upper - ci_lower
+        assert ci_width >= 1.5
+
+    def test_consistent_returns_narrow_ci(self):
+        """Test that consistent returns have narrower CI."""
+        np.random.seed(42)
+        # Very consistent returns (low volatility)
+        returns = np.random.normal(0.001, 0.001, 200)
+
+        sharpe, ci_lower, ci_upper = calculate_sharpe_confidence_interval(returns)
+
+        # Should have reasonably narrow CI
+        ci_width = ci_upper - ci_lower
+        assert ci_width < sharpe * 2 if sharpe > 0 else True
+
+
+class TestWalkForwardWithStatistics:
+    """Test walk-forward validation with statistical significance."""
+
+    @pytest.mark.asyncio
+    async def test_returns_degradation_test_results(self, validator):
+        """Test that validation returns degradation test results."""
+        async def mock_backtest(symbols, start, end, **kwargs):
+            return {"total_return": 0.08, "sharpe_ratio": 1.0, "num_trades": 15, "win_rate": 0.55}
+
+        validator.n_splits = 5
+        result = await validator.validate(
+            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
+        )
+
+        assert "degradation_test" in result
+        assert "wilcoxon_p_value" in result["degradation_test"]
+        assert "degradation_significant" in result["degradation_test"]
+        assert "effect_size" in result["degradation_test"]
+
+    @pytest.mark.asyncio
+    async def test_returns_sharpe_ci(self, validator):
+        """Test that validation returns Sharpe confidence interval."""
+        async def mock_backtest(symbols, start, end, **kwargs):
+            return {"total_return": 0.08, "sharpe_ratio": 1.0, "num_trades": 15, "win_rate": 0.55}
+
+        validator.n_splits = 5
+        result = await validator.validate(
+            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
+        )
+
+        assert "oos_sharpe_ci" in result
+        ci_lower, ci_upper = result["oos_sharpe_ci"]
+        assert ci_lower < ci_upper
+
+    @pytest.mark.asyncio
+    async def test_passes_with_small_effect_size(self, validator):
+        """Test that validation passes with insignificant degradation."""
+        async def mock_backtest(symbols, start, end, **kwargs):
+            # Same returns for IS and OOS
+            return {"total_return": 0.06, "sharpe_ratio": 0.9, "num_trades": 12, "win_rate": 0.52}
+
+        validator.n_splits = 5
+        result = await validator.validate(
+            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
+        )
+
+        # Should pass because no significant degradation
+        assert result["passes_validation"] is True
+        assert result["degradation_test"]["degradation_significant"] is False
+
+    @pytest.mark.asyncio
+    async def test_fails_with_significant_degradation(self, validator):
+        """Test that validation fails with significant degradation."""
+        call_num = [0]
+
+        async def mock_backtest(symbols, start, end, **kwargs):
+            call_num[0] += 1
+            if call_num[0] % 2 == 1:  # IS - great returns
+                return {"total_return": 0.40, "sharpe_ratio": 2.5, "num_trades": 25, "win_rate": 0.70}
+            else:  # OOS - poor returns
+                return {"total_return": 0.02, "sharpe_ratio": 0.2, "num_trades": 8, "win_rate": 0.45}
+
+        validator.n_splits = 5
+        result = await validator.validate(
+            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
+        )
+
+        # Should fail due to significant degradation (use == for numpy bool)
+        assert result["degradation_test"]["degradation_significant"] == True
+        # Effect size should not be negligible/small for such large degradation
+        assert result["degradation_test"]["effect_magnitude"] in ["medium", "large"]
 
 
 if __name__ == "__main__":

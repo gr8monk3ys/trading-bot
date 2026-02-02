@@ -8,21 +8,50 @@ Key Concepts:
 - Train/Test Splits: Strategy is trained on one period, tested on another
 - Rolling Windows: Multiple train/test periods to capture different market conditions
 - Overfitting Detection: Compares in-sample vs out-of-sample performance
+- Statistical Significance: Wilcoxon test for IS vs OOS degradation
 
 Industry standard: If OOS performance < 50% of IS performance, strategy is overfit.
+
+INSTITUTIONAL STANDARD: Degradation should be tested for statistical significance,
+not just compared against arbitrary thresholds.
 """
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from scipy import stats
 
 from config import BACKTEST_PARAMS
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DegradationSignificanceResult:
+    """Result of statistical significance test for IS→OOS degradation."""
+
+    is_returns: List[float]
+    oos_returns: List[float]
+
+    # Wilcoxon signed-rank test (paired test for IS > OOS)
+    wilcoxon_statistic: float
+    wilcoxon_p_value: float
+    degradation_significant: bool  # True if IS significantly > OOS
+
+    # Bootstrap confidence interval for mean degradation
+    mean_degradation: float
+    degradation_ci_lower: float  # 95% CI lower bound
+    degradation_ci_upper: float  # 95% CI upper bound
+
+    # Effect size (rank-biserial correlation for Wilcoxon)
+    effect_size: float
+    effect_magnitude: str  # 'negligible', 'small', 'medium', 'large'
+
+    interpretation: str
 
 
 @dataclass
@@ -52,6 +81,208 @@ class WalkForwardResult:
     degradation: float  # How much worse OOS is compared to IS
 
 
+def check_degradation_significance(
+    is_returns: List[float],
+    oos_returns: List[float],
+    alpha: float = 0.05,
+    n_bootstrap: int = 1000,
+    random_state: Optional[int] = None,
+) -> DegradationSignificanceResult:
+    """
+    Test if IS→OOS degradation is statistically significant.
+
+    Uses Wilcoxon signed-rank test (paired, non-parametric) to test whether
+    in-sample returns are significantly greater than out-of-sample returns.
+
+    INSTITUTIONAL STANDARD: Don't just use arbitrary thresholds like "2x".
+    Use statistical tests to determine if degradation is real or noise.
+
+    The Wilcoxon signed-rank test is appropriate because:
+    1. Paired data (same folds, different conditions)
+    2. Non-parametric (doesn't assume normal distribution)
+    3. Robust to outliers (common in trading returns)
+
+    Args:
+        is_returns: In-sample returns from each fold
+        oos_returns: Out-of-sample returns from each fold (same length)
+        alpha: Significance threshold (default 0.05)
+        n_bootstrap: Number of bootstrap samples for CI (default 1000)
+        random_state: Random seed for reproducibility
+
+    Returns:
+        DegradationSignificanceResult with test statistics and interpretation
+    """
+    n = len(is_returns)
+
+    if n < 5:
+        return DegradationSignificanceResult(
+            is_returns=list(is_returns),
+            oos_returns=list(oos_returns),
+            wilcoxon_statistic=0.0,
+            wilcoxon_p_value=1.0,
+            degradation_significant=False,
+            mean_degradation=0.0,
+            degradation_ci_lower=0.0,
+            degradation_ci_upper=0.0,
+            effect_size=0.0,
+            effect_magnitude="unknown",
+            interpretation="Insufficient folds for statistical test (need >= 5)",
+        )
+
+    if len(is_returns) != len(oos_returns):
+        raise ValueError("is_returns and oos_returns must have same length")
+
+    is_arr = np.array(is_returns)
+    oos_arr = np.array(oos_returns)
+
+    # Calculate paired differences
+    differences = is_arr - oos_arr
+
+    # If all differences are zero, can't perform test
+    if np.all(differences == 0):
+        return DegradationSignificanceResult(
+            is_returns=list(is_returns),
+            oos_returns=list(oos_returns),
+            wilcoxon_statistic=0.0,
+            wilcoxon_p_value=1.0,
+            degradation_significant=False,
+            mean_degradation=0.0,
+            degradation_ci_lower=0.0,
+            degradation_ci_upper=0.0,
+            effect_size=0.0,
+            effect_magnitude="negligible",
+            interpretation="No difference between IS and OOS returns",
+        )
+
+    # Wilcoxon signed-rank test
+    # alternative='greater' tests if IS > OOS (degradation exists)
+    try:
+        stat, p_value = stats.wilcoxon(
+            is_arr, oos_arr, alternative="greater", zero_method="wilcox"
+        )
+    except ValueError:
+        # Can happen if too few non-zero differences
+        stat, p_value = 0.0, 1.0
+
+    degradation_significant = p_value < alpha
+
+    # Calculate mean degradation and bootstrap CI
+    mean_degradation = np.mean(differences)
+
+    rng = np.random.default_rng(random_state)
+    bootstrap_means = []
+
+    for _ in range(n_bootstrap):
+        # Resample with replacement
+        indices = rng.choice(n, size=n, replace=True)
+        bootstrap_diff = differences[indices]
+        bootstrap_means.append(np.mean(bootstrap_diff))
+
+    bootstrap_means = np.array(bootstrap_means)
+    ci_lower = np.percentile(bootstrap_means, 2.5)
+    ci_upper = np.percentile(bootstrap_means, 97.5)
+
+    # Calculate effect size (rank-biserial correlation for Wilcoxon)
+    # r = 1 - (2W / (n(n+1)/2)) where W is the test statistic
+    n_pairs = n
+    max_stat = n_pairs * (n_pairs + 1) / 2
+    effect_size = 1 - (2 * stat / max_stat) if max_stat > 0 else 0
+
+    # Interpret effect size magnitude
+    abs_effect = abs(effect_size)
+    if abs_effect < 0.1:
+        effect_magnitude = "negligible"
+    elif abs_effect < 0.3:
+        effect_magnitude = "small"
+    elif abs_effect < 0.5:
+        effect_magnitude = "medium"
+    else:
+        effect_magnitude = "large"
+
+    # Build interpretation
+    if degradation_significant:
+        interpretation = (
+            f"SIGNIFICANT DEGRADATION DETECTED (p={p_value:.4f} < {alpha}). "
+            f"In-sample returns are significantly higher than out-of-sample. "
+            f"Mean degradation: {mean_degradation:.2%} (95% CI: [{ci_lower:.2%}, {ci_upper:.2%}]). "
+            f"Effect size: {effect_size:.3f} ({effect_magnitude}). "
+            f"This suggests the strategy is OVERFIT."
+        )
+    else:
+        interpretation = (
+            f"No significant degradation detected (p={p_value:.4f} >= {alpha}). "
+            f"Mean degradation: {mean_degradation:.2%} (95% CI: [{ci_lower:.2%}, {ci_upper:.2%}]). "
+            f"Effect size: {effect_size:.3f} ({effect_magnitude}). "
+            f"IS→OOS difference may be due to chance variation."
+        )
+
+    return DegradationSignificanceResult(
+        is_returns=list(is_returns),
+        oos_returns=list(oos_returns),
+        wilcoxon_statistic=stat,
+        wilcoxon_p_value=p_value,
+        degradation_significant=degradation_significant,
+        mean_degradation=mean_degradation,
+        degradation_ci_lower=ci_lower,
+        degradation_ci_upper=ci_upper,
+        effect_size=effect_size,
+        effect_magnitude=effect_magnitude,
+        interpretation=interpretation,
+    )
+
+
+def calculate_sharpe_confidence_interval(
+    returns: np.ndarray,
+    confidence: float = 0.95,
+    n_bootstrap: int = 1000,
+    random_state: Optional[int] = None,
+) -> Tuple[float, float, float]:
+    """
+    Calculate Sharpe ratio with bootstrap confidence interval.
+
+    INSTITUTIONAL STANDARD: Point estimates of Sharpe ratio are misleading.
+    Always report confidence intervals.
+
+    Args:
+        returns: Array of returns
+        confidence: Confidence level (default 0.95)
+        n_bootstrap: Number of bootstrap samples
+        random_state: Random seed
+
+    Returns:
+        Tuple of (sharpe_ratio, ci_lower, ci_upper)
+    """
+    if len(returns) < 10:
+        sharpe = np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
+        return sharpe, sharpe - 1, sharpe + 1  # Wide CI for small samples
+
+    rng = np.random.default_rng(random_state)
+    n = len(returns)
+
+    # Calculate observed Sharpe
+    sharpe = np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
+
+    # Bootstrap
+    bootstrap_sharpes = []
+    for _ in range(n_bootstrap):
+        indices = rng.choice(n, size=n, replace=True)
+        boot_returns = returns[indices]
+        boot_std = np.std(boot_returns)
+        if boot_std > 0:
+            boot_sharpe = np.mean(boot_returns) / boot_std * np.sqrt(252)
+            bootstrap_sharpes.append(boot_sharpe)
+
+    if not bootstrap_sharpes:
+        return sharpe, sharpe - 1, sharpe + 1
+
+    bootstrap_sharpes = np.array(bootstrap_sharpes)
+    alpha = 1 - confidence
+    ci_lower = np.percentile(bootstrap_sharpes, 100 * alpha / 2)
+    ci_upper = np.percentile(bootstrap_sharpes, 100 * (1 - alpha / 2))
+
+    return sharpe, ci_lower, ci_upper
+
+
 class WalkForwardValidator:
     """
     Validates trading strategies using walk-forward optimization.
@@ -69,7 +300,7 @@ class WalkForwardValidator:
         train_ratio: float = None,
         n_splits: int = None,
         min_train_days: int = None,
-        gap_days: int = 0,
+        gap_days: int = 5,
     ):
         """
         Initialize walk-forward validator.
@@ -78,7 +309,12 @@ class WalkForwardValidator:
             train_ratio: Ratio of data for training (default 0.7)
             n_splits: Number of walk-forward folds (default 5)
             min_train_days: Minimum days required for training (default 30)
-            gap_days: Gap between train and test to prevent lookahead (default 0)
+            gap_days: Gap (embargo period) between train and test to prevent
+                     information leakage from pending orders, market impact,
+                     and other temporal effects. Default 5 days.
+
+                     INSTITUTIONAL STANDARD: 3-10 days depending on strategy
+                     holding period. Longer for strategies with longer horizons.
         """
         self.train_ratio = train_ratio or BACKTEST_PARAMS.get("TRAIN_RATIO", 0.7)
         self.n_splits = n_splits or BACKTEST_PARAMS.get("N_SPLITS", 5)
@@ -277,10 +513,40 @@ class WalkForwardValidator:
         # Total trades
         total_oos_trades = sum(r.oos_trades for r in self.results)
 
-        # Determine if strategy passes validation
+        # === STATISTICAL SIGNIFICANCE TESTING ===
+        # INSTITUTIONAL STANDARD: Don't rely on arbitrary thresholds
+        # Use Wilcoxon signed-rank test for paired IS vs OOS comparison
+        is_returns = [r.is_return for r in self.results]
+        oos_returns = [r.oos_return for r in self.results]
+
+        degradation_test = check_degradation_significance(is_returns, oos_returns)
+
+        # Calculate Sharpe confidence intervals
+        is_returns_arr = np.array([r.is_return for r in self.results])
+        oos_returns_arr = np.array([r.oos_return for r in self.results])
+
+        oos_sharpe, oos_sharpe_ci_lower, oos_sharpe_ci_upper = calculate_sharpe_confidence_interval(
+            oos_returns_arr
+        )
+
+        # === UPDATED VALIDATION CRITERIA ===
+        # Old: Arbitrary threshold-based
+        # New: Statistical significance-based
+        #
+        # Strategy passes if:
+        # 1. OOS returns are positive (basic requirement)
+        # 2. No STATISTICALLY SIGNIFICANT degradation (Wilcoxon p > 0.05)
+        #    OR degradation effect size is small
+        # 3. Consistent across folds (>= 50% profitable)
+
+        # Use statistical test results for validation
+        passes_statistical_test = not degradation_test.degradation_significant or (
+            degradation_test.effect_magnitude in ["negligible", "small"]
+        )
+
         passes_validation = (
             avg_oos_return > 0
-            and avg_overfit_ratio < self.overfitting_threshold
+            and passes_statistical_test
             and consistency >= 0.5
         )
 
@@ -295,26 +561,37 @@ class WalkForwardValidator:
 
         print("\nOut-of-Sample Performance (Testing):")
         print(f"  Average Return:    {avg_oos_return:+.2%}")
-        print(f"  Average Sharpe:    {avg_oos_sharpe:.2f}")
+        print(f"  Average Sharpe:    {avg_oos_sharpe:.2f} (95% CI: [{oos_sharpe_ci_lower:.2f}, {oos_sharpe_ci_upper:.2f}])")
         print(f"  Total Trades:      {total_oos_trades}")
         print(f"  Consistency:       {consistency:.0%} of folds profitable")
 
-        print("\nOverfitting Analysis:")
+        print("\nOverfitting Analysis (Legacy Metrics):")
         print(f"  Average Degradation:  {avg_degradation:.1%}")
         print(f"  Average Overfit Ratio: {avg_overfit_ratio:.2f}")
         print(f"  Overfit Folds:        {overfit_folds}/{len(self.results)}")
+
+        print("\n🔬 STATISTICAL SIGNIFICANCE TEST (Wilcoxon):")
+        print(f"  Test Statistic:     {degradation_test.wilcoxon_statistic:.2f}")
+        print(f"  P-value:            {degradation_test.wilcoxon_p_value:.4f}")
+        print(f"  Significant:        {'YES' if degradation_test.degradation_significant else 'NO'}")
+        print(f"  Effect Size:        {degradation_test.effect_size:.3f} ({degradation_test.effect_magnitude})")
+        print(f"  Mean Degradation:   {degradation_test.mean_degradation:.2%}")
+        print(f"  95% CI:             [{degradation_test.degradation_ci_lower:.2%}, {degradation_test.degradation_ci_upper:.2%}]")
 
         print("\n" + "=" * 80)
         if passes_validation:
             print("✅ VALIDATION PASSED")
             print("   Strategy shows consistent out-of-sample performance")
+            if not degradation_test.degradation_significant:
+                print("   IS→OOS degradation is NOT statistically significant")
         else:
             print("❌ VALIDATION FAILED")
             if avg_oos_return <= 0:
                 print("   - Out-of-sample returns are negative")
-            if avg_overfit_ratio >= self.overfitting_threshold:
+            if degradation_test.degradation_significant and degradation_test.effect_magnitude not in ["negligible", "small"]:
                 print(
-                    f"   - Overfitting detected (ratio {avg_overfit_ratio:.2f} > {self.overfitting_threshold})"
+                    f"   - STATISTICALLY SIGNIFICANT overfitting detected "
+                    f"(p={degradation_test.wilcoxon_p_value:.4f}, effect={degradation_test.effect_magnitude})"
                 )
             if consistency < 0.5:
                 print(f"   - Inconsistent results ({consistency:.0%} folds profitable)")
@@ -330,12 +607,24 @@ class WalkForwardValidator:
             # Out-of-sample metrics
             "oos_avg_return": avg_oos_return,
             "oos_avg_sharpe": avg_oos_sharpe,
+            "oos_sharpe_ci": (oos_sharpe_ci_lower, oos_sharpe_ci_upper),
             "oos_total_trades": total_oos_trades,
             "oos_consistency": consistency,
-            # Overfitting metrics
+            # Overfitting metrics (legacy)
             "avg_degradation": avg_degradation,
             "avg_overfit_ratio": avg_overfit_ratio,
             "overfit_folds": overfit_folds,
+            # Statistical significance (NEW)
+            "degradation_test": {
+                "wilcoxon_statistic": degradation_test.wilcoxon_statistic,
+                "wilcoxon_p_value": degradation_test.wilcoxon_p_value,
+                "degradation_significant": degradation_test.degradation_significant,
+                "mean_degradation": degradation_test.mean_degradation,
+                "degradation_ci": (degradation_test.degradation_ci_lower, degradation_test.degradation_ci_upper),
+                "effect_size": degradation_test.effect_size,
+                "effect_magnitude": degradation_test.effect_magnitude,
+                "interpretation": degradation_test.interpretation,
+            },
             # Raw results
             "fold_results": self.results,
         }

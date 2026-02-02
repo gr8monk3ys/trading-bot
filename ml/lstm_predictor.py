@@ -81,6 +81,35 @@ class PredictionResult:
 
 
 @dataclass
+class MCDropoutResult:
+    """
+    Result of Monte Carlo Dropout uncertainty estimation.
+
+    MC Dropout provides Bayesian uncertainty estimates by keeping
+    dropout enabled during inference and running multiple forward passes.
+    """
+
+    symbol: str
+    mean_prediction: float  # Mean of all forward passes
+    std_prediction: float  # Std deviation (uncertainty measure)
+    lower_bound: float  # 95% confidence interval lower
+    upper_bound: float  # 95% confidence interval upper
+    confidence: float  # Calibrated confidence (0-1)
+    n_samples: int  # Number of forward passes
+    predicted_direction: str
+    direction_probability: float  # P(direction is correct)
+    timestamp: datetime
+    current_price: float = 0.0
+
+    @property
+    def coefficient_of_variation(self) -> float:
+        """CV = std/mean - normalized uncertainty measure."""
+        if abs(self.mean_prediction) < 1e-8:
+            return float("inf")
+        return abs(self.std_prediction / self.mean_prediction)
+
+
+@dataclass
 class TrainingMetrics:
     """Metrics from model training."""
 
@@ -588,7 +617,7 @@ class LSTMPredictor:
             best_val_loss=best_val_loss,
             training_time_seconds=training_time,
             model_path=model_path,
-            samples_used=len(X),
+            samples_used=len(X_train) + len(X_val),
         )
 
     def predict(self, symbol: str, prices: List[dict]) -> Optional[PredictionResult]:
@@ -852,3 +881,242 @@ class LSTMPredictor:
         if symbol in self.scalers:
             del self.scalers[symbol]
         return removed
+
+    def predict_with_uncertainty(
+        self,
+        symbol: str,
+        prices: List[dict],
+        n_samples: int = 100,
+        confidence_level: float = 0.95,
+    ) -> Optional[MCDropoutResult]:
+        """
+        Make prediction with uncertainty estimation using MC Dropout.
+
+        Monte Carlo Dropout keeps dropout enabled during inference and
+        runs multiple forward passes to estimate epistemic uncertainty
+        (uncertainty due to model/parameter uncertainty).
+
+        This is CRITICAL for institutional-grade trading:
+        - Know when model is uncertain
+        - Size positions based on confidence
+        - Avoid trading when model is outside its training distribution
+
+        Args:
+            symbol: Stock symbol
+            prices: Recent OHLCV data
+            n_samples: Number of forward passes (more = better estimate)
+            confidence_level: Confidence interval level (default 95%)
+
+        Returns:
+            MCDropoutResult with uncertainty estimates, or None if fails
+        """
+        torch, _, _, _ = import_torch()
+
+        # Validate inputs
+        if symbol not in self.models:
+            logger.warning(f"No trained model for {symbol}")
+            return None
+
+        if len(prices) < self.sequence_length:
+            logger.warning(f"Insufficient data for {symbol}")
+            return None
+
+        if symbol not in self.scalers:
+            logger.warning(f"No scaler for {symbol}")
+            return None
+
+        try:
+            # Prepare features
+            recent_prices = prices[-self.sequence_length:]
+            features = self._prepare_features(recent_prices)
+
+            if len(features) == 0:
+                return None
+
+            # Normalize using existing scaler
+            normalized = self.scalers[symbol].transform(features)
+
+            # Create input tensor
+            X = torch.FloatTensor(normalized).unsqueeze(0).to(self.device)
+
+            # Get model
+            model = self.models[symbol]
+
+            # CRITICAL: Keep model in TRAINING mode to enable dropout
+            # This is what makes it "Monte Carlo" dropout
+            model.train()
+
+            # Run multiple forward passes
+            predictions = []
+            for _ in range(n_samples):
+                with torch.no_grad():
+                    pred = model(X).item()
+                    predictions.append(pred)
+
+            # Return to eval mode for normal predictions
+            model.eval()
+
+            predictions = np.array(predictions)
+
+            # Calculate statistics
+            mean_pred = np.mean(predictions)
+            std_pred = np.std(predictions)
+
+            # Confidence interval
+            alpha = 1 - confidence_level
+            z_score = 1.96  # For 95% CI
+            if confidence_level == 0.99:
+                z_score = 2.576
+            elif confidence_level == 0.90:
+                z_score = 1.645
+
+            lower = mean_pred - z_score * std_pred
+            upper = mean_pred + z_score * std_pred
+
+            # Denormalize predictions
+            scaler = self.scalers[symbol]
+            close_min = scaler.data_min_[3]
+            close_max = scaler.data_max_[3]
+            close_range = close_max - close_min
+
+            mean_price = mean_pred * close_range + close_min
+            std_price = std_pred * close_range  # Scale std
+            lower_price = lower * close_range + close_min
+            upper_price = upper * close_range + close_min
+
+            # Get current price
+            current_close = float(prices[-1].get("close", prices[-1].get("c", 0)))
+
+            if current_close <= 0:
+                return None
+
+            # Calculate direction and probability
+            price_change = mean_price - current_close
+            direction = "up" if price_change > 0 else "down" if price_change < 0 else "neutral"
+
+            # Direction probability: what fraction of samples agree?
+            if direction == "up":
+                agreeing = np.sum((predictions * close_range + close_min) > current_close)
+            elif direction == "down":
+                agreeing = np.sum((predictions * close_range + close_min) < current_close)
+            else:
+                agreeing = n_samples // 2
+
+            direction_prob = agreeing / n_samples
+
+            # Calibrated confidence
+            # High confidence = low uncertainty + high direction agreement
+            cv = abs(std_price / mean_price) if abs(mean_price) > 1e-8 else float("inf")
+            uncertainty_penalty = min(1.0, cv * 10)  # Penalize high CV
+            confidence = direction_prob * (1 - uncertainty_penalty * 0.5)
+            confidence = max(0.0, min(1.0, confidence))
+
+            return MCDropoutResult(
+                symbol=symbol,
+                mean_prediction=mean_price,
+                std_prediction=std_price,
+                lower_bound=lower_price,
+                upper_bound=upper_price,
+                confidence=confidence,
+                n_samples=n_samples,
+                predicted_direction=direction,
+                direction_probability=direction_prob,
+                timestamp=datetime.now(),
+                current_price=current_close,
+            )
+
+        except Exception as e:
+            logger.error(f"MC Dropout prediction failed for {symbol}: {e}", exc_info=True)
+            return None
+
+    def get_prediction_calibration(
+        self,
+        symbol: str,
+        price_history: List[dict],
+        n_test_points: int = 50,
+    ) -> Optional[Dict]:
+        """
+        Evaluate calibration of MC Dropout confidence estimates.
+
+        A well-calibrated model should have:
+        - 95% of true values within 95% confidence interval
+        - Confidence correlated with actual accuracy
+
+        Args:
+            symbol: Stock symbol
+            price_history: Historical prices for evaluation
+            n_test_points: Number of test predictions to make
+
+        Returns:
+            Calibration metrics dictionary
+        """
+        if len(price_history) < self.sequence_length + self.prediction_horizon + n_test_points:
+            logger.warning("Insufficient data for calibration analysis")
+            return None
+
+        in_interval_count = 0
+        direction_correct_count = 0
+        confidence_accuracy_pairs = []
+
+        for i in range(n_test_points):
+            # Get data for this test point
+            start_idx = i
+            end_idx = start_idx + self.sequence_length
+
+            if end_idx + self.prediction_horizon >= len(price_history):
+                break
+
+            test_prices = price_history[start_idx:end_idx]
+
+            # Make prediction with uncertainty
+            result = self.predict_with_uncertainty(symbol, test_prices)
+
+            if result is None:
+                continue
+
+            # Get actual future price
+            actual_idx = end_idx + self.prediction_horizon - 1
+            actual_price = float(
+                price_history[actual_idx].get("close", price_history[actual_idx].get("c", 0))
+            )
+
+            # Check if actual is within confidence interval
+            if result.lower_bound <= actual_price <= result.upper_bound:
+                in_interval_count += 1
+
+            # Check direction accuracy
+            actual_direction = "up" if actual_price > result.current_price else "down"
+            if result.predicted_direction == actual_direction:
+                direction_correct_count += 1
+                confidence_accuracy_pairs.append((result.confidence, 1))
+            else:
+                confidence_accuracy_pairs.append((result.confidence, 0))
+
+        n_valid = len(confidence_accuracy_pairs)
+        if n_valid == 0:
+            return None
+
+        # Calculate metrics
+        coverage = in_interval_count / n_valid
+        direction_accuracy = direction_correct_count / n_valid
+
+        # Calibration: bin by confidence and check accuracy
+        confidence_bins = {}
+        for conf, acc in confidence_accuracy_pairs:
+            bin_key = round(conf * 10) / 10  # 0.0, 0.1, 0.2, ... 1.0
+            if bin_key not in confidence_bins:
+                confidence_bins[bin_key] = []
+            confidence_bins[bin_key].append(acc)
+
+        calibration_by_bin = {
+            k: np.mean(v) for k, v in confidence_bins.items() if len(v) >= 3
+        }
+
+        return {
+            "coverage_95ci": coverage,
+            "expected_coverage": 0.95,
+            "is_well_calibrated": 0.90 <= coverage <= 1.0,
+            "direction_accuracy": direction_accuracy,
+            "calibration_by_confidence": calibration_by_bin,
+            "n_test_points": n_valid,
+        }

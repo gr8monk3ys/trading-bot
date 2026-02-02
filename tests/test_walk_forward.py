@@ -30,7 +30,8 @@ class TestWalkForwardInit:
         assert validator.train_ratio == 0.7
         assert validator.n_splits == 5
         assert validator.min_train_days == 30
-        assert validator.gap_days == 0
+        # gap_days defaults to 5 (institutional standard embargo period)
+        assert validator.gap_days == 5
 
     def test_custom_initialization(self):
         """Test custom values override defaults."""

@@ -59,6 +59,7 @@ class OrderGateway:
         circuit_breaker=None,
         position_manager=None,
         risk_manager=None,
+        enforce_gateway: bool = True,
     ):
         """
         Initialize the order gateway.
@@ -68,11 +69,23 @@ class OrderGateway:
             circuit_breaker: CircuitBreaker instance (optional but recommended)
             position_manager: PositionManager instance (optional but recommended)
             risk_manager: RiskManager instance (optional)
+            enforce_gateway: If True, enables mandatory gateway routing (default: True)
         """
         self.broker = broker
         self.circuit_breaker = circuit_breaker
         self.position_manager = position_manager
         self.risk_manager = risk_manager
+
+        # INSTITUTIONAL SAFETY: Enable gateway enforcement
+        # This prevents any code from bypassing safety checks by calling
+        # broker.submit_order_advanced() directly
+        self._gateway_token = None
+        if enforce_gateway and hasattr(broker, 'enable_gateway_requirement'):
+            self._gateway_token = broker.enable_gateway_requirement()
+            logger.info(
+                "🔒 OrderGateway initialized with mandatory routing - "
+                "direct broker access is now blocked"
+            )
 
         # Statistics
         self._orders_submitted = 0
@@ -123,15 +136,22 @@ class OrderGateway:
 
         # === PRE-FLIGHT SAFETY CHECKS ===
 
-        # 1. Circuit breaker check (1-second TTL for per-order freshness)
+        # 1. Circuit breaker check (ATOMIC - uses enforce_before_order)
         if self.circuit_breaker and not is_exit_order:
             try:
-                # Use check_before_order() for 1-second TTL (faster than check_and_halt)
-                is_halted = await self.circuit_breaker.check_before_order()
-                if is_halted:
-                    return self._reject_order(
-                        symbol, side, qty, "Circuit breaker halted trading"
-                    )
+                # Import TradingHaltedException for atomic enforcement
+                from utils.circuit_breaker import TradingHaltedException
+
+                # Use enforce_before_order() for atomic check (raises exception on halt)
+                await self.circuit_breaker.enforce_before_order(is_exit_order=is_exit_order)
+
+            except TradingHaltedException as e:
+                # ATOMIC REJECTION: Circuit breaker raised exception
+                return self._reject_order(
+                    symbol, side, qty,
+                    f"Circuit breaker: {e.reason} ({e.loss_pct:.2%})"
+                    if e.loss_pct else f"Circuit breaker: {e.reason}"
+                )
             except Exception as e:
                 logger.error(f"Circuit breaker check failed: {e}")
                 # Fail-safe: reject order if circuit breaker check fails
@@ -315,7 +335,10 @@ class OrderGateway:
 
     async def _submit_to_broker(self, order_request) -> Optional[Any]:
         """
-        Submit order to broker.
+        Submit order to broker via authorized internal method.
+
+        Uses _internal_submit_order with gateway token to bypass the
+        gateway enforcement check (since we ARE the gateway).
 
         Args:
             order_request: Order request object
@@ -328,7 +351,16 @@ class OrderGateway:
             if hasattr(order_request, "build"):
                 order_request = order_request.build()
 
-            result = await self.broker.submit_order_advanced(order_request)
+            # Use internal method with gateway token if available
+            if self._gateway_token and hasattr(self.broker, '_internal_submit_order'):
+                result = await self.broker._internal_submit_order(
+                    order_request,
+                    gateway_token=self._gateway_token
+                )
+            else:
+                # Fallback for brokers without gateway enforcement (e.g., BacktestBroker)
+                result = await self.broker.submit_order_advanced(order_request)
+
             return result
 
         except Exception as e:

@@ -69,6 +69,23 @@ class OrderError(BrokerError):
     pass
 
 
+class GatewayBypassError(BrokerError):
+    """
+    Raised when attempting to submit orders without using OrderGateway.
+
+    CRITICAL SAFETY: All orders MUST route through OrderGateway to ensure:
+    - Circuit breaker checks
+    - Position conflict detection
+    - Risk manager limits enforcement
+    - Audit trail maintenance
+
+    To fix this error, use order_gateway.submit_order() instead of
+    broker.submit_order_advanced() directly.
+    """
+
+    pass
+
+
 # ERROR HANDLING CONVENTIONS:
 # This module uses the following patterns for error handling:
 #
@@ -289,6 +306,19 @@ class AlpacaBroker:
             self._price_cache = {}  # {symbol: (price, timestamp)}
             self._price_cache_ttl = timedelta(seconds=5)  # Cache prices for 5 seconds
 
+            # INSTITUTIONAL SAFETY: Gateway enforcement flag
+            # When True, direct calls to submit_order_advanced() will raise GatewayBypassError
+            # All orders must route through OrderGateway for safety checks
+            self._gateway_required = False  # Set to True after OrderGateway is initialized
+            self._gateway_caller_token = None  # Token for authorized gateway calls
+
+            # INSTITUTIONAL SAFETY: Partial fill tracking
+            # Tracks order fills and handles unfilled quantities
+            from utils.partial_fill_tracker import PartialFillTracker, PartialFillPolicy
+            self._partial_fill_tracker = PartialFillTracker(
+                policy=PartialFillPolicy.ALERT_ONLY,  # Default to alerting
+            )
+
             # P0 FIX: Removed unused config dict that stored credentials in memory
 
         except Exception as e:
@@ -400,23 +430,68 @@ class AlpacaBroker:
             order = data.get("order", {})
             order_id = order.get("id")
 
+            # Extract fill info for tracking
+            filled_qty = float(order.get("filled_qty", 0))
+            filled_avg_price = float(order.get("filled_avg_price", 0)) if order.get("filled_avg_price") else 0.0
+
             # Handle different trade events
             if event_type == "fill":
                 logger.info(f"Order {order_id} filled")
+
+                # INSTITUTIONAL: Record fill in tracker
+                await self._partial_fill_tracker.record_fill(
+                    order_id=str(order_id),
+                    filled_qty=filled_qty,
+                    fill_price=filled_avg_price,
+                    is_final=True,
+                    status="filled",
+                )
+
                 # Notify subscribers
                 for subscriber in self._subscribers:
                     if hasattr(subscriber, "on_trade_update"):
                         await subscriber.on_trade_update(data)
+
             elif event_type == "partial_fill":
-                logger.info(f"Order {order_id} partially filled")
+                logger.info(f"Order {order_id} partially filled: {filled_qty} @ ${filled_avg_price:.2f}")
+
+                # INSTITUTIONAL: Record partial fill in tracker
+                await self._partial_fill_tracker.record_fill(
+                    order_id=str(order_id),
+                    filled_qty=filled_qty,
+                    fill_price=filled_avg_price,
+                    is_final=False,
+                    status="partial",
+                )
+
                 # Notify subscribers
                 for subscriber in self._subscribers:
                     if hasattr(subscriber, "on_trade_update"):
                         await subscriber.on_trade_update(data)
+
             elif event_type == "canceled":
                 logger.info(f"Order {order_id} canceled")
+
+                # INSTITUTIONAL: Record cancellation
+                await self._partial_fill_tracker.record_fill(
+                    order_id=str(order_id),
+                    filled_qty=filled_qty,
+                    fill_price=filled_avg_price,
+                    is_final=True,
+                    status="canceled",
+                )
+
             elif event_type == "rejected":
                 logger.warning(f"Order {order_id} rejected: {order.get('reject_reason')}")
+
+                # INSTITUTIONAL: Record rejection
+                await self._partial_fill_tracker.record_fill(
+                    order_id=str(order_id),
+                    filled_qty=0,
+                    fill_price=0,
+                    is_final=True,
+                    status="rejected",
+                )
 
         except Exception as e:
             logger.error(f"Error handling trade update: {e}", exc_info=DEBUG_MODE)
@@ -607,6 +682,55 @@ class AlpacaBroker:
             pass
 
         logger.info("Stopped websocket handler task")
+
+    # =========================================================================
+    # PARTIAL FILL TRACKING METHODS
+    # =========================================================================
+
+    def set_partial_fill_policy(self, policy: str) -> None:
+        """
+        Set the policy for handling partial fills.
+
+        Args:
+            policy: One of 'alert_only', 'auto_resubmit', 'cancel_remainder', 'track_only'
+        """
+        from utils.partial_fill_tracker import PartialFillPolicy
+        self._partial_fill_tracker.set_policy(PartialFillPolicy(policy))
+
+    def register_partial_fill_callback(self, callback) -> None:
+        """
+        Register a callback for partial fill events.
+
+        The callback will be called with a PartialFillEvent when a partial
+        fill is detected.
+
+        Args:
+            callback: Async function taking PartialFillEvent
+        """
+        self._partial_fill_tracker.register_callback(callback)
+
+    def set_partial_fill_resubmit_callback(self, callback) -> None:
+        """
+        Set the callback for auto-resubmitting partial fills.
+
+        Only used when policy is AUTO_RESUBMIT.
+
+        Args:
+            callback: Async function taking (symbol, side, qty) returning new order_id
+        """
+        self._partial_fill_tracker.set_resubmit_callback(callback)
+
+    def get_partial_fill_statistics(self):
+        """Get aggregate statistics on partial fills."""
+        return self._partial_fill_tracker.get_statistics()
+
+    def get_order_fill_status(self, order_id: str):
+        """Get the current fill status of an order."""
+        return self._partial_fill_tracker.get_order_status(order_id)
+
+    def get_pending_partial_fills(self):
+        """Get all orders with unfilled quantities."""
+        return self._partial_fill_tracker.get_pending_orders()
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_account(self):
@@ -969,10 +1093,49 @@ class AlpacaBroker:
             logger.error(f"Error submitting order: {e}", exc_info=DEBUG_MODE)
             raise
 
+    def enable_gateway_requirement(self) -> str:
+        """
+        Enable mandatory OrderGateway routing for all orders.
+
+        CRITICAL SAFETY: Once enabled, direct calls to submit_order_advanced()
+        will raise GatewayBypassError. Only the OrderGateway can submit orders
+        using the returned authorization token.
+
+        Returns:
+            Authorization token that must be passed to _internal_submit_order
+
+        Usage:
+            gateway_token = broker.enable_gateway_requirement()
+            # Store token in OrderGateway
+            # Now all orders MUST go through OrderGateway
+        """
+        import secrets
+        self._gateway_caller_token = secrets.token_hex(16)
+        self._gateway_required = True
+        logger.info(
+            "🔒 GATEWAY ENFORCEMENT ENABLED: All orders must route through OrderGateway"
+        )
+        return self._gateway_caller_token
+
+    def disable_gateway_requirement(self):
+        """
+        Disable gateway requirement (for testing only).
+
+        WARNING: This should NEVER be called in production.
+        """
+        self._gateway_required = False
+        self._gateway_caller_token = None
+        logger.warning(
+            "⚠️ GATEWAY ENFORCEMENT DISABLED - Direct order submission allowed"
+        )
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def submit_order_advanced(self, order_request, check_impact: bool = True):
         """
         Submit an advanced order using OrderBuilder or direct request object.
+
+        IMPORTANT: When gateway enforcement is enabled, this method will raise
+        GatewayBypassError. Use OrderGateway.submit_order() instead.
 
         Now includes Almgren-Chriss market impact calculation for execution awareness.
 
@@ -982,7 +1145,18 @@ class AlpacaBroker:
 
         Returns:
             Order confirmation from Alpaca
+
+        Raises:
+            GatewayBypassError: If gateway enforcement is enabled (use OrderGateway instead)
         """
+        # INSTITUTIONAL SAFETY: Enforce gateway requirement
+        if self._gateway_required:
+            raise GatewayBypassError(
+                "Direct order submission is disabled. "
+                "All orders must route through OrderGateway for safety checks. "
+                "Use order_gateway.submit_order() instead of broker.submit_order_advanced()."
+            )
+
         try:
             # Import OrderBuilder inside method to avoid circular import
             from brokers.order_builder import OrderBuilder
@@ -1038,12 +1212,127 @@ class AlpacaBroker:
                 f"Advanced order submitted: {result.id} for {result.symbol} "
                 f"({size_info}, type={result.type}, class={result.order_class})"
             )
+
+            # INSTITUTIONAL: Track order for partial fill monitoring
+            if result.qty:
+                qty = float(result.qty)
+                side = str(result.side).lower() if hasattr(result, 'side') else 'buy'
+                self._partial_fill_tracker.track_order(
+                    order_id=str(result.id),
+                    symbol=result.symbol,
+                    side=side,
+                    requested_qty=qty,
+                )
+
             return result
 
         except asyncio.TimeoutError:
             raise OrderError(f"Advanced order submission timed out - check order status manually")
         except Exception as e:
             logger.error(f"Error submitting advanced order: {e}", exc_info=DEBUG_MODE)
+            raise
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def _internal_submit_order(self, order_request, gateway_token: str, check_impact: bool = True):
+        """
+        Internal order submission method for authorized callers (OrderGateway only).
+
+        PRIVATE API: This method should ONLY be called by OrderGateway with
+        the authorization token obtained from enable_gateway_requirement().
+
+        Args:
+            order_request: Either an OrderBuilder instance or Alpaca order request object
+            gateway_token: Authorization token from enable_gateway_requirement()
+            check_impact: If True, calculate and log expected market impact
+
+        Returns:
+            Order confirmation from Alpaca
+
+        Raises:
+            GatewayBypassError: If invalid or missing gateway token
+        """
+        # Verify authorization token
+        if self._gateway_required:
+            if not gateway_token or gateway_token != self._gateway_caller_token:
+                raise GatewayBypassError(
+                    "Invalid gateway authorization token. "
+                    "This method is reserved for OrderGateway internal use only."
+                )
+
+        try:
+            # Import OrderBuilder inside method to avoid circular import
+            from brokers.order_builder import OrderBuilder
+
+            # If OrderBuilder, build it first
+            if isinstance(order_request, OrderBuilder):
+                order_request = order_request.build()
+
+            # Calculate market impact before submission (if enabled)
+            if check_impact:
+                try:
+                    symbol = order_request.symbol
+                    qty = float(order_request.qty) if order_request.qty else 0
+                    side = str(order_request.side).lower() if hasattr(order_request, 'side') else 'buy'
+
+                    if qty > 0:
+                        impact_info = await self._calculate_market_impact(symbol, qty, side)
+
+                        # Log impact metrics
+                        if impact_info["participation_rate"] > 0.01:
+                            logger.info(
+                                f"📊 Market Impact Analysis for {symbol}: "
+                                f"Expected slippage: {impact_info['expected_slippage_pct']*100:.2f}%, "
+                                f"Participation: {impact_info['participation_rate']*100:.1f}% of ADV"
+                            )
+
+                        # Warn if order is large relative to volume
+                        if not impact_info["safe_to_trade"]:
+                            logger.warning(
+                                f"⚠️ LARGE ORDER WARNING: {symbol} order of {qty:.0f} shares "
+                                f"exceeds {self.MAX_PARTICIPATION_RATE*100:.0f}% of ADV. "
+                                f"Consider splitting or using VWAP execution."
+                            )
+                except Exception as e:
+                    logger.debug(f"Could not calculate market impact: {e}")
+
+            # Submit the order with timeout protection
+            result = await self._async_call_with_timeout(
+                self.trading_client.submit_order,
+                order_request,
+                timeout=self.ORDER_API_TIMEOUT,
+                operation_name=f"_internal_submit_order({order_request.symbol})"
+            )
+
+            # Build size info for logging
+            if hasattr(result, 'notional') and result.notional is not None:
+                size_info = f"${float(result.notional):.2f} notional"
+            else:
+                size_info = f"{result.qty} shares"
+
+            logger.info(
+                f"[GATEWAY] Order submitted: {result.id} for {result.symbol} "
+                f"({size_info}, type={result.type}, class={result.order_class})"
+            )
+
+            # INSTITUTIONAL: Track order for partial fill monitoring
+            if result.qty:
+                qty = float(result.qty)
+                side = str(result.side).lower() if hasattr(result, 'side') else 'buy'
+                self._partial_fill_tracker.track_order(
+                    order_id=str(result.id),
+                    symbol=result.symbol,
+                    side=side,
+                    requested_qty=qty,
+                )
+
+            return result
+
+        except asyncio.TimeoutError:
+            raise OrderError(f"Order submission timed out - check order status manually")
+        except GatewayBypassError:
+            raise  # Re-raise gateway errors
+        except Exception as e:
+            logger.error(f"Error in _internal_submit_order: {e}", exc_info=DEBUG_MODE)
             raise
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)

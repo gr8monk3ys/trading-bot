@@ -1,11 +1,350 @@
+"""
+Performance Metrics Module
+
+Calculates trading strategy performance metrics with institutional-grade
+statistical validation including:
+- Multiple testing correction (Bonferroni, Benjamini-Hochberg FDR)
+- Effect size reporting (Cohen's d, Hedge's g)
+- Bootstrap confidence intervals
+- Permutation test integration
+"""
+
 import logging
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import stats
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# MULTIPLE TESTING CORRECTION
+# =============================================================================
+
+
+@dataclass
+class SignificanceResult:
+    """Result of statistical significance testing with corrections."""
+
+    raw_p_value: float
+    adjusted_p_value: float
+    is_significant: bool
+    correction_method: str
+    n_tests: int
+    alpha: float
+
+
+def apply_bonferroni_correction(
+    p_values: List[float], alpha: float = 0.05
+) -> List[SignificanceResult]:
+    """
+    Apply Bonferroni correction for family-wise error rate control.
+
+    The Bonferroni correction is conservative but guarantees the family-wise
+    error rate (probability of at least one false positive) stays below alpha.
+
+    CRITICAL: When testing multiple strategies or parameters, use this to avoid
+    finding "significant" results by chance.
+
+    Args:
+        p_values: List of raw p-values from individual tests
+        alpha: Desired family-wise error rate (default 0.05)
+
+    Returns:
+        List of SignificanceResult with adjusted p-values and significance
+    """
+    n_tests = len(p_values)
+    if n_tests == 0:
+        return []
+
+    # Bonferroni adjustment: multiply each p-value by number of tests
+    adjusted_alpha = alpha / n_tests
+
+    results = []
+    for p in p_values:
+        adjusted_p = min(p * n_tests, 1.0)  # Cap at 1.0
+        results.append(
+            SignificanceResult(
+                raw_p_value=p,
+                adjusted_p_value=adjusted_p,
+                is_significant=p < adjusted_alpha,
+                correction_method="bonferroni",
+                n_tests=n_tests,
+                alpha=alpha,
+            )
+        )
+
+    return results
+
+
+def apply_fdr_correction(
+    p_values: List[float], alpha: float = 0.05
+) -> List[SignificanceResult]:
+    """
+    Apply Benjamini-Hochberg False Discovery Rate (FDR) correction.
+
+    FDR controls the expected proportion of false positives among rejected
+    hypotheses. Less conservative than Bonferroni, more appropriate when
+    testing many hypotheses (e.g., screening many strategies).
+
+    Use FDR when:
+    - Testing many strategies and expect some to be truly good
+    - Willing to accept some false positives in exchange for power
+
+    Use Bonferroni when:
+    - Need strict control (live trading decisions)
+    - Testing few hypotheses
+
+    Args:
+        p_values: List of raw p-values from individual tests
+        alpha: Desired false discovery rate (default 0.05)
+
+    Returns:
+        List of SignificanceResult with adjusted p-values and significance
+    """
+    n_tests = len(p_values)
+    if n_tests == 0:
+        return []
+
+    # Sort p-values and track original indices
+    indexed_pvals = [(i, p) for i, p in enumerate(p_values)]
+    indexed_pvals.sort(key=lambda x: x[1])
+
+    # Calculate BH-adjusted p-values
+    adjusted_pvals = [0.0] * n_tests
+
+    # Start from largest p-value
+    prev_adjusted = 1.0
+    for rank in range(n_tests, 0, -1):
+        original_idx, raw_p = indexed_pvals[rank - 1]
+        # BH formula: p * n / rank
+        adjusted = raw_p * n_tests / rank
+        # Enforce monotonicity (adjusted p-values should be non-decreasing)
+        adjusted = min(adjusted, prev_adjusted)
+        adjusted = min(adjusted, 1.0)  # Cap at 1.0
+        adjusted_pvals[original_idx] = adjusted
+        prev_adjusted = adjusted
+
+    # Determine significance using step-up procedure
+    significant = [False] * n_tests
+    for rank, (original_idx, raw_p) in enumerate(indexed_pvals, 1):
+        threshold = (rank / n_tests) * alpha
+        if raw_p <= threshold:
+            # Mark this and all smaller p-values as significant
+            for j in range(rank):
+                significant[indexed_pvals[j][0]] = True
+
+    results = []
+    for i, p in enumerate(p_values):
+        results.append(
+            SignificanceResult(
+                raw_p_value=p,
+                adjusted_p_value=adjusted_pvals[i],
+                is_significant=significant[i],
+                correction_method="benjamini-hochberg",
+                n_tests=n_tests,
+                alpha=alpha,
+            )
+        )
+
+    return results
+
+
+def calculate_adjusted_significance(
+    raw_p: float, n_tests: int, method: str = "bonferroni", alpha: float = 0.05
+) -> Dict[str, Any]:
+    """
+    Calculate significance for a single p-value with multiple testing adjustment.
+
+    Convenience function when you have a single p-value but know the total
+    number of tests performed.
+
+    Args:
+        raw_p: Raw p-value from test
+        n_tests: Total number of tests performed (including this one)
+        method: Correction method ('bonferroni' or 'fdr')
+        alpha: Significance threshold (default 0.05)
+
+    Returns:
+        Dictionary with adjusted significance information
+    """
+    if method == "bonferroni":
+        adjusted_p = min(raw_p * n_tests, 1.0)
+        is_significant = raw_p < (alpha / n_tests)
+    elif method == "fdr":
+        # For single test, FDR = raw (would need rank for proper adjustment)
+        adjusted_p = raw_p
+        is_significant = raw_p < alpha
+    else:
+        raise ValueError(f"Unknown correction method: {method}")
+
+    return {
+        "raw_p_value": raw_p,
+        "adjusted_p_value": adjusted_p,
+        "is_significant": is_significant,
+        "correction_method": method,
+        "n_tests": n_tests,
+        "alpha": alpha,
+        "adjusted_alpha": alpha / n_tests if method == "bonferroni" else alpha,
+        "interpretation": (
+            f"After {method} correction for {n_tests} tests, "
+            f"p={adjusted_p:.4f} is {'significant' if is_significant else 'not significant'} "
+            f"at alpha={alpha}"
+        ),
+    }
+
+
+# =============================================================================
+# EFFECT SIZE CALCULATIONS
+# =============================================================================
+
+
+@dataclass
+class EffectSizeResult:
+    """Result of effect size calculation."""
+
+    cohens_d: float
+    hedges_g: float
+    interpretation: str
+    confidence_interval: Tuple[float, float]
+
+
+def calculate_cohens_d(
+    returns: np.ndarray, population_mean: float = 0.0
+) -> float:
+    """
+    Calculate Cohen's d effect size for returns vs a benchmark (default 0).
+
+    Cohen's d measures how many standard deviations the mean is from the
+    benchmark. This tells you the PRACTICAL significance, not just
+    statistical significance.
+
+    Interpretation (Cohen's conventions):
+    - |d| < 0.2: negligible effect
+    - 0.2 <= |d| < 0.5: small effect
+    - 0.5 <= |d| < 0.8: medium effect
+    - |d| >= 0.8: large effect
+
+    For trading:
+    - A strategy with d=0.3 has a small but real edge
+    - A strategy with d=0.8 has a substantial edge
+
+    Args:
+        returns: Array of returns
+        population_mean: Benchmark to compare against (default 0)
+
+    Returns:
+        Cohen's d effect size
+    """
+    if len(returns) == 0:
+        return 0.0
+
+    mean_return = np.mean(returns)
+    std_return = np.std(returns, ddof=1)  # Sample std
+
+    if std_return == 0:
+        return 0.0
+
+    return (mean_return - population_mean) / std_return
+
+
+def calculate_hedges_g(
+    returns: np.ndarray, population_mean: float = 0.0
+) -> float:
+    """
+    Calculate Hedge's g (bias-corrected Cohen's d).
+
+    Hedge's g applies a correction factor for small sample sizes.
+    Use this instead of Cohen's d when n < 50.
+
+    The correction factor is: 1 - 3/(4n - 9)
+
+    Args:
+        returns: Array of returns
+        population_mean: Benchmark to compare against (default 0)
+
+    Returns:
+        Hedge's g effect size
+    """
+    n = len(returns)
+    if n < 4:
+        return 0.0
+
+    d = calculate_cohens_d(returns, population_mean)
+
+    # Correction factor for small samples
+    correction = 1 - (3 / (4 * n - 9))
+
+    return d * correction
+
+
+def calculate_effect_size(
+    returns: np.ndarray,
+    population_mean: float = 0.0,
+    confidence_level: float = 0.95,
+) -> EffectSizeResult:
+    """
+    Calculate effect sizes with confidence intervals and interpretation.
+
+    Reports PRACTICAL significance alongside statistical significance.
+    A p-value tells you if an effect exists; effect size tells you if
+    it matters.
+
+    Args:
+        returns: Array of returns
+        population_mean: Benchmark (default 0)
+        confidence_level: For CI calculation (default 0.95)
+
+    Returns:
+        EffectSizeResult with Cohen's d, Hedge's g, CI, and interpretation
+    """
+    n = len(returns)
+    if n < 4:
+        return EffectSizeResult(
+            cohens_d=0.0,
+            hedges_g=0.0,
+            interpretation="Insufficient data for effect size calculation",
+            confidence_interval=(0.0, 0.0),
+        )
+
+    d = calculate_cohens_d(returns, population_mean)
+    g = calculate_hedges_g(returns, population_mean)
+
+    # Approximate CI for Cohen's d using non-central t distribution
+    # Simplified: use normal approximation for large n
+    se_d = np.sqrt((1 / n) + (d**2 / (2 * n)))
+    z = stats.norm.ppf((1 + confidence_level) / 2)
+    ci_lower = d - z * se_d
+    ci_upper = d + z * se_d
+
+    # Interpretation
+    abs_d = abs(d)
+    if abs_d < 0.2:
+        magnitude = "negligible"
+    elif abs_d < 0.5:
+        magnitude = "small"
+    elif abs_d < 0.8:
+        magnitude = "medium"
+    else:
+        magnitude = "large"
+
+    direction = "positive" if d > 0 else "negative" if d < 0 else "zero"
+
+    interpretation = (
+        f"{magnitude.capitalize()} {direction} effect (d={d:.3f}, g={g:.3f}). "
+        f"Returns are {abs_d:.2f} standard deviations "
+        f"{'above' if d > 0 else 'below'} the benchmark."
+    )
+
+    return EffectSizeResult(
+        cohens_d=d,
+        hedges_g=g,
+        interpretation=interpretation,
+        confidence_interval=(ci_lower, ci_upper),
+    )
 
 
 class PerformanceMetrics:
@@ -603,3 +942,235 @@ class PerformanceMetrics:
             )
 
         return validation
+
+    def calculate_comprehensive_significance(
+        self,
+        trades: List[Dict[str, Any]],
+        n_total_tests: int = 1,
+        min_trades: int = 50,
+        confidence_level: float = 0.95,
+        correction_method: str = "bonferroni",
+    ) -> Dict[str, Any]:
+        """
+        Comprehensive statistical significance analysis with multiple testing correction.
+
+        INSTITUTIONAL-GRADE VALIDATION: Use this for any backtest you might trade live.
+
+        This method combines:
+        1. Raw significance testing (t-test, bootstrap)
+        2. Multiple testing correction (Bonferroni or FDR)
+        3. Effect size reporting (Cohen's d, Hedge's g)
+        4. Practical significance assessment
+
+        Args:
+            trades: List of trade dictionaries with 'pnl' field
+            n_total_tests: Total number of backtests/strategies tested
+                          (for multiple testing correction)
+            min_trades: Minimum trades required (default 50)
+            confidence_level: Confidence level (default 0.95)
+            correction_method: 'bonferroni' or 'fdr' (default 'bonferroni')
+
+        Returns:
+            Dictionary with comprehensive significance analysis
+        """
+        result = {
+            "is_significant": False,
+            "is_practically_significant": False,
+            "warnings": [],
+            "trade_count": len(trades),
+            # Raw statistics
+            "mean_return": 0.0,
+            "std_return": 0.0,
+            "t_statistic": 0.0,
+            "raw_p_value": 1.0,
+            # Corrected statistics
+            "adjusted_p_value": 1.0,
+            "correction_method": correction_method,
+            "n_total_tests": n_total_tests,
+            # Effect sizes
+            "cohens_d": 0.0,
+            "hedges_g": 0.0,
+            "effect_size_interpretation": "",
+            "effect_size_ci": (0.0, 0.0),
+            # Confidence intervals
+            "mean_return_ci": (0.0, 0.0),
+            "sharpe_ci": (0.0, 0.0),
+        }
+
+        # Check minimum trade count
+        if len(trades) < min_trades:
+            result["warnings"].append(
+                f"Insufficient trades: {len(trades)} < {min_trades} minimum. "
+                "Results are NOT statistically reliable."
+            )
+            return result
+
+        # Extract returns
+        returns = np.array([trade.get("pnl", 0) for trade in trades])
+
+        if len(returns) == 0 or np.all(returns == 0):
+            result["warnings"].append("No valid trade returns found.")
+            return result
+
+        # Basic statistics
+        mean_return = np.mean(returns)
+        std_return = np.std(returns, ddof=1)
+
+        result["mean_return"] = float(mean_return)
+        result["std_return"] = float(std_return)
+
+        # T-test for mean > 0
+        if std_return > 0:
+            t_stat, p_value_two_tailed = stats.ttest_1samp(returns, 0)
+            raw_p = p_value_two_tailed / 2  # One-tailed (we want return > 0)
+            if mean_return < 0:
+                raw_p = 1 - raw_p  # Adjust for negative mean
+
+            result["t_statistic"] = float(t_stat)
+            result["raw_p_value"] = float(raw_p)
+
+            # Confidence interval for mean
+            se = std_return / np.sqrt(len(returns))
+            t_crit = stats.t.ppf((1 + confidence_level) / 2, len(returns) - 1)
+            ci_lower = mean_return - t_crit * se
+            ci_upper = mean_return + t_crit * se
+            result["mean_return_ci"] = (float(ci_lower), float(ci_upper))
+
+        # Apply multiple testing correction
+        adjusted_result = calculate_adjusted_significance(
+            result["raw_p_value"],
+            n_total_tests,
+            method=correction_method,
+            alpha=1 - confidence_level,
+        )
+        result["adjusted_p_value"] = adjusted_result["adjusted_p_value"]
+
+        # Effect size calculation
+        effect_size = calculate_effect_size(returns, 0.0, confidence_level)
+        result["cohens_d"] = effect_size.cohens_d
+        result["hedges_g"] = effect_size.hedges_g
+        result["effect_size_interpretation"] = effect_size.interpretation
+        result["effect_size_ci"] = effect_size.confidence_interval
+
+        # Bootstrap Sharpe CI
+        if len(returns) >= 30:
+            sharpe_ci = self._bootstrap_sharpe_ci(returns, confidence_level)
+            result["sharpe_ci"] = sharpe_ci
+
+        # Determine statistical significance (after correction)
+        alpha = 1 - confidence_level
+        result["is_significant"] = (
+            len(trades) >= min_trades
+            and result["adjusted_p_value"] < alpha
+            and mean_return > 0
+        )
+
+        # Determine practical significance (effect size >= small)
+        result["is_practically_significant"] = (
+            result["is_significant"] and abs(effect_size.cohens_d) >= 0.2
+        )
+
+        # Generate warnings
+        if result["raw_p_value"] < alpha and result["adjusted_p_value"] >= alpha:
+            result["warnings"].append(
+                f"Raw p-value ({result['raw_p_value']:.4f}) was significant, "
+                f"but after {correction_method} correction for {n_total_tests} tests, "
+                f"adjusted p-value ({result['adjusted_p_value']:.4f}) is NOT significant. "
+                "This could be a false positive from testing multiple strategies."
+            )
+
+        if result["is_significant"] and not result["is_practically_significant"]:
+            result["warnings"].append(
+                f"Statistically significant but negligible effect size (d={effect_size.cohens_d:.3f}). "
+                "The edge may be too small to overcome transaction costs in practice."
+            )
+
+        if abs(effect_size.cohens_d) >= 0.8:
+            result["warnings"].append(
+                f"Large effect size (d={effect_size.cohens_d:.3f}) is unusual. "
+                "Verify no data issues or overfitting."
+            )
+
+        # Check outlier dependency
+        outlier_impact = self._check_outlier_dependency(returns)
+        if outlier_impact > 0.5:
+            result["warnings"].append(
+                f"Results depend heavily on outliers ({outlier_impact:.0%} of profit from top 10% trades). "
+                "May not be reproducible."
+            )
+
+        return result
+
+    def batch_significance_test(
+        self,
+        strategy_results: Dict[str, List[Dict[str, Any]]],
+        min_trades: int = 50,
+        confidence_level: float = 0.95,
+        correction_method: str = "fdr",
+    ) -> Dict[str, Any]:
+        """
+        Test significance of multiple strategies with proper multiple testing correction.
+
+        Use this when comparing multiple strategies or parameter sets.
+        Automatically adjusts for the number of strategies tested.
+
+        Args:
+            strategy_results: Dict mapping strategy name to list of trades
+            min_trades: Minimum trades per strategy (default 50)
+            confidence_level: Confidence level (default 0.95)
+            correction_method: 'bonferroni' or 'fdr' (default 'fdr' for many strategies)
+
+        Returns:
+            Dictionary with per-strategy results and overall summary
+        """
+        n_strategies = len(strategy_results)
+        if n_strategies == 0:
+            return {"error": "No strategies provided"}
+
+        # Collect raw p-values
+        raw_p_values = []
+        strategy_names = []
+        individual_results = {}
+
+        for name, trades in strategy_results.items():
+            # Calculate raw significance (without correction)
+            sig_result = self.calculate_significance(trades, min_trades, confidence_level)
+            individual_results[name] = sig_result
+            raw_p_values.append(sig_result["p_value"])
+            strategy_names.append(name)
+
+        # Apply multiple testing correction
+        if correction_method == "bonferroni":
+            corrected = apply_bonferroni_correction(raw_p_values, 1 - confidence_level)
+        else:
+            corrected = apply_fdr_correction(raw_p_values, 1 - confidence_level)
+
+        # Update individual results with corrected values
+        for i, name in enumerate(strategy_names):
+            individual_results[name]["adjusted_p_value"] = corrected[i].adjusted_p_value
+            individual_results[name]["is_significant_after_correction"] = corrected[
+                i
+            ].is_significant
+            individual_results[name]["correction_method"] = correction_method
+            individual_results[name]["n_strategies_tested"] = n_strategies
+
+        # Summary
+        n_significant_raw = sum(1 for r in individual_results.values() if r.get("is_significant", False))
+        n_significant_corrected = sum(
+            1 for r in individual_results.values() if r.get("is_significant_after_correction", False)
+        )
+
+        return {
+            "n_strategies": n_strategies,
+            "correction_method": correction_method,
+            "n_significant_raw": n_significant_raw,
+            "n_significant_corrected": n_significant_corrected,
+            "false_positives_avoided": n_significant_raw - n_significant_corrected,
+            "individual_results": individual_results,
+            "interpretation": (
+                f"Of {n_strategies} strategies tested, {n_significant_raw} appeared significant "
+                f"before correction, but only {n_significant_corrected} remain significant "
+                f"after {correction_method} correction. "
+                f"{n_significant_raw - n_significant_corrected} potential false positives avoided."
+            ),
+        }

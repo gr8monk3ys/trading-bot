@@ -5,11 +5,20 @@ CRITICAL SAFETY FEATURE: Automatically halts trading if:
 1. Daily losses exceed threshold (protects capital from runaway strategies)
 2. High-impact economic events are imminent (FOMC, NFP, CPI)
 
+INSTITUTIONAL ENHANCEMENT: Circuit breaker now RAISES exceptions instead of
+returning bools. This ensures orders are atomically blocked when halted.
+
 Usage:
     circuit_breaker = CircuitBreaker(max_daily_loss=0.03)  # 3% max daily loss
     await circuit_breaker.initialize(broker)
 
-    # In trading loop:
+    # In OrderGateway (recommended):
+    try:
+        await circuit_breaker.check_before_order()
+    except TradingHaltedException as e:
+        return reject_order(f"Circuit breaker: {e}")
+
+    # Legacy usage (returns bool):
     if await circuit_breaker.check_and_halt():
         logger.critical("TRADING HALTED - Daily loss limit exceeded!")
         break
@@ -21,6 +30,33 @@ from datetime import datetime
 from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+class TradingHaltedException(Exception):
+    """
+    Raised when circuit breaker has halted trading.
+
+    INSTITUTIONAL SAFETY: This exception is raised instead of returning a bool
+    to ensure orders are atomically blocked. Callers cannot accidentally ignore
+    a halted state.
+
+    Attributes:
+        reason: Why trading was halted (daily_loss_limit, rapid_drawdown, economic_event)
+        loss_pct: Current loss percentage (if applicable)
+        event_name: Name of economic event (if applicable)
+    """
+
+    def __init__(
+        self,
+        message: str,
+        reason: str = "unknown",
+        loss_pct: float = None,
+        event_name: str = None,
+    ):
+        super().__init__(message)
+        self.reason = reason
+        self.loss_pct = loss_pct
+        self.event_name = event_name
 
 # Lazy import for economic calendar
 EconomicEventCalendar = None
@@ -72,10 +108,13 @@ class CircuitBreaker:
         self.starting_balance = None
         self.starting_equity = None
         self.peak_equity_today = None
+        self._true_peak_equity = None  # INSTITUTIONAL: Never resets during recovery
         self.halt_triggered_at = None
         self.last_reset_date = None
         self.broker = None
         self._last_logged_loss_pct = 0  # Track last logged loss for throttling
+        self._halt_reason = None  # Track why we halted
+        self._halt_loss_pct = None  # Track loss at halt time
 
         # Account data cache with TTL to reduce redundant API calls
         self._account_cache = None
@@ -247,6 +286,8 @@ class CircuitBreaker:
         """
         self.trading_halted = True
         self.halt_triggered_at = datetime.now()
+        self._halt_reason = reason  # INSTITUTIONAL: Store for exception messages
+        self._halt_loss_pct = loss_pct  # INSTITUTIONAL: Store for exception messages
 
         loss_amount = self.starting_equity - current_equity
 
@@ -257,6 +298,8 @@ class CircuitBreaker:
         logger.critical(f"Max Allowed: {self.max_daily_loss:.2%}")
         logger.critical(f"Starting Equity: ${self.starting_equity:,.2f}")
         logger.critical(f"Current Equity: ${current_equity:,.2f}")
+        if self._true_peak_equity:
+            logger.critical(f"True Peak Equity: ${self._true_peak_equity:,.2f}")
         logger.critical(f"Triggered At: {self.halt_triggered_at.strftime('%Y-%m-%d %H:%M:%S')}")
         logger.critical("TRADING HALTED FOR THE DAY")
         logger.critical("=" * 80)
@@ -324,9 +367,16 @@ class CircuitBreaker:
             # Reset state
             self.starting_equity = new_equity
             self.peak_equity_today = new_equity
+            self._true_peak_equity = new_equity  # INSTITUTIONAL: Reset true peak for new day
             self.trading_halted = False
             self.halt_triggered_at = None
+            self._halt_reason = None  # INSTITUTIONAL: Clear halt reason
+            self._halt_loss_pct = None  # INSTITUTIONAL: Clear halt loss
             self.last_reset_date = datetime.now().date()
+
+            # Clear caches
+            self._order_check_cache = None
+            self._order_check_time = None
 
         except Exception as e:
             logger.error(f"Error resetting circuit breaker: {e}")
@@ -364,21 +414,133 @@ class CircuitBreaker:
 
         return False
 
+    async def enforce_before_order(self, is_exit_order: bool = False) -> None:
+        """
+        INSTITUTIONAL ATOMIC CHECK: Enforce circuit breaker before order submission.
+
+        This is the RECOMMENDED method for OrderGateway. Raises TradingHaltedException
+        when trading should be blocked, ensuring orders are atomically rejected.
+
+        Uses a 1-second TTL cache to balance freshness with API efficiency.
+        Also checks economic calendar for high-impact events (FOMC, NFP, CPI).
+        Exit orders bypass event blocking (we want to close positions, not hold them).
+
+        Args:
+            is_exit_order: True if this is an exit/close order (bypasses event blocking)
+
+        Raises:
+            TradingHaltedException: If trading is halted (order MUST be rejected)
+            RuntimeError: If broker not initialized
+        """
+        if not self.broker:
+            raise RuntimeError("Circuit breaker not initialized - call initialize() first")
+
+        # If already halted, raise immediately with cached reason
+        if self.trading_halted:
+            raise TradingHaltedException(
+                f"Trading halted: {self._halt_reason or 'daily loss limit exceeded'}",
+                reason=self._halt_reason or "daily_loss_limit",
+                loss_pct=self._halt_loss_pct,
+            )
+
+        # Check economic calendar FIRST (before hitting broker API)
+        # Exit orders bypass event blocking - we want to close positions during events
+        if not is_exit_order:
+            is_blocked, event_name, hours_until_safe = self.is_blocked_by_event()
+            if is_blocked:
+                raise TradingHaltedException(
+                    f"High-impact event '{event_name}' imminent - "
+                    f"new entries blocked for {hours_until_safe:.1f}h",
+                    reason="economic_event",
+                    event_name=event_name,
+                )
+
+        # Auto-reset at start of new trading day
+        current_date = datetime.now().date()
+        if current_date != self.last_reset_date:
+            await self._reset_for_new_day()
+            return  # Fresh day, trading allowed
+
+        # Check if we have a fresh order-time cache (1-second TTL)
+        now = time.monotonic()
+        if (
+            self._order_check_cache is not None
+            and self._order_check_time is not None
+            and (now - self._order_check_time) < self._order_check_ttl
+        ):
+            if self._order_check_cache:
+                raise TradingHaltedException(
+                    f"Trading halted: {self._halt_reason or 'circuit breaker active'}",
+                    reason=self._halt_reason or "cached_halt",
+                    loss_pct=self._halt_loss_pct,
+                )
+            return  # Cached: trading allowed
+
+        try:
+            # Fresh check with 1-second TTL
+            account = await self.broker.get_account()
+            current_equity = float(account.equity)
+
+            # INSTITUTIONAL FIX: Track true peak (never resets during recovery)
+            # This prevents the bug where partial recovery masks total drawdown
+            if self._true_peak_equity is None:
+                self._true_peak_equity = current_equity
+            else:
+                self._true_peak_equity = max(self._true_peak_equity, current_equity)
+
+            # Also update legacy peak_equity_today for backward compatibility
+            if current_equity > self.peak_equity_today:
+                self.peak_equity_today = current_equity
+
+            # Calculate losses using TRUE peak (not recoverable peak)
+            daily_loss = (self.starting_equity - current_equity) / self.starting_equity
+            drawdown_from_true_peak = (
+                (self._true_peak_equity - current_equity) / self._true_peak_equity
+            )
+
+            # Check thresholds
+            is_halted = False
+            halt_reason = None
+            halt_loss = None
+
+            if daily_loss >= self.max_daily_loss:
+                await self._trigger_halt(current_equity, daily_loss, "daily_loss_limit")
+                is_halted = True
+                halt_reason = "daily_loss_limit"
+                halt_loss = daily_loss
+            elif drawdown_from_true_peak >= self.max_daily_loss * RAPID_DRAWDOWN_RATIO:
+                await self._trigger_halt(current_equity, drawdown_from_true_peak, "rapid_drawdown")
+                is_halted = True
+                halt_reason = "rapid_drawdown"
+                halt_loss = drawdown_from_true_peak
+
+            # Cache result
+            self._order_check_cache = is_halted
+            self._order_check_time = now
+
+            if is_halted:
+                raise TradingHaltedException(
+                    f"Circuit breaker triggered: {halt_reason.replace('_', ' ')} at {halt_loss:.2%}",
+                    reason=halt_reason,
+                    loss_pct=halt_loss,
+                )
+
+        except TradingHaltedException:
+            raise  # Re-raise our exceptions
+        except Exception as e:
+            logger.error(f"Error in enforce_before_order: {e}")
+            # FAIL SAFE: Block orders on error
+            raise TradingHaltedException(
+                f"Circuit breaker check failed: {e}",
+                reason="check_error",
+            )
+
     async def check_before_order(self, is_exit_order: bool = False) -> bool:
         """
         Check circuit breaker status before submitting an order.
 
-        This is the RECOMMENDED check to use in OrderGateway before every order.
-        Uses a 1-second TTL cache to balance freshness with API efficiency.
-
-        Also checks economic calendar for high-impact events (FOMC, NFP, CPI).
-        Exit orders bypass event blocking (we want to close positions, not hold them).
-
-        Key differences from check_and_halt():
-        - 1-second TTL (vs 5-second for general monitoring)
-        - Designed for per-order verification
-        - Does NOT trigger halt (just checks status)
-        - Includes economic calendar event blocking
+        DEPRECATED: Use enforce_before_order() for atomic enforcement.
+        This method exists for backward compatibility but logs a warning.
 
         Args:
             is_exit_order: True if this is an exit/close order (bypasses event blocking)
@@ -390,73 +552,12 @@ class CircuitBreaker:
         Raises:
             RuntimeError: If broker not initialized
         """
-        if not self.broker:
-            raise RuntimeError("Circuit breaker not initialized - call initialize() first")
-
-        # If already halted, stay halted
-        if self.trading_halted:
-            return True
-
-        # Check economic calendar FIRST (before hitting broker API)
-        # Exit orders bypass event blocking - we want to close positions during events
-        if not is_exit_order:
-            is_blocked, event_name, hours_until_safe = self.is_blocked_by_event()
-            if is_blocked:
-                logger.warning(
-                    f"ORDER BLOCKED: High-impact event '{event_name}' imminent - "
-                    f"new entries blocked for {hours_until_safe:.1f}h"
-                )
-                return True
-
-        # Auto-reset at start of new trading day
-        current_date = datetime.now().date()
-        if current_date != self.last_reset_date:
-            await self._reset_for_new_day()
-            return False  # Fresh day, trading allowed
-
-        # Check if we have a fresh order-time cache (1-second TTL)
-        now = time.monotonic()
-        if (
-            self._order_check_cache is not None
-            and self._order_check_time is not None
-            and (now - self._order_check_time) < self._order_check_ttl
-        ):
-            return self._order_check_cache
-
         try:
-            # Fresh check with 1-second TTL
-            account = await self.broker.get_account()
-            current_equity = float(account.equity)
-
-            # Update peak equity for the day
-            if current_equity > self.peak_equity_today:
-                self.peak_equity_today = current_equity
-
-            # Calculate losses
-            daily_loss = (self.starting_equity - current_equity) / self.starting_equity
-            drawdown_from_peak = (
-                (self.peak_equity_today - current_equity) / self.peak_equity_today
-            )
-
-            # Check thresholds
-            is_halted = False
-            if daily_loss >= self.max_daily_loss:
-                await self._trigger_halt(current_equity, daily_loss, "daily_loss_limit")
-                is_halted = True
-            elif drawdown_from_peak >= self.max_daily_loss * RAPID_DRAWDOWN_RATIO:
-                await self._trigger_halt(current_equity, drawdown_from_peak, "rapid_drawdown")
-                is_halted = True
-
-            # Cache result
-            self._order_check_cache = is_halted
-            self._order_check_time = now
-
-            return is_halted
-
-        except Exception as e:
-            logger.error(f"Error in check_before_order: {e}")
-            # FAIL SAFE: Block orders on error
-            return True
+            await self.enforce_before_order(is_exit_order=is_exit_order)
+            return False  # Trading allowed
+        except TradingHaltedException as e:
+            logger.debug(f"check_before_order returning True: {e}")
+            return True  # Trading halted
 
     def get_status(self) -> dict:
         """

@@ -757,3 +757,229 @@ class RiskManager:
                 "valid": False,
                 "error": str(e),
             }
+
+    # =========================================================================
+    # MARGIN MONITORING - INSTITUTIONAL GRADE
+    # =========================================================================
+
+    def calculate_margin_requirement(
+        self,
+        positions: Dict[str, Dict],
+        broker_margin_requirement: float = 0.25,
+    ) -> Dict:
+        """
+        Calculate margin requirements for all positions.
+
+        Args:
+            positions: Dict of positions with {symbol: {value, price, quantity}}
+            broker_margin_requirement: Broker's maintenance margin % (default 25%)
+
+        Returns:
+            Dict with margin analysis
+        """
+        total_position_value = sum(
+            pos.get("value", pos.get("quantity", 0) * pos.get("price", 0))
+            for pos in positions.values()
+        )
+
+        # Calculate required margin
+        required_margin = total_position_value * broker_margin_requirement
+
+        # Calculate liquidation values for each position
+        position_analysis = {}
+        for symbol, pos in positions.items():
+            value = pos.get("value", pos.get("quantity", 0) * pos.get("price", 0))
+            price = pos.get("price", 0)
+            quantity = pos.get("quantity", 0)
+
+            if quantity > 0 and price > 0:  # Long position
+                # Liquidation price = entry_price * (1 - (1 - margin_req) / margin_req)
+                # Simplified: price drops by (1 - margin_req) triggers liquidation
+                liquidation_price = price * broker_margin_requirement
+                cushion_pct = (price - liquidation_price) / price if price > 0 else 0
+            else:
+                liquidation_price = None
+                cushion_pct = None
+
+            position_analysis[symbol] = {
+                "value": value,
+                "price": price,
+                "quantity": quantity,
+                "liquidation_price": liquidation_price,
+                "cushion_pct": cushion_pct,
+            }
+
+        return {
+            "total_position_value": total_position_value,
+            "required_margin": required_margin,
+            "margin_requirement_pct": broker_margin_requirement,
+            "position_analysis": position_analysis,
+        }
+
+    def check_margin_status(
+        self,
+        equity: float,
+        positions: Dict[str, Dict],
+        broker_margin_requirement: float = 0.25,
+        warning_threshold: float = 0.35,
+        halt_threshold: float = 0.30,
+    ) -> Dict:
+        """
+        Check margin status and determine if action is needed.
+
+        Institutional margin monitoring includes:
+        - Current margin level vs requirement
+        - Proximity to margin call
+        - Automatic halt when too close to liquidation
+
+        Args:
+            equity: Current account equity
+            positions: Dict of positions
+            broker_margin_requirement: Broker's maintenance margin (default 25%)
+            warning_threshold: Warn at this margin level (default 35%)
+            halt_threshold: Halt trading at this level (default 30%)
+
+        Returns:
+            Dict with margin status and recommendations
+        """
+        margin_analysis = self.calculate_margin_requirement(
+            positions, broker_margin_requirement
+        )
+
+        total_position_value = margin_analysis["total_position_value"]
+        required_margin = margin_analysis["required_margin"]
+
+        # Calculate margin percentage
+        if total_position_value > 0:
+            margin_pct = equity / total_position_value
+        else:
+            margin_pct = 1.0  # No positions = 100% margin
+
+        # Determine margin status
+        if margin_pct < halt_threshold:
+            status = "CRITICAL"
+            action = "HALT_TRADING"
+            message = f"Margin {margin_pct:.1%} below halt threshold {halt_threshold:.1%}"
+        elif margin_pct < warning_threshold:
+            status = "WARNING"
+            action = "REDUCE_EXPOSURE"
+            message = f"Margin {margin_pct:.1%} approaching danger zone"
+        else:
+            status = "OK"
+            action = "NONE"
+            message = f"Margin {margin_pct:.1%} is healthy"
+
+        # Calculate excess/deficit
+        margin_excess = equity - required_margin
+        margin_deficit = max(0, required_margin - equity)
+
+        # Calculate how much to reduce to reach safety
+        safe_position_value = equity / warning_threshold if warning_threshold > 0 else 0
+        reduction_needed = max(0, total_position_value - safe_position_value)
+
+        return {
+            "status": status,
+            "action": action,
+            "message": message,
+            "equity": equity,
+            "total_position_value": total_position_value,
+            "margin_pct": margin_pct,
+            "required_margin": required_margin,
+            "margin_excess": margin_excess,
+            "margin_deficit": margin_deficit,
+            "warning_threshold": warning_threshold,
+            "halt_threshold": halt_threshold,
+            "should_halt": margin_pct < halt_threshold,
+            "should_warn": margin_pct < warning_threshold,
+            "reduction_needed": reduction_needed,
+            "position_analysis": margin_analysis["position_analysis"],
+        }
+
+    def get_liquidation_prices(
+        self,
+        positions: Dict[str, Dict],
+        equity: float,
+        broker_margin_requirement: float = 0.25,
+    ) -> Dict[str, float]:
+        """
+        Calculate liquidation prices for each position.
+
+        Returns the price at which each position would trigger margin call.
+
+        Args:
+            positions: Dict of positions
+            equity: Current equity
+            broker_margin_requirement: Broker's maintenance margin
+
+        Returns:
+            Dict of {symbol: liquidation_price}
+        """
+        liquidation_prices = {}
+
+        total_position_value = sum(
+            pos.get("value", pos.get("quantity", 0) * pos.get("price", 0))
+            for pos in positions.values()
+        )
+
+        if total_position_value == 0:
+            return {}
+
+        # Current margin
+        current_margin_pct = equity / total_position_value if total_position_value > 0 else 1.0
+
+        for symbol, pos in positions.items():
+            price = pos.get("price", 0)
+            quantity = pos.get("quantity", 0)
+
+            if quantity > 0 and price > 0:  # Long position
+                # Calculate price that would bring margin to requirement
+                # If price drops by X%, position value drops by X%
+                # margin = equity / (position_value * (1 - X))
+                # At liquidation: margin_req = equity / (position_value * (1 - X))
+                # Solving for X: 1 - X = equity / (position_value * margin_req)
+
+                position_value = pos.get("value", quantity * price)
+                # How much can position drop before liquidation?
+                # equity / (position_value * (1 - drop_pct)) = margin_req
+                # (1 - drop_pct) = equity / (position_value * margin_req)
+                denominator = total_position_value * broker_margin_requirement
+                if denominator > 0:
+                    factor = equity / denominator
+                    drop_pct = 1 - (1 / factor) if factor > 0 else 1.0
+                    liquidation_price = price * (1 - max(0, drop_pct))
+                else:
+                    liquidation_price = 0
+
+                liquidation_prices[symbol] = max(0, liquidation_price)
+
+        return liquidation_prices
+
+    def should_halt_for_margin(
+        self,
+        equity: float,
+        positions: Dict[str, Dict],
+        halt_threshold: float = 0.30,
+    ) -> bool:
+        """
+        Simple check if trading should be halted due to margin.
+
+        This is designed to integrate with CircuitBreaker.
+
+        Args:
+            equity: Current equity
+            positions: Dict of positions
+            halt_threshold: Margin level to halt at
+
+        Returns:
+            True if trading should be halted
+        """
+        total_position_value = sum(
+            pos.get("value", pos.get("quantity", 0) * pos.get("price", 0))
+            for pos in positions.values()
+        )
+
+        if total_position_value == 0:
+            return False
+
+        margin_pct = equity / total_position_value
+        return margin_pct < halt_threshold
