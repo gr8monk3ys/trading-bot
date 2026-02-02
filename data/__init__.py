@@ -46,6 +46,51 @@ from data.feature_store import (
     STANDARD_FEATURES,
 )
 
+from data.alt_data_types import (
+    AltDataSource,
+    SignalDirection,
+    SignalStrength,
+    AlternativeSignal,
+    SocialSentimentSignal,
+    OrderFlowSignal,
+    WebScrapingSignal,
+    AggregatedSignal,
+    AltDataProviderStatus,
+)
+
+from data.alternative_data_provider import (
+    AlternativeDataProvider,
+    AltDataAggregator,
+    AltDataCache,
+)
+
+from data.web_scraper import (
+    JobPostingsProvider,
+    GlassdoorSentimentProvider,
+    AppRankingsProvider,
+    WebScraperAggregator,
+    create_web_scraper_provider,
+)
+
+from data.cross_asset_types import (
+    CrossAssetSource,
+    VolatilityRegime,
+    YieldCurveRegime,
+    RiskAppetiteRegime,
+    VixTermStructureSignal,
+    YieldCurveSignal,
+    FxCorrelationSignal,
+    CrossAssetAggregatedSignal,
+)
+
+from data.cross_asset_provider import (
+    CrossAssetProvider,
+    VixTermStructureProvider,
+    YieldCurveProvider,
+    FxCorrelationProvider,
+    CrossAssetAggregator,
+)
+
 __all__ = [
     # Point-in-Time Database
     "PointInTimeDB",
@@ -80,4 +125,37 @@ __all__ = [
     "SQLiteFeatureBackend",
     "create_feature_store",
     "STANDARD_FEATURES",
+    # Alternative Data
+    "AltDataSource",
+    "SignalDirection",
+    "SignalStrength",
+    "AlternativeSignal",
+    "SocialSentimentSignal",
+    "OrderFlowSignal",
+    "WebScrapingSignal",
+    "AggregatedSignal",
+    "AltDataProviderStatus",
+    "AlternativeDataProvider",
+    "AltDataAggregator",
+    "AltDataCache",
+    # Web Scraper Providers
+    "JobPostingsProvider",
+    "GlassdoorSentimentProvider",
+    "AppRankingsProvider",
+    "WebScraperAggregator",
+    "create_web_scraper_provider",
+    # Cross-Asset Signals
+    "CrossAssetSource",
+    "VolatilityRegime",
+    "YieldCurveRegime",
+    "RiskAppetiteRegime",
+    "VixTermStructureSignal",
+    "YieldCurveSignal",
+    "FxCorrelationSignal",
+    "CrossAssetAggregatedSignal",
+    "CrossAssetProvider",
+    "VixTermStructureProvider",
+    "YieldCurveProvider",
+    "FxCorrelationProvider",
+    "CrossAssetAggregator",
 ]

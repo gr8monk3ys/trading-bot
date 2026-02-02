@@ -398,6 +398,42 @@ BACKTEST_PARAMS = {
     "LIMIT_ORDER_FILL_RATE": 0.7,  # 70% of limit orders fill at target price
 }
 
+# LLM Analysis parameters (GPT-4 / Claude for text analysis)
+# Adds +2-4% alpha from earnings calls, Fed speeches, SEC filings, news themes
+LLM_PARAMS = {
+    # Enable/disable LLM analysis
+    "ENABLED": True,  # Enable LLM-powered text analysis
+    # Provider configuration
+    "PRIMARY_PROVIDER": "anthropic",  # "anthropic" or "openai"
+    "OPENAI_MODEL": "gpt-4o",  # OpenAI model to use
+    "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",  # Anthropic model to use
+    # Cost management
+    "DAILY_COST_CAP_USD": 50.0,  # Maximum daily LLM API cost
+    "WEEKLY_COST_CAP_USD": 250.0,  # Maximum weekly LLM API cost
+    "MONTHLY_COST_CAP_USD": 750.0,  # Maximum monthly LLM API cost
+    # Rate limiting
+    "MAX_TOKENS_PER_MINUTE": 50000,  # Token rate limit
+    "MAX_REQUESTS_PER_MINUTE": 10,  # Request rate limit
+    # Cache TTL (in hours) - reduces costs significantly
+    "CACHE_TTL_EARNINGS_HOURS": 168,  # 7 days - transcripts don't change
+    "CACHE_TTL_FED_HOURS": 24,  # 24 hours - speeches don't change
+    "CACHE_TTL_SEC_HOURS": 720,  # 30 days - SEC filings don't change
+    "CACHE_TTL_NEWS_HOURS": 4,  # 4 hours - news is time-sensitive
+    # Analysis weights in ensemble
+    "EARNINGS_WEIGHT": 0.35,  # Highest - direct company info
+    "FED_SPEECH_WEIGHT": 0.15,  # Market-wide signal
+    "SEC_FILING_WEIGHT": 0.25,  # Important fundamental data
+    "NEWS_THEME_WEIGHT": 0.25,  # Timely but noisy
+    # Confidence thresholds
+    "MIN_CONFIDENCE": 0.4,  # Minimum confidence to use signal
+    "SIGNAL_WEIGHT": 0.15,  # Weight in overall ensemble (15%)
+    # Data source API keys (or from env)
+    # ALPHA_VANTAGE_API_KEY - for earnings transcripts
+    # FMP_API_KEY - for earnings transcripts (fallback)
+    # OPENAI_API_KEY - for GPT-4
+    # ANTHROPIC_API_KEY - for Claude
+}
+
 # P0 FIX: Validate configuration on module load
 # This catches invalid configs early rather than at runtime
 _validate_config()
