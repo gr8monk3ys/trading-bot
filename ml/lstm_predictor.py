@@ -400,25 +400,59 @@ class LSTMPredictor:
         if len(features) == 0:
             raise ValueError(f"Failed to prepare features for {symbol}")
 
-        # Normalize features (fit new scaler)
-        normalized = self._normalize_features(features, symbol, fit=True)
+        # CRITICAL FIX: Split data BEFORE normalization to prevent data leakage
+        # The scaler must only see training data, not validation/future data
+        # This is a time-series split (not random) to respect temporal order
+
+        # Calculate split point for raw features
+        # We need to account for sequence_length and prediction_horizon when splitting
+        total_sequences = len(features) - self.sequence_length - self.prediction_horizon + 1
+        train_sequences = int(total_sequences * (1 - validation_split))
+
+        # Calculate the raw feature split index
+        # train_sequences correspond to features[0:train_split_idx] for the last training sequence
+        train_split_idx = train_sequences + self.sequence_length + self.prediction_horizon - 1
+
+        # Split raw features BEFORE normalization
+        train_features = features[:train_split_idx]
+        val_features = features[train_split_idx - self.sequence_length - self.prediction_horizon + 1:]
+
+        logger.info(
+            f"Data leakage prevention: Fitting scaler on {len(train_features)} training samples only "
+            f"(validation: {len(val_features)} samples)"
+        )
+
+        # Fit scaler ONLY on training data (prevents data leakage)
+        MinMaxScaler = _import_sklearn()
+        self.scalers[symbol] = MinMaxScaler(feature_range=(0, 1))
+        normalized_train = self.scalers[symbol].fit_transform(train_features)
+
+        # Transform validation data using training-fitted scaler
+        normalized_val = self.scalers[symbol].transform(val_features)
 
         # Target is the normalized close price (column index 3)
-        targets = normalized[:, 3]
+        train_targets = normalized_train[:, 3]
+        val_targets = normalized_val[:, 3]
 
-        # Create sequences
-        X, y = self._create_sequences(normalized, targets)
-        if len(X) == 0:
-            raise ValueError(f"Could not create sequences for {symbol}")
+        # Create sequences for training data
+        X_train, y_train = self._create_sequences(normalized_train, train_targets)
+        if len(X_train) == 0:
+            raise ValueError(f"Could not create training sequences for {symbol}")
 
-        # Split into train/validation sets
-        split_idx = int(len(X) * (1 - validation_split))
-        X_train, X_val = X[:split_idx], X[split_idx:]
-        y_train, y_val = y[:split_idx], y[split_idx:]
+        # Create sequences for validation data
+        X_val, y_val = self._create_sequences(normalized_val, val_targets)
+        if len(X_val) == 0:
+            logger.warning(f"No validation sequences created for {symbol}, using last 20% of training")
+            # Fallback: use last portion of training as validation
+            fallback_split = int(len(X_train) * 0.8)
+            X_val = X_train[fallback_split:]
+            y_val = y_train[fallback_split:]
+            X_train = X_train[:fallback_split]
+            y_train = y_train[:fallback_split]
 
         logger.info(
             f"Training {symbol}: {len(X_train)} train samples, "
-            f"{len(X_val)} validation samples"
+            f"{len(X_val)} validation samples (scaler fitted on training data only)"
         )
 
         # Convert to PyTorch tensors

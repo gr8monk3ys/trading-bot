@@ -732,25 +732,20 @@ class TestConnectionErrors:
         assert call_count == 3
 
     @pytest.mark.asyncio
-    async def test_get_positions_retries_on_timeout(self, broker_with_mocks):
-        """Should retry get_positions on timeout."""
+    async def test_get_positions_raises_on_timeout(self, broker_with_mocks):
+        """Should raise BrokerConnectionError on timeout (fail fast for unreachable broker)."""
+        from brokers.alpaca_broker import BrokerConnectionError
         broker = broker_with_mocks
-        call_count = 0
 
-        def side_effect():
-            nonlocal call_count
-            call_count += 1
-            if call_count < 2:
-                raise TimeoutError("Request timed out")
-            return []
+        # Mock the _async_call_with_timeout to simulate timeout
+        async def timeout_side_effect(*args, **kwargs):
+            raise asyncio.TimeoutError("Request timed out")
 
-        broker.trading_client.get_all_positions.side_effect = side_effect
+        with patch.object(broker, '_async_call_with_timeout', side_effect=timeout_side_effect):
+            with pytest.raises(BrokerConnectionError) as exc_info:
+                await broker.get_positions()
 
-        with patch("asyncio.sleep", return_value=None):
-            result = await broker.get_positions()
-
-        assert result == []
-        assert call_count == 2
+        assert "timed out" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_get_position_returns_none_on_not_found(self, broker_with_mocks):

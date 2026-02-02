@@ -51,7 +51,8 @@ class TestDefaultParameters:
         strategy = MomentumStrategy.__new__(MomentumStrategy)
         params = strategy.default_parameters()
 
-        assert params["position_size"] == 0.10
+        # Position size reduced to 5% for safer defaults (overfitting prevention)
+        assert params["position_size"] == 0.05
         assert params["max_positions"] == 5
         assert params["stop_loss"] == 0.03
         assert params["take_profit"] == 0.05
@@ -84,37 +85,40 @@ class TestDefaultParameters:
         assert "use_bollinger_filter" in params
         assert "use_kelly_criterion" in params
 
-    def test_default_rsi_mode_is_aggressive(self):
-        """Test that default RSI mode is aggressive."""
+    def test_default_rsi_mode_is_standard(self):
+        """Test that default RSI mode is standard (safer default for overfitting prevention)."""
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy.__new__(MomentumStrategy)
         params = strategy.default_parameters()
-        assert params["rsi_mode"] == "aggressive"
+        assert params["rsi_mode"] == "standard"
 
     def test_default_bollinger_params(self):
-        """Test default Bollinger Band parameters."""
+        """Test default Bollinger Band parameters (disabled by default for overfitting prevention)."""
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy.__new__(MomentumStrategy)
         params = strategy.default_parameters()
 
-        assert params["use_bollinger_filter"] is True
+        # Bollinger filter disabled by default to reduce overfitting
+        assert params["use_bollinger_filter"] is False
         assert params["bb_period"] == 20
         assert params["bb_std"] == 2.0
         assert params["bb_buy_threshold"] == 0.3
         assert params["bb_sell_threshold"] == 0.7
 
     def test_default_kelly_params(self):
-        """Test default Kelly Criterion parameters."""
+        """Test default Kelly Criterion parameters (disabled until validated with 100+ trades)."""
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy.__new__(MomentumStrategy)
         params = strategy.default_parameters()
 
-        assert params["use_kelly_criterion"] is True
+        # Kelly criterion disabled by default until validated with sufficient trades
+        assert params["use_kelly_criterion"] is False
         assert params["kelly_fraction"] == 0.5
-        assert params["kelly_min_trades"] == 30
+        # Increased from 30 to 100 trades for statistical significance
+        assert params["kelly_min_trades"] == 100
 
 
 class TestMomentumStrategyInitialize:

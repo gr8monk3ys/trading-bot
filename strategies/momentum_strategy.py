@@ -28,77 +28,86 @@ class MomentumStrategy(BaseStrategy):
         """
         Return default parameters for the strategy.
 
-        MAXIMUM PROFIT MODE (all advanced features enabled):
-        - ENABLED: Kelly Criterion (+4-6% annual returns)
-        - ENABLED: Multi-timeframe (+8-12% win rate improvement)
-        - ENABLED: Volatility regime (+5-8% annual returns)
-        - ENABLED: Streak sizing (+4-7% annual returns)
-        - ENABLED: Short selling (+5-15% returns in bear markets)
-        - ENABLED: RSI-2 aggressive mode (+36% win rate improvement)
-        - ENABLED: Bollinger Band filter (+3-5% returns)
+        CONSERVATIVE DEFAULTS (reduced overfitting risk):
+        Features are disabled by default until validated with sufficient trades.
 
-        Cumulative expected improvement: +25-55% annual returns
+        VALIDATED FEATURES (enabled by default):
+        - RSI-14 standard mode (proven, well-studied)
+        - MACD confirmation (standard momentum indicator)
+        - ADX trend strength (standard)
+        - Trailing stops (captures extended moves)
+        - Volatility regime detection (adaptive risk)
+
+        EXPERIMENTAL FEATURES (disabled by default, enable after 100+ trades):
+        - Kelly Criterion (requires win rate/payoff data)
+        - Streak sizing (requires trade history)
+        - Multi-timeframe (not useful for daily data)
+        - RSI-2 aggressive mode (high win rate but needs validation)
+        - Short selling (requires separate validation)
+        - Bollinger Band filter (mean reversion overlay)
+
+        To enable experimental features after validation:
+            strategy = MomentumStrategy(broker, symbols, config={
+                "use_kelly_criterion": True,
+                "use_streak_sizing": True,
+                ...
+            })
         """
         return {
-            # === BASIC PARAMETERS (ENABLED) ===
-            "position_size": 0.10,  # 10% of available capital per position (baseline)
-            "max_positions": 5,  # Increased to 5 for more diversification
-            "max_portfolio_risk": 0.02,  # Maximum portfolio risk (2%)
+            # === CORE PARAMETERS (VALIDATED) ===
+            "position_size": 0.05,  # 5% per position (conservative start)
+            "max_positions": 5,  # Maximum concurrent positions
+            "max_portfolio_risk": 0.02,  # 2% max portfolio risk
             "stop_loss": 0.03,  # 3% stop loss
-            "take_profit": 0.05,  # 5% take profit
-            # === MOMENTUM INDICATORS (ENABLED - CORE STRATEGY) ===
-            # RSI Mode: 'standard' (14-period) or 'aggressive' (RSI-2 for 91% win rate)
-            # Research: RSI-2 achieves 91% win rate vs 55% for RSI-14
-            # Source: QuantifiedStrategies.com
-            "rsi_mode": "aggressive",  # ENABLED for 91% win rate (was 'standard')
-            "rsi_period": 14,  # Overridden to 2 if rsi_mode='aggressive'
-            "rsi_overbought": 70,  # Overridden to 90 if rsi_mode='aggressive'
-            "rsi_oversold": 30,  # Overridden to 10 if rsi_mode='aggressive'
-            "macd_fast_period": 12,
+            "take_profit": 0.05,  # 5% take profit (if not using trailing)
+            # === MOMENTUM INDICATORS (VALIDATED - CORE STRATEGY) ===
+            # Using standard RSI-14 by default for proven reliability
+            "rsi_mode": "standard",  # Use proven RSI-14 (enable 'aggressive' after validation)
+            "rsi_period": 14,  # Standard RSI period
+            "rsi_overbought": 70,  # Standard overbought
+            "rsi_oversold": 30,  # Standard oversold
+            "macd_fast_period": 12,  # Standard MACD
             "macd_slow_period": 26,
             "macd_signal_period": 9,
-            "adx_period": 14,
-            "adx_threshold": 25,  # ADX above this indicates strong trend
-            # === VOLUME PARAMETERS (ENABLED) ===
+            "adx_period": 14,  # Standard ADX
+            "adx_threshold": 25,  # ADX > 25 = trending
+            # === VOLUME PARAMETERS (VALIDATED) ===
             "volume_ma_period": 20,
             "volume_factor": 1.5,
-            # === PRICE MA PARAMETERS (ENABLED) ===
+            # === PRICE MA PARAMETERS (VALIDATED) ===
             "fast_ma_period": 10,
-            "medium_ma_period": 20,  # Changed from 30 to standard 20
+            "medium_ma_period": 20,
             "slow_ma_period": 50,
-            # === VOLATILITY PARAMETERS (ENABLED) ===
+            # === VOLATILITY PARAMETERS (VALIDATED) ===
             "atr_period": 14,
             "atr_multiplier": 2.0,
-            # === RISK MANAGEMENT (BASIC) ===
+            # === RISK MANAGEMENT (VALIDATED) ===
             "max_correlation": 0.7,
             "max_sector_exposure": 0.3,
-            # === BOLLINGER BANDS (Mean Reversion Filter) ===
-            "use_bollinger_filter": True,  # ENABLED for +3-5% returns from mean reversion
-            "bb_period": 20,  # Bollinger Band period
-            "bb_std": 2.0,  # Standard deviations for bands
-            "bb_buy_threshold": 0.3,  # Buy boost when below this level (0-1)
-            "bb_sell_threshold": 0.7,  # Sell boost when above this level (0-1)
-            # === ADVANCED FEATURES (ALL ENABLED FOR MAXIMUM PROFIT) ===
-            "use_multi_timeframe": True,  # ENABLED for +8-12% win rate improvement
+            # === TRAILING STOPS (VALIDATED - let winners run) ===
+            "use_trailing_stop": True,  # ENABLED - proven to capture extended moves
+            "trailing_stop_pct": 0.02,  # 2% trailing distance
+            "trailing_activation_pct": 0.02,  # Activate after 2% profit
+            # === VOLATILITY REGIME (VALIDATED - adaptive risk) ===
+            "use_volatility_regime": True,  # ENABLED - adjusts to market conditions
+            # === EXPERIMENTAL FEATURES (DISABLED until validated) ===
+            # These require 100+ trades before enabling to avoid overfitting
+            "use_bollinger_filter": False,  # DISABLED - enable after validation
+            "bb_period": 20,
+            "bb_std": 2.0,
+            "bb_buy_threshold": 0.3,
+            "bb_sell_threshold": 0.7,
+            "use_multi_timeframe": False,  # DISABLED - not useful for daily data
             "mtf_timeframes": ["5Min", "15Min", "1Hour"],
-            "mtf_require_alignment": True,  # STRICT mode for better signal quality
-            "enable_short_selling": True,  # ENABLED for +5-15% returns in bear markets
+            "mtf_require_alignment": True,
+            "enable_short_selling": False,  # DISABLED - requires separate validation
             "short_position_size": 0.08,
             "short_stop_loss": 0.04,
-            # BaseStrategy advanced features (ALL ENABLED for maximum profit)
-            "use_kelly_criterion": True,  # ENABLED for +4-6% optimal position sizing
-            "kelly_fraction": 0.5,  # Half-Kelly (75% of max profit, 25% variance)
-            "kelly_min_trades": 30,  # Min trades before using Kelly
-            "kelly_lookback": 50,  # Use last 50 trades for calculation
-            "use_volatility_regime": True,  # ENABLED for +5-8% adaptive risk management
-            "use_streak_sizing": True,  # ENABLED for +4-7% performance-based sizing
-            # === TRAILING STOPS (NEW FEATURE - let winners run) ===
-            # Instead of fixed 5% take-profit, trail winners to capture larger moves
-            # Research: Trailing stops can increase avg win by 20-50% in trending markets
-            "use_trailing_stop": True,  # ENABLED for capturing extended moves
-            "trailing_stop_pct": 0.02,  # 2% trailing stop distance
-            "trailing_activation_pct": 0.02,  # Activate trailing after 2% profit
-            # Expected improvement: +15-25% on winning trades by letting them run
+            "use_kelly_criterion": False,  # DISABLED - requires 100+ trades for win rate data
+            "kelly_fraction": 0.5,
+            "kelly_min_trades": 100,  # Increased from 30 to 100 for statistical significance
+            "kelly_lookback": 50,
+            "use_streak_sizing": False,  # DISABLED - requires trade history validation
         }
 
     async def initialize(self, **kwargs):
@@ -865,9 +874,13 @@ class MomentumStrategy(BaseStrategy):
                                 f"(locked profit: {locked_profit_pct:.1%})"
                             )
 
-                            # Exit the position
-                            order = OrderBuilder(symbol, "sell", abs(qty)).market().day().build()
-                            result = await self.broker.submit_order_advanced(order)
+                            # Exit the position using safe exit method
+                            result = await self.submit_exit_order(
+                                symbol=symbol,
+                                qty=abs(qty),
+                                side="sell",
+                                reason=f"trailing_stop_long (locked profit: {locked_profit_pct:.1%})",
+                            )
 
                             if result:
                                 logger.info(
@@ -903,9 +916,13 @@ class MomentumStrategy(BaseStrategy):
                                 f"(locked profit: {locked_profit_pct:.1%})"
                             )
 
-                            # Cover the short position (buy to close)
-                            order = OrderBuilder(symbol, "buy", abs(qty)).market().day().build()
-                            result = await self.broker.submit_order_advanced(order)
+                            # Cover the short position using safe exit method
+                            result = await self.submit_exit_order(
+                                symbol=symbol,
+                                qty=abs(qty),
+                                side="buy",
+                                reason=f"trailing_stop_short (locked profit: {locked_profit_pct:.1%})",
+                            )
 
                             if result:
                                 logger.info(

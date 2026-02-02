@@ -19,17 +19,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 class TestRSI2Mode:
     """Test RSI-2 aggressive mode settings."""
 
-    def test_default_mode_is_aggressive(self):
-        """Default mode should be aggressive RSI-2 for maximum profit."""
+    def test_default_mode_is_standard(self):
+        """Default mode should be standard RSI-14 (proven, conservative)."""
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy()
         params = strategy.default_parameters()
 
-        assert params["rsi_mode"] == "aggressive"
-        # Note: rsi_period/overbought/oversold in defaults are the standard values,
-        # but they get overridden to RSI-2 settings (2/90/10) during initialize()
-        # when rsi_mode is 'aggressive'
+        # Standard RSI-14 is used by default for proven reliability
+        # RSI-2 aggressive mode is experimental - enable after validation
+        assert params["rsi_mode"] == "standard"
         assert params["rsi_period"] == 14
         assert params["rsi_overbought"] == 70
         assert params["rsi_oversold"] == 30

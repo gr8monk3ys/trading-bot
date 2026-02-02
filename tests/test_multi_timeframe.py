@@ -32,14 +32,15 @@ class TestMultiTimeframeParams:
         assert "mtf_timeframes" in params
         assert "mtf_require_alignment" in params
 
-    def test_mtf_enabled_by_default(self):
-        """MTF should be enabled by default for maximum profit."""
+    def test_mtf_disabled_by_default(self):
+        """MTF should be disabled by default until validated (not useful for daily data)."""
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy()
         params = strategy.default_parameters()
 
-        assert params["use_multi_timeframe"] is True
+        # MTF is an experimental feature - disabled by default
+        assert params["use_multi_timeframe"] is False
 
     def test_mtf_timeframes_structure(self):
         """MTF timeframes should be a list of valid timeframe strings."""

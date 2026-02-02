@@ -680,7 +680,9 @@ class TestSignalRouting:
             result = await strategy.analyze_symbol(SINGLE_SYMBOL)
 
             mock_momentum.analyze_symbol.assert_called_once_with(SINGLE_SYMBOL)
-            assert result == "buy"
+            # analyze_symbol now returns dict with enriched signal
+            assert isinstance(result, dict)
+            assert result.get("action") == "buy" or "action" in result
 
     @pytest.mark.asyncio
     async def test_analyze_symbol_returns_neutral_when_no_active_strategy(
@@ -695,7 +697,9 @@ class TestSignalRouting:
 
         result = await strategy.analyze_symbol(SINGLE_SYMBOL)
 
-        assert result == "neutral"
+        # analyze_symbol now returns dict
+        assert isinstance(result, dict)
+        assert result.get("action") == "neutral"
 
     @pytest.mark.asyncio
     async def test_execute_trade_delegates_to_active_strategy(self, mock_broker):

@@ -1,8 +1,9 @@
 """
-Circuit Breaker - Daily Loss Limit Protection
+Circuit Breaker - Daily Loss Limit Protection + Economic Event Safety
 
-CRITICAL SAFETY FEATURE: Automatically halts trading if daily losses exceed threshold.
-This prevents catastrophic losses and protects capital from runaway strategies.
+CRITICAL SAFETY FEATURE: Automatically halts trading if:
+1. Daily losses exceed threshold (protects capital from runaway strategies)
+2. High-impact economic events are imminent (FOMC, NFP, CPI)
 
 Usage:
     circuit_breaker = CircuitBreaker(max_daily_loss=0.03)  # 3% max daily loss
@@ -17,8 +18,12 @@ Usage:
 import logging
 import time
 from datetime import datetime
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+# Lazy import for economic calendar
+EconomicEventCalendar = None
 
 # Named constants for magic numbers
 RAPID_DRAWDOWN_RATIO = 0.67  # Rapid drawdown triggers at 67% of max daily loss
@@ -35,16 +40,32 @@ class CircuitBreaker:
     - Emergency position closing on trigger
     """
 
-    def __init__(self, max_daily_loss: float = 0.03, auto_close_positions: bool = True):
+    def __init__(
+        self,
+        max_daily_loss: float = 0.03,
+        auto_close_positions: bool = True,
+        use_economic_calendar: bool = True,
+        block_high_impact_events: bool = True,
+        reduce_position_medium_impact: bool = True,
+    ):
         """
         Initialize circuit breaker.
 
         Args:
             max_daily_loss: Maximum allowed daily loss as decimal (0.03 = 3%)
             auto_close_positions: Whether to automatically close all positions when triggered
+            use_economic_calendar: Enable economic event protection
+            block_high_impact_events: Block new entries before FOMC, NFP, CPI
+            reduce_position_medium_impact: Reduce position size for medium-impact events
         """
         self.max_daily_loss = max_daily_loss
         self.auto_close_positions = auto_close_positions
+
+        # Economic calendar settings
+        self.use_economic_calendar = use_economic_calendar
+        self.block_high_impact_events = block_high_impact_events
+        self.reduce_position_medium_impact = reduce_position_medium_impact
+        self.economic_calendar = None  # Initialized lazily
 
         # State tracking
         self.trading_halted = False
@@ -61,7 +82,20 @@ class CircuitBreaker:
         self._account_cache_time = None
         self._account_cache_ttl = 5  # seconds
 
-        logger.info(f"Circuit Breaker initialized: max daily loss = {max_daily_loss:.1%}")
+        # Faster cache for per-order checks (1-second TTL)
+        self._order_check_cache = None
+        self._order_check_time = None
+        self._order_check_ttl = 1  # seconds - fresh check before each order
+
+        # Economic calendar cache (30-second TTL - events don't change rapidly)
+        self._calendar_cache = None
+        self._calendar_cache_time = None
+        self._calendar_cache_ttl = 30  # seconds
+
+        logger.info(
+            f"Circuit Breaker initialized: max daily loss = {max_daily_loss:.1%}, "
+            f"economic calendar = {use_economic_calendar}"
+        )
 
     async def initialize(self, broker):
         """
@@ -79,6 +113,10 @@ class CircuitBreaker:
             self.peak_equity_today = float(account.equity)
             self.last_reset_date = datetime.now().date()
 
+            # Initialize economic calendar if enabled
+            if self.use_economic_calendar:
+                self._init_economic_calendar()
+
             logger.info(
                 f"Circuit Breaker armed: "
                 f"Starting equity: ${self.starting_equity:,.2f}, "
@@ -88,6 +126,28 @@ class CircuitBreaker:
         except Exception as e:
             logger.error(f"Failed to initialize circuit breaker: {e}")
             raise
+
+    def _init_economic_calendar(self):
+        """Lazy-load and initialize economic calendar."""
+        global EconomicEventCalendar
+        if EconomicEventCalendar is None:
+            try:
+                from utils.economic_calendar import EconomicEventCalendar
+            except ImportError:
+                logger.warning("Economic calendar not available - feature disabled")
+                self.use_economic_calendar = False
+                return
+
+        self.economic_calendar = EconomicEventCalendar(
+            avoid_high_impact=self.block_high_impact_events,
+            avoid_medium_impact=False,  # Only reduce size, don't block
+            reduce_size_medium_impact=self.reduce_position_medium_impact,
+        )
+        logger.info(
+            f"Economic calendar initialized: "
+            f"block_high_impact={self.block_high_impact_events}, "
+            f"reduce_medium={self.reduce_position_medium_impact}"
+        )
 
     async def _get_account_cached(self):
         """Get account data with simple TTL cache to reduce API calls.
@@ -275,6 +335,129 @@ class CircuitBreaker:
         """Check if trading is currently halted."""
         return self.trading_halted
 
+    def quick_check(self) -> bool:
+        """
+        Fast synchronous check if trading is halted.
+
+        This is a CACHED check that doesn't make API calls. Use for:
+        - Quick pre-flight checks before expensive operations
+        - High-frequency checks in hot paths
+        - When you need immediate response
+
+        NOTE: This may be slightly stale (up to 5 seconds). For order-time
+        checks, use check_before_order() instead.
+
+        Returns:
+            True if trading is halted (should NOT place orders)
+            False if trading appears to be allowed (but verify with check_before_order)
+        """
+        # If halted flag is set, definitely halted
+        if self.trading_halted:
+            return True
+
+        # Check if we need a day reset (could be stale)
+        current_date = datetime.now().date()
+        if self.last_reset_date and current_date != self.last_reset_date:
+            # New day - might be reset, but we can't do async here
+            # Be conservative: allow trading (async check will verify)
+            return False
+
+        return False
+
+    async def check_before_order(self, is_exit_order: bool = False) -> bool:
+        """
+        Check circuit breaker status before submitting an order.
+
+        This is the RECOMMENDED check to use in OrderGateway before every order.
+        Uses a 1-second TTL cache to balance freshness with API efficiency.
+
+        Also checks economic calendar for high-impact events (FOMC, NFP, CPI).
+        Exit orders bypass event blocking (we want to close positions, not hold them).
+
+        Key differences from check_and_halt():
+        - 1-second TTL (vs 5-second for general monitoring)
+        - Designed for per-order verification
+        - Does NOT trigger halt (just checks status)
+        - Includes economic calendar event blocking
+
+        Args:
+            is_exit_order: True if this is an exit/close order (bypasses event blocking)
+
+        Returns:
+            True if trading is halted (order should be REJECTED)
+            False if trading is allowed (order can proceed)
+
+        Raises:
+            RuntimeError: If broker not initialized
+        """
+        if not self.broker:
+            raise RuntimeError("Circuit breaker not initialized - call initialize() first")
+
+        # If already halted, stay halted
+        if self.trading_halted:
+            return True
+
+        # Check economic calendar FIRST (before hitting broker API)
+        # Exit orders bypass event blocking - we want to close positions during events
+        if not is_exit_order:
+            is_blocked, event_name, hours_until_safe = self.is_blocked_by_event()
+            if is_blocked:
+                logger.warning(
+                    f"ORDER BLOCKED: High-impact event '{event_name}' imminent - "
+                    f"new entries blocked for {hours_until_safe:.1f}h"
+                )
+                return True
+
+        # Auto-reset at start of new trading day
+        current_date = datetime.now().date()
+        if current_date != self.last_reset_date:
+            await self._reset_for_new_day()
+            return False  # Fresh day, trading allowed
+
+        # Check if we have a fresh order-time cache (1-second TTL)
+        now = time.monotonic()
+        if (
+            self._order_check_cache is not None
+            and self._order_check_time is not None
+            and (now - self._order_check_time) < self._order_check_ttl
+        ):
+            return self._order_check_cache
+
+        try:
+            # Fresh check with 1-second TTL
+            account = await self.broker.get_account()
+            current_equity = float(account.equity)
+
+            # Update peak equity for the day
+            if current_equity > self.peak_equity_today:
+                self.peak_equity_today = current_equity
+
+            # Calculate losses
+            daily_loss = (self.starting_equity - current_equity) / self.starting_equity
+            drawdown_from_peak = (
+                (self.peak_equity_today - current_equity) / self.peak_equity_today
+            )
+
+            # Check thresholds
+            is_halted = False
+            if daily_loss >= self.max_daily_loss:
+                await self._trigger_halt(current_equity, daily_loss, "daily_loss_limit")
+                is_halted = True
+            elif drawdown_from_peak >= self.max_daily_loss * RAPID_DRAWDOWN_RATIO:
+                await self._trigger_halt(current_equity, drawdown_from_peak, "rapid_drawdown")
+                is_halted = True
+
+            # Cache result
+            self._order_check_cache = is_halted
+            self._order_check_time = now
+
+            return is_halted
+
+        except Exception as e:
+            logger.error(f"Error in check_before_order: {e}")
+            # FAIL SAFE: Block orders on error
+            return True
+
     def get_status(self) -> dict:
         """
         Get current circuit breaker status.
@@ -282,7 +465,7 @@ class CircuitBreaker:
         Returns:
             Dict with status information
         """
-        return {
+        status = {
             "halted": self.trading_halted,
             "max_daily_loss": self.max_daily_loss,
             "starting_equity": self.starting_equity,
@@ -292,6 +475,97 @@ class CircuitBreaker:
             ),
             "last_reset_date": self.last_reset_date.isoformat() if self.last_reset_date else None,
         }
+
+        # Add economic calendar status
+        if self.economic_calendar:
+            calendar_status = self.check_economic_events()
+            status["economic_calendar"] = calendar_status
+
+        return status
+
+    def check_economic_events(self) -> Dict:
+        """
+        Check for upcoming economic events that might affect trading.
+
+        Uses a 30-second cache to reduce redundant calculations.
+
+        Returns:
+            Dict with:
+                - is_safe: bool - whether new entries are allowed
+                - blocking_event: str or None - name of blocking event
+                - hours_until_safe: float - time until trading is safe
+                - position_multiplier: float - position size multiplier (1.0 = normal)
+                - events_today: list - today's economic events
+        """
+        if not self.economic_calendar:
+            return {
+                "is_safe": True,
+                "blocking_event": None,
+                "hours_until_safe": 0,
+                "position_multiplier": 1.0,
+                "events_today": [],
+            }
+
+        # Check cache
+        now = time.monotonic()
+        if (
+            self._calendar_cache is not None
+            and self._calendar_cache_time is not None
+            and (now - self._calendar_cache_time) < self._calendar_cache_ttl
+        ):
+            return self._calendar_cache
+
+        # Fresh check from calendar
+        is_safe, info = self.economic_calendar.is_safe_to_trade()
+
+        result = {
+            "is_safe": is_safe,
+            "blocking_event": info.get("blocking_event"),
+            "hours_until_safe": info.get("hours_until_safe", 0),
+            "position_multiplier": info.get("position_multiplier", 1.0),
+            "events_today": info.get("events_today", []),
+        }
+
+        # Cache result
+        self._calendar_cache = result
+        self._calendar_cache_time = now
+
+        return result
+
+    def get_position_multiplier(self) -> float:
+        """
+        Get position size multiplier based on economic events.
+
+        Call this before calculating position sizes to reduce exposure
+        around medium-impact events.
+
+        Returns:
+            Multiplier between 0.0 and 1.0 (1.0 = full size, 0.5 = half size)
+        """
+        if not self.economic_calendar:
+            return 1.0
+
+        event_info = self.check_economic_events()
+        return event_info.get("position_multiplier", 1.0)
+
+    def is_blocked_by_event(self) -> Tuple[bool, Optional[str], float]:
+        """
+        Check if trading is blocked by an economic event.
+
+        This is a synchronous quick check using cached data.
+
+        Returns:
+            Tuple of (is_blocked, event_name, hours_until_safe)
+        """
+        if not self.economic_calendar:
+            return False, None, 0
+
+        event_info = self.check_economic_events()
+
+        if not event_info["is_safe"]:
+            return True, event_info["blocking_event"], event_info["hours_until_safe"]
+
+        return False, None, 0
 
     async def manual_reset(self, confirmation_token: str = None, force: bool = False):
         """

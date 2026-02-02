@@ -7,13 +7,14 @@ built-in APIs to find:
 - Most active stocks (high volume = easier to trade)
 - Tradable stocks that meet our criteria
 - Stocks with reasonable price ranges
+- Sector rotation for dynamic allocation based on economic phase
 
 KISS principle: Keep it simple, make it work FIRST.
 """
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest, StockLatestTradeRequest
@@ -21,6 +22,9 @@ from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import AssetClass, AssetStatus
 from alpaca.trading.requests import GetAssetsRequest
+
+# Lazy import for sector rotation
+SectorRotator = None
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +40,53 @@ class SimpleSymbolSelector:
     4. Have recent price movement (not stagnant)
     """
 
-    def __init__(self, api_key: str, secret_key: str, paper: bool = True):
-        """Initialize with Alpaca credentials."""
+    def __init__(
+        self,
+        api_key: str,
+        secret_key: str,
+        paper: bool = True,
+        use_sector_rotation: bool = True,
+        broker=None,
+    ):
+        """
+        Initialize with Alpaca credentials.
+
+        Args:
+            api_key: Alpaca API key
+            secret_key: Alpaca secret key
+            paper: Use paper trading
+            use_sector_rotation: Enable sector rotation for dynamic allocation
+            broker: Trading broker instance (for sector rotation)
+        """
         self.trading_client = TradingClient(api_key, secret_key, paper=paper)
         self.data_client = StockHistoricalDataClient(api_key, secret_key)
+        self.broker = broker
 
         # Criteria for stock selection
         self.min_price = 10.0
         self.max_price = 500.0
         self.min_volume = 1_000_000  # 1M shares/day minimum
+
+        # Sector rotation
+        self.use_sector_rotation = use_sector_rotation and broker is not None
+        self.sector_rotator = None
+
+        if self.use_sector_rotation:
+            self._init_sector_rotator()
+
+    def _init_sector_rotator(self):
+        """Lazy-load and initialize sector rotator."""
+        global SectorRotator
+        if SectorRotator is None:
+            try:
+                from utils.sector_rotation import SectorRotator
+            except ImportError:
+                logger.warning("Sector rotation not available - feature disabled")
+                self.use_sector_rotation = False
+                return
+
+        self.sector_rotator = SectorRotator(self.broker, use_etfs=False)
+        logger.info("Sector rotator initialized for dynamic symbol selection")
 
     def get_all_tradable_stocks(self) -> List[str]:
         """Get all stocks that are tradable on Alpaca."""
@@ -303,6 +345,134 @@ class SimpleSymbolSelector:
             )
 
         return symbols
+
+    async def select_with_sector_rotation(
+        self,
+        top_n: int = 20,
+        min_score: float = 0.0,
+        blend_ratio: float = 0.5,
+    ) -> Dict[str, float]:
+        """
+        Select symbols using sector rotation for dynamic allocation.
+
+        Combines:
+        1. Sector rotation recommendations (based on economic phase)
+        2. Traditional momentum/liquidity filtering
+
+        Args:
+            top_n: Maximum number of symbols to return
+            min_score: Minimum momentum score
+            blend_ratio: How much to weight sector rotation (0 = momentum only, 1 = sector only)
+
+        Returns:
+            Dict of symbol -> weight (sum = 1.0)
+        """
+        result = {}
+
+        # If sector rotation not available, fall back to standard selection
+        if not self.sector_rotator:
+            symbols = self.select_top_symbols(top_n, min_score)
+            equal_weight = 1.0 / len(symbols) if symbols else 0
+            return {s: equal_weight for s in symbols}
+
+        try:
+            # Get sector rotation recommendations
+            sector_stocks = await self.sector_rotator.get_recommended_stocks(
+                top_n=int(top_n * blend_ratio) + 5,
+                stocks_per_sector=3,
+            )
+
+            # Get allocations for weighting
+            allocations = await self.sector_rotator.get_sector_allocations()
+
+            # Map stocks to their sector weights
+            sector_weights = {}
+            for sector_etf, weight in allocations.items():
+                if sector_etf in self.sector_rotator.SECTOR_STOCKS:
+                    for stock in self.sector_rotator.SECTOR_STOCKS[sector_etf]:
+                        sector_weights[stock] = weight
+
+            # Get momentum-filtered stocks
+            candidates = self.get_most_active_stocks(top_n=100)
+            filtered = self.filter_by_criteria(candidates)
+            momentum_stocks = [s["symbol"] for s in filtered if s["score"] >= min_score]
+
+            # Blend: prioritize stocks that appear in both lists
+            combined = []
+            seen = set()
+
+            # First: stocks in both sector rotation AND momentum (highest priority)
+            for symbol in sector_stocks:
+                if symbol in momentum_stocks and symbol not in seen:
+                    weight = sector_weights.get(symbol, 0.09) * 1.5  # Bonus for appearing in both
+                    combined.append((symbol, weight))
+                    seen.add(symbol)
+
+            # Second: sector rotation stocks not in momentum
+            for symbol in sector_stocks:
+                if symbol not in seen:
+                    weight = sector_weights.get(symbol, 0.09)
+                    combined.append((symbol, weight * blend_ratio))
+                    seen.add(symbol)
+
+            # Third: momentum stocks not in sector rotation (fill remaining slots)
+            remaining = top_n - len(combined)
+            for symbol in momentum_stocks[:remaining]:
+                if symbol not in seen:
+                    weight = 0.05 * (1 - blend_ratio)  # Lower weight for non-sector stocks
+                    combined.append((symbol, weight))
+                    seen.add(symbol)
+
+            # Normalize weights
+            combined = combined[:top_n]
+            total_weight = sum(w for _, w in combined)
+            if total_weight > 0:
+                result = {s: w / total_weight for s, w in combined}
+            else:
+                equal_weight = 1.0 / len(combined) if combined else 0
+                result = {s: equal_weight for s, _ in combined}
+
+            # Log selection
+            logger.info(f"Selected {len(result)} symbols with sector rotation:")
+            for symbol, weight in sorted(result.items(), key=lambda x: -x[1])[:10]:
+                sector = self._get_stock_sector(symbol)
+                logger.info(f"  {symbol:6s} ({sector:25s}): {weight:.1%}")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error in sector rotation selection: {e}")
+            # Fallback to standard selection
+            symbols = self.select_top_symbols(top_n, min_score)
+            equal_weight = 1.0 / len(symbols) if symbols else 0
+            return {s: equal_weight for s in symbols}
+
+    def _get_stock_sector(self, symbol: str) -> str:
+        """Get the sector name for a stock symbol."""
+        if not self.sector_rotator:
+            return "Unknown"
+
+        for sector_etf, stocks in self.sector_rotator.SECTOR_STOCKS.items():
+            if symbol in stocks:
+                return self.sector_rotator.SECTOR_ETFS.get(sector_etf, sector_etf)
+
+        return "Other"
+
+    async def get_sector_report(self) -> Optional[Dict]:
+        """
+        Get comprehensive sector rotation report.
+
+        Returns:
+            Dict with sector analysis or None if sector rotation disabled
+        """
+        if not self.sector_rotator:
+            return None
+
+        try:
+            return await self.sector_rotator.get_sector_report()
+        except Exception as e:
+            logger.error(f"Error getting sector report: {e}")
+            return None
 
 
 if __name__ == "__main__":

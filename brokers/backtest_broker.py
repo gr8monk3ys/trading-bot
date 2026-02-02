@@ -52,6 +52,164 @@ class BacktestBroker:
         # Current date for backtesting (set by BacktestEngine)
         self._current_date = None
 
+    def _get_actual_daily_volume(self, symbol: str, date) -> float:
+        """
+        Get actual historical daily volume for realistic slippage calculation.
+
+        Uses rolling 20-day average volume to smooth out anomalies.
+        Falls back to conservative estimate if data unavailable.
+
+        Args:
+            symbol: Stock symbol
+            date: Date to get volume for
+
+        Returns:
+            Average daily volume (float)
+        """
+        if symbol not in self.price_data:
+            return 1000000.0  # Fallback default
+
+        df = self.price_data[symbol]
+
+        try:
+            # Normalize date for comparison
+            import pytz
+            if hasattr(date, 'tzinfo') and date.tzinfo is None:
+                date = date.replace(tzinfo=pytz.UTC)
+
+            # Get volume data up to (but not including) current date to avoid look-ahead
+            try:
+                historical_volume = df[df.index < date]['volume']
+            except TypeError:
+                # Handle timezone issues
+                df_naive = df.copy()
+                df_naive.index = df_naive.index.tz_localize(None)
+                date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') else date
+                historical_volume = df_naive[df_naive.index < date_naive]['volume']
+
+            if len(historical_volume) == 0:
+                return 1000000.0
+
+            # Use rolling 20-day average for stability
+            recent_volumes = historical_volume.tail(20)
+            avg_volume = float(recent_volumes.mean()) if len(recent_volumes) > 0 else 1000000.0
+
+            # Enforce minimum to prevent extreme slippage on data gaps
+            return max(avg_volume, 100000.0)
+
+        except Exception as e:
+            logger.debug(f"Error getting volume for {symbol}: {e}")
+            return 1000000.0  # Fallback on any error
+
+    def _calculate_dynamic_spread(self, symbol: str, date, base_spread_bps: float = 3.0) -> float:
+        """
+        Calculate realistic bid-ask spread based on liquidity and volatility.
+
+        Factors:
+        - Volume: Lower volume = wider spread
+        - Price: Lower price stocks have wider spreads (as % of price)
+        - Volatility: Higher volatility = wider spread
+
+        Args:
+            symbol: Stock symbol
+            date: Current date
+            base_spread_bps: Base spread in basis points
+
+        Returns:
+            Dynamic spread in basis points
+        """
+        if symbol not in self.price_data:
+            return base_spread_bps
+
+        df = self.price_data[symbol]
+
+        try:
+            # Get historical data (avoid look-ahead)
+            import pytz
+            if hasattr(date, 'tzinfo') and date.tzinfo is None:
+                date = date.replace(tzinfo=pytz.UTC)
+
+            try:
+                historical = df[df.index < date]
+            except TypeError:
+                df_naive = df.copy()
+                df_naive.index = df_naive.index.tz_localize(None)
+                date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') else date
+                historical = df_naive[df_naive.index < date_naive]
+
+            if len(historical) < 10:
+                return base_spread_bps
+
+            # Factor 1: Volume-based liquidity (lower volume = wider spread)
+            avg_volume = historical['volume'].tail(20).mean()
+            volume_factor = 1.0
+            if avg_volume < 500000:
+                volume_factor = 2.0  # Low liquidity
+            elif avg_volume < 1000000:
+                volume_factor = 1.5
+            elif avg_volume > 10000000:
+                volume_factor = 0.7  # Very liquid
+
+            # Factor 2: Price-based (lower price = wider spread as % of price)
+            price = historical['close'].iloc[-1]
+            price_factor = 1.0
+            if price < 10:
+                price_factor = 2.0  # Penny stock territory
+            elif price < 50:
+                price_factor = 1.3
+            elif price > 500:
+                price_factor = 0.8  # High-price stocks often more liquid
+
+            # Factor 3: Volatility (higher volatility = wider spread)
+            returns = historical['close'].pct_change().tail(20)
+            volatility = returns.std() * np.sqrt(252)  # Annualized
+            vol_factor = 1.0
+            if volatility > 0.50:
+                vol_factor = 2.0  # Very volatile
+            elif volatility > 0.30:
+                vol_factor = 1.5
+            elif volatility < 0.15:
+                vol_factor = 0.8  # Low volatility
+
+            # Combine factors
+            dynamic_spread = base_spread_bps * volume_factor * price_factor * vol_factor
+
+            # Cap at reasonable bounds (0.01% to 0.5%)
+            return max(1.0, min(dynamic_spread, 50.0))
+
+        except Exception as e:
+            logger.debug(f"Error calculating spread for {symbol}: {e}")
+            return base_spread_bps
+
+    def _get_stock_volatility(self, symbol: str, date) -> float:
+        """Calculate annualized volatility for a stock."""
+        if symbol not in self.price_data:
+            return 0.30  # Default 30% volatility
+
+        df = self.price_data[symbol]
+
+        try:
+            import pytz
+            if hasattr(date, 'tzinfo') and date.tzinfo is None:
+                date = date.replace(tzinfo=pytz.UTC)
+
+            try:
+                historical = df[df.index < date]
+            except TypeError:
+                df_naive = df.copy()
+                df_naive.index = df_naive.index.tz_localize(None)
+                date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') else date
+                historical = df_naive[df_naive.index < date_naive]
+
+            if len(historical) < 20:
+                return 0.30
+
+            returns = historical['close'].pct_change().tail(20).dropna()
+            return float(returns.std() * np.sqrt(252))
+
+        except Exception:
+            return 0.30
+
     def set_price_data(self, symbol, data):
         """Set historical price data for a symbol"""
         self.price_data[symbol] = data
@@ -150,6 +308,11 @@ class BacktestBroker:
         """
         Calculate realistic slippage based on order characteristics.
 
+        Uses Almgren-Chriss inspired market impact model with:
+        - Dynamic spread based on liquidity/volatility
+        - Actual historical volume (not hardcoded)
+        - Temporary + permanent impact components
+
         Args:
             symbol: Stock symbol
             quantity: Order quantity
@@ -160,31 +323,49 @@ class BacktestBroker:
         Returns:
             Execution price after slippage
         """
-        # 1. Bid-ask spread cost (always paid on market orders)
-        spread_cost = base_price * (self.spread_bps / 10000.0)
+        current_date = self._current_date if self._current_date else datetime.now()
 
-        # 2. Slippage (impact of order size)
-        # Larger orders have more market impact
-        # Assume average daily volume of 1M shares, calculate impact
-        avg_daily_volume = 1000000  # Conservative assumption
-        volume_pct = quantity / avg_daily_volume
+        # 1. Dynamic bid-ask spread based on liquidity and volatility
+        dynamic_spread_bps = self._calculate_dynamic_spread(symbol, current_date, self.spread_bps)
+        spread_cost = base_price * (dynamic_spread_bps / 10000.0)
 
-        # Market impact: roughly sqrt(volume_pct) * slippage_bps
-        # This models that large orders move the market non-linearly
-        impact_multiplier = min(np.sqrt(volume_pct * 100), 2.0)  # Cap at 2x
-        slippage_cost = base_price * (self.slippage_bps / 10000.0) * impact_multiplier
+        # 2. Get ACTUAL daily volume (not hardcoded 1M)
+        avg_daily_volume = self._get_actual_daily_volume(symbol, current_date)
+        participation_rate = quantity / avg_daily_volume
 
-        # 3. Market orders pay more slippage than limit orders
+        # 3. Almgren-Chriss inspired market impact model
+        # Temporary impact: I_temp = c * sigma * sqrt(participation_rate)
+        # Permanent impact: I_perm = d * sigma * participation_rate
+        volatility = self._get_stock_volatility(symbol, current_date)
+
+        c_temp = 0.6  # Temporary impact coefficient
+        d_perm = 0.15  # Permanent impact coefficient
+
+        temporary_impact_pct = c_temp * volatility * np.sqrt(participation_rate)
+        permanent_impact_pct = d_perm * volatility * participation_rate
+
+        # Total impact (capped at 10%)
+        total_impact_pct = min(temporary_impact_pct + permanent_impact_pct, 0.10)
+        market_impact_cost = base_price * total_impact_pct
+
+        # 4. Market orders pay spread + impact; limit orders pay reduced impact
         if order_type == "market":
-            total_slippage = spread_cost + slippage_cost
+            total_slippage = spread_cost + market_impact_cost
         else:  # limit orders pay less (assuming they get filled at limit)
-            total_slippage = slippage_cost * 0.3  # 30% of market order slippage
+            total_slippage = market_impact_cost * 0.3  # 30% of market order slippage
 
-        # 4. Apply slippage direction
+        # 5. Apply slippage direction
         if side == "buy":
             execution_price = base_price + total_slippage  # Buy at higher price
         else:  # sell
             execution_price = base_price - total_slippage  # Sell at lower price
+
+        # Log significant slippage for analysis
+        if participation_rate > 0.05:
+            logger.debug(
+                f"Market impact for {symbol}: {participation_rate:.1%} of ADV, "
+                f"impact: {(execution_price/base_price - 1)*100:+.3f}%"
+            )
 
         return execution_price
 
@@ -205,19 +386,31 @@ class BacktestBroker:
         if not self.enable_partial_fills:
             return quantity
 
-        # Assume average daily volume of 1M shares
-        avg_daily_volume = 1000000
+        # Use ACTUAL daily volume (not hardcoded 1M)
+        current_date = self._current_date if self._current_date else datetime.now()
+        avg_daily_volume = self._get_actual_daily_volume(symbol, current_date)
 
         # If order is >10% of daily volume, may not fill completely
-        volume_pct = quantity / avg_daily_volume
+        participation_rate = quantity / avg_daily_volume
 
-        if volume_pct > 0.10:  # Order is >10% of daily volume
-            # Fill 70-95% of the order (randomized for realism)
-            fill_rate = 0.7 + (np.random.rand() * 0.25)
+        if participation_rate > 0.10:  # Order is >10% of daily volume
+            # Fill rate decreases as participation rate increases
+            # At 10% participation: ~95% fill
+            # At 50% participation: ~70% fill
+            # At 100%+ participation: ~50% fill
+            if participation_rate >= 1.0:
+                fill_rate = 0.5 + (np.random.rand() * 0.15)
+            elif participation_rate >= 0.5:
+                fill_rate = 0.65 + (np.random.rand() * 0.15)
+            elif participation_rate >= 0.2:
+                fill_rate = 0.75 + (np.random.rand() * 0.15)
+            else:  # 10-20%
+                fill_rate = 0.85 + (np.random.rand() * 0.10)
+
             filled_qty = int(quantity * fill_rate)
             logger.warning(
                 f"Partial fill for {symbol}: {filled_qty}/{quantity} "
-                f"({fill_rate:.1%}) - order too large for liquidity"
+                f"({fill_rate:.1%}) - order is {participation_rate:.1%} of ADV"
             )
             return max(filled_qty, 1)  # Fill at least 1 share
 

@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Type
 import pandas as pd
 import pytz
 
+from utils.historical_universe import HistoricalUniverse
+
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -241,6 +243,15 @@ class BacktestEngine:
         # Use existing broker for data if available, otherwise create one
         data_broker = self.broker if self.broker else AlpacaBroker(paper=True)
 
+        # Initialize historical universe for survivorship bias correction
+        # This ensures we only trade symbols that were actually tradeable on each date
+        historical_universe = HistoricalUniverse(broker=data_broker)
+        await historical_universe.initialize()
+        logger.info(
+            f"Survivorship bias correction enabled: "
+            f"{historical_universe.get_statistics()['total_symbols']} symbols tracked"
+        )
+
         # Convert dates to datetime if they are date objects
         if hasattr(start_date, "strftime") and not hasattr(start_date, "hour"):
             start_dt = datetime.combine(start_date, datetime.min.time())
@@ -336,18 +347,27 @@ class BacktestEngine:
                 if not hasattr(strategy, "current_data"):
                     strategy.current_data = {}
 
-                for symbol in symbols:
+                # SURVIVORSHIP BIAS CORRECTION: Filter to only tradeable symbols
+                # This prevents backtesting on symbols that weren't actually tradeable
+                # on this date (IPO hadn't happened, stock was delisted, etc.)
+                tradeable_symbols = historical_universe.get_tradeable_symbols(
+                    current_date.date(), symbols
+                )
+
+                for symbol in tradeable_symbols:
                     if symbol in backtest_broker.price_data:
                         df = backtest_broker.price_data[symbol]
-                        # Get prices up to current date
+                        # CRITICAL: Use strictly LESS THAN (<) to prevent look-ahead bias
+                        # Strategy should only see data from BEFORE the current trading day
+                        # Using <= would allow seeing today's close when making today's decision
                         try:
-                            historical = df[df.index <= current_date_utc]
+                            historical = df[df.index < current_date_utc]
                         except TypeError:
                             # If comparison fails, try normalizing the index
                             df_naive = df.copy()
                             df_naive.index = df_naive.index.tz_localize(None)
                             historical = df_naive[
-                                df_naive.index <= current_date.replace(tzinfo=None)
+                                df_naive.index < current_date.replace(tzinfo=None)
                             ]
 
                         if len(historical) > 0:
@@ -367,10 +387,11 @@ class BacktestEngine:
                 # Performance optimization: Process all symbols in parallel using asyncio.gather
                 # This significantly speeds up backtests with many symbols by running
                 # analyze_symbol and execute_trade concurrently
+                # Only process symbols that were tradeable on this date
                 await asyncio.gather(
                     *[
                         self._process_symbol_signal(symbol, strategy, backtest_broker, day_num)
-                        for symbol in symbols
+                        for symbol in tradeable_symbols
                     ],
                     return_exceptions=True,  # Don't fail on individual symbol errors
                 )

@@ -278,7 +278,7 @@ SENTIMENT_PARAMS = {
 # Options trading parameters
 OPTIONS_PARAMS = {
     # Enable/disable options trading (requires Alpaca options approval)
-    "ENABLED": False,  # Set to True after getting options approval
+    "ENABLED": True,  # Enabled for tail hedging
 
     # Expiration preferences
     "DEFAULT_EXPIRATION_DAYS": 30,  # Default days to expiration for new positions
@@ -306,6 +306,20 @@ OPTIONS_PARAMS = {
     # Strategy preferences
     "PREFER_LIMIT_ORDERS": True,  # Always use limit orders (recommended for options)
     "DEFAULT_ORDER_TYPE": "limit",  # Default order type
+
+    # =========================================================================
+    # TAIL HEDGING PARAMETERS
+    # Buy protective puts in low-volatility regimes to protect against crashes
+    # =========================================================================
+    "TAIL_HEDGE_ENABLED": True,  # Enable automatic tail hedging
+    "TAIL_HEDGE_VIX_THRESHOLD": 15,  # Buy puts when VIX < 15 (complacency)
+    "TAIL_HEDGE_ALLOCATION": 0.02,  # Allocate 2% of portfolio to puts
+    "TAIL_HEDGE_PUT_DELTA": -0.15,  # Target 15-delta puts (OTM protection)
+    "TAIL_HEDGE_DTE_MIN": 30,  # Minimum days to expiration for hedge
+    "TAIL_HEDGE_DTE_MAX": 45,  # Maximum days to expiration for hedge
+    "TAIL_HEDGE_UNDERLYING": "SPY",  # Hedge with SPY puts (market exposure)
+    "TAIL_HEDGE_CLOSE_VIX": 25,  # Close hedge when VIX > 25 (take profit)
+    "TAIL_HEDGE_CLOSE_PROFIT_PCT": 50,  # Close at 50% profit
 }
 
 # Reinforcement Learning parameters (DQN agent)

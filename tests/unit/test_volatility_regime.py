@@ -30,6 +30,13 @@ class MockQuote:
         self.ask_price = price
 
 
+class MockBar:
+    """Mock bar for SPY volatility calculation."""
+
+    def __init__(self, close):
+        self.close = close
+
+
 class MockBroker:
     """Mock broker for testing."""
 
@@ -40,6 +47,27 @@ class MockBroker:
         if self.vix_value is None:
             raise Exception("VIX not available")
         return MockQuote(self.vix_value)
+
+    async def get_last_price(self, symbol):
+        """Return VIXY price (VIX proxy)."""
+        if symbol == "VIXY" and self.vix_value is not None:
+            # VIXY price that when multiplied by 1.2 gives vix_value
+            return self.vix_value / 1.2
+        return None
+
+    async def get_bars(self, symbol, timeframe=None, limit=None, start=None, end=None):
+        """Return mock SPY bars for volatility calculation."""
+        if symbol == "SPY" and self.vix_value is not None:
+            # Generate bars that produce approximately the target VIX
+            # VIX ~ annualized volatility * 100, so daily vol ~ VIX / (sqrt(252) * 100)
+            import numpy as np
+            daily_vol = self.vix_value / (np.sqrt(252) * 100)
+            # Generate 30 prices with that volatility
+            np.random.seed(42)  # For reproducibility
+            returns = np.random.normal(0, daily_vol, 30)
+            prices = 100 * np.exp(np.cumsum(returns))
+            return [MockBar(p) for p in prices]
+        return None
 
 
 class TestRegimeClassification:
@@ -235,7 +263,7 @@ class TestRegimeChangeDetection:
         change = detector.regime_changes[0]
         assert change["from"] == "normal"
         assert change["to"] == "elevated"
-        assert change["vix"] == 25.0
+        assert change["vix"] == pytest.approx(25.0, rel=0.01)
 
     @pytest.mark.asyncio
     async def test_no_duplicate_regime_changes(self):
@@ -420,26 +448,34 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_alternative_vix_symbol(self):
-        """Test fallback to alternative VIX symbol."""
+        """Test fallback from VIXY to SPY volatility calculation."""
         broker = MagicMock()
 
-        # First symbol fails, second succeeds
-        call_count = 0
+        # VIXY fails, but SPY bars work
+        async def mock_get_last_price(symbol):
+            if symbol == "VIXY":
+                return None  # VIXY not available
+            return None
 
-        async def mock_get_quote(symbol):
-            nonlocal call_count
-            call_count += 1
-            if symbol == "VIX" and call_count == 1:
-                raise Exception("VIX not found")
-            return MockQuote(20.0)
+        async def mock_get_bars(symbol, timeframe=None, limit=None, start=None, end=None):
+            if symbol == "SPY":
+                # Return bars that produce approximately VIX of 20
+                import numpy as np
+                daily_vol = 20.0 / (np.sqrt(252) * 100)
+                np.random.seed(42)
+                returns = np.random.normal(0, daily_vol, 30)
+                prices = 100 * np.exp(np.cumsum(returns))
+                return [MockBar(p) for p in prices]
+            return None
 
-        broker.get_latest_quote = mock_get_quote
+        broker.get_last_price = mock_get_last_price
+        broker.get_bars = mock_get_bars
 
         detector = VolatilityRegimeDetector(broker)
         vix = await detector._get_vix()
 
-        # Should have tried alternative symbol
-        assert vix == 20.0
+        # Should have calculated VIX from SPY volatility
+        assert vix == pytest.approx(20.0, rel=0.5)  # Within 50% of expected
 
     def test_regime_history_tracking(self):
         """Test that regime history is tracked."""

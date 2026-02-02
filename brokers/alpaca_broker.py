@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Dict, List, Optional
 
+import numpy as np
+
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.live import CryptoDataStream, StockDataStream
 from alpaca.data.requests import (
@@ -173,6 +175,56 @@ class AlpacaBroker:
     IS_BACKTESTING_BROKER = False
 
     # CRYPTO_PAIRS is now imported from utils.crypto_utils for consistency
+
+    # Default timeout for API calls (in seconds)
+    DEFAULT_API_TIMEOUT = 30.0
+    # Timeout for data-heavy operations (bars, portfolio history)
+    DATA_API_TIMEOUT = 60.0
+    # Timeout for order operations (more critical, shorter timeout)
+    ORDER_API_TIMEOUT = 15.0
+
+    async def _async_call_with_timeout(
+        self,
+        func,
+        *args,
+        timeout: float = None,
+        operation_name: str = "API call",
+        **kwargs
+    ):
+        """
+        Execute a sync function in a thread pool with timeout protection.
+
+        This wrapper prevents broker API calls from hanging indefinitely,
+        which could freeze the entire trading system.
+
+        Args:
+            func: Synchronous function to call
+            *args: Positional arguments for func
+            timeout: Timeout in seconds (defaults to DEFAULT_API_TIMEOUT)
+            operation_name: Description for logging on timeout
+            **kwargs: Keyword arguments for func
+
+        Returns:
+            Result of func(*args, **kwargs)
+
+        Raises:
+            asyncio.TimeoutError: If call exceeds timeout
+            Exception: Any exception from the underlying function
+        """
+        if timeout is None:
+            timeout = self.DEFAULT_API_TIMEOUT
+
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(func, *args, **kwargs),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"TIMEOUT: {operation_name} exceeded {timeout}s limit. "
+                "This may indicate network issues or API problems."
+            )
+            raise
 
     def __init__(self, paper=True):
         """Initialize the AlpacaBroker."""
@@ -560,9 +612,15 @@ class AlpacaBroker:
     async def get_account(self):
         """Get account information."""
         try:
-            # Use asyncio.to_thread to avoid blocking the event loop
-            account = await asyncio.to_thread(self.trading_client.get_account)
+            # Use timeout-protected async call to prevent hanging
+            account = await self._async_call_with_timeout(
+                self.trading_client.get_account,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name="get_account"
+            )
             return account
+        except asyncio.TimeoutError:
+            raise BrokerConnectionError("Account fetch timed out - broker may be unreachable")
         except Exception as e:
             logger.error(f"Error getting account info: {e}", exc_info=DEBUG_MODE)
             raise
@@ -570,14 +628,21 @@ class AlpacaBroker:
     async def get_market_status(self):
         """Get current market status."""
         try:
-            # Use asyncio.to_thread to avoid blocking the event loop
-            clock = await asyncio.to_thread(self.trading_client.get_clock)
+            # Use timeout-protected async call
+            clock = await self._async_call_with_timeout(
+                self.trading_client.get_clock,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name="get_market_status"
+            )
             return {
                 "is_open": clock.is_open,
                 "next_open": clock.next_open,
                 "next_close": clock.next_close,
                 "timestamp": clock.timestamp,
             }
+        except asyncio.TimeoutError:
+            logger.warning("Market status check timed out, assuming closed")
+            return {"is_open": False}
         except Exception as e:
             logger.error(f"Error getting market status: {e}", exc_info=DEBUG_MODE)
             # Return safe default if error
@@ -587,9 +652,15 @@ class AlpacaBroker:
     async def get_positions(self):
         """Get current positions."""
         try:
-            # Use asyncio.to_thread to avoid blocking the event loop
-            positions = await asyncio.to_thread(self.trading_client.get_all_positions)
+            # Use timeout-protected async call to prevent hanging
+            positions = await self._async_call_with_timeout(
+                self.trading_client.get_all_positions,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name="get_positions"
+            )
             return positions
+        except asyncio.TimeoutError:
+            raise BrokerConnectionError("Position fetch timed out - broker may be unreachable")
         except Exception as e:
             logger.error(f"Error getting positions: {e}", exc_info=DEBUG_MODE)
             raise
@@ -600,11 +671,19 @@ class AlpacaBroker:
         try:
             # P2 FIX: Validate symbol before API call
             symbol = self._validate_symbol(symbol)
-            # Use asyncio.to_thread to avoid blocking the event loop
-            position = await asyncio.to_thread(self.trading_client.get_position, symbol)
+            # Use timeout-protected async call to prevent hanging
+            position = await self._async_call_with_timeout(
+                self.trading_client.get_position,
+                symbol,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name=f"get_position({symbol})"
+            )
             return position
         except ValueError as e:
             logger.error(f"Invalid symbol: {e}")
+            return None
+        except asyncio.TimeoutError:
+            logger.warning(f"Position fetch for {symbol} timed out")
             return None
         except Exception:
             # Position not found, return None
@@ -657,10 +736,12 @@ class AlpacaBroker:
             # Validate symbol
             symbol = self._validate_symbol(symbol)
 
-            # Use asyncio.to_thread to avoid blocking the event loop
-            asset = await asyncio.to_thread(
+            # Use timeout-protected async call
+            asset = await self._async_call_with_timeout(
                 self.trading_client.get_asset,
-                symbol
+                symbol,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name=f"get_asset({symbol})"
             )
 
             return {
@@ -713,6 +794,139 @@ class AlpacaBroker:
             logger.warning(f"Error checking overnight status for {symbol}: {e}")
             return False
 
+    # =========================================================================
+    # ALMGREN-CHRISS MARKET IMPACT MODEL
+    # Ported from BacktestBroker for live trading execution awareness
+    # =========================================================================
+
+    # Maximum participation rate (never trade > 10% of ADV)
+    MAX_PARTICIPATION_RATE = 0.10
+
+    async def _calculate_market_impact(
+        self, symbol: str, qty: float, side: str
+    ) -> Dict:
+        """
+        Calculate expected slippage using Almgren-Chriss market impact model.
+
+        This model estimates the cost of executing an order based on:
+        - Temporary impact: Short-term price pressure from order flow
+        - Permanent impact: Information content revealed by the trade
+
+        Args:
+            symbol: Stock symbol
+            qty: Order quantity (shares)
+            side: 'buy' or 'sell'
+
+        Returns:
+            Dict with impact metrics:
+                - expected_slippage_pct: Total expected slippage as percentage
+                - participation_rate: Order size as fraction of ADV
+                - temporary_impact: Short-term price pressure
+                - permanent_impact: Long-term price impact
+                - safe_to_trade: Whether order passes liquidity check
+        """
+        try:
+            # Get historical bars for volume and volatility calculation
+            bars = await self.get_bars(symbol, timeframe="1Day", limit=20)
+
+            if not bars or len(bars) < 5:
+                logger.warning(f"Insufficient data for {symbol}, using conservative defaults")
+                return {
+                    "expected_slippage_pct": 0.005,  # Default 0.5%
+                    "participation_rate": 0.0,
+                    "temporary_impact": 0.0,
+                    "permanent_impact": 0.0,
+                    "safe_to_trade": True,
+                    "avg_daily_volume": None,
+                }
+
+            # Calculate average daily volume
+            volumes = [float(b.volume) for b in bars if hasattr(b, 'volume')]
+            avg_daily_volume = np.mean(volumes) if volumes else 1000000.0
+            avg_daily_volume = max(avg_daily_volume, 100000.0)  # Floor at 100K
+
+            # Calculate volatility (annualized)
+            closes = [float(b.close) for b in bars if hasattr(b, 'close')]
+            if len(closes) >= 2:
+                returns = np.diff(np.log(closes))
+                volatility = np.std(returns) * np.sqrt(252)
+            else:
+                volatility = 0.30  # Default 30% volatility
+
+            # Participation rate
+            participation_rate = qty / avg_daily_volume
+
+            # Almgren-Chriss coefficients
+            c_temp = 0.6   # Temporary impact coefficient
+            d_perm = 0.15  # Permanent impact coefficient
+
+            # Calculate impacts
+            temporary_impact = c_temp * volatility * np.sqrt(participation_rate)
+            permanent_impact = d_perm * volatility * participation_rate
+
+            # Total impact (capped at 10%)
+            total_impact = min(temporary_impact + permanent_impact, 0.10)
+
+            # Check if order is safe to trade
+            safe_to_trade = participation_rate <= self.MAX_PARTICIPATION_RATE
+
+            if not safe_to_trade:
+                logger.warning(
+                    f"Order for {qty:.0f} shares of {symbol} exceeds "
+                    f"{self.MAX_PARTICIPATION_RATE*100:.0f}% of ADV "
+                    f"({avg_daily_volume:.0f}). Participation: {participation_rate*100:.1f}%"
+                )
+
+            return {
+                "expected_slippage_pct": total_impact,
+                "participation_rate": participation_rate,
+                "temporary_impact": temporary_impact,
+                "permanent_impact": permanent_impact,
+                "safe_to_trade": safe_to_trade,
+                "avg_daily_volume": avg_daily_volume,
+                "volatility": volatility,
+            }
+
+        except Exception as e:
+            logger.warning(f"Error calculating market impact for {symbol}: {e}")
+            return {
+                "expected_slippage_pct": 0.005,
+                "participation_rate": 0.0,
+                "temporary_impact": 0.0,
+                "permanent_impact": 0.0,
+                "safe_to_trade": True,
+                "avg_daily_volume": None,
+            }
+
+    async def check_liquidity(self, symbol: str, qty: float) -> bool:
+        """
+        Check if order size is safe relative to average daily volume.
+
+        Args:
+            symbol: Stock symbol
+            qty: Order quantity
+
+        Returns:
+            True if order passes liquidity check
+        """
+        impact = await self._calculate_market_impact(symbol, qty, "buy")
+        return impact["safe_to_trade"]
+
+    async def get_expected_slippage(self, symbol: str, qty: float, side: str) -> float:
+        """
+        Get expected slippage for an order.
+
+        Args:
+            symbol: Stock symbol
+            qty: Order quantity
+            side: 'buy' or 'sell'
+
+        Returns:
+            Expected slippage as decimal (e.g., 0.005 = 0.5%)
+        """
+        impact = await self._calculate_market_impact(symbol, qty, side)
+        return impact["expected_slippage_pct"]
+
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def submit_order(self, order):
         """Submit an order."""
@@ -739,22 +953,32 @@ class AlpacaBroker:
             else:
                 raise ValueError(f"Unsupported order type: {order.get('type')}")
 
-            # Submit the order (use asyncio.to_thread to avoid blocking)
-            result = await asyncio.to_thread(self.trading_client.submit_order, order_request)
+            # Submit the order with timeout protection (critical operation)
+            result = await self._async_call_with_timeout(
+                self.trading_client.submit_order,
+                order_request,
+                timeout=self.ORDER_API_TIMEOUT,
+                operation_name=f"submit_order({order['symbol']})"
+            )
             logger.info(f"Order submitted: {result.id} for {result.symbol} ({result.qty} shares)")
             return result
 
+        except asyncio.TimeoutError:
+            raise OrderError(f"Order submission timed out for {order['symbol']} - check order status manually")
         except Exception as e:
             logger.error(f"Error submitting order: {e}", exc_info=DEBUG_MODE)
             raise
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
-    async def submit_order_advanced(self, order_request):
+    async def submit_order_advanced(self, order_request, check_impact: bool = True):
         """
         Submit an advanced order using OrderBuilder or direct request object.
 
+        Now includes Almgren-Chriss market impact calculation for execution awareness.
+
         Args:
             order_request: Either an OrderBuilder instance or Alpaca order request object
+            check_impact: If True, calculate and log expected market impact
 
         Returns:
             Order confirmation from Alpaca
@@ -767,8 +991,42 @@ class AlpacaBroker:
             if isinstance(order_request, OrderBuilder):
                 order_request = order_request.build()
 
-            # Submit the order (use asyncio.to_thread to avoid blocking)
-            result = await asyncio.to_thread(self.trading_client.submit_order, order_request)
+            # Calculate market impact before submission (if enabled)
+            impact_info = None
+            if check_impact:
+                try:
+                    symbol = order_request.symbol
+                    qty = float(order_request.qty) if order_request.qty else 0
+                    side = str(order_request.side).lower() if hasattr(order_request, 'side') else 'buy'
+
+                    if qty > 0:
+                        impact_info = await self._calculate_market_impact(symbol, qty, side)
+
+                        # Log impact metrics
+                        if impact_info["participation_rate"] > 0.01:  # Only log if meaningful
+                            logger.info(
+                                f"📊 Market Impact Analysis for {symbol}: "
+                                f"Expected slippage: {impact_info['expected_slippage_pct']*100:.2f}%, "
+                                f"Participation: {impact_info['participation_rate']*100:.1f}% of ADV"
+                            )
+
+                        # Warn if order is large relative to volume
+                        if not impact_info["safe_to_trade"]:
+                            logger.warning(
+                                f"⚠️ LARGE ORDER WARNING: {symbol} order of {qty:.0f} shares "
+                                f"exceeds {self.MAX_PARTICIPATION_RATE*100:.0f}% of ADV. "
+                                f"Consider splitting or using VWAP execution."
+                            )
+                except Exception as e:
+                    logger.debug(f"Could not calculate market impact: {e}")
+
+            # Submit the order with timeout protection (critical operation)
+            result = await self._async_call_with_timeout(
+                self.trading_client.submit_order,
+                order_request,
+                timeout=self.ORDER_API_TIMEOUT,
+                operation_name=f"submit_order_advanced({order_request.symbol})"
+            )
 
             # Build size info for logging (qty or notional)
             if hasattr(result, 'notional') and result.notional is not None:
@@ -782,6 +1040,8 @@ class AlpacaBroker:
             )
             return result
 
+        except asyncio.TimeoutError:
+            raise OrderError(f"Advanced order submission timed out - check order status manually")
         except Exception as e:
             logger.error(f"Error submitting advanced order: {e}", exc_info=DEBUG_MODE)
             raise
@@ -798,10 +1058,18 @@ class AlpacaBroker:
             True if successful
         """
         try:
-            # Use asyncio.to_thread to avoid blocking the event loop
-            await asyncio.to_thread(self.trading_client.cancel_order_by_id, order_id)
+            # Use timeout-protected async call (critical operation)
+            await self._async_call_with_timeout(
+                self.trading_client.cancel_order_by_id,
+                order_id,
+                timeout=self.ORDER_API_TIMEOUT,
+                operation_name=f"cancel_order({order_id})"
+            )
             logger.info(f"Canceled order: {order_id}")
             return True
+        except asyncio.TimeoutError:
+            logger.error(f"Cancel order {order_id} timed out - check order status manually")
+            return False
         except Exception as e:
             logger.error(f"Error canceling order {order_id}: {e}", exc_info=DEBUG_MODE)
             return False
@@ -810,10 +1078,17 @@ class AlpacaBroker:
     async def cancel_all_orders(self):
         """Cancel all open orders."""
         try:
-            # Use asyncio.to_thread to avoid blocking the event loop
-            result = await asyncio.to_thread(self.trading_client.cancel_orders)
+            # Use timeout-protected async call (critical operation)
+            result = await self._async_call_with_timeout(
+                self.trading_client.cancel_orders,
+                timeout=self.ORDER_API_TIMEOUT,
+                operation_name="cancel_all_orders"
+            )
             logger.info("Canceled all open orders")
             return result
+        except asyncio.TimeoutError:
+            logger.error("Cancel all orders timed out - check order status manually")
+            return []
         except Exception as e:
             logger.error(f"Error canceling all orders: {e}", exc_info=DEBUG_MODE)
             return []
@@ -910,9 +1185,16 @@ class AlpacaBroker:
         """
         try:
             request_params = GetOrdersRequest(status=status or QueryOrderStatus.OPEN, limit=limit)
-            # Use asyncio.to_thread to avoid blocking the event loop
-            orders = await asyncio.to_thread(self.trading_client.get_orders, request_params)
+            # Use timeout-protected async call
+            orders = await self._async_call_with_timeout(
+                self.trading_client.get_orders,
+                request_params,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name="get_orders"
+            )
             return orders
+        except asyncio.TimeoutError:
+            raise BrokerConnectionError("Get orders timed out - broker may be unreachable")
         except Exception as e:
             logger.error(f"Error getting orders: {e}", exc_info=DEBUG_MODE)
             raise
@@ -932,11 +1214,13 @@ class AlpacaBroker:
                     logger.debug(f"Price cache hit for {symbol}: ${cached_price:.2f}")
                     return cached_price
 
-            # Cache miss - fetch from API
+            # Cache miss - fetch from API with timeout protection
             request_params = StockLatestTradeRequest(symbol_or_symbols=[symbol])
-            # Use asyncio.to_thread to avoid blocking the event loop
-            response = await asyncio.to_thread(
-                self.data_client.get_stock_latest_trade, request_params
+            response = await self._async_call_with_timeout(
+                self.data_client.get_stock_latest_trade,
+                request_params,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name=f"get_last_price({symbol})"
             )
 
             if symbol in response:
@@ -973,8 +1257,11 @@ class AlpacaBroker:
             validated_symbols = [self._validate_symbol(s) for s in symbols]
 
             request_params = StockLatestTradeRequest(symbol_or_symbols=validated_symbols)
-            response = await asyncio.to_thread(
-                self.data_client.get_stock_latest_trade, request_params
+            response = await self._async_call_with_timeout(
+                self.data_client.get_stock_latest_trade,
+                request_params,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name=f"get_last_prices({len(validated_symbols)} symbols)"
             )
 
             result = {}
@@ -1030,8 +1317,13 @@ class AlpacaBroker:
                 symbol_or_symbols=[symbol], timeframe=timeframe, start=start, end=end
             )
 
-            # Use asyncio.to_thread to avoid blocking the event loop
-            bars = await asyncio.to_thread(self.data_client.get_stock_bars, request_params)
+            # Use timeout-protected async call (longer timeout for data-heavy operations)
+            bars = await self._async_call_with_timeout(
+                self.data_client.get_stock_bars,
+                request_params,
+                timeout=self.DATA_API_TIMEOUT,
+                operation_name=f"get_bars({symbol})"
+            )
 
             if symbol in bars.data:
                 return bars.data[symbol]
@@ -1089,8 +1381,13 @@ class AlpacaBroker:
                 limit=limit,
             )
 
-            # Use asyncio.to_thread to avoid blocking the event loop
-            news_response = await asyncio.to_thread(self._news_client.get_news, request)
+            # Use timeout-protected async call
+            news_response = await self._async_call_with_timeout(
+                self._news_client.get_news,
+                request,
+                timeout=self.DATA_API_TIMEOUT,
+                operation_name=f"get_news({symbols})"
+            )
 
             # Convert to list of dicts for easier consumption
             articles = []
@@ -1184,7 +1481,12 @@ class AlpacaBroker:
                 limit=limit,
             )
 
-            bars = await asyncio.to_thread(client.get_crypto_bars, request)
+            bars = await self._async_call_with_timeout(
+                client.get_crypto_bars,
+                request,
+                timeout=self.DATA_API_TIMEOUT,
+                operation_name=f"get_crypto_bars({symbol})"
+            )
 
             result = []
             if symbol in bars:
@@ -1227,7 +1529,12 @@ class AlpacaBroker:
             client = self._get_crypto_data_client()
             request = CryptoLatestQuoteRequest(symbol_or_symbols=symbol)
 
-            quote = await asyncio.to_thread(client.get_crypto_latest_quote, request)
+            quote = await self._async_call_with_timeout(
+                client.get_crypto_latest_quote,
+                request,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name=f"get_crypto_quote({symbol})"
+            )
 
             if symbol in quote:
                 q = quote[symbol]
@@ -1276,7 +1583,12 @@ class AlpacaBroker:
             client = self._get_crypto_data_client()
             request = CryptoLatestTradeRequest(symbol_or_symbols=symbol)
 
-            trade = await asyncio.to_thread(client.get_crypto_latest_trade, request)
+            trade = await self._async_call_with_timeout(
+                client.get_crypto_latest_trade,
+                request,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name=f"get_crypto_last_price({symbol})"
+            )
 
             if symbol in trade:
                 price = float(trade[symbol].price)
@@ -1385,8 +1697,13 @@ class AlpacaBroker:
             else:
                 raise ValueError(f"Unsupported order type: {order_type}")
 
-            # Submit the order
-            order = await asyncio.to_thread(self.trading_client.submit_order, request)
+            # Submit the order with timeout protection
+            order = await self._async_call_with_timeout(
+                self.trading_client.submit_order,
+                request,
+                timeout=self.ORDER_API_TIMEOUT,
+                operation_name=f"submit_crypto_order({symbol})"
+            )
 
             result = {
                 "id": str(order.id),
@@ -1405,6 +1722,8 @@ class AlpacaBroker:
             )
             return result
 
+        except asyncio.TimeoutError:
+            raise OrderError(f"Crypto order submission timed out for {symbol}")
         except ValueError as e:
             logger.error(f"Invalid crypto order parameters: {e}")
             raise
@@ -1757,9 +2076,12 @@ class AlpacaBroker:
 
             request = GetPortfolioHistoryRequest(**request_params)
 
-            # Execute API call in thread pool to avoid blocking
-            history = await asyncio.to_thread(
-                self.trading_client.get_portfolio_history, request
+            # Execute API call with timeout protection (data-heavy operation)
+            history = await self._async_call_with_timeout(
+                self.trading_client.get_portfolio_history,
+                request,
+                timeout=self.DATA_API_TIMEOUT,
+                operation_name="get_portfolio_history"
             )
 
             # Convert to serializable dict

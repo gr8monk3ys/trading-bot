@@ -212,6 +212,9 @@ class VolatilityRegimeDetector:
         """
         Get current VIX value with caching.
 
+        Uses VIXY (VIX ETF) price or calculates realized volatility from SPY
+        as Alpaca doesn't provide VIX directly.
+
         Returns:
             Current VIX value or None if unavailable
         """
@@ -225,21 +228,42 @@ class VolatilityRegimeDetector:
             ):
                 return self.last_vix_value
 
-            # Fetch VIX from broker
-            # Note: VIX symbol varies by broker - Alpaca may use "VIX" or "$VIX"
+            vix_value = None
+
+            # Method 1: Try VIXY (VIX ETF) - rough proxy
             try:
-                quote = await self.broker.get_latest_quote("VIX")
-                vix_value = float(quote.ask_price)  # Use ask price for VIX
+                vixy_price = await self.broker.get_last_price("VIXY")
+                if vixy_price:
+                    # VIXY typically trades 10-50, VIX typically 10-80
+                    # This is a rough approximation
+                    vix_value = vixy_price * 1.2  # Scale factor
+                    logger.debug(f"VIX estimated from VIXY: {vix_value:.1f}")
             except Exception as e:
-                # Try alternative symbol (VIX symbol varies by broker)
-                logger.debug(f"VIX quote failed, trying $VIX: {e}")
-                quote = await self.broker.get_latest_quote("$VIX")
-                vix_value = float(quote.ask_price)
+                logger.debug(f"VIXY fetch failed: {e}")
+
+            # Method 2: Calculate realized volatility from SPY if VIXY failed
+            if vix_value is None:
+                try:
+                    bars = await self.broker.get_bars("SPY", timeframe="1Day", limit=30)
+                    if bars and len(bars) >= 20:
+                        import numpy as np
+                        closes = np.array([float(b.close) for b in bars])
+                        returns = np.diff(np.log(closes))
+                        # Annualized volatility * 100 to approximate VIX
+                        realized_vol = np.std(returns) * np.sqrt(252) * 100
+                        vix_value = realized_vol
+                        logger.debug(f"VIX estimated from SPY volatility: {vix_value:.1f}")
+                except Exception as e:
+                    logger.debug(f"SPY volatility calculation failed: {e}")
+
+            if vix_value is None:
+                logger.warning("Could not fetch VIX, using cached or default")
+                return self.last_vix_value or 17.0  # Default to normal VIX
 
             # Validate VIX (typical range: 10-80, extreme: 10-100)
             if not (5 < vix_value < 150):
-                logger.warning(f"VIX value {vix_value} outside expected range, ignoring")
-                return self.last_vix_value  # Return cached value
+                logger.warning(f"VIX value {vix_value} outside expected range, clamping")
+                vix_value = max(10, min(80, vix_value))
 
             # Update cache
             self.last_vix_value = vix_value
@@ -255,8 +279,8 @@ class VolatilityRegimeDetector:
             return vix_value
 
         except Exception as e:
-            logger.error(f"Error fetching VIX: {e}", exc_info=True)
-            return self.last_vix_value  # Return cached value or None
+            logger.error(f"Error fetching VIX: {e}")
+            return self.last_vix_value or 17.0  # Return cached value or default
 
     def get_vix_statistics(self) -> Dict:
         """

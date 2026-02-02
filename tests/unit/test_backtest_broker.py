@@ -213,15 +213,15 @@ class TestSlippageCalculation:
 
         assert large_slip > small_slip
 
-    def test_slippage_capped_at_2x(self, broker):
-        """Test impact multiplier is capped at 2x."""
+    def test_slippage_capped_at_10_percent(self, broker):
+        """Test market impact is capped at 10% (Almgren-Chriss model)."""
         base_price = 100.0
-        # Very large order
+        # Very large order (10M shares with 1M default ADV = 1000% participation)
         exec_price = broker._calculate_slippage("AAPL", 10000000, "buy", base_price, "market")
-        # Max slippage should be bounded
+        # Almgren-Chriss model caps total impact at 10% of price
+        max_impact = base_price * 0.10  # 10% cap
         max_spread = base_price * (broker.spread_bps / 10000.0)
-        max_slippage = base_price * (broker.slippage_bps / 10000.0) * 2.0  # 2x cap
-        max_total = max_spread + max_slippage
+        max_total = max_spread + max_impact
         assert exec_price <= base_price + max_total + 0.01  # Small tolerance
 
     def test_slippage_zero_spread(self):

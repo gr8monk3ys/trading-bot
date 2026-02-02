@@ -18,7 +18,7 @@ async def test_momentum_strategy_initialization(mock_broker, test_symbols):
 
     assert strategy.symbols == test_symbols
     assert strategy.name == "MomentumStrategy"
-    assert strategy.parameters["position_size"] == 0.10
+    assert strategy.parameters["position_size"] == 0.05  # Conservative default
 
 
 @pytest.mark.asyncio
@@ -61,8 +61,8 @@ async def test_momentum_strategy_default_parameters(mock_broker, test_symbols):
     )
     await strategy.initialize()
 
-    # Check key parameters are set
-    assert strategy.position_size == 0.10
+    # Check key parameters are set (conservative defaults)
+    assert strategy.position_size == 0.05  # 5% per position (conservative)
     assert strategy.max_positions == 5
     assert strategy.stop_loss == 0.03
     assert strategy.take_profit == 0.05

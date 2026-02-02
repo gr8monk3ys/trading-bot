@@ -341,9 +341,9 @@ class SectorRotator:
 
             bars = await self.broker.get_bars(
                 symbol,
-                start_date.strftime("%Y-%m-%d"),
-                end_date.strftime("%Y-%m-%d"),
                 timeframe="1Day",
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
             )
 
             if bars is None:

@@ -97,9 +97,9 @@ class RelativeStrengthRanker:
 
             bars = await self.broker.get_bars(
                 self.benchmark,
-                start_date.strftime("%Y-%m-%d"),
-                end_date.strftime("%Y-%m-%d"),
                 timeframe="1Day",
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
             )
 
             if bars is None or len(bars) < self.lookback_days:
@@ -138,9 +138,9 @@ class RelativeStrengthRanker:
 
             bars = await self.broker.get_bars(
                 symbol,
-                start_date.strftime("%Y-%m-%d"),
-                end_date.strftime("%Y-%m-%d"),
                 timeframe="1Day",
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
             )
 
             if bars is None or len(bars) < self.lookback_days:

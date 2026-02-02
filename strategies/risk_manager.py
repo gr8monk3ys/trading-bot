@@ -85,7 +85,7 @@ class RiskManager:
         return np.std(returns) * np.sqrt(252)
 
     def _calculate_var(self, price_history):
-        """Calculate Value at Risk (VaR) at 95% confidence level."""
+        """Calculate Value at Risk (VaR) at 95% confidence level using historical method."""
         if len(price_history) < 2:
             return 0.0
         # Avoid division by zero
@@ -95,6 +95,196 @@ class RiskManager:
             return -0.1  # Return large negative VaR to signal high risk
         returns = np.diff(price_history) / prices
         return np.percentile(returns, 5) * np.sqrt(252)
+
+    def _calculate_parametric_var(self, price_history, confidence: float = 0.95):
+        """
+        Calculate parametric VaR assuming normal distribution.
+
+        Args:
+            price_history: List of historical prices
+            confidence: Confidence level (default 95%)
+
+        Returns:
+            Parametric VaR (negative value = potential loss)
+        """
+        if len(price_history) < 2:
+            return 0.0
+
+        prices = np.array(price_history[:-1])
+        if np.any(prices == 0):
+            logger.warning("Zero prices detected in parametric VaR calculation")
+            return -0.1
+
+        returns = np.diff(price_history) / prices
+        mean = np.mean(returns)
+        std = np.std(returns)
+
+        # Z-score for 95% confidence (1.645 for one-tailed)
+        z_score = 1.645 if confidence == 0.95 else 2.326 if confidence == 0.99 else 1.645
+
+        # Parametric VaR
+        var_daily = mean - z_score * std
+        var_annual = var_daily * np.sqrt(252)
+
+        return var_annual
+
+    def _calculate_monte_carlo_var(
+        self, price_history, n_simulations: int = 10000, confidence: float = 0.95
+    ):
+        """
+        Calculate VaR using Monte Carlo simulation.
+
+        Simulates 10,000 1-year paths using historical mean/std.
+
+        Args:
+            price_history: List of historical prices
+            n_simulations: Number of Monte Carlo paths (default 10,000)
+            confidence: Confidence level (default 95%)
+
+        Returns:
+            Monte Carlo VaR (negative value = potential loss)
+        """
+        if len(price_history) < 20:  # Need reasonable history for MC
+            return self._calculate_var(price_history)  # Fall back to historical
+
+        prices = np.array(price_history[:-1])
+        if np.any(prices == 0):
+            logger.warning("Zero prices detected in Monte Carlo VaR calculation")
+            return -0.1
+
+        returns = np.diff(price_history) / prices
+        mean = np.mean(returns)
+        std = np.std(returns)
+
+        try:
+            # Simulate 1-year paths (252 trading days)
+            simulated_returns = np.random.normal(mean, std, (n_simulations, 252))
+
+            # Calculate cumulative returns for each path
+            cumulative = np.cumprod(1 + simulated_returns, axis=1)
+
+            # Get final returns (end of year)
+            final_returns = cumulative[:, -1] - 1
+
+            # VaR at confidence level
+            percentile = (1 - confidence) * 100  # 5th percentile for 95% confidence
+            var_mc = np.percentile(final_returns, percentile)
+
+            return var_mc
+
+        except Exception as e:
+            logger.warning(f"Monte Carlo VaR failed, using historical: {e}")
+            return self._calculate_var(price_history)
+
+    def _calculate_cornish_fisher_var(self, price_history, confidence: float = 0.95):
+        """
+        Calculate VaR using Cornish-Fisher expansion for fat-tailed distributions.
+
+        Adjusts the standard normal quantile for skewness and kurtosis.
+        More accurate for non-normal return distributions.
+
+        Args:
+            price_history: List of historical prices
+            confidence: Confidence level (default 95%)
+
+        Returns:
+            Cornish-Fisher adjusted VaR (negative value = potential loss)
+        """
+        if len(price_history) < 30:  # Need enough data for skew/kurtosis
+            return self._calculate_parametric_var(price_history, confidence)
+
+        prices = np.array(price_history[:-1])
+        if np.any(prices == 0):
+            logger.warning("Zero prices detected in Cornish-Fisher VaR calculation")
+            return -0.1
+
+        returns = np.diff(price_history) / prices
+        mean = np.mean(returns)
+        std = np.std(returns)
+
+        try:
+            from scipy import stats as scipy_stats
+
+            skew = scipy_stats.skew(returns)
+            kurt = scipy_stats.kurtosis(returns)  # Excess kurtosis
+
+            # Standard normal quantile
+            z = 1.645 if confidence == 0.95 else 2.326 if confidence == 0.99 else 1.645
+
+            # Cornish-Fisher expansion
+            # z_cf = z + (z^2 - 1)*skew/6 + (z^3 - 3z)*kurt/24 - (2z^3 - 5z)*skew^2/36
+            z_cf = (
+                z
+                + (z**2 - 1) * skew / 6
+                + (z**3 - 3 * z) * kurt / 24
+                - (2 * z**3 - 5 * z) * skew**2 / 36
+            )
+
+            # Cornish-Fisher VaR
+            var_cf = (mean - z_cf * std) * np.sqrt(252)
+
+            return var_cf
+
+        except ImportError:
+            logger.warning("scipy not available, using parametric VaR")
+            return self._calculate_parametric_var(price_history, confidence)
+        except Exception as e:
+            logger.warning(f"Cornish-Fisher VaR failed, using parametric: {e}")
+            return self._calculate_parametric_var(price_history, confidence)
+
+    def calculate_var_ensemble(self, price_history, confidence: float = 0.95) -> dict:
+        """
+        Calculate ensemble VaR using multiple methods.
+
+        Returns the most conservative (lowest) VaR and all individual estimates.
+
+        Args:
+            price_history: List of historical prices
+            confidence: Confidence level (default 95%)
+
+        Returns:
+            Dict with ensemble VaR and individual method results
+        """
+        if len(price_history) < 2:
+            return {
+                "ensemble_var": 0.0,
+                "method": "insufficient_data",
+                "historical": 0.0,
+                "parametric": 0.0,
+                "monte_carlo": 0.0,
+                "cornish_fisher": 0.0,
+            }
+
+        # Calculate all VaR estimates
+        var_hist = self._calculate_var(price_history)
+        var_param = self._calculate_parametric_var(price_history, confidence)
+        var_mc = self._calculate_monte_carlo_var(price_history, confidence=confidence)
+        var_cf = self._calculate_cornish_fisher_var(price_history, confidence)
+
+        # Use most conservative (most negative = worst case)
+        var_estimates = {
+            "historical": var_hist,
+            "parametric": var_param,
+            "monte_carlo": var_mc,
+            "cornish_fisher": var_cf,
+        }
+
+        ensemble_var = min(var_estimates.values())
+        worst_method = min(var_estimates, key=var_estimates.get)
+
+        logger.debug(
+            f"VaR Ensemble: Historical={var_hist:.2%}, Parametric={var_param:.2%}, "
+            f"MC={var_mc:.2%}, CF={var_cf:.2%} -> Ensemble={ensemble_var:.2%} ({worst_method})"
+        )
+
+        return {
+            "ensemble_var": ensemble_var,
+            "method": worst_method,
+            "historical": var_hist,
+            "parametric": var_param,
+            "monte_carlo": var_mc,
+            "cornish_fisher": var_cf,
+        }
 
     def _calculate_expected_shortfall(self, price_history, var_value=None):
         """Calculate Expected Shortfall (ES) at 95% confidence level.
@@ -357,3 +547,213 @@ class RiskManager:
         except (KeyError, TypeError) as e:
             logger.error(f"Data error adjusting position size for {symbol}: {e}")
             return 0  # Return 0 size on data error (fail safe)
+
+    def enforce_limits(
+        self,
+        symbol: str,
+        desired_size: float,
+        price_history: List[float],
+        current_positions: Dict[str, Dict],
+    ) -> tuple:
+        """
+        Enforce risk limits and return both adjusted size and violation details.
+
+        This is the RECOMMENDED method for OrderGateway integration.
+        Unlike adjust_position_size(), this method:
+        - Returns explicit violation reasons
+        - Uses stricter enforcement (rejects on any violation)
+        - Provides audit trail for rejected orders
+
+        Args:
+            symbol: Stock symbol
+            desired_size: Desired position size in dollars
+            price_history: Price history for the symbol
+            current_positions: Dict of current positions with their data
+
+        Returns:
+            Tuple of (adjusted_size, violations_dict)
+            - adjusted_size: Position size after limits (0 if rejected)
+            - violations_dict: Dict of {limit_name: violation_message}
+        """
+        violations = {}
+
+        try:
+            # Validate inputs
+            if desired_size <= 0:
+                violations["invalid_size"] = f"Invalid desired_size: {desired_size}"
+                return 0, violations
+
+            if not price_history or len(price_history) < 2:
+                violations["insufficient_data"] = (
+                    f"Insufficient price history: {len(price_history) if price_history else 0} points"
+                )
+                return 0, violations
+
+            # 1. VaR Check - Reject if Value at Risk too high
+            var_95 = self._calculate_var(price_history)
+            if abs(var_95) > self.var_threshold:
+                violations["var_exceeded"] = (
+                    f"VaR {abs(var_95):.2%} exceeds threshold {self.var_threshold:.2%}"
+                )
+                logger.warning(
+                    f"⚠️  VAR LIMIT: {symbol} has VaR of {abs(var_95):.2%} "
+                    f"(max: {self.var_threshold:.2%})"
+                )
+
+            # 2. Expected Shortfall Check
+            es_95 = self._calculate_expected_shortfall(price_history, var_value=var_95)
+            if abs(es_95) > self.es_threshold:
+                violations["es_exceeded"] = (
+                    f"Expected Shortfall {abs(es_95):.2%} exceeds threshold {self.es_threshold:.2%}"
+                )
+                logger.warning(
+                    f"⚠️  ES LIMIT: {symbol} has ES of {abs(es_95):.2%} "
+                    f"(max: {self.es_threshold:.2%})"
+                )
+
+            # 3. Volatility Check
+            volatility = self._calculate_volatility(price_history)
+            if volatility > self.volatility_threshold:
+                violations["volatility_exceeded"] = (
+                    f"Volatility {volatility:.2%} exceeds threshold {self.volatility_threshold:.2%}"
+                )
+                logger.warning(
+                    f"⚠️  VOLATILITY LIMIT: {symbol} has volatility of {volatility:.2%} "
+                    f"(max: {self.volatility_threshold:.2%})"
+                )
+
+            # 4. Correlation Check - Compare with existing positions
+            max_correlation = 0
+            correlated_with = None
+            for other_symbol, pos in current_positions.items():
+                if other_symbol != symbol and "price_history" in pos:
+                    correlation = self.calculate_position_correlation(
+                        symbol, other_symbol, price_history, pos["price_history"]
+                    )
+                    self.position_correlations[(symbol, other_symbol)] = correlation
+                    self.position_correlations[(other_symbol, symbol)] = correlation
+                    if correlation > max_correlation:
+                        max_correlation = correlation
+                        correlated_with = other_symbol
+
+            if max_correlation > self.max_correlation:
+                violations["correlation_exceeded"] = (
+                    f"Correlation {max_correlation:.2%} with {correlated_with} "
+                    f"exceeds threshold {self.max_correlation:.2%}"
+                )
+                logger.warning(
+                    f"⚠️  CORRELATION LIMIT: {symbol} has {max_correlation:.2%} "
+                    f"correlation with {correlated_with} (max: {self.max_correlation:.2%})"
+                )
+
+            # 5. Portfolio Risk Check
+            # Temporarily add this position to calculate impact
+            test_positions = current_positions.copy()
+            risk = self.calculate_position_risk(symbol, price_history)
+            test_positions[symbol] = {
+                "value": desired_size,
+                "risk": risk,
+                "price_history": price_history,
+            }
+            portfolio_risk = self.calculate_portfolio_risk(test_positions)
+
+            if portfolio_risk > self.max_portfolio_risk:
+                violations["portfolio_risk_exceeded"] = (
+                    f"Portfolio risk {portfolio_risk:.2%} exceeds threshold {self.max_portfolio_risk:.2%}"
+                )
+                logger.warning(
+                    f"⚠️  PORTFOLIO RISK LIMIT: Adding {symbol} would push portfolio risk to "
+                    f"{portfolio_risk:.2%} (max: {self.max_portfolio_risk:.2%})"
+                )
+
+            # 6. Max Drawdown Check
+            max_drawdown = self._calculate_max_drawdown(price_history)
+            if abs(max_drawdown) > self.drawdown_threshold:
+                violations["drawdown_exceeded"] = (
+                    f"Max drawdown {abs(max_drawdown):.2%} exceeds threshold {self.drawdown_threshold:.2%}"
+                )
+                logger.warning(
+                    f"⚠️  DRAWDOWN LIMIT: {symbol} has max drawdown of {abs(max_drawdown):.2%} "
+                    f"(max: {self.drawdown_threshold:.2%})"
+                )
+
+            # If any violations, reject the order
+            if violations:
+                logger.warning(
+                    f"ORDER REJECTED for {symbol}: {len(violations)} limit(s) violated - "
+                    f"{', '.join(violations.keys())}"
+                )
+                return 0, violations
+
+            # No violations - return full size
+            logger.debug(
+                f"Risk limits passed for {symbol}: "
+                f"VaR={abs(var_95):.2%}, ES={abs(es_95):.2%}, "
+                f"Vol={volatility:.2%}, Corr={max_correlation:.2%}"
+            )
+            return desired_size, {}
+
+        except Exception as e:
+            logger.error(f"Error enforcing limits for {symbol}: {e}")
+            violations["calculation_error"] = str(e)
+            return 0, violations
+
+    def get_risk_summary(self, symbol: str, price_history: List[float]) -> Dict:
+        """
+        Get a summary of all risk metrics for a symbol.
+
+        Useful for pre-trade analysis and logging.
+
+        Args:
+            symbol: Stock symbol
+            price_history: Price history for the symbol
+
+        Returns:
+            Dict with all risk metrics and their status
+        """
+        if not price_history or len(price_history) < 2:
+            return {
+                "symbol": symbol,
+                "valid": False,
+                "error": "Insufficient price history",
+            }
+
+        try:
+            var_95 = self._calculate_var(price_history)
+            es_95 = self._calculate_expected_shortfall(price_history, var_value=var_95)
+            volatility = self._calculate_volatility(price_history)
+            max_drawdown = self._calculate_max_drawdown(price_history)
+            risk_score = self.calculate_position_risk(symbol, price_history)
+
+            return {
+                "symbol": symbol,
+                "valid": True,
+                "var_95": {
+                    "value": abs(var_95),
+                    "threshold": self.var_threshold,
+                    "passed": abs(var_95) <= self.var_threshold,
+                },
+                "es_95": {
+                    "value": abs(es_95),
+                    "threshold": self.es_threshold,
+                    "passed": abs(es_95) <= self.es_threshold,
+                },
+                "volatility": {
+                    "value": volatility,
+                    "threshold": self.volatility_threshold,
+                    "passed": volatility <= self.volatility_threshold,
+                },
+                "max_drawdown": {
+                    "value": abs(max_drawdown),
+                    "threshold": self.drawdown_threshold,
+                    "passed": abs(max_drawdown) <= self.drawdown_threshold,
+                },
+                "risk_score": risk_score,
+            }
+
+        except Exception as e:
+            return {
+                "symbol": symbol,
+                "valid": False,
+                "error": str(e),
+            }

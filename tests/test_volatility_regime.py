@@ -291,9 +291,8 @@ class TestReduceExposure:
         from utils.volatility_regime import VolatilityRegimeDetector
 
         mock_broker = Mock()
-        mock_quote = Mock()
-        mock_quote.ask_price = 25.0
-        mock_broker.get_latest_quote = AsyncMock(return_value=mock_quote)
+        # Mock get_last_price to return VIXY price that gives VIX of 25
+        mock_broker.get_last_price = AsyncMock(return_value=25.0 / 1.2)  # VIXY price
 
         detector = VolatilityRegimeDetector(broker=mock_broker)
 
@@ -307,9 +306,8 @@ class TestReduceExposure:
         from utils.volatility_regime import VolatilityRegimeDetector
 
         mock_broker = Mock()
-        mock_quote = Mock()
-        mock_quote.ask_price = 17.0
-        mock_broker.get_latest_quote = AsyncMock(return_value=mock_quote)
+        # Mock get_last_price to return VIXY price that gives VIX of 17
+        mock_broker.get_last_price = AsyncMock(return_value=17.0 / 1.2)  # VIXY price
 
         detector = VolatilityRegimeDetector(broker=mock_broker)
 
@@ -367,21 +365,25 @@ class TestRegimeChanges:
         from utils.volatility_regime import VolatilityRegimeDetector
 
         mock_broker = Mock()
-        mock_quote = Mock()
-        mock_broker.get_latest_quote = AsyncMock(return_value=mock_quote)
+        vixy_price = [17.0 / 1.2]  # Mutable to allow change
+
+        async def mock_get_last_price(symbol):
+            return vixy_price[0]
+
+        mock_broker.get_last_price = mock_get_last_price
 
         # Set cache to 0 to avoid caching between calls
         detector = VolatilityRegimeDetector(broker=mock_broker, cache_minutes=0)
 
-        # First regime: normal
-        mock_quote.ask_price = 17.0
+        # First regime: normal (VIX ~17)
         await detector.get_current_regime()
 
         assert detector.last_regime == "normal"
 
         # Change to elevated - need to clear cache for new value
         detector.last_vix_time = None  # Clear cache timestamp
-        mock_quote.ask_price = 25.0
+        detector.last_vix_value = None  # Clear cached value
+        vixy_price[0] = 25.0 / 1.2  # Change to elevated (VIX ~25)
         await detector.get_current_regime()
 
         assert detector.last_regime == "elevated"
