@@ -392,6 +392,13 @@ BACKTEST_PARAMS = {
     # Statistical significance thresholds
     "MIN_TRADES_FOR_SIGNIFICANCE": 50,  # Need 50+ trades for valid results
     "OVERFITTING_RATIO_THRESHOLD": 2.0,  # In-sample / out-of-sample ratio threshold
+    # Profitability validation gates
+    "MIN_SHARPE": 0.5,  # Minimum Sharpe for eligibility
+    "MAX_DRAWDOWN": 0.15,  # Maximum drawdown allowed
+    "MIN_WIN_RATE": 0.35,  # Minimum win rate (if available)
+    "MIN_WF_CONSISTENCY": 0.5,  # % of folds with positive OOS returns
+    "PERMUTATION_P_THRESHOLD": 0.05,  # Permutation test alpha
+    "MULTIPLE_TESTING_METHOD": "bonferroni",  # bonferroni or fdr
     # Realistic execution modeling
     "EXECUTION_DELAY_BARS": 1,  # Assume 1-bar delay for order execution
     "USE_LIMIT_ORDERS": False,  # If True, model limit order fill rates

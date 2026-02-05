@@ -29,8 +29,10 @@ from typing import Any, Dict, List, Optional, Type
 import numpy as np
 import pandas as pd
 
+from config import BACKTEST_PARAMS
 from engine.walk_forward import WalkForwardValidator, WalkForwardResult
-from engine.performance_metrics import PerformanceMetrics
+from engine.performance_metrics import apply_bonferroni_correction, apply_fdr_correction
+from engine.statistical_tests import permutation_test_returns
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,8 @@ class ValidatedBacktestResult:
     # Statistical significance
     statistically_significant: bool = False
     p_value: Optional[float] = None
+    validation_gates: Dict[str, Any] = field(default_factory=dict)
+    eligible_for_trading: bool = False
 
     # Raw data
     equity_curve: Optional[pd.Series] = None
@@ -199,6 +203,11 @@ class ValidatedBacktestRunner:
             daily_returns=backtest_result.get("daily_returns"),
         )
 
+        # Profitability validation gates
+        gates, eligible = self._evaluate_validation_gates(result)
+        result.validation_gates = gates
+        result.eligible_for_trading = eligible
+
         # Log summary
         self._log_result_summary(result)
 
@@ -220,8 +229,7 @@ class ValidatedBacktestRunner:
 
             # Create backtest broker
             backtest_broker = BacktestBroker(
-                data_broker=self.broker,
-                initial_capital=initial_capital,
+                initial_balance=initial_capital,
             )
 
             # Initialize strategy
@@ -458,6 +466,126 @@ class ValidatedBacktestRunner:
         except Exception:
             return False, None
 
+    def _calculate_permutation_tests(
+        self, daily_returns: Optional[pd.Series]
+    ) -> Dict[str, Any]:
+        """Run permutation tests for mean and Sharpe significance."""
+        if daily_returns is None:
+            return {"error": "No daily returns available"}
+
+        returns = daily_returns.dropna().to_numpy()
+        if len(returns) < 10:
+            return {"error": "Insufficient returns for permutation test (need >= 10)"}
+
+        alpha = BACKTEST_PARAMS.get("PERMUTATION_P_THRESHOLD", 0.05)
+        method = BACKTEST_PARAMS.get("MULTIPLE_TESTING_METHOD", "bonferroni")
+
+        stats = ["mean", "sharpe"]
+        raw_results = [
+            permutation_test_returns(returns, statistic=stat, alpha=alpha)
+            for stat in stats
+        ]
+        p_values = [r.p_value for r in raw_results]
+
+        if method == "fdr":
+            adjusted = apply_fdr_correction(p_values, alpha=alpha)
+        else:
+            adjusted = apply_bonferroni_correction(p_values, alpha=alpha)
+            method = "bonferroni"
+
+        summary = {
+            "alpha": alpha,
+            "method": method,
+            "tests": {},
+        }
+        for stat, raw, adj in zip(stats, raw_results, adjusted):
+            summary["tests"][stat] = {
+                "p_value": raw.p_value,
+                "adjusted_p_value": adj.adjusted_p_value,
+                "is_significant": adj.is_significant,
+                "n_permutations": raw.n_permutations,
+            }
+
+        return summary
+
+    def _evaluate_validation_gates(
+        self, result: ValidatedBacktestResult
+    ) -> tuple[Dict[str, Any], bool]:
+        """Evaluate profitability validation gates for eligibility."""
+        min_trades = BACKTEST_PARAMS.get("MIN_TRADES_FOR_SIGNIFICANCE", 50)
+        min_sharpe = BACKTEST_PARAMS.get("MIN_SHARPE", 0.5)
+        max_drawdown = BACKTEST_PARAMS.get("MAX_DRAWDOWN", 0.15)
+        min_win_rate = BACKTEST_PARAMS.get("MIN_WIN_RATE", 0.35)
+        min_consistency = BACKTEST_PARAMS.get("MIN_WF_CONSISTENCY", 0.5)
+        overfit_threshold = BACKTEST_PARAMS.get("OVERFITTING_RATIO_THRESHOLD", 2.0)
+
+        permutation = self._calculate_permutation_tests(result.daily_returns)
+        mean_perm = permutation.get("tests", {}).get("mean", {})
+        sharpe_perm = permutation.get("tests", {}).get("sharpe", {})
+
+        gates = {
+            "min_trades": {
+                "passed": result.num_trades >= min_trades,
+                "value": result.num_trades,
+                "threshold": min_trades,
+            },
+            "min_sharpe": {
+                "passed": result.sharpe_ratio >= min_sharpe,
+                "value": result.sharpe_ratio,
+                "threshold": min_sharpe,
+            },
+            "max_drawdown": {
+                "passed": result.max_drawdown >= -max_drawdown,
+                "value": result.max_drawdown,
+                "threshold": -max_drawdown,
+            },
+            "min_win_rate": {
+                "passed": result.win_rate >= min_win_rate,
+                "value": result.win_rate,
+                "threshold": min_win_rate,
+            },
+            "walk_forward_overfit": {
+                "passed": (
+                    result.walk_forward_validated
+                    and result.overfit_ratio <= overfit_threshold
+                ),
+                "value": result.overfit_ratio,
+                "threshold": overfit_threshold,
+            },
+            "walk_forward_consistency": {
+                "passed": (
+                    result.walk_forward_validated
+                    and result.consistency_score >= min_consistency
+                ),
+                "value": result.consistency_score,
+                "threshold": min_consistency,
+            },
+            "t_test": {
+                "passed": bool(result.statistically_significant),
+                "value": result.p_value,
+                "threshold": 0.05,
+            },
+            "permutation_mean": {
+                "passed": bool(mean_perm.get("is_significant")),
+                "value": mean_perm.get("adjusted_p_value"),
+                "threshold": BACKTEST_PARAMS.get("PERMUTATION_P_THRESHOLD", 0.05),
+            },
+            "permutation_sharpe": {
+                "passed": bool(sharpe_perm.get("is_significant")),
+                "value": sharpe_perm.get("adjusted_p_value"),
+                "threshold": BACKTEST_PARAMS.get("PERMUTATION_P_THRESHOLD", 0.05),
+            },
+        }
+
+        blockers = [
+            name for name, gate in gates.items() if not gate.get("passed", False)
+        ]
+        gates["blockers"] = blockers
+        gates["permutation"] = permutation
+
+        eligible = len(blockers) == 0
+        return gates, eligible
+
     def _log_result_summary(self, result: ValidatedBacktestResult):
         """Log a summary of backtest results."""
         logger.info("=" * 60)
@@ -492,4 +620,78 @@ class ValidatedBacktestRunner:
         if result.statistically_significant:
             logger.info(f"  ✓ Statistically significant (p={result.p_value:.4f})")
 
+        if result.validation_gates:
+            logger.info("-" * 40)
+            logger.info(
+                f"PROFITABILITY GATES: {'PASSED' if result.eligible_for_trading else 'FAILED'}"
+            )
+            if result.validation_gates.get("blockers"):
+                logger.warning(f"  Blockers: {', '.join(result.validation_gates['blockers'])}")
+
         logger.info("=" * 60)
+
+
+def format_validated_backtest_report(result: ValidatedBacktestResult) -> str:
+    """Format a validated backtest report for display."""
+    lines = []
+    lines.append("=" * 60)
+    lines.append(f"VALIDATED BACKTEST REPORT: {result.strategy_name}")
+    lines.append("=" * 60)
+    lines.append(
+        f"Period: {result.start_date.date()} to {result.end_date.date()} | "
+        f"Trades: {result.num_trades} | Return: {result.total_return:+.2%}"
+    )
+    lines.append(
+        f"Sharpe: {result.sharpe_ratio:.2f} | "
+        f"Max Drawdown: {result.max_drawdown:.2%}"
+    )
+
+    if result.walk_forward_validated:
+        lines.append("-" * 60)
+        lines.append("WALK-FORWARD:")
+        lines.append(f"  In-Sample Return: {result.is_return:.2%}")
+        lines.append(f"  Out-of-Sample Return: {result.oos_return:.2%}")
+        lines.append(f"  Overfit Ratio: {result.overfit_ratio:.2f}")
+        lines.append(f"  Consistency: {result.consistency_score:.0%}")
+
+    if result.statistically_significant and result.p_value is not None:
+        lines.append(f"Significance (t-test): p={result.p_value:.4f}")
+    elif result.p_value is not None:
+        lines.append(f"Significance (t-test): NOT significant (p={result.p_value:.4f})")
+
+    if result.validation_gates:
+        lines.append("-" * 60)
+        lines.append(
+            f"PROFITABILITY GATES: {'PASSED' if result.eligible_for_trading else 'FAILED'}"
+        )
+        for name, gate in result.validation_gates.items():
+            if not isinstance(gate, dict) or name in ["blockers", "permutation"]:
+                continue
+            status = "PASS" if gate.get("passed") else "FAIL"
+            lines.append(
+                f"  {name}: {status} "
+                f"(value={gate.get('value')}, threshold={gate.get('threshold')})"
+            )
+        if result.validation_gates.get("blockers"):
+            lines.append(f"Blockers: {', '.join(result.validation_gates['blockers'])}")
+
+        permutation = result.validation_gates.get("permutation", {})
+        if permutation.get("tests"):
+            lines.append("-" * 60)
+            lines.append(
+                f"PERMUTATION TESTS (method={permutation.get('method', 'n/a')}, "
+                f"alpha={permutation.get('alpha', 'n/a')})"
+            )
+            for stat, details in permutation["tests"].items():
+                raw_p = details.get("p_value")
+                adj_p = details.get("adjusted_p_value")
+                raw_p_str = f"{raw_p:.4f}" if isinstance(raw_p, (int, float)) else "n/a"
+                adj_p_str = f"{adj_p:.4f}" if isinstance(adj_p, (int, float)) else "n/a"
+                lines.append(
+                    f"  {stat}: p={raw_p_str}, "
+                    f"adj_p={adj_p_str}, "
+                    f"significant={details.get('is_significant')}"
+                )
+
+    lines.append("=" * 60)
+    return "\n".join(lines)

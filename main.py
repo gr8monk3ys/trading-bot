@@ -22,6 +22,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from brokers.alpaca_broker import AlpacaBroker
 from config import ALPACA_CREDS, SYMBOL_SELECTION, SYMBOLS
 from engine.strategy_manager import StrategyManager
+from utils.reconciliation import PositionReconciler
+from utils.order_reconciliation import OrderReconciler
 from utils.circuit_breaker import CircuitBreaker
 from utils.simple_symbol_selector import SimpleSymbolSelector
 
@@ -141,8 +143,8 @@ async def run_backtest(args):
         # Get symbols
         symbols = args.symbols.split(",") if args.symbols else SYMBOLS
 
-        # Run walk-forward validation if requested
-        if args.walk_forward:
+        # Run walk-forward validation if requested (skip if using validated backtest)
+        if args.walk_forward and not args.validated:
             for strategy_name in strategies_to_test:
                 strategy_class = strategy_manager.available_strategies[strategy_name]
 
@@ -167,33 +169,71 @@ async def run_backtest(args):
                 # Get strategy class
                 strategy_class = strategy_manager.available_strategies[strategy_name]
 
-                # Run backtest
-                result = await strategy_manager.backtest_engine.run_backtest(
-                    strategy_class=strategy_class,
-                    symbols=args.symbols.split(",") if args.symbols else SYMBOLS,
-                    start_date=start_date,
-                    end_date=end_date,
-                    initial_capital=args.capital,
-                )
+                if args.validated:
+                    from engine.validated_backtest import (
+                        ValidatedBacktestRunner,
+                        format_validated_backtest_report,
+                    )
 
-                # Calculate metrics
-                strategy_metrics = strategy_manager.perf_metrics.calculate_metrics(result)
+                    runner = ValidatedBacktestRunner(broker)
+                    validated_result = await runner.run_validated_backtest(
+                        strategy_class=strategy_class,
+                        symbols=args.symbols.split(",") if args.symbols else SYMBOLS,
+                        start_date=args.start_date,
+                        end_date=args.end_date,
+                        initial_capital=args.capital,
+                    )
 
-                # Store results
-                results[strategy_name] = result
-                metrics[strategy_name] = strategy_metrics
+                    print(format_validated_backtest_report(validated_result))
 
-                # Print summary
-                print(f"\n--- {strategy_name} Performance Summary ---")
-                print(f"Total Return: {strategy_metrics['total_return']:.2%}")
-                print(f"Annualized Return: {strategy_metrics['annualized_return']:.2%}")
-                print(f"Sharpe Ratio: {strategy_metrics['sharpe_ratio']:.2f}")
-                print(f"Max Drawdown: {strategy_metrics['max_drawdown']:.2%}")
-                print(f"Win Rate: {strategy_metrics['win_rate']:.2%}")
-                print(f"Average Win: {strategy_metrics['avg_win']:.2%}")
-                print(f"Average Loss: {strategy_metrics['avg_loss']:.2%}")
-                print(f"Profit Factor: {strategy_metrics['profit_factor']:.2f}")
-                print(f"Number of Trades: {strategy_metrics['num_trades']}")
+                    if not validated_result.eligible_for_trading and not args.force:
+                        print(
+                            "Profitability gates FAILED. Use --force to proceed anyway."
+                        )
+                        continue
+
+                    results[strategy_name] = {
+                        "equity_curve": validated_result.equity_curve,
+                        "start_date": start_date,
+                        "end_date": end_date,
+                    }
+                    metrics[strategy_name] = {
+                        "total_return": validated_result.total_return,
+                        "annualized_return": validated_result.total_return,
+                        "sharpe_ratio": validated_result.sharpe_ratio,
+                        "max_drawdown": validated_result.max_drawdown,
+                        "win_rate": validated_result.win_rate,
+                        "profit_factor": None,
+                        "num_trades": validated_result.num_trades,
+                    }
+                else:
+                    # Run backtest
+                    result = await strategy_manager.backtest_engine.run_backtest(
+                        strategy_class=strategy_class,
+                        symbols=args.symbols.split(",") if args.symbols else SYMBOLS,
+                        start_date=start_date,
+                        end_date=end_date,
+                        initial_capital=args.capital,
+                    )
+
+                    # Calculate metrics
+                    strategy_metrics = strategy_manager.perf_metrics.calculate_metrics(result)
+
+                    # Store results
+                    results[strategy_name] = result
+                    metrics[strategy_name] = strategy_metrics
+
+                    # Print summary
+                    print(f"\n--- {strategy_name} Performance Summary ---")
+                    print(f"Total Return: {strategy_metrics['total_return']:.2%}")
+                    print(f"Annualized Return: {strategy_metrics['annualized_return']:.2%}")
+                    print(f"Sharpe Ratio: {strategy_metrics['sharpe_ratio']:.2f}")
+                    print(f"Max Drawdown: {strategy_metrics['max_drawdown']:.2%}")
+                    print(f"Win Rate: {strategy_metrics['win_rate']:.2%}")
+                    print(f"Average Win: {strategy_metrics['avg_win']:.2%}")
+                    print(f"Average Loss: {strategy_metrics['avg_loss']:.2%}")
+                    print(f"Profit Factor: {strategy_metrics['profit_factor']:.2f}")
+                    print(f"Number of Trades: {strategy_metrics['num_trades']}")
 
             except Exception as e:
                 logger.error(f"Error backtesting {strategy_name}: {e}", exc_info=True)
@@ -232,7 +272,10 @@ async def run_backtest(args):
                     # Plot equity curves
                     plt.figure(figsize=(12, 6))
                     for name, result in results.items():
-                        plt.plot(result["portfolio_value"], label=name)
+                        curve = result.get("equity_curve") or result.get("portfolio_value")
+                        if curve is None:
+                            continue
+                        plt.plot(curve, label=name)
 
                     plt.title("Equity Curves")
                     plt.xlabel("Date")
@@ -316,6 +359,8 @@ async def run_live(args):
 
         # Initialize broker
         broker = AlpacaBroker(paper=paper)
+        await broker.start_websocket()
+        logger.info("Websocket started (trade updates enabled)")
 
         # Select symbols for trading (dynamic or static)
         trading_symbols = await select_trading_symbols(broker)
@@ -343,8 +388,56 @@ async def run_live(args):
 
         # Initialize strategy manager
         strategy_manager = StrategyManager(
-            broker=broker, max_strategies=args.max_strategies, max_allocation=args.max_allocation
+            broker=broker,
+            max_strategies=args.max_strategies,
+            max_allocation=args.max_allocation,
+            circuit_breaker=circuit_breaker,
         )
+
+        # Sync internal position ownership with broker on startup (restart recovery)
+        await strategy_manager.position_manager.sync_with_broker(
+            broker, default_strategy="recovered"
+        )
+
+        # Reconciliation loop (detect broker/internal drift)
+        reconciler = PositionReconciler(
+            broker=broker,
+            internal_tracker=strategy_manager.position_manager,
+            halt_on_mismatch=False,
+            sync_to_broker=True,
+            audit_log=strategy_manager.audit_log,
+        )
+        order_reconciler = OrderReconciler(
+            broker=broker,
+            lifecycle_tracker=strategy_manager.order_gateway.lifecycle_tracker,
+            audit_log=strategy_manager.audit_log,
+        )
+
+        async def periodic_housekeeping():
+            state_interval = 60
+            reconciliation_interval = 300
+            order_recon_interval = 120
+            counter = 0
+            try:
+                while True:
+                    await asyncio.sleep(1)
+                    counter += 1
+                    if counter % state_interval == 0:
+                        await strategy_manager.save_runtime_state()
+                    if counter % reconciliation_interval == 0:
+                        try:
+                            await reconciler.reconcile()
+                        except Exception as e:
+                            logger.error(f"Reconciliation error: {e}")
+                    if counter % order_recon_interval == 0:
+                        try:
+                            await order_reconciler.reconcile()
+                        except Exception as e:
+                            logger.error(f"Order reconciliation error: {e}")
+            except asyncio.CancelledError:
+                return
+
+        housekeeping_task = asyncio.create_task(periodic_housekeeping())
 
         # Get available strategies
         available_strategies = strategy_manager.get_available_strategy_names()
@@ -478,10 +571,23 @@ async def run_live(args):
         finally:
             # Cancel evaluation task
             evaluation_task.cancel()
+            housekeeping_task.cancel()
 
             # Stop all strategies
             await strategy_manager.stop_all_strategies(liquidate=args.liquidate_on_exit)
             logger.info("All strategies stopped")
+
+            # Persist runtime state on shutdown
+            try:
+                await strategy_manager.save_runtime_state()
+            except Exception as e:
+                logger.error(f"Error saving runtime state: {e}")
+
+            # Stop websocket
+            try:
+                await broker.stop_websocket()
+            except Exception as e:
+                logger.error(f"Error stopping websocket: {e}")
 
     except Exception as e:
         logger.error(f"Error in live trading mode: {e}", exc_info=True)
@@ -707,6 +813,11 @@ def main():
         "--capital", type=float, default=100000, help="Initial capital for backtest"
     )
     parser.add_argument("--plot", action="store_true", help="Generate plots for backtest results")
+    parser.add_argument(
+        "--validated",
+        action="store_true",
+        help="Run validated backtest (walk-forward + profitability gates + permutation tests)",
+    )
 
     # Walk-forward validation options
     parser.add_argument(

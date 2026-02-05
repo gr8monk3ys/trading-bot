@@ -14,11 +14,13 @@ This directory contains various runner scripts and utilities for the trading bot
 - **`simple_trader.py`** - Simple trading script
 - **`run.py`** - Alternative runner script
 - **`run_now.py`** - Quick start script
+- **`kill_switch.py`** - Emergency kill switch (cancel orders / liquidate)
 
 ## Backtesting
 
 - **`simple_backtest.py`** - Basic backtesting script
-- **`smart_backtest.py`** - Advanced backtesting with multiple strategies
+- **`validated_backtest_report.py`** - Validated backtest with profitability gates and report output
+- **`generate_validation_artifacts.py`** - One-shot reproducible validation artifacts (report, manifest, paper summary)
 
 ## Development
 
