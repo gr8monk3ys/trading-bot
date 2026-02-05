@@ -74,6 +74,7 @@ class AdaptiveStrategy(BaseStrategy):
         enable_ml_signals: bool = True,
         enable_ensemble: bool = True,
         enable_cross_asset: bool = True,
+        order_gateway=None,
     ):
         """
         Initialize adaptive strategy with symbols.
@@ -91,7 +92,12 @@ class AdaptiveStrategy(BaseStrategy):
         parameters = parameters or {}
         if symbols:
             parameters["symbols"] = symbols
-        super().__init__(name=self.NAME, broker=broker, parameters=parameters)
+        super().__init__(
+            name=self.NAME,
+            broker=broker,
+            parameters=parameters,
+            order_gateway=order_gateway,
+        )
 
         # Quant feature flags
         self.enable_signal_aggregator = enable_signal_aggregator
