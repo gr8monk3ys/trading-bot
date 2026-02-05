@@ -510,6 +510,19 @@ strategy = MomentumStrategy(broker=broker, symbols=['AAPL', 'MSFT'])
 await strategy.backtest(start_date='2024-01-01', end_date='2024-12-31')
 ```
 
+### Run Validated Backtest (Recommended)
+
+Validated backtests add walk-forward analysis and profitability gates:
+- Minimum trade count
+- Walk-forward overfit ratio and consistency
+- T-test and permutation test significance
+- Sharpe and drawdown thresholds
+
+```bash
+python main.py --mode backtest --validated --strategy MomentumStrategy \
+  --start-date 2024-01-01 --end-date 2024-12-31
+```
+
 **Realistic Features**:
 - Bid-ask spread simulation
 - Market impact modeling

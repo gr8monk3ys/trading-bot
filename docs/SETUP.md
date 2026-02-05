@@ -315,6 +315,19 @@ This will:
 - NOT execute any real trades
 - Take a few minutes to complete
 
+### 6.3 Run a Validated Backtest (Recommended)
+
+Validated backtests include walk-forward analysis and profitability gates:
+- Minimum trade count
+- Walk-forward overfit ratio and consistency
+- T-test and permutation test significance
+- Sharpe and drawdown thresholds
+
+```bash
+python main.py --mode backtest --validated --strategy MomentumStrategy \
+  --start-date 2024-01-01 --end-date 2024-02-01
+```
+
 ---
 
 ## Step 7: Understanding Paper vs Live Trading
@@ -642,6 +655,11 @@ python main.py live --strategy MomentumStrategy
 ### Run Backtest
 ```bash
 python main.py backtest --strategy MomentumStrategy --start-date 2024-01-01
+```
+
+### Run Validated Backtest (Recommended)
+```bash
+python main.py --mode backtest --validated --strategy MomentumStrategy --start-date 2024-01-01
 ```
 
 ### Test Connection
