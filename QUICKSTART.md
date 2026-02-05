@@ -66,6 +66,12 @@ grep -i "error" momentum.log
 ```bash
 nohup python3 main.py live --strategy MomentumStrategy --force > momentum.log 2>&1 &
 ```
+**Note:** Live mode automatically starts the broker websocket for trade updates. This is required for order fill audit logging. Audit logs are written to `audit_logs/`.
+
+**Emergency Kill Switch:**
+```bash
+python scripts/kill_switch.py --confirm "HALT TRADING" --cancel-orders --liquidate
+```
 
 **Stop Bot:**
 ```bash
@@ -176,7 +182,7 @@ When market opens (Mon-Fri 9:30 AM - 4:00 PM EST):
 - **Expected Sharpe Ratio:** 1.0-2.0 (if backtesting worked)
 - **Risk Level:** Medium
 
-**Note:** Backtesting infrastructure is currently broken, so historical performance data is unavailable. Monitor actual paper trading results.
+**Note:** Backtests are useful but imperfect. Prefer the validated backtest mode and paper trading to confirm real-world behavior.
 
 ---
 

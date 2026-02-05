@@ -129,7 +129,9 @@ class BacktestEngine:
         # Call the strategy's on_trading_iteration method if it exists
         if hasattr(strategy, "on_trading_iteration"):
             strategy.current_date = current_date  # Set current date for the strategy
-            strategy.on_trading_iteration()
+            result = strategy.on_trading_iteration()
+            if asyncio.iscoroutine(result):
+                await result
 
     def _calculate_performance_metrics(self, result_df, strategy_name):
         """Calculate performance metrics for a strategy."""

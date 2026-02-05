@@ -2,8 +2,8 @@
 """
 Simple Backtest Script - With Realistic Slippage Modeling
 
-The main.py backtest is broken (calls non-existent method).
-This is a working backtest that ACTUALLY RUNS with REALISTIC costs.
+This is a working backtest with realistic costs.
+Use it as a lightweight alternative to the main validated backtest flow.
 
 Features:
 - Slippage modeling (0.4% per trade by default)
