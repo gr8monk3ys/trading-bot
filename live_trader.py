@@ -25,11 +25,18 @@ import sys
 from datetime import datetime
 
 from brokers.alpaca_broker import AlpacaBroker
-from config import SYMBOLS
+from config import RISK_PARAMS, SYMBOLS
 from strategies.bracket_momentum_strategy import BracketMomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 from strategies.momentum_strategy import MomentumStrategy
 from utils.circuit_breaker import CircuitBreaker
+from utils.audit_log import AuditEventType, AuditLog
+from utils.reconciliation import PositionReconciler
+from utils.runtime_state import RuntimeStateStore
+from utils.order_reconciliation import OrderReconciler
+from strategies.risk_manager import RiskManager
+from utils.order_gateway import OrderGateway
+from utils.position_manager import PositionManager
 
 # Set up logging
 logging.basicConfig(
@@ -72,6 +79,13 @@ class LiveTrader:
         self.broker = None
         self.strategy = None
         self.circuit_breaker = None
+        self.order_gateway = None
+        self.audit_log = None
+        self.position_manager = None
+        self.reconciler = None
+        self.order_reconciler = None
+        self.state_store = RuntimeStateStore("data/live_trader_state.json")
+        self._pending_strategy_state = {}
         self.running = False
 
         # Performance tracking
@@ -112,18 +126,79 @@ class LiveTrader:
             logger.info("   Max Daily Loss: 3%")
             logger.info("   Auto-close enabled: YES\n")
 
+            # Initialize audit log
+            self.audit_log = AuditLog(log_dir="./audit_logs", auto_verify=True)
+            self.audit_log.log(
+                AuditEventType.SYSTEM_START,
+                {"component": "LiveTrader", "strategy": self.strategy_name},
+            )
+            if hasattr(self.broker, "set_audit_log"):
+                self.broker.set_audit_log(self.audit_log)
+
+            # Initialize order gateway (CRITICAL SAFETY FEATURE)
+            logger.info("1.6. Initializing OrderGateway...")
+            position_manager = PositionManager()
+            risk_manager = RiskManager(
+                max_portfolio_risk=RISK_PARAMS.get("MAX_PORTFOLIO_RISK", 0.02),
+                max_position_risk=RISK_PARAMS.get("MAX_POSITION_RISK", 0.01),
+            )
+            self.position_manager = position_manager
+            self.order_gateway = OrderGateway(
+                broker=self.broker,
+                circuit_breaker=self.circuit_breaker,
+                position_manager=position_manager,
+                risk_manager=risk_manager,
+                audit_log=self.audit_log,
+                enforce_gateway=True,
+            )
+            logger.info("✅ OrderGateway initialized (mandatory routing enabled)\n")
+            if hasattr(self.broker, "set_position_manager"):
+                self.broker.set_position_manager(self.position_manager)
+
+            # Load persisted runtime state (if any) and sync with broker
+            state = await self.state_store.load()
+            if state:
+                await self.position_manager.import_state(state.position_manager)
+                self._pending_strategy_state = state.strategy_states or {}
+                logger.info("Runtime state restored into PositionManager")
+            await self.position_manager.sync_with_broker(
+                self.broker, default_strategy="recovered"
+            )
+
+            # Initialize reconciler
+            self.reconciler = PositionReconciler(
+                broker=self.broker,
+                internal_tracker=self.position_manager,
+                halt_on_mismatch=False,
+                sync_to_broker=True,
+                audit_log=self.audit_log,
+            )
+            self.order_reconciler = OrderReconciler(
+                broker=self.broker,
+                lifecycle_tracker=self.order_gateway.lifecycle_tracker,
+                audit_log=self.audit_log,
+            )
+
             # Initialize strategy
             logger.info(f"2. Initializing {self.strategy_name} strategy...")
 
             strategy_class = self._get_strategy_class()
             self.strategy = strategy_class(
-                broker=self.broker, parameters={"symbols": self.symbols, **self.parameters}
+                broker=self.broker,
+                parameters={"symbols": self.symbols, **self.parameters},
+                order_gateway=self.order_gateway,
             )
 
             # Initialize strategy
             success = await self.strategy.initialize()
             if not success:
                 raise RuntimeError("Strategy initialization failed")
+
+            # Restore strategy state if available
+            if hasattr(self.strategy, "import_state"):
+                saved = self._pending_strategy_state.get(self.strategy_name)
+                if saved:
+                    await self.strategy.import_state(saved)
 
             logger.info("✅ Strategy initialized")
             logger.info(f"   Trading: {', '.join(self.symbols)}")
@@ -181,12 +256,14 @@ class LiveTrader:
 
             # Start monitoring loop
             monitor_task = asyncio.create_task(self.monitor_performance())
+            housekeeping_task = asyncio.create_task(self._housekeeping_loop())
 
             # Wait for shutdown signal
             await self.shutdown_event.wait()
 
             # Cancel monitoring
             monitor_task.cancel()
+            housekeeping_task.cancel()
 
         except Exception as e:
             logger.error(f"Error during trading: {e}", exc_info=True)
@@ -285,8 +362,55 @@ class LiveTrader:
             logger.info("\n✅ Shutdown complete")
             logger.info("=" * 80 + "\n")
 
+            if self.position_manager:
+                await self.state_store.save(
+                    self.position_manager,
+                    strategy_states={
+                        self.strategy_name: await self.strategy.export_state()
+                        if hasattr(self.strategy, "export_state")
+                        else {}
+                    },
+                )
+
+            if self.audit_log:
+                self.audit_log.log(
+                    AuditEventType.SYSTEM_STOP,
+                    {"component": "LiveTrader", "strategy": self.strategy_name},
+                )
+                self.audit_log.close()
+
         except Exception as e:
             logger.error(f"Error during shutdown: {e}", exc_info=True)
+
+    async def _housekeeping_loop(self):
+        """Persist runtime state and run reconciliation periodically."""
+        try:
+            state_interval = 60
+            reconciliation_interval = 300
+            counter = 0
+            while self.running:
+                await asyncio.sleep(1)
+                counter += 1
+                if counter % state_interval == 0 and self.position_manager:
+                    await self.state_store.save(self.position_manager)
+                if (
+                    counter % reconciliation_interval == 0
+                    and self.reconciler is not None
+                ):
+                    try:
+                        await self.reconciler.reconcile()
+                    except Exception as e:
+                        logger.error(f"Reconciliation error: {e}")
+                if (
+                    counter % 120 == 0
+                    and self.order_reconciler is not None
+                ):
+                    try:
+                        await self.order_reconciler.reconcile()
+                    except Exception as e:
+                        logger.error(f"Order reconciliation error: {e}")
+        except asyncio.CancelledError:
+            return
 
     def handle_shutdown_signal(self, signum, frame):
         """Handle Ctrl+C gracefully."""

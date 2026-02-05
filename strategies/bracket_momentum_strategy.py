@@ -330,18 +330,23 @@ class BracketMomentumStrategy(BaseStrategy):
                 .build()
             )
 
-            # Submit the bracket order
-            result = await self.broker.submit_order_advanced(order)
+            # Submit the bracket order via gateway
+            result = await self.submit_entry_order(
+                order,
+                reason="bracket_momentum_entry",
+                max_positions=self.max_positions,
+            )
 
-            if result:
-                logger.info(f"✅ Bracket order submitted for {symbol}: {result.id}")
+            if result and (not hasattr(result, "success") or result.success):
+                order_id = result.order_id if hasattr(result, "order_id") else result.id
+                logger.info(f"✅ Bracket order submitted for {symbol}: {order_id}")
                 logger.info(
                     f"   Risk/Reward: {self.stop_loss_pct:.1%} / {self.profit_target_pct:.1%}"
                 )
 
                 # Track the bracket order
                 self.active_bracket_orders[symbol] = {
-                    "order_id": result.id,
+                    "order_id": order_id,
                     "entry_price": current_price,
                     "take_profit": take_profit_price,
                     "stop_loss": stop_loss_price,
@@ -360,6 +365,35 @@ class BracketMomentumStrategy(BaseStrategy):
         """Execute a trade based on the signal."""
         # Bracket orders are handled in _execute_bracket_buy
         pass
+
+    async def export_state(self) -> dict:
+        """Export state for restart recovery."""
+        def _dt(v):
+            return v.isoformat() if hasattr(v, "isoformat") else v
+
+        orders = {}
+        for sym, data in self.active_bracket_orders.items():
+            item = data.copy()
+            if "timestamp" in item:
+                item["timestamp"] = _dt(item["timestamp"])
+            orders[sym] = item
+
+        return {"active_bracket_orders": orders}
+
+    async def import_state(self, state: dict) -> None:
+        """Restore state after restart."""
+        from datetime import datetime
+
+        def _parse_dt(v):
+            return datetime.fromisoformat(v) if isinstance(v, str) else v
+
+        orders = {}
+        for sym, data in state.get("active_bracket_orders", {}).items():
+            item = data.copy()
+            if "timestamp" in item:
+                item["timestamp"] = _parse_dt(item["timestamp"])
+            orders[sym] = item
+        self.active_bracket_orders = orders
 
 
 # Convenience function for testing

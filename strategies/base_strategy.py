@@ -217,6 +217,14 @@ class BaseStrategy(ABC):
         """Main trading logic. Must be implemented by subclasses."""
         raise NotImplementedError
 
+    async def export_state(self) -> dict:
+        """Export minimal strategy state for persistence."""
+        return {}
+
+    async def import_state(self, state: dict) -> None:
+        """Restore strategy state from persistence."""
+        return None
+
     def get_parameters(self):
         """Get strategy parameters."""
         return self.parameters

@@ -64,12 +64,17 @@ class GapTradingStrategy(BaseStrategy):
     MIN_GAP_FILL = 0.0  # Minimum fill percentage
     MAX_GAP_FILL = 1.0  # Maximum (100%) fill percentage
 
-    def __init__(self, broker=None, symbols=None, parameters=None):
+    def __init__(self, broker=None, symbols=None, parameters=None, order_gateway=None):
         """Initialize gap trading strategy."""
         parameters = parameters or {}
         if symbols:
             parameters["symbols"] = symbols
-        super().__init__(name=self.NAME, broker=broker, parameters=parameters)
+        super().__init__(
+            name=self.NAME,
+            broker=broker,
+            parameters=parameters,
+            order_gateway=order_gateway,
+        )
 
     def default_parameters(self):
         """Return default parameters for gap trading."""

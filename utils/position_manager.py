@@ -14,7 +14,7 @@ positions in the same symbol, leading to unintended double exposure.
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, List
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -350,6 +350,16 @@ class PositionManager:
         async with self._lock:
             return self._ownership.copy()
 
+    async def get_positions(self) -> List[PositionOwnership]:
+        """
+        Return positions as a list for reconciliation compatibility.
+
+        Returns:
+            List of PositionOwnership records
+        """
+        async with self._lock:
+            return list(self._ownership.values())
+
     async def get_all_reservations(self) -> Dict[str, PositionReservation]:
         """
         Get all active reservations.
@@ -359,6 +369,82 @@ class PositionManager:
         """
         async with self._lock:
             return self._reservations.copy()
+
+    async def export_state(self) -> Dict:
+        """
+        Export current ownership/reservation state for persistence.
+
+        Returns:
+            Dict suitable for JSON serialization.
+        """
+        async with self._lock:
+            ownership = [
+                {
+                    "symbol": o.symbol,
+                    "strategy_name": o.strategy_name,
+                    "qty": o.qty,
+                    "entry_price": o.entry_price,
+                    "opened_at": o.opened_at.isoformat(),
+                    "side": o.side,
+                }
+                for o in self._ownership.values()
+            ]
+            reservations = [
+                {
+                    "symbol": r.symbol,
+                    "strategy_name": r.strategy_name,
+                    "intended_qty": r.intended_qty,
+                    "intended_side": r.intended_side,
+                    "reserved_at": r.reserved_at.isoformat(),
+                    "order_id": r.order_id,
+                    "status": r.status,
+                }
+                for r in self._reservations.values()
+            ]
+            strategy_positions = {
+                name: list(symbols) for name, symbols in self._strategy_positions.items()
+            }
+            return {
+                "ownership": ownership,
+                "reservations": reservations,
+                "strategy_positions": strategy_positions,
+            }
+
+    async def import_state(self, state: Dict) -> None:
+        """
+        Import ownership/reservation state from persistence.
+
+        Args:
+            state: Dict produced by export_state()
+        """
+        async with self._lock:
+            self._ownership.clear()
+            self._reservations.clear()
+            self._strategy_positions.clear()
+
+            for item in state.get("ownership", []):
+                self._ownership[item["symbol"]] = PositionOwnership(
+                    symbol=item["symbol"],
+                    strategy_name=item["strategy_name"],
+                    qty=float(item["qty"]),
+                    entry_price=float(item["entry_price"]),
+                    opened_at=datetime.fromisoformat(item["opened_at"]),
+                    side=item.get("side", "long"),
+                )
+
+            for item in state.get("reservations", []):
+                self._reservations[item["symbol"]] = PositionReservation(
+                    symbol=item["symbol"],
+                    strategy_name=item["strategy_name"],
+                    intended_qty=float(item["intended_qty"]),
+                    intended_side=item["intended_side"],
+                    reserved_at=datetime.fromisoformat(item["reserved_at"]),
+                    order_id=item.get("order_id"),
+                    status=item.get("status", "pending"),
+                )
+
+            for name, symbols in state.get("strategy_positions", {}).items():
+                self._strategy_positions[name] = set(symbols)
 
     async def sync_with_broker(self, broker, default_strategy: str = "unknown"):
         """
@@ -398,6 +484,111 @@ class PositionManager:
 
         except Exception as e:
             logger.error(f"Error syncing with broker: {e}")
+
+    def sync_positions(self, broker_positions: Dict[str, float], default_strategy: str = "reconciled"):
+        """
+        Sync internal ownership directly from broker position quantities.
+
+        Args:
+            broker_positions: Dict of symbol -> qty
+            default_strategy: Strategy name assigned to reconciled positions
+        """
+        self._ownership.clear()
+        self._strategy_positions.clear()
+        for symbol, qty in broker_positions.items():
+            self._ownership[symbol] = PositionOwnership(
+                symbol=symbol,
+                strategy_name=default_strategy,
+                qty=float(qty),
+                entry_price=0.0,
+                opened_at=datetime.now(),
+                side="long" if float(qty) > 0 else "short",
+            )
+            self._strategy_positions.setdefault(default_strategy, set()).add(symbol)
+
+    async def apply_fill(
+        self,
+        symbol: str,
+        strategy_name: str,
+        side: str,
+        filled_qty: float,
+        fill_price: float,
+        delta_qty: float,
+    ) -> None:
+        """
+        Update ownership based on a fill event.
+
+        Args:
+            symbol: Stock symbol
+            strategy_name: Strategy responsible for the order
+            side: 'buy' or 'sell'
+            filled_qty: Cumulative filled quantity
+            fill_price: Average fill price
+        """
+        async with self._lock:
+            existing = self._ownership.get(symbol)
+
+            if side == "buy":
+                if existing and existing.side == "short":
+                    # Cover short
+                    remaining = existing.qty + delta_qty  # qty is negative
+                    if remaining >= 0:
+                        del self._ownership[symbol]
+                        self._strategy_positions.get(existing.strategy_name, set()).discard(symbol)
+                    else:
+                        existing.qty = remaining
+                else:
+                    # Long entry or add
+                    if existing and existing.side == "long":
+                        new_qty = existing.qty + delta_qty
+                        if new_qty > 0:
+                            existing.entry_price = (
+                                existing.entry_price * existing.qty + fill_price * delta_qty
+                            ) / new_qty
+                            existing.qty = new_qty
+                        else:
+                            del self._ownership[symbol]
+                            self._strategy_positions.get(existing.strategy_name, set()).discard(symbol)
+                    else:
+                        self._ownership[symbol] = PositionOwnership(
+                            symbol=symbol,
+                            strategy_name=strategy_name,
+                            qty=float(delta_qty),
+                            entry_price=float(fill_price),
+                            opened_at=datetime.now(),
+                            side="long",
+                        )
+                        self._strategy_positions.setdefault(strategy_name, set()).add(symbol)
+            else:  # sell
+                if existing and existing.side == "long":
+                    remaining = existing.qty - delta_qty
+                    if remaining <= 0:
+                        del self._ownership[symbol]
+                        self._strategy_positions.get(existing.strategy_name, set()).discard(symbol)
+                    else:
+                        existing.qty = remaining
+                else:
+                    # Short entry or add
+                    if existing and existing.side == "short":
+                        new_qty = existing.qty - delta_qty  # qty negative
+                        if new_qty < 0:
+                            existing.entry_price = (
+                                abs(existing.entry_price * existing.qty) + fill_price * delta_qty
+                            ) / abs(new_qty)
+                            existing.qty = new_qty
+                        else:
+                            del self._ownership[symbol]
+                            self._strategy_positions.get(existing.strategy_name, set()).discard(symbol)
+                    else:
+                        self._ownership[symbol] = PositionOwnership(
+                            symbol=symbol,
+                            strategy_name=strategy_name,
+                            qty=-float(delta_qty),
+                            entry_price=float(fill_price),
+                            opened_at=datetime.now(),
+                            side="short",
+                        )
+                        self._strategy_positions.setdefault(strategy_name, set()).add(symbol)
 
     async def cleanup_expired_reservations(self):
         """

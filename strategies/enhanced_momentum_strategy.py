@@ -447,10 +447,22 @@ class EnhancedMomentumStrategy(BaseStrategy):
             # Build order
             order = OrderBuilder(symbol, signal, quantity).market().day().build()
 
-            # Submit order
-            result = await self.broker.submit_order_advanced(order)
+            # Submit order via gateway
+            if signal == "buy":
+                result = await self.submit_entry_order(
+                    order,
+                    reason="enhanced_momentum_entry",
+                    max_positions=self.parameters.get("max_positions"),
+                )
+            else:
+                result = await self.submit_exit_order(
+                    symbol=symbol,
+                    qty=quantity,
+                    side="sell",
+                    reason="enhanced_momentum_exit",
+                )
 
-            if result:
+            if result and (not hasattr(result, "success") or result.success):
                 stop_str = f"${stop_price:.2f}" if stop_price else "N/A"
                 target_str = f"${target_price:.2f}" if target_price else "N/A"
                 logger.info(

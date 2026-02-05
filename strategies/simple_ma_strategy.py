@@ -27,9 +27,9 @@ class SimpleMACrossoverStrategy(BaseStrategy):
 
     NAME = "SimpleMACrossover"
 
-    def __init__(self, broker=None, parameters: Dict[str, Any] = None):
+    def __init__(self, broker=None, parameters: Dict[str, Any] = None, order_gateway=None):
         """Initialize the strategy."""
-        super().__init__(broker=broker, parameters=parameters)
+        super().__init__(broker=broker, parameters=parameters, order_gateway=order_gateway)
 
         # Simple parameters
         self.fast_period = self.parameters.get("fast_period", 10)
@@ -185,7 +185,15 @@ class SimpleMACrossoverStrategy(BaseStrategy):
                     self.type = "market"
 
             order = SimpleOrder(symbol, qty, side)
-            await self.broker.submit_order_advanced(order)
+            if side == "buy":
+                await self.submit_entry_order(order, reason="simple_ma_entry")
+            else:
+                await self.submit_exit_order(
+                    symbol=symbol,
+                    qty=qty,
+                    side="sell",
+                    reason="simple_ma_exit",
+                )
 
         except Exception as e:
             logger.error(f"Error placing order: {e}")

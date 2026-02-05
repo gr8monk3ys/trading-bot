@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
+from utils.audit_log import AuditEventType, AuditLog
+
 logger = logging.getLogger(__name__)
 
 
@@ -101,6 +103,7 @@ class PositionReconciler:
         sync_to_broker: bool = False,
         tolerance_pct: float = None,
         tolerance_abs: float = None,
+        audit_log: Optional[AuditLog] = None,
     ):
         """
         Initialize the position reconciler.
@@ -118,6 +121,7 @@ class PositionReconciler:
         self.internal_tracker = internal_tracker
         self.halt_on_mismatch = halt_on_mismatch
         self.sync_to_broker = sync_to_broker
+        self.audit_log = audit_log
 
         self.tolerance_pct = tolerance_pct or self.QUANTITY_TOLERANCE_PCT
         self.tolerance_abs = tolerance_abs or self.QUANTITY_TOLERANCE_ABS
@@ -336,12 +340,47 @@ class PositionReconciler:
             logger.info("✅ RECONCILIATION PASSED: All positions match")
             logger.info(f"   Broker positions: {len(result.broker_positions)}")
             logger.info(f"   Internal positions: {len(result.internal_positions)}")
+            if self.audit_log:
+                self.audit_log.log(
+                    AuditEventType.POSITION_RECONCILIATION,
+                    {
+                        "positions_match": True,
+                        "broker_positions": len(result.broker_positions),
+                        "internal_positions": len(result.internal_positions),
+                        "reconciliation_id": result.reconciliation_id,
+                    },
+                )
         else:
             logger.critical("=" * 80)
             logger.critical("❌ RECONCILIATION FAILED: Position mismatch detected!")
             logger.critical(f"   Mismatches: {len(result.mismatches)}")
             logger.critical(f"   Total discrepancy value: ${result.total_discrepancy_value:,.2f}")
             logger.critical("=" * 80)
+            if self.audit_log:
+                self.audit_log.log(
+                    AuditEventType.POSITION_RECONCILIATION,
+                    {
+                        "positions_match": False,
+                        "mismatch_count": len(result.mismatches),
+                        "total_discrepancy_value": result.total_discrepancy_value,
+                        "reconciliation_id": result.reconciliation_id,
+                    },
+                )
+                self.audit_log.log(
+                    AuditEventType.POSITION_MISMATCH,
+                    {
+                        "mismatches": [
+                            {
+                                "symbol": m.symbol,
+                                "broker_qty": m.broker_qty,
+                                "internal_qty": m.internal_qty,
+                                "mismatch_type": m.mismatch_type,
+                            }
+                            for m in result.mismatches
+                        ],
+                        "reconciliation_id": result.reconciliation_id,
+                    },
+                )
 
             for mismatch in result.mismatches:
                 logger.critical(

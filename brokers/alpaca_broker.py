@@ -6,6 +6,9 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Dict, List, Optional
 
+from utils.audit_log import AuditEventType, AuditLog, log_order_event
+from utils.order_lifecycle import OrderLifecycleTracker, OrderState
+
 import numpy as np
 
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
@@ -243,7 +246,7 @@ class AlpacaBroker:
             )
             raise
 
-    def __init__(self, paper=True):
+    def __init__(self, paper=True, audit_log: Optional[AuditLog] = None):
         """Initialize the AlpacaBroker."""
         try:
             # Ensure paper is a boolean
@@ -319,11 +322,37 @@ class AlpacaBroker:
                 policy=PartialFillPolicy.ALERT_ONLY,  # Default to alerting
             )
 
+            # Audit log (optional)
+            self._audit_log = audit_log
+            self._order_metadata: Dict[str, Dict] = {}
+            self._lifecycle_tracker: Optional[OrderLifecycleTracker] = None
+            self._position_manager = None
+
             # P0 FIX: Removed unused config dict that stored credentials in memory
 
         except Exception as e:
             logger.error(f"Error initializing AlpacaBroker: {e}", exc_info=DEBUG_MODE)
             raise
+
+    def set_audit_log(self, audit_log: Optional[AuditLog]) -> None:
+        """Attach an audit log for order lifecycle events."""
+        self._audit_log = audit_log
+
+    def set_position_manager(self, position_manager) -> None:
+        """Attach a position manager for fill-driven updates."""
+        self._position_manager = position_manager
+
+    def set_lifecycle_tracker(self, tracker: Optional[OrderLifecycleTracker]) -> None:
+        """Attach an order lifecycle tracker."""
+        self._lifecycle_tracker = tracker
+
+    def register_order_metadata(self, order_id: str, metadata: Dict) -> None:
+        """Store order metadata for lifecycle updates."""
+        self._order_metadata[order_id] = metadata
+
+    def track_order_for_fills(self, order_id: str, symbol: str, side: str, qty: float) -> None:
+        """Register an order with the partial fill tracker."""
+        self._partial_fill_tracker.track_order(order_id, symbol, side, qty)
 
     # =========================================================================
     # CRYPTO HELPER METHODS
@@ -433,19 +462,46 @@ class AlpacaBroker:
             # Extract fill info for tracking
             filled_qty = float(order.get("filled_qty", 0))
             filled_avg_price = float(order.get("filled_avg_price", 0)) if order.get("filled_avg_price") else 0.0
+            symbol = order.get("symbol", "")
+            side = order.get("side", "")
+            meta = self._order_metadata.get(str(order_id), {})
+            strategy_name = meta.get("strategy_name", "unknown")
 
             # Handle different trade events
             if event_type == "fill":
                 logger.info(f"Order {order_id} filled")
 
                 # INSTITUTIONAL: Record fill in tracker
-                await self._partial_fill_tracker.record_fill(
+                event = await self._partial_fill_tracker.record_fill(
                     order_id=str(order_id),
                     filled_qty=filled_qty,
                     fill_price=filled_avg_price,
                     is_final=True,
                     status="filled",
                 )
+                if self._lifecycle_tracker:
+                    self._lifecycle_tracker.update_state(str(order_id), OrderState.FILLED)
+                if self._position_manager and event:
+                    await self._position_manager.apply_fill(
+                        symbol=symbol,
+                        strategy_name=strategy_name,
+                        side=side,
+                        filled_qty=filled_qty,
+                        fill_price=filled_avg_price,
+                        delta_qty=event.delta_qty,
+                    )
+
+                if self._audit_log:
+                    log_order_event(
+                        self._audit_log,
+                        AuditEventType.ORDER_FILLED,
+                        order_id=str(order_id),
+                        symbol=symbol,
+                        side=side,
+                        quantity=filled_qty,
+                        price=filled_avg_price,
+                        status="filled",
+                    )
 
                 # Notify subscribers
                 for subscriber in self._subscribers:
@@ -456,13 +512,36 @@ class AlpacaBroker:
                 logger.info(f"Order {order_id} partially filled: {filled_qty} @ ${filled_avg_price:.2f}")
 
                 # INSTITUTIONAL: Record partial fill in tracker
-                await self._partial_fill_tracker.record_fill(
+                event = await self._partial_fill_tracker.record_fill(
                     order_id=str(order_id),
                     filled_qty=filled_qty,
                     fill_price=filled_avg_price,
                     is_final=False,
                     status="partial",
                 )
+                if self._lifecycle_tracker:
+                    self._lifecycle_tracker.update_state(str(order_id), OrderState.PARTIAL)
+                if self._position_manager and event:
+                    await self._position_manager.apply_fill(
+                        symbol=symbol,
+                        strategy_name=strategy_name,
+                        side=side,
+                        filled_qty=filled_qty,
+                        fill_price=filled_avg_price,
+                        delta_qty=event.delta_qty,
+                    )
+
+                if self._audit_log:
+                    log_order_event(
+                        self._audit_log,
+                        AuditEventType.ORDER_PARTIAL_FILL,
+                        order_id=str(order_id),
+                        symbol=symbol,
+                        side=side,
+                        quantity=filled_qty,
+                        price=filled_avg_price,
+                        status="partial",
+                    )
 
                 # Notify subscribers
                 for subscriber in self._subscribers:
@@ -480,6 +559,20 @@ class AlpacaBroker:
                     is_final=True,
                     status="canceled",
                 )
+                if self._lifecycle_tracker:
+                    self._lifecycle_tracker.update_state(str(order_id), OrderState.CANCELED)
+
+                if self._audit_log:
+                    log_order_event(
+                        self._audit_log,
+                        AuditEventType.ORDER_CANCELED,
+                        order_id=str(order_id),
+                        symbol=symbol,
+                        side=side,
+                        quantity=filled_qty,
+                        price=filled_avg_price,
+                        status="canceled",
+                    )
 
             elif event_type == "rejected":
                 logger.warning(f"Order {order_id} rejected: {order.get('reject_reason')}")
@@ -492,6 +585,21 @@ class AlpacaBroker:
                     is_final=True,
                     status="rejected",
                 )
+                if self._lifecycle_tracker:
+                    self._lifecycle_tracker.update_state(str(order_id), OrderState.REJECTED)
+
+                if self._audit_log:
+                    log_order_event(
+                        self._audit_log,
+                        AuditEventType.ORDER_REJECTED,
+                        order_id=str(order_id),
+                        symbol=symbol,
+                        side=side,
+                        quantity=0,
+                        price=0,
+                        rejection_reason=order.get("reject_reason"),
+                        status="rejected",
+                    )
 
         except Exception as e:
             logger.error(f"Error handling trade update: {e}", exc_info=DEBUG_MODE)
@@ -1431,6 +1539,19 @@ class AlpacaBroker:
             )
 
             logger.info(f"Replaced order: {order_id}")
+            if self._audit_log:
+                self._audit_log.log(
+                    AuditEventType.ORDER_MODIFIED,
+                    {
+                        "order_id": order_id,
+                        "qty": qty,
+                        "limit_price": limit_price,
+                        "stop_price": stop_price,
+                        "trail": trail,
+                        "time_in_force": str(time_in_force) if time_in_force else None,
+                        "client_order_id": client_order_id,
+                    },
+                )
             return result
 
         except Exception as e:

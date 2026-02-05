@@ -49,6 +49,7 @@ class PartialFillEvent:
     requested_qty: float
     filled_qty: float
     unfilled_qty: float
+    delta_qty: float
     fill_price: float
     timestamp: datetime
     event_type: str  # 'partial_fill', 'fill', 'canceled', 'rejected'
@@ -304,6 +305,7 @@ class PartialFillTracker:
             requested_qty=record.requested_qty,
             filled_qty=filled_qty,
             unfilled_qty=unfilled_qty,
+            delta_qty=new_fill_qty,
             fill_price=fill_price,
             timestamp=datetime.now(),
             event_type=event_type,

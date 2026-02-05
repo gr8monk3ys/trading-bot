@@ -571,10 +571,21 @@ class PairsTradingStrategy(BaseStrategy):
 
             order2 = OrderBuilder(symbol2, side2, quantity2).market().day().build()
 
-            result1 = await self.broker.submit_order_advanced(order1)
-            result2 = await self.broker.submit_order_advanced(order2)
+            result1 = await self.submit_entry_order(
+                order1,
+                reason="pairs_entry",
+                max_positions=self.max_positions,
+            )
+            result2 = await self.submit_entry_order(
+                order2,
+                reason="pairs_entry",
+                max_positions=self.max_positions,
+            )
 
-            if result1 and result2:
+            success1 = result1 and (not hasattr(result1, "success") or result1.success)
+            success2 = result2 and (not hasattr(result2, "success") or result2.success)
+
+            if success1 and success2:
                 logger.info(f"✅ Pair trade executed: {pair}")
 
                 # Get half-life for exit timing
@@ -708,12 +719,18 @@ class PairsTradingStrategy(BaseStrategy):
                     exit_side1 = "sell" if side1 == "buy" else "buy"
                     exit_side2 = "sell" if side2 == "buy" else "buy"
 
-                    order1 = OrderBuilder(symbol1, exit_side1, quantity1).market().day().build()
-
-                    order2 = OrderBuilder(symbol2, exit_side2, quantity2).market().day().build()
-
-                    result1 = await self.broker.submit_order_advanced(order1)
-                    result2 = await self.broker.submit_order_advanced(order2)
+                    result1 = await self.submit_exit_order(
+                        symbol=symbol1,
+                        qty=quantity1,
+                        side=exit_side1,
+                        reason="pairs_exit",
+                    )
+                    result2 = await self.submit_exit_order(
+                        symbol=symbol2,
+                        qty=quantity2,
+                        side=exit_side2,
+                        reason="pairs_exit",
+                    )
 
                     if result1 and result2:
                         logger.info(f"✅ Pair position closed: {pair}")
@@ -737,3 +754,39 @@ class PairsTradingStrategy(BaseStrategy):
     def get_orders(self):
         """Get orders for backtest."""
         return []
+
+    async def export_state(self) -> dict:
+        """Export pair positions for restart recovery."""
+        def _dt(v):
+            return v.isoformat() if hasattr(v, "isoformat") else v
+
+        positions = {}
+        for pair, data in self.pair_positions.items():
+            item = data.copy()
+            if "entry_time" in item:
+                item["entry_time"] = _dt(item["entry_time"])
+            positions[str(pair)] = item
+        return {"pair_positions": positions}
+
+    async def import_state(self, state: dict) -> None:
+        """Restore pair positions after restart."""
+        from datetime import datetime
+
+        def _parse_dt(v):
+            return datetime.fromisoformat(v) if isinstance(v, str) else v
+
+        positions = {}
+        for key, data in state.get("pair_positions", {}).items():
+            item = data.copy()
+            if "entry_time" in item:
+                item["entry_time"] = _parse_dt(item["entry_time"])
+            try:
+                pair = tuple(key.strip("()").replace("'", "").split(", "))
+                if len(pair) == 2:
+                    positions[(pair[0], pair[1])] = item
+                else:
+                    positions[key] = item
+            except Exception:
+                positions[key] = item
+
+        self.pair_positions = positions

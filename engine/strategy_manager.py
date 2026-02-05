@@ -3,11 +3,16 @@ import os
 from datetime import datetime, timedelta
 
 from brokers.alpaca_broker import AlpacaBroker
-from config import ALPACA_CREDS, SYMBOLS
+from config import ALPACA_CREDS, RISK_PARAMS, SYMBOLS
 from engine.backtest_engine import BacktestEngine
 from engine.performance_metrics import PerformanceMetrics
 from engine.strategy_evaluator import StrategyEvaluator
 from strategies.base_strategy import BaseStrategy
+from strategies.risk_manager import RiskManager
+from utils.audit_log import AuditEventType, AuditLog
+from utils.runtime_state import RuntimeStateStore
+from utils.order_gateway import OrderGateway
+from utils.position_manager import PositionManager
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -28,6 +33,12 @@ class StrategyManager:
         evaluation_period_days=14,
         strategy_path="strategies",
         broker_type="alpaca",
+        circuit_breaker=None,
+        position_manager=None,
+        risk_manager=None,
+        order_gateway=None,
+        audit_log=None,
+        enforce_gateway: bool = True,
     ):
         """
         Initialize the Strategy Manager.
@@ -46,6 +57,20 @@ class StrategyManager:
         self.min_backtest_days = min_backtest_days
         self.evaluation_period_days = evaluation_period_days
         self.strategy_path = strategy_path
+        self.circuit_breaker = circuit_breaker
+        self.audit_log = audit_log or AuditLog(log_dir="./audit_logs", auto_verify=True)
+        self.audit_log.log(
+            AuditEventType.SYSTEM_START,
+            {"component": "StrategyManager", "broker": self.broker.__class__.__name__},
+        )
+        if hasattr(self.broker, "set_audit_log"):
+            self.broker.set_audit_log(self.audit_log)
+        if hasattr(self.broker, "set_position_manager"):
+            self.broker.set_position_manager(self.position_manager)
+
+        # Runtime state persistence
+        self.state_store = RuntimeStateStore("data/runtime_state.json")
+        self._pending_strategy_state = {}
 
         # Initialize broker
         self.broker = broker
@@ -64,6 +89,62 @@ class StrategyManager:
             evaluation_period_days=self.evaluation_period_days,
         )
         self.backtest_engine = BacktestEngine(self.broker)
+
+        # Order safety infrastructure (shared across strategies)
+        self.position_manager = position_manager or PositionManager()
+        self.risk_manager = risk_manager or RiskManager(
+            max_portfolio_risk=RISK_PARAMS.get("MAX_PORTFOLIO_RISK", 0.02),
+            max_position_risk=RISK_PARAMS.get("MAX_POSITION_RISK", 0.01),
+        )
+        self.order_gateway = order_gateway or OrderGateway(
+            broker=self.broker,
+            circuit_breaker=self.circuit_breaker,
+            position_manager=self.position_manager,
+            risk_manager=self.risk_manager,
+            audit_log=self.audit_log,
+            enforce_gateway=enforce_gateway,
+        )
+        self._load_runtime_state()
+
+    def _load_runtime_state(self) -> None:
+        """Load persisted runtime state if available."""
+        if not self.state_store.exists():
+            return
+        try:
+            # Run async load in event loop if available
+            import asyncio
+
+            async def _load():
+                state = await self.state_store.load()
+                if state:
+                    await self.position_manager.import_state(state.position_manager)
+                    if state.lifecycle and hasattr(self.order_gateway, "lifecycle_tracker"):
+                        self.order_gateway.lifecycle_tracker.import_state(state.lifecycle)
+                    self._pending_strategy_state = state.strategy_states or {}
+                    logger.info("Runtime state imported into PositionManager")
+
+            if asyncio.get_event_loop().is_running():
+                asyncio.create_task(_load())
+            else:
+                asyncio.run(_load())
+        except Exception as e:
+            logger.error(f"Failed to load runtime state: {e}")
+
+    async def save_runtime_state(self) -> None:
+        """Persist runtime state to disk."""
+        await self.state_store.save(
+            position_manager=self.position_manager,
+            active_strategies=self.strategy_status,
+            allocations=self.strategy_allocations,
+            lifecycle=self.order_gateway.lifecycle_tracker.export_state()
+            if self.order_gateway and self.order_gateway.lifecycle_tracker
+            else {},
+            strategy_states={
+                name: (await strat.export_state())
+                for name, strat in self.active_strategies.items()
+                if hasattr(strat, "export_state")
+            },
+        )
 
         # Strategy tracking
         self.available_strategies = {}  # name -> class
@@ -308,8 +389,20 @@ class StrategyManager:
             merged_params["symbols"] = symbols
             merged_params["allocation"] = allocation
 
-            # Create strategy with broker and parameters
-            strategy = strategy_class(broker=self.broker, parameters=merged_params)
+            # Create strategy with broker, parameters, and order gateway (if supported)
+            try:
+                strategy = strategy_class(
+                    broker=self.broker,
+                    parameters=merged_params,
+                    order_gateway=self.order_gateway,
+                )
+            except TypeError:
+                # Fallback for strategies that don't accept order_gateway yet
+                logger.warning(
+                    f"Strategy {strategy_name} does not accept order_gateway; "
+                    "starting without gateway (not recommended)."
+                )
+                strategy = strategy_class(broker=self.broker, parameters=merged_params)
 
             # Initialize the strategy
             logger.info(f"Initializing strategy {strategy_name} with allocation {allocation:.2%}")
@@ -318,6 +411,16 @@ class StrategyManager:
             if not success:
                 logger.error(f"Failed to initialize strategy {strategy_name}")
                 return False
+
+            # Restore strategy state if available
+            if hasattr(strategy, "import_state"):
+                saved = self._pending_strategy_state.get(strategy_name)
+                if saved:
+                    try:
+                        await strategy.import_state(saved)
+                        logger.info(f"Restored state for {strategy_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to restore state for {strategy_name}: {e}")
 
             # Store the active strategy
             self.active_strategies[strategy_name] = strategy

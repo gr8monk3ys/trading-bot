@@ -553,9 +553,13 @@ class EnsembleStrategy(BaseStrategy):
                     .build()
                 )
 
-                result = await self.broker.submit_order_advanced(order)
+                result = await self.submit_entry_order(
+                    order,
+                    reason="ensemble_entry",
+                    max_positions=self.max_positions,
+                )
 
-                if result:
+                if result and (not hasattr(result, "success") or result.success):
                     logger.info(f"✅ Ensemble BUY order submitted: {symbol}")
                     self.position_entries[symbol] = {
                         "time": datetime.now(),
@@ -574,9 +578,12 @@ class EnsembleStrategy(BaseStrategy):
                 logger.info(f"  Quantity: {quantity} @ ${price:.2f}")
                 logger.info(f"  Regime: {self.market_regime[symbol]}")
 
-                order = OrderBuilder(symbol, "sell", quantity).market().day().build()
-
-                result = await self.broker.submit_order_advanced(order)
+                result = await self.submit_exit_order(
+                    symbol=symbol,
+                    qty=quantity,
+                    side="sell",
+                    reason="ensemble_exit",
+                )
 
                 if result:
                     logger.info(f"✅ Ensemble SELL order submitted: {symbol}")
@@ -627,9 +634,12 @@ class EnsembleStrategy(BaseStrategy):
                     )
 
                     quantity = float(current_position.qty)
-                    order = OrderBuilder(symbol, "sell", quantity).market().day().build()
-
-                    await self.broker.submit_order_advanced(order)
+                    await self.submit_exit_order(
+                        symbol=symbol,
+                        qty=quantity,
+                        side="sell",
+                        reason="trailing_stop_exit",
+                    )
 
         except Exception as e:
             logger.error(f"Error checking exits for {symbol}: {e}", exc_info=True)
@@ -646,6 +656,42 @@ class EnsembleStrategy(BaseStrategy):
         """Generate signals for backtest mode."""
         # Similar to on_bar but for batch processing
         pass
+
+    async def export_state(self) -> dict:
+        """Export lightweight state for restart recovery."""
+        def _dt(v):
+            return v.isoformat() if hasattr(v, "isoformat") else v
+
+        entries = {}
+        for k, v in self.position_entries.items():
+            entry = v.copy()
+            if "time" in entry:
+                entry["time"] = _dt(entry["time"])
+            entries[k] = entry
+
+        return {
+            "position_entries": entries,
+            "highest_prices": self.highest_prices,
+            "ensemble_signals": self.ensemble_signals,
+        }
+
+    async def import_state(self, state: dict) -> None:
+        """Restore lightweight state after restart."""
+        from datetime import datetime
+
+        def _parse_dt(v):
+            return datetime.fromisoformat(v) if isinstance(v, str) else v
+
+        entries = {}
+        for k, v in state.get("position_entries", {}).items():
+            entry = v.copy()
+            if "time" in entry:
+                entry["time"] = _parse_dt(entry["time"])
+            entries[k] = entry
+
+        self.position_entries = entries
+        self.highest_prices = state.get("highest_prices", {})
+        self.ensemble_signals = state.get("ensemble_signals", self.ensemble_signals)
 
     def get_orders(self):
         """Get orders for backtest."""

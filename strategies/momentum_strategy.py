@@ -256,6 +256,34 @@ class MomentumStrategy(BaseStrategy):
             logger.error(f"Error initializing {self.NAME}: {e}", exc_info=True)
             return False
 
+    async def export_state(self) -> dict:
+        """Export lightweight state for restart recovery."""
+        def _dt(v):
+            return v.isoformat() if hasattr(v, "isoformat") else v
+
+        return {
+            "last_signal_time": {k: _dt(v) for k, v in self.last_signal_time.items() if v},
+            "stop_prices": self.stop_prices,
+            "target_prices": self.target_prices,
+            "entry_prices": self.entry_prices,
+            "peak_prices": self.peak_prices,
+        }
+
+    async def import_state(self, state: dict) -> None:
+        """Restore lightweight state after restart."""
+        from datetime import datetime
+
+        def _parse_dt(v):
+            return datetime.fromisoformat(v) if isinstance(v, str) else v
+
+        self.stop_prices = state.get("stop_prices", {})
+        self.target_prices = state.get("target_prices", {})
+        self.entry_prices = state.get("entry_prices", {})
+        self.peak_prices = state.get("peak_prices", {})
+        self.last_signal_time = {
+            k: _parse_dt(v) for k, v in state.get("last_signal_time", {}).items()
+        }
+
     async def on_bar(
         self, symbol, open_price, high_price, low_price, close_price, volume, timestamp
     ):
@@ -667,9 +695,13 @@ class MomentumStrategy(BaseStrategy):
             .build()
         )
 
-        result = await self.broker.submit_order_advanced(order)
+        result = await self.submit_entry_order(
+            order,
+            reason="momentum_entry",
+            max_positions=self.max_positions,
+        )
 
-        if result:
+        if result and (not hasattr(result, "success") or result.success):
             logger.info(
                 f"BUY bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
             )
@@ -719,9 +751,13 @@ class MomentumStrategy(BaseStrategy):
             .build()
         )
 
-        result = await self.broker.submit_order_advanced(order)
+        result = await self.submit_entry_order(
+            order,
+            reason="momentum_short_entry",
+            max_positions=self.max_positions,
+        )
 
-        if result:
+        if result and (not hasattr(result, "success") or result.success):
             logger.info(
                 f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
             )
@@ -737,8 +773,12 @@ class MomentumStrategy(BaseStrategy):
         quantity = float(current_position.qty)
         price = self.current_prices[symbol]
 
-        order = OrderBuilder(symbol, "sell", quantity).market().day().build()
-        result = await self.broker.submit_order_advanced(order)
+        result = await self.submit_exit_order(
+            symbol=symbol,
+            qty=quantity,
+            side="sell",
+            reason="signal_exit",
+        )
 
         if result:
             logger.info(f"SELL order submitted for {symbol}: {quantity} shares at ~${price:.2f}")

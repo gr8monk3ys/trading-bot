@@ -423,9 +423,13 @@ class MeanReversionStrategy(BaseStrategy):
                     .gtc()
                     .build()
                 )
-                result = await self.broker.submit_order_advanced(order)
+                result = await self.submit_entry_order(
+                    order,
+                    reason="mean_reversion_entry",
+                    max_positions=self.max_positions,
+                )
 
-                if result:
+                if result and (not hasattr(result, "success") or result.success):
                     logger.info(
                         f"BUY bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
                     )
@@ -519,9 +523,13 @@ class MeanReversionStrategy(BaseStrategy):
                     .build()
                 )
 
-                result = await self.broker.submit_order_advanced(order)
+                result = await self.submit_entry_order(
+                    order,
+                    reason="mean_reversion_short_entry",
+                    max_positions=self.max_positions,
+                )
 
-                if result:
+                if result and (not hasattr(result, "success") or result.success):
                     logger.info(
                         f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
                     )
@@ -549,8 +557,12 @@ class MeanReversionStrategy(BaseStrategy):
                 quantity = float(current_position.qty)
 
                 # Create and submit market sell order
-                order = OrderBuilder(symbol, "sell", quantity).market().day().build()
-                result = await self.broker.submit_order_advanced(order)
+                result = await self.submit_exit_order(
+                    symbol=symbol,
+                    qty=quantity,
+                    side="sell",
+                    reason="signal_exit",
+                )
 
                 if result:
                     price = self.current_prices[symbol]
@@ -628,8 +640,12 @@ class MeanReversionStrategy(BaseStrategy):
                     f"exiting position to free capital (P/L: {unrealized_pnl*100:.1f}%)"
                 )
                 quantity = float(current_position.qty)
-                order = OrderBuilder(symbol, "sell", quantity).market().day().build()
-                await self.broker.submit_order_advanced(order)
+                await self.submit_exit_order(
+                    symbol=symbol,
+                    qty=quantity,
+                    side="sell",
+                    reason="max_hold_exit",
+                )
                 return
 
             # SMART EXIT 2: Mean reversion target - Exit when price returns to mean (strategy's core edge)
@@ -649,8 +665,12 @@ class MeanReversionStrategy(BaseStrategy):
                         f"(z-score: {z_score:.2f}, P/L: {unrealized_pnl*100:.1f}%), exiting position"
                     )
                     quantity = float(current_position.qty)
-                    order = OrderBuilder(symbol, "sell", quantity).market().day().build()
-                    await self.broker.submit_order_advanced(order)
+                    await self.submit_exit_order(
+                        symbol=symbol,
+                        qty=quantity,
+                        side="sell",
+                        reason="mean_reversion_target_exit",
+                    )
                     return
 
             # SMART EXIT 3: Trailing stop - Lock in profits beyond 4% take-profit
@@ -674,8 +694,12 @@ class MeanReversionStrategy(BaseStrategy):
                         f"profit locked: {unrealized_pnl*100:.1f}%)"
                     )
                     quantity = float(current_position.qty)
-                    order = OrderBuilder(symbol, "sell", quantity).market().day().build()
-                    await self.broker.submit_order_advanced(order)
+                    await self.submit_exit_order(
+                        symbol=symbol,
+                        qty=quantity,
+                        side="sell",
+                        reason="trailing_stop_exit",
+                    )
                     return
 
             # Monitor bracket order levels for logging/debugging
@@ -699,6 +723,46 @@ class MeanReversionStrategy(BaseStrategy):
 
         except Exception as e:
             logger.error(f"Error checking exit conditions for {symbol}: {e}", exc_info=True)
+
+    async def export_state(self) -> dict:
+        """Export lightweight state for restart recovery."""
+        def _dt(v):
+            return v.isoformat() if hasattr(v, "isoformat") else v
+
+        entries = {}
+        for k, v in self.position_entries.items():
+            entry = v.copy()
+            if "time" in entry:
+                entry["time"] = _dt(entry["time"])
+            entries[k] = entry
+
+        return {
+            "last_signal_time": {k: _dt(v) for k, v in self.last_signal_time.items() if v},
+            "position_entries": entries,
+            "highest_prices": self.highest_prices,
+            "lowest_prices": self.lowest_prices,
+        }
+
+    async def import_state(self, state: dict) -> None:
+        """Restore lightweight state after restart."""
+        from datetime import datetime
+
+        def _parse_dt(v):
+            return datetime.fromisoformat(v) if isinstance(v, str) else v
+
+        self.highest_prices = state.get("highest_prices", {})
+        self.lowest_prices = state.get("lowest_prices", {})
+        self.last_signal_time = {
+            k: _parse_dt(v) for k, v in state.get("last_signal_time", {}).items()
+        }
+
+        entries = {}
+        for k, v in state.get("position_entries", {}).items():
+            entry = v.copy()
+            if "time" in entry:
+                entry["time"] = _parse_dt(entry["time"])
+            entries[k] = entry
+        self.position_entries = entries
 
     async def analyze_symbol(self, symbol):
         """Analyze a symbol and return trading signal."""

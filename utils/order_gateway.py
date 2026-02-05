@@ -17,6 +17,9 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 from dataclasses import dataclass, field
 
+from utils.audit_log import AuditEventType, AuditLog, log_order_event
+from utils.order_lifecycle import OrderLifecycleTracker, OrderState
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,6 +62,7 @@ class OrderGateway:
         circuit_breaker=None,
         position_manager=None,
         risk_manager=None,
+        audit_log: AuditLog | None = None,
         enforce_gateway: bool = True,
     ):
         """
@@ -75,6 +79,8 @@ class OrderGateway:
         self.circuit_breaker = circuit_breaker
         self.position_manager = position_manager
         self.risk_manager = risk_manager
+        self.audit_log = audit_log
+        self.lifecycle_tracker = OrderLifecycleTracker()
 
         # INSTITUTIONAL SAFETY: Enable gateway enforcement
         # This prevents any code from bypassing safety checks by calling
@@ -86,6 +92,10 @@ class OrderGateway:
                 "🔒 OrderGateway initialized with mandatory routing - "
                 "direct broker access is now blocked"
             )
+        if hasattr(broker, "set_lifecycle_tracker"):
+            broker.set_lifecycle_tracker(self.lifecycle_tracker)
+        if hasattr(broker, "set_position_manager") and self.position_manager:
+            broker.set_position_manager(self.position_manager)
 
         # Statistics
         self._orders_submitted = 0
@@ -125,11 +135,17 @@ class OrderGateway:
             if hasattr(side, "value"):
                 side = side.value
         except Exception as e:
-            return self._reject_order("", "buy", 0, f"Invalid order request: {e}")
+            return self._reject_order(
+                "", "buy", 0, f"Invalid order request: {e}", strategy_name=strategy_name
+            )
 
         if not symbol or not qty:
             return self._reject_order(
-                symbol or "", side, 0, "Missing symbol or quantity"
+                symbol or "",
+                side,
+                0,
+                "Missing symbol or quantity",
+                strategy_name=strategy_name,
             )
 
         qty = float(qty)
@@ -150,13 +166,14 @@ class OrderGateway:
                 return self._reject_order(
                     symbol, side, qty,
                     f"Circuit breaker: {e.reason} ({e.loss_pct:.2%})"
-                    if e.loss_pct else f"Circuit breaker: {e.reason}"
+                    if e.loss_pct else f"Circuit breaker: {e.reason}",
+                    strategy_name=strategy_name,
                 )
             except Exception as e:
                 logger.error(f"Circuit breaker check failed: {e}")
                 # Fail-safe: reject order if circuit breaker check fails
                 return self._reject_order(
-                    symbol, side, qty, f"Circuit breaker check error: {e}"
+                    symbol, side, qty, f"Circuit breaker check error: {e}", strategy_name=strategy_name
                 )
 
         # 2. Position conflict check
@@ -170,6 +187,7 @@ class OrderGateway:
                     side,
                     qty,
                     f"Position conflict: another strategy owns or reserved {symbol}",
+                    strategy_name=strategy_name,
                 )
 
         # 3. Max positions check
@@ -182,6 +200,7 @@ class OrderGateway:
                         side,
                         qty,
                         f"Max positions reached ({len(positions)}/{max_positions})",
+                        strategy_name=strategy_name,
                     )
             except Exception as e:
                 logger.warning(f"Could not check positions: {e}")
@@ -193,11 +212,23 @@ class OrderGateway:
                     symbol, qty, price_history, current_positions or {}
                 )
                 if violations:
+                    if self.audit_log:
+                        self.audit_log.log(
+                            AuditEventType.RISK_LIMIT_BREACH,
+                            {
+                                "symbol": symbol,
+                                "side": side,
+                                "quantity": qty,
+                                "violations": violations,
+                                "strategy_name": strategy_name,
+                            },
+                        )
                     return self._reject_order(
                         symbol,
                         side,
                         qty,
                         f"Risk limit violated: {', '.join(violations)}",
+                        strategy_name=strategy_name,
                     )
             except Exception as e:
                 logger.warning(f"Risk check failed: {e}")
@@ -209,7 +240,7 @@ class OrderGateway:
             )
             if reservation is None:
                 return self._reject_order(
-                    symbol, side, qty, "Failed to reserve position"
+                    symbol, side, qty, "Failed to reserve position", strategy_name=strategy_name
                 )
 
         # === SUBMIT ORDER ===
@@ -223,7 +254,7 @@ class OrderGateway:
                         symbol, strategy_name
                     )
                 return self._reject_order(
-                    symbol, side, qty, "Broker rejected order"
+                    symbol, side, qty, "Broker rejected order", strategy_name=strategy_name
                 )
 
             # Order submitted successfully
@@ -239,6 +270,38 @@ class OrderGateway:
                 f"ORDER SUBMITTED: {side.upper()} {qty} {symbol} "
                 f"by {strategy_name} (ID: {result.id})"
             )
+            self.lifecycle_tracker.register_order(
+                order_id=str(result.id),
+                symbol=symbol,
+                side=side,
+                quantity=qty,
+                strategy_name=strategy_name,
+            )
+            if hasattr(self.broker, "register_order_metadata"):
+                self.broker.register_order_metadata(
+                    str(result.id),
+                    {
+                        "strategy_name": strategy_name,
+                        "symbol": symbol,
+                        "side": side,
+                        "quantity": qty,
+                    },
+                )
+            if hasattr(self.broker, "track_order_for_fills"):
+                self.broker.track_order_for_fills(str(result.id), symbol, side, qty)
+            if self.audit_log:
+                log_order_event(
+                    self.audit_log,
+                    AuditEventType.ORDER_SUBMITTED,
+                    order_id=str(result.id),
+                    symbol=symbol,
+                    side=side,
+                    quantity=qty,
+                    price=float(result.filled_avg_price)
+                    if hasattr(result, "filled_avg_price")
+                    else None,
+                    strategy_name=strategy_name,
+                )
 
             return OrderResult(
                 success=True,
@@ -257,7 +320,9 @@ class OrderGateway:
                 await self.position_manager.release_reservation(symbol, strategy_name)
 
             logger.error(f"Order submission failed: {e}")
-            return self._reject_order(symbol, side, qty, f"Submission error: {e}")
+            return self._reject_order(
+                symbol, side, qty, f"Submission error: {e}", strategy_name=strategy_name
+            )
 
     async def submit_exit_order(
         self,
@@ -330,6 +395,17 @@ class OrderGateway:
                 f"EXIT ORDER: {reason} - {side.upper()} {quantity:.4f} {symbol} "
                 f"by {strategy_name}"
             )
+            if self.audit_log:
+                self.audit_log.log(
+                    AuditEventType.POSITION_CLOSED,
+                    {
+                        "symbol": symbol,
+                        "side": side,
+                        "quantity": quantity,
+                        "reason": reason,
+                        "strategy_name": strategy_name,
+                    },
+                )
 
         return result
 
@@ -405,7 +481,12 @@ class OrderGateway:
         return violations
 
     def _reject_order(
-        self, symbol: str, side: str, quantity: float, reason: str
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        reason: str,
+        strategy_name: str | None = None,
     ) -> OrderResult:
         """
         Record and return order rejection.
@@ -428,6 +509,17 @@ class OrderGateway:
         )
 
         logger.warning(f"ORDER REJECTED: {side.upper()} {quantity} {symbol} - {reason}")
+        if self.audit_log:
+            log_order_event(
+                self.audit_log,
+                AuditEventType.ORDER_REJECTED,
+                order_id="",
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                rejection_reason=reason,
+                strategy_name=strategy_name,
+            )
 
         return OrderResult(
             success=False,

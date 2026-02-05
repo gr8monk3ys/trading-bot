@@ -62,9 +62,14 @@ class ExtendedHoursStrategy(BaseStrategy):
 
     NAME = "ExtendedHoursStrategy"
 
-    def __init__(self, broker=None, parameters=None):
+    def __init__(self, broker=None, parameters=None, order_gateway=None):
         """Initialize Extended Hours strategy."""
-        super().__init__(name=self.NAME, broker=broker, parameters=parameters)
+        super().__init__(
+            name=self.NAME,
+            broker=broker,
+            parameters=parameters,
+            order_gateway=order_gateway,
+        )
 
         # Extended hours manager
         self.ext_hours = None
@@ -414,10 +419,14 @@ class ExtendedHoursStrategy(BaseStrategy):
                 .build()
             )
 
-            # Submit order
-            result = await self.broker.submit_order_advanced(order)
+            # Submit order via gateway
+            result = await self.submit_entry_order(
+                order,
+                reason="extended_hours_entry",
+                max_positions=self.parameters.get("max_positions"),
+            )
 
-            if result:
+            if result and (not hasattr(result, "success") or result.success):
                 logger.info(f"✅ Extended hours order submitted for {symbol}")
 
                 # Track entry for Kelly Criterion (if enabled)

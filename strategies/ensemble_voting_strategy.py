@@ -88,6 +88,7 @@ class EnsembleVotingStrategy(BaseStrategy):
         sub_strategies: Optional[List[Type[BaseStrategy]]] = None,
         min_agreement: float = 0.6,
         use_adaptive_weights: bool = True,
+        order_gateway=None,
     ):
         """
         Initialize ensemble voting strategy.
@@ -100,7 +101,12 @@ class EnsembleVotingStrategy(BaseStrategy):
             min_agreement: Minimum agreement ratio to trade (0-1)
             use_adaptive_weights: Enable adaptive weight adjustment
         """
-        super().__init__(name=name or self.NAME, broker=broker, parameters=parameters or {})
+        super().__init__(
+            name=name or self.NAME,
+            broker=broker,
+            parameters=parameters or {},
+            order_gateway=order_gateway,
+        )
 
         self.sub_strategy_classes = sub_strategies or []
         self.sub_strategies: List[BaseStrategy] = []
@@ -130,10 +136,17 @@ class EnsembleVotingStrategy(BaseStrategy):
         # Initialize sub-strategies
         for strategy_class in self.sub_strategy_classes:
             try:
-                strategy = strategy_class(
-                    broker=self.broker,
-                    parameters=self.parameters,
-                )
+                try:
+                    strategy = strategy_class(
+                        broker=self.broker,
+                        parameters=self.parameters,
+                        order_gateway=self.order_gateway,
+                    )
+                except TypeError:
+                    strategy = strategy_class(
+                        broker=self.broker,
+                        parameters=self.parameters,
+                    )
                 await strategy.initialize(**kwargs)
                 self.sub_strategies.append(strategy)
                 logger.info(f"Initialized sub-strategy: {strategy.name}")
@@ -414,9 +427,13 @@ class EnsembleVotingStrategy(BaseStrategy):
                 .build()
             )
 
-            result = await self.broker.submit_order_advanced(order)
+            result = await self.submit_entry_order(
+                order,
+                reason="ensemble_voting_entry",
+                max_positions=self.parameters.get("max_positions"),
+            )
 
-            if result:
+            if result and (not hasattr(result, "success") or result.success):
                 self.track_position_entry(symbol, current_price)
                 logger.info(
                     f"ENSEMBLE TRADE: {side.upper()} {final_qty} {symbol} @ ${current_price:.2f} "
