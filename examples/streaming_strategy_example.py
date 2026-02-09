@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from alpaca.data.models import Bar
 
 from brokers.alpaca_broker import AlpacaBroker
-from config import SYMBOLS, TRADING_PARAMS
+from config import SYMBOLS
 from strategies.base_strategy import BaseStrategy
 
 # Configure logging

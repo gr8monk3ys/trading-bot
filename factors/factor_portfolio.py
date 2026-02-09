@@ -36,7 +36,7 @@ import numpy as np
 
 from factors.base_factor import BaseFactor, FactorScore
 from factors.momentum_factor import MomentumFactor, RelativeStrengthFactor
-from factors.volatility_factor import VolatilityFactor, BetaFactor
+from factors.volatility_factor import BetaFactor, VolatilityFactor
 
 logger = logging.getLogger(__name__)
 
@@ -148,10 +148,16 @@ class FactorPortfolio:
         if use_orthogonalization or use_risk_parity:
             try:
                 from factors.factor_orthogonalization import (
-                    FactorOrthogonalizer as FO,
-                    RiskParityWeighter as RPW,
                     AdaptiveFactorWeighter as AFW,
+                )
+                from factors.factor_orthogonalization import (
+                    FactorOrthogonalizer as FO,
+                )
+                from factors.factor_orthogonalization import (
                     OrthogonalizationMethod as OM,
+                )
+                from factors.factor_orthogonalization import (
+                    RiskParityWeighter as RPW,
                 )
                 FactorOrthogonalizer = FO
                 RiskParityWeighter = RPW
@@ -174,9 +180,9 @@ class FactorPortfolio:
         # Add fundamental factors if enabled
         if include_fundamentals:
             try:
-                from factors.value_factor import ValueFactor as VF
-                from factors.quality_factor import QualityFactor as QF
                 from factors.growth_factor import GrowthFactor as GF
+                from factors.quality_factor import QualityFactor as QF
+                from factors.value_factor import ValueFactor as VF
 
                 ValueFactor = VF
                 QualityFactor = QF
@@ -195,8 +201,8 @@ class FactorPortfolio:
         # Add Phase 3 advanced alpha factors
         try:
             from factors.earnings_factor import EarningsSurpriseFactor as ESF
-            from factors.reversal_factor import ReversalFactor as RF
             from factors.momentum_factor import SectorRelativeMomentumFactor as SRMF
+            from factors.reversal_factor import ReversalFactor as RF
 
             EarningsSurpriseFactor = ESF
             ReversalFactor = RF

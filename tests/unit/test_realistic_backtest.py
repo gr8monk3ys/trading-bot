@@ -5,21 +5,19 @@ Unit tests for utils/realistic_backtest.py
 Tests Trade, BacktestResults, and RealisticBacktester classes.
 """
 
-import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
-from io import StringIO
 import sys
+from datetime import datetime, timedelta
+from io import StringIO
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
+import pytest
 
 from utils.realistic_backtest import (
-    Trade,
     BacktestResults,
     RealisticBacktester,
+    Trade,
     print_backtest_report,
 )
-
 
 # ============================================================================
 # Fixtures

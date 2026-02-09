@@ -11,10 +11,10 @@ Tests SupportResistanceAnalyzer class for:
 - Stop-loss and profit target placement
 """
 
-import pytest
 import numpy as np
-from utils.support_resistance import SupportResistanceAnalyzer
+import pytest
 
+from utils.support_resistance import SupportResistanceAnalyzer
 
 # ============================================================================
 # Fixtures
@@ -67,7 +67,7 @@ def trending_up_bars():
     bars = []
     price = 100.0
 
-    for i in range(50):
+    for _i in range(50):
         high = price + 1.5
         low = price - 0.5
         close = price + 1.0  # Consistent uptrend
@@ -88,7 +88,7 @@ def trending_down_bars():
     bars = []
     price = 150.0
 
-    for i in range(50):
+    for _i in range(50):
         high = price + 0.5
         low = price - 1.5
         close = price - 1.0  # Consistent downtrend

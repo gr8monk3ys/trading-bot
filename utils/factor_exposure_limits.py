@@ -312,7 +312,7 @@ class FactorExposureLimiter:
                     exp_j = abs(exposures.get(factors[j], 0))
                     # Both factors must have significant exposure
                     if exp_i > 0.05 and exp_j > 0.05:
-                        combined_exposure = exp_i + exp_j
+                        exp_i + exp_j
                         violations.append((
                             f"{factors[i]}+{factors[j]}",
                             FactorExposureViolation.CORRELATION_CLUSTER,

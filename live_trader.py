@@ -29,14 +29,14 @@ from config import RISK_PARAMS, SYMBOLS
 from strategies.bracket_momentum_strategy import BracketMomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 from strategies.momentum_strategy import MomentumStrategy
-from utils.circuit_breaker import CircuitBreaker
+from strategies.risk_manager import RiskManager
 from utils.audit_log import AuditEventType, AuditLog
+from utils.circuit_breaker import CircuitBreaker
+from utils.order_gateway import OrderGateway
+from utils.order_reconciliation import OrderReconciler
+from utils.position_manager import PositionManager
 from utils.reconciliation import PositionReconciler
 from utils.runtime_state import RuntimeStateStore
-from utils.order_reconciliation import OrderReconciler
-from strategies.risk_manager import RiskManager
-from utils.order_gateway import OrderGateway
-from utils.position_manager import PositionManager
 
 # Set up logging
 logging.basicConfig(

@@ -27,7 +27,6 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy import linalg
 from scipy.optimize import minimize
 
 logger = logging.getLogger(__name__)
@@ -143,7 +142,7 @@ class FactorOrthogonalizer:
 
         symbol_sets = [set(scores.keys()) for scores in self.factor_scores.values()]
         common = set.intersection(*symbol_sets) if symbol_sets else set()
-        return sorted(list(common))
+        return sorted(common)
 
     def _build_factor_matrix(self) -> np.ndarray:
         """Build matrix of factor scores (symbols x factors)."""
@@ -179,7 +178,7 @@ class FactorOrthogonalizer:
         # Handle missing values
         valid_mask = ~np.isnan(self.factor_matrix).any(axis=1)
         valid_matrix = self.factor_matrix[valid_mask]
-        valid_symbols = [s for s, v in zip(self.symbols, valid_mask) if v]
+        valid_symbols = [s for s, v in zip(self.symbols, valid_mask, strict=False) if v]
 
         if len(valid_symbols) < self.min_observations:
             logger.warning(f"Insufficient valid observations: {len(valid_symbols)}")
@@ -561,11 +560,11 @@ class AdaptiveFactorWeighter:
             else:
                 # Fallback to equal weights
                 n = len(self.factor_scores)
-                base_weights = {f: 1.0 / n for f in self.factor_scores.keys()}
+                base_weights = dict.fromkeys(self.factor_scores.keys(), 1.0 / n)
         else:
             # Fallback to equal weights
             n = len(self.factor_scores)
-            base_weights = {f: 1.0 / n for f in self.factor_scores.keys()}
+            base_weights = dict.fromkeys(self.factor_scores.keys(), 1.0 / n)
 
         # Step 3: Blend with IC weights
         if self.ic_weights:

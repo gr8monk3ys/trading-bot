@@ -9,22 +9,20 @@ Tests:
 - Market impact estimation
 """
 
-import pytest
-import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from execution.smart_order_router import (
-    SmartOrderRouter,
-    Venue,
-    VenueQuote,
-    VenueFees,
     NBBO,
-    RoutingDecision,
-    RouteResult,
-    RoutingStrategy,
-    OrderSide,
     MockVenueConnector,
+    OrderSide,
+    RouteResult,
+    RoutingDecision,
+    RoutingStrategy,
+    Venue,
+    VenueFees,
+    VenueQuote,
     create_smart_router,
 )
 

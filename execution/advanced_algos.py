@@ -19,7 +19,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, List, Dict, Any, Callable, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -256,7 +257,7 @@ class ImplementationShortfall(ExecutionAlgorithm):
         # kappa = sqrt(lambda * sigma^2 / eta)
         # where lambda = risk aversion, sigma = volatility, eta = temporary impact
 
-        participation = total_quantity / (adv * num_periods / 390)  # Intraday periods
+        total_quantity / (adv * num_periods / 390)  # Intraday periods
 
         # Adjust based on urgency
         urgency_factor = {
@@ -900,7 +901,7 @@ class AlgorithmicExecutor:
                 # Send order (if sender configured)
                 if self.order_sender and qty > 0:
                     try:
-                        result = await self.order_sender(
+                        await self.order_sender(
                             symbol=order.symbol,
                             side=order.side,
                             quantity=qty,

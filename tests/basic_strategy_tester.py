@@ -94,10 +94,12 @@ class SimpleBacktester:
         self,
         start_date,
         end_date,
-        symbols=["AAPL", "MSFT", "GOOGL", "AMZN"],
+        symbols=None,
         initial_capital=100000,
     ):
         """Initialize the backtester."""
+        if symbols is None:
+            symbols = ["AAPL", "MSFT", "GOOGL", "AMZN"]
         self.start_date = start_date
         self.end_date = end_date
         self.symbols = symbols
@@ -209,7 +211,7 @@ class SimpleBacktester:
         self.portfolio_history = []
 
         # Run the strategy for each day
-        dates = sorted(set([date for symbol in self.symbols for date in self.data[symbol]["date"]]))
+        dates = sorted({date for symbol in self.symbols for date in self.data[symbol]["date"]})
 
         for date in dates:
             # Calculate portfolio value at the start of the day
@@ -347,7 +349,7 @@ class SimpleBacktester:
         self.portfolio_history = []
 
         # Run the strategy for each day
-        dates = sorted(set([date for symbol in self.symbols for date in self.data[symbol]["date"]]))
+        dates = sorted({date for symbol in self.symbols for date in self.data[symbol]["date"]})
 
         for date in dates:
             # Calculate portfolio value at the start of the day

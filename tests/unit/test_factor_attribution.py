@@ -25,7 +25,6 @@ Test scenarios include:
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -38,7 +37,6 @@ from engine.factor_attribution import (
     create_attribution_report,
 )
 from strategies.factor_models import CompositeScore, FactorScore, FactorType
-
 
 # =============================================================================
 # FIXTURES
@@ -398,7 +396,7 @@ class TestAddPortfolioObservation:
         for i, date in enumerate(sample_dates[:5]):
             attributor.add_portfolio_observation(date, float(i), {})
 
-        for i, (d, r) in enumerate(attributor._portfolio_returns):
+        for i, (_d, r) in enumerate(attributor._portfolio_returns):
             assert r == float(i)
 
 
@@ -636,9 +634,7 @@ class TestCalculateTimingReturn:
 
         # Constant exposures
         for date in dates:
-            attributor_low_min_obs._portfolio_exposures[date] = {
-                ft: 1.0 for ft in FactorType
-            }
+            attributor_low_min_obs._portfolio_exposures[date] = dict.fromkeys(FactorType, 1.0)
 
         timing = attributor_low_min_obs._calculate_timing_return(
             dates, factor_matrix, betas
@@ -714,7 +710,7 @@ class TestCalculateFactorReturns:
         )
 
         # Factor returns should be finite
-        for ft, ret in factor_returns.items():
+        for _ft, ret in factor_returns.items():
             assert np.isfinite(ret)
 
     def test_insufficient_symbols_returns_zero(self, attributor):
@@ -929,11 +925,11 @@ class TestDetectStyleDrift:
         for i, date in enumerate(sample_dates):
             if i < mid_point:
                 # Historical period: low momentum exposure
-                exposures = {ft: 0.0 for ft in FactorType}
+                exposures = dict.fromkeys(FactorType, 0.0)
                 exposures[FactorType.MOMENTUM] = -1.0
             else:
                 # Recent period: high momentum exposure
-                exposures = {ft: 0.0 for ft in FactorType}
+                exposures = dict.fromkeys(FactorType, 0.0)
                 exposures[FactorType.MOMENTUM] = 1.0
 
             attributor._portfolio_exposures[date] = exposures
@@ -942,7 +938,7 @@ class TestDetectStyleDrift:
 
         # MOMENTUM should show significant drift
         momentum_drift = result["factor_drift"]["momentum"]
-        assert momentum_drift["is_significant"] == True  # Use == for numpy bool compatibility
+        assert momentum_drift["is_significant"]  # Use == for numpy bool compatibility
         assert float(momentum_drift["change"].replace("+", "")) > 0
 
     def test_alert_threshold(self, sample_dates):
@@ -954,9 +950,9 @@ class TestDetectStyleDrift:
 
         for i, date in enumerate(sample_dates):
             if i < mid_point:
-                exposures = {ft: -1.0 for ft in FactorType}
+                exposures = dict.fromkeys(FactorType, -1.0)
             else:
-                exposures = {ft: 1.0 for ft in FactorType}
+                exposures = dict.fromkeys(FactorType, 1.0)
 
             attributor._portfolio_exposures[date] = exposures
 
@@ -972,7 +968,7 @@ class TestDetectStyleDrift:
         np.random.seed(42)
 
         # All dates have similar exposures (just noise)
-        base_exposures = {ft: 0.5 for ft in FactorType}
+        base_exposures = dict.fromkeys(FactorType, 0.5)
 
         for date in sample_dates:
             # Add small noise but keep exposures mostly stable
@@ -1116,7 +1112,7 @@ class TestEdgeCases:
         for date in dates:
             attributor_low_min_obs.add_factor_returns(
                 date,
-                {ft: 0.01 for ft in FactorType}
+                dict.fromkeys(FactorType, 0.01)
             )
             attributor_low_min_obs.add_portfolio_observation(date, 0.0, {})
 
@@ -1132,7 +1128,7 @@ class TestEdgeCases:
         for date in dates:
             attributor_low_min_obs.add_factor_returns(
                 date,
-                {ft: 0.0 for ft in FactorType}
+                dict.fromkeys(FactorType, 0.0)
             )
             attributor_low_min_obs.add_portfolio_observation(date, 0.01, {})
 
@@ -1147,7 +1143,7 @@ class TestEdgeCases:
         for date in dates:
             attributor_low_min_obs.add_factor_returns(
                 date,
-                {ft: 1.0 for ft in FactorType}  # 100% daily returns
+                dict.fromkeys(FactorType, 1.0)  # 100% daily returns
             )
             attributor_low_min_obs.add_portfolio_observation(date, 2.0, {})  # 200% return
 
@@ -1163,7 +1159,7 @@ class TestEdgeCases:
         for date in dates:
             attributor_low_min_obs.add_factor_returns(
                 date,
-                {ft: -0.05 for ft in FactorType}
+                dict.fromkeys(FactorType, -0.05)
             )
             attributor_low_min_obs.add_portfolio_observation(date, -0.10, {})
 
@@ -1189,7 +1185,7 @@ class TestEdgeCases:
         attributor = FactorAttributor(min_observations=1)
         date = datetime(2024, 1, 1)
 
-        attributor.add_factor_returns(date, {ft: 0.01 for ft in FactorType})
+        attributor.add_factor_returns(date, dict.fromkeys(FactorType, 0.01))
 
         report = attributor.get_factor_report()
 

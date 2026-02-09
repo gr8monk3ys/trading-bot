@@ -121,7 +121,7 @@ class PortfolioOptimizer:
 
             # Inverse covariance weighted
             inv_cov = np.linalg.inv(cov_matrix)
-            ones = np.ones(n)
+            np.ones(n)
 
             # Max Sharpe weights (unconstrained)
             excess_returns = returns - self.risk_free_rate / 252
@@ -145,7 +145,7 @@ class PortfolioOptimizer:
             effective_n = 1 / np.sum(weights ** 2)
 
             return OptimizationResult(
-                weights=dict(zip(symbols, weights)),
+                weights=dict(zip(symbols, weights, strict=False)),
                 method="mean_variance",
                 expected_return=port_return,
                 expected_volatility=port_vol,
@@ -221,7 +221,7 @@ class PortfolioOptimizer:
             effective_n = 1 / np.sum(weights ** 2)
 
             return OptimizationResult(
-                weights=dict(zip(symbols, weights)),
+                weights=dict(zip(symbols, weights, strict=False)),
                 method="risk_parity",
                 expected_return=port_return,
                 expected_volatility=port_vol,
@@ -292,7 +292,7 @@ class PortfolioOptimizer:
             effective_n = 1 / np.sum(weights ** 2)
 
             return OptimizationResult(
-                weights=dict(zip(symbols, weights)),
+                weights=dict(zip(symbols, weights, strict=False)),
                 method="max_diversification",
                 expected_return=port_return,
                 expected_volatility=port_vol,
@@ -356,7 +356,7 @@ class PortfolioOptimizer:
     ) -> OptimizationResult:
         """Return equal-weight portfolio as fallback."""
         n = len(symbols)
-        weights = {s: 1.0 / n for s in symbols}
+        weights = dict.fromkeys(symbols, 1.0 / n)
 
         logger.warning(f"Falling back to equal weights for {method}")
 

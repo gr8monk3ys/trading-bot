@@ -12,6 +12,7 @@ Usage:
 """
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +41,8 @@ def import_torch():
         try:
             import torch
             import torch.nn as nn
-            import torch.optim as optim
             import torch.nn.functional as F
+            import torch.optim as optim
 
             _torch = torch
             _nn = nn
@@ -56,7 +57,7 @@ def import_torch():
     return _torch, _nn, _optim, _F
 
 
-def get_torch_device(use_gpu: bool = False) -> "torch.device":
+def get_torch_device(use_gpu: bool = False) -> Any:
     """
     Select the best available compute device.
 

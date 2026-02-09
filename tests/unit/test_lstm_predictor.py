@@ -15,7 +15,7 @@ Note: Tests requiring PyTorch are skipped if torch is not installed.
 import os
 import tempfile
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -24,18 +24,12 @@ import pytest
 os.environ["TESTING"] = "1"
 
 # Check if PyTorch is available
-try:
-    import torch
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
+import importlib.util
+
+HAS_TORCH = importlib.util.find_spec("torch") is not None
 
 # Check if scikit-learn is available
-try:
-    from sklearn.preprocessing import MinMaxScaler
-    HAS_SKLEARN = True
-except ImportError:
-    HAS_SKLEARN = False
+HAS_SKLEARN = importlib.util.find_spec("sklearn") is not None
 
 # Skip marker for tests requiring PyTorch
 requires_torch = pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not installed")
@@ -139,7 +133,7 @@ class TestLSTMPredictorFeaturePreparation:
         """Generate sample OHLCV data."""
         prices = []
         base_price = 100.0
-        for i in range(100):
+        for _i in range(100):
             open_price = base_price + np.random.randn() * 2
             close_price = open_price + np.random.randn() * 1
             high_price = max(open_price, close_price) + abs(np.random.randn() * 0.5)
@@ -363,7 +357,7 @@ class TestLSTMPredictorPrediction:
         # Generate training data
         prices = []
         base_price = 100.0
-        for i in range(150):
+        for _i in range(150):
             open_price = base_price + np.random.randn() * 0.5
             close_price = open_price + np.random.randn() * 0.3
             high_price = max(open_price, close_price) + 0.1
@@ -448,7 +442,7 @@ class TestLSTMPredictorPersistence:
         # Generate training data
         prices = []
         base_price = 100.0
-        for i in range(150):
+        for _i in range(150):
             prices.append(
                 {
                     "open": base_price,

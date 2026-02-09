@@ -107,7 +107,7 @@ class MultiTimeframeAnalyzer:
 
             # Process results
             timeframe_data = {}
-            for tf, result in zip(timeframe_tasks.keys(), results):
+            for tf, result in zip(timeframe_tasks.keys(), results, strict=False):
                 if isinstance(result, Exception):
                     logger.warning(f"Failed to analyze {symbol} on {tf}: {result}")
                     timeframe_data[tf] = None

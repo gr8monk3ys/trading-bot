@@ -8,20 +8,19 @@ performance tracking.
 
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
 from ml.ensemble_predictor import (
-    EnsemblePredictor,
     EnsemblePrediction,
+    EnsemblePredictor,
     MarketRegime,
     SignalComponent,
     SignalSource,
     create_ensemble_from_components,
 )
-
 
 # =============================================================================
 # TEST FIXTURES AND HELPERS
@@ -295,7 +294,7 @@ class TestEnsemblePrediction:
         confidences = [0.0, 0.25, 0.5, 0.75, 1.0]
         expected = [0.5, 0.75, 1.0, 1.25, 1.5]
 
-        for conf, exp in zip(confidences, expected):
+        for conf, exp in zip(confidences, expected, strict=False):
             prediction = self.create_prediction(ensemble_confidence=conf)
             assert prediction.get_position_size_multiplier() == exp
 
@@ -1041,7 +1040,7 @@ class TestRecordOutcome:
             create_mock_signal_fn(SignalSource.LSTM, signal_value=-0.8, direction="short"),
         )
 
-        prediction = ensemble_predictor.predict("AAPL", {})
+        ensemble_predictor.predict("AAPL", {})
         prediction_time = datetime.now()
 
         # Record negative return (correct for short)
@@ -1070,8 +1069,8 @@ class TestRecordOutcome:
     def test_record_outcome_trims_history_to_100(self, ensemble_with_sources):
         """Test that accuracy history is trimmed to 100 entries."""
         # Make multiple predictions and record outcomes
-        for i in range(110):
-            prediction = ensemble_with_sources.predict("AAPL", {})
+        for _i in range(110):
+            ensemble_with_sources.predict("AAPL", {})
             prediction_time = datetime.now()
             ensemble_with_sources.record_outcome("AAPL", prediction_time, actual_return=0.01)
 
@@ -1515,7 +1514,7 @@ class TestAlternativeDataSignalSource:
 
         bull_weight = ensemble.regime_weights[MarketRegime.BULL][SignalSource.ALTERNATIVE_DATA]
         bear_weight = ensemble.regime_weights[MarketRegime.BEAR][SignalSource.ALTERNATIVE_DATA]
-        volatile_weight = ensemble.regime_weights[MarketRegime.VOLATILE][SignalSource.ALTERNATIVE_DATA]
+        ensemble.regime_weights[MarketRegime.VOLATILE][SignalSource.ALTERNATIVE_DATA]
 
         # Alt data should have different weights in different regimes
         # In bear markets, alt data is weighted less (sentiment can mislead)

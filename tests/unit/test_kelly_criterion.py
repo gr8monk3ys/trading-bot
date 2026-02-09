@@ -113,7 +113,7 @@ class TestPositionSizing:
         kelly = KellyCriterion(kelly_fraction=1.0, max_position_size=0.15)  # Full Kelly
 
         # Add enough trades
-        for i in range(35):
+        for _i in range(35):
             kelly.add_trade(
                 Trade(
                     symbol="TEST",
@@ -302,7 +302,7 @@ class TestEdgeCases:
         kelly = KellyCriterion()
 
         # All losing trades = profit factor 0
-        for i in range(10):
+        for _i in range(10):
             kelly.add_trade(
                 Trade(
                     symbol="TEST",
@@ -325,7 +325,7 @@ class TestEdgeCases:
         kelly = KellyCriterion(lookback_trades=10)
 
         # Add 20 trades
-        for i in range(20):
+        for _i in range(20):
             kelly.add_trade(
                 Trade(
                     symbol="TEST",

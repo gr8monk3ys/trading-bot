@@ -97,7 +97,7 @@ class TradingBotMCPServer:
 
         # Initialize strategy
         StrategyClass = self.strategies[strategy_name]
-        strategy = StrategyClass(broker=self.broker, symbols=symbols)
+        StrategyClass(broker=self.broker, symbols=symbols)
 
         # Run backtest (simplified - full implementation would use BacktestEngine)
         return {
@@ -122,7 +122,7 @@ class TradingBotMCPServer:
         closes = [bar.close for bar in bars]
         highs = [bar.high for bar in bars]
         lows = [bar.low for bar in bars]
-        volumes = [bar.volume for bar in bars]
+        [bar.volume for bar in bars]
 
         # Analyze
         trend = analyze_trend(closes, highs, lows)

@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 # Try to import ib_insync (optional dependency)
 try:
-    from ib_insync import IB, Contract, MarketOrder, LimitOrder, StopOrder, Trade
+    from ib_insync import IB, Contract, LimitOrder, MarketOrder, StopOrder, Trade
     IB_AVAILABLE = True
 except ImportError:
     IB_AVAILABLE = False
@@ -131,7 +131,7 @@ class InteractiveBrokersBroker(BrokerInterface):
         except Exception as e:
             self._connected = False
             logger.error(f"Failed to connect to IB: {e}")
-            raise BrokerConnectionError(f"IB connection failed: {e}")
+            raise BrokerConnectionError(f"IB connection failed: {e}") from e
 
     async def disconnect(self) -> None:
         """Disconnect from TWS/Gateway."""
@@ -193,7 +193,7 @@ class InteractiveBrokersBroker(BrokerInterface):
 
         except Exception as e:
             logger.error(f"Failed to get IB account: {e}")
-            raise BrokerError(f"Failed to get account: {e}")
+            raise BrokerError(f"Failed to get account: {e}") from e
 
     async def get_positions(self) -> List[Position]:
         """Get all positions."""
@@ -225,7 +225,7 @@ class InteractiveBrokersBroker(BrokerInterface):
 
         except Exception as e:
             logger.error(f"Failed to get IB positions: {e}")
-            raise BrokerError(f"Failed to get positions: {e}")
+            raise BrokerError(f"Failed to get positions: {e}") from e
 
     async def get_position(self, symbol: str) -> Optional[Position]:
         """Get position for symbol."""
@@ -284,7 +284,7 @@ class InteractiveBrokersBroker(BrokerInterface):
 
         except Exception as e:
             logger.error(f"Failed to submit IB order: {e}")
-            raise BrokerOrderError(f"Order submission failed: {e}")
+            raise BrokerOrderError(f"Order submission failed: {e}") from e
 
     async def cancel_order(self, order_id: str) -> bool:
         """Cancel an order."""
@@ -400,7 +400,7 @@ class InteractiveBrokersBroker(BrokerInterface):
 
         except Exception as e:
             logger.error(f"Failed to get IB bars: {e}")
-            raise BrokerError(f"Failed to get bars: {e}")
+            raise BrokerError(f"Failed to get bars: {e}") from e
 
     async def get_latest_quote(self, symbol: str) -> Dict[str, float]:
         """Get latest quote."""
@@ -425,7 +425,7 @@ class InteractiveBrokersBroker(BrokerInterface):
 
         except Exception as e:
             logger.error(f"Failed to get IB quote: {e}")
-            raise BrokerError(f"Failed to get quote: {e}")
+            raise BrokerError(f"Failed to get quote: {e}") from e
 
     async def get_clock(self) -> Dict[str, Any]:
         """Get market clock (IB doesn't have direct equivalent)."""

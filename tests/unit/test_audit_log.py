@@ -9,8 +9,6 @@ Tests verify:
 - Chain verification
 """
 
-import json
-import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,7 +23,6 @@ from utils.audit_log import (
     log_order_event,
     log_risk_event,
 )
-
 
 # ============================================================================
 # FIXTURES
@@ -273,7 +270,7 @@ class TestTamperDetection:
 
     def test_detect_modified_hash(self, audit_log):
         """Test that modifying stored hash is detected."""
-        entry = audit_log.log(AuditEventType.ORDER_SUBMITTED, {})
+        audit_log.log(AuditEventType.ORDER_SUBMITTED, {})
 
         # Tamper with the stored hash
         audit_log._entries[0].entry_hash = "fake_hash"

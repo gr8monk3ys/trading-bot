@@ -11,17 +11,17 @@ Tests TradingHoursFilter class for:
 - Trading status reports
 """
 
-import pytest
 from datetime import datetime, time, timedelta
+
+import pytest
 import pytz
 
 from utils.trading_hours import (
+    DayQuality,
     TradingHoursFilter,
     TradingWindow,
-    DayQuality,
     is_good_trading_time,
 )
-
 
 # ============================================================================
 # Fixtures

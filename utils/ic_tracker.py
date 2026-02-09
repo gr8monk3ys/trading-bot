@@ -21,7 +21,7 @@ import logging
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from scipy import stats
@@ -352,7 +352,7 @@ class ICTracker:
         if len(self._ic_history) < 4:
             return {"error": "Insufficient history for trend analysis"}
 
-        timestamps, ics = zip(*self._ic_history)
+        timestamps, ics = zip(*self._ic_history, strict=False)
         ics = np.array(ics)
 
         # Linear regression for trend
@@ -386,7 +386,7 @@ class ICTracker:
         Returns:
             Dictionary mapping regime name to ICMetrics
         """
-        regimes = set(o.market_regime for o in self._observations if o.market_regime)
+        regimes = {o.market_regime for o in self._observations if o.market_regime}
 
         results = {}
         for regime in regimes:

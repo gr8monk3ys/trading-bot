@@ -9,14 +9,13 @@ Tests cover:
 - Error handling
 """
 
-import asyncio
+# Mock environment variables before importing
+import os
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-# Mock environment variables before importing
-import os
 os.environ["TESTING"] = "true"
 os.environ["ALPACA_API_KEY"] = "test_key"
 os.environ["ALPACA_SECRET_KEY"] = "test_secret"

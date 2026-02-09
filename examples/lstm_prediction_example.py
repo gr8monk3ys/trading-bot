@@ -13,10 +13,8 @@ Usage:
     python examples/lstm_prediction_example.py
 """
 
-import asyncio
 import os
 import sys
-from datetime import datetime, timedelta
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -91,7 +89,7 @@ def main():
     from ml.lstm_predictor import LSTMPredictor
 
     # Configuration from ML_PARAMS
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Sequence Length: {ML_PARAMS['SEQUENCE_LENGTH']} bars")
     print(f"  Prediction Horizon: {ML_PARAMS['PREDICTION_HORIZON']} bars")
     print(f"  Hidden Size: {ML_PARAMS['HIDDEN_SIZE']}")
@@ -129,7 +127,7 @@ def main():
         early_stopping_patience=ML_PARAMS['EARLY_STOPPING_PATIENCE'],
     )
 
-    print(f"\nTraining Results:")
+    print("\nTraining Results:")
     print(f"  Epochs completed: {metrics.epochs}")
     print(f"  Final Train Loss: {metrics.final_train_loss:.6f}")
     print(f"  Final Val Loss: {metrics.final_val_loss:.6f}")
@@ -147,7 +145,7 @@ def main():
     result = predictor.predict("SYNTHETIC", recent_prices)
 
     if result:
-        print(f"\nPrediction Results:")
+        print("\nPrediction Results:")
         print(f"  Symbol: {result.symbol}")
         print(f"  Current Price: ${result.current_price:.2f}")
         print(f"  Predicted Price: ${result.predicted_price:.2f}")
@@ -168,7 +166,7 @@ def main():
             elif result.predicted_direction == "down":
                 print(f"  SIGNAL: SELL (confidence {result.confidence:.2f} >= {min_confidence})")
             else:
-                print(f"  SIGNAL: HOLD (neutral prediction)")
+                print("  SIGNAL: HOLD (neutral prediction)")
         else:
             print(f"  SIGNAL: NO ACTION (confidence {result.confidence:.2f} < {min_confidence})")
     else:

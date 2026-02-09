@@ -13,8 +13,8 @@ Tests cover:
 
 import os
 import sys
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -33,12 +33,11 @@ sys.modules["config"] = MagicMock(
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from engine.walk_forward import (
+from engine.walk_forward import (  # noqa: E402
     WalkForwardResult,
     WalkForwardValidator,
-    DegradationSignificanceResult,
-    check_degradation_significance,
     calculate_sharpe_confidence_interval,
+    check_degradation_significance,
 )
 
 # Restore real config to prevent Mock from leaking to other test files
@@ -172,7 +171,7 @@ class TestTimeSplits:
 
         splits = validator_custom.create_time_splits(start, end)
 
-        for train_start, train_end, test_start, test_end in splits:
+        for _train_start, train_end, test_start, _test_end in splits:
             gap = (test_start - train_end).days
             assert gap >= validator_custom.gap_days
 
@@ -227,7 +226,7 @@ class TestValidation:
             return {"total_return": 0.05, "sharpe_ratio": 1.0, "num_trades": 10, "win_rate": 0.5}
 
         validator.n_splits = 3  # Reduce for faster test
-        result = await validator.validate(
+        await validator.validate(
             mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
         )
 
@@ -271,7 +270,7 @@ class TestValidation:
             mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
         )
 
-        assert result["passes_validation"] == False
+        assert not result["passes_validation"]
         assert result["oos_avg_return"] < 0
 
     @pytest.mark.asyncio
@@ -557,7 +556,7 @@ class TestValidationCriteria:
             mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
         )
 
-        assert result["passes_validation"] == True
+        assert result["passes_validation"]
 
     @pytest.mark.asyncio
     async def test_fails_negative_oos_returns(self, validator):
@@ -576,7 +575,7 @@ class TestValidationCriteria:
             mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
         )
 
-        assert result["passes_validation"] == False
+        assert not result["passes_validation"]
         assert result["oos_avg_return"] < 0
 
     @pytest.mark.asyncio
@@ -622,7 +621,7 @@ class TestValidationCriteria:
 
         # All OOS returns are negative = 0% consistency
         assert result["oos_consistency"] == 0.0
-        assert result["passes_validation"] == False
+        assert not result["passes_validation"]
 
 
 # =============================================================================
@@ -708,7 +707,7 @@ class TestDegradationSignificance:
         result = check_degradation_significance(is_returns, oos_returns)
 
         # Should detect significant degradation (use == for numpy bool)
-        assert result.degradation_significant == True
+        assert result.degradation_significant
         assert result.wilcoxon_p_value < 0.05
         assert result.mean_degradation > 0.10  # IS - OOS > 10%
 
@@ -722,7 +721,7 @@ class TestDegradationSignificance:
         result = check_degradation_significance(is_returns, oos_returns)
 
         # Should not detect significant degradation (use == for numpy bool)
-        assert result.degradation_significant == False
+        assert not result.degradation_significant
         assert result.wilcoxon_p_value >= 0.05
 
     def test_insufficient_data(self):
@@ -891,7 +890,7 @@ class TestWalkForwardWithStatistics:
         )
 
         # Should fail due to significant degradation (use == for numpy bool)
-        assert result["degradation_test"]["degradation_significant"] == True
+        assert result["degradation_test"]["degradation_significant"]
         # Effect size should not be negligible/small for such large degradation
         assert result["degradation_test"]["effect_magnitude"] in ["medium", "large"]
 

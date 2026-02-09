@@ -31,9 +31,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from tests.unit.conftest import (
-    DEFAULT_BUYING_POWER,
-    DEFAULT_STARTING_CASH,
-    DEFAULT_STARTING_EQUITY,
     create_mock_account,
 )
 

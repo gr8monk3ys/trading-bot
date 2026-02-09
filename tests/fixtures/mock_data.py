@@ -63,7 +63,7 @@ def generate_ohlcv_data(
     close_series = generate_price_series(start_price, days, trend, volatility)
 
     data = []
-    for i, (date, close) in enumerate(zip(dates, close_series)):
+    for _i, (date, close) in enumerate(zip(dates, close_series, strict=False)):
         # Intraday range
         daily_range = close * np.random.uniform(0.01, 0.03)
 
@@ -88,7 +88,7 @@ def generate_ohlcv_data(
 
 
 def generate_technical_indicators(
-    prices: pd.Series, periods: List[int] = [20, 50, 200]
+    prices: pd.Series, periods: List[int] = None
 ) -> Dict[str, pd.Series]:
     """
     Generate common technical indicators for testing
@@ -100,6 +100,8 @@ def generate_technical_indicators(
     Returns:
         Dictionary of indicator series
     """
+    if periods is None:
+        periods = [20, 50, 200]
     indicators = {}
 
     # Simple Moving Averages
@@ -156,7 +158,7 @@ def generate_mean_reversion_scenario(days: int = 100) -> pd.DataFrame:
     )
 
     data = []
-    for i, (date, close) in enumerate(zip(dates, closes)):
+    for _i, (date, close) in enumerate(zip(dates, closes, strict=False)):
         daily_range = close * 0.02
         open_price = float(close * (1 + np.random.uniform(-0.005, 0.005)))
         high = float(max(open_price, close) + daily_range * 0.5)
@@ -211,7 +213,7 @@ def generate_sideways_scenario(days: int = 100) -> pd.DataFrame:
 
 
 def generate_multi_symbol_data(
-    symbols: List[str] = ["AAPL", "TSLA", "SPY"], days: int = 100
+    symbols: List[str] = None, days: int = 100
 ) -> Dict[str, pd.DataFrame]:
     """
     Generate OHLCV data for multiple symbols
@@ -223,6 +225,8 @@ def generate_multi_symbol_data(
     Returns:
         Dictionary mapping symbols to DataFrames
     """
+    if symbols is None:
+        symbols = ["AAPL", "TSLA", "SPY"]
     data = {}
 
     for symbol in symbols:
@@ -249,7 +253,7 @@ def generate_multi_symbol_data(
 
 
 def generate_backtest_data(
-    start_date: str = "2024-01-01", end_date: str = "2024-03-01", symbols: List[str] = ["TEST"]
+    start_date: str = "2024-01-01", end_date: str = "2024-03-01", symbols: List[str] = None
 ) -> Dict[str, pd.DataFrame]:
     """
     Generate data suitable for backtesting
@@ -262,6 +266,8 @@ def generate_backtest_data(
     Returns:
         Dictionary mapping symbols to DataFrames
     """
+    if symbols is None:
+        symbols = ["TEST"]
     start = datetime.strptime(start_date, "%Y-%m-%d")
     end = datetime.strptime(end_date, "%Y-%m-%d")
     days = (end - start).days

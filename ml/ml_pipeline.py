@@ -27,10 +27,7 @@ Usage:
         print(f"Model failed: {result.failure_reason}")
 """
 
-import asyncio
-import json
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -475,7 +472,6 @@ class MLPipeline:
         end_date: date,
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """Prepare training data for a symbol."""
-        from datetime import timedelta
 
         try:
             bars = await self.broker.get_bars(

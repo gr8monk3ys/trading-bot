@@ -11,14 +11,13 @@ ALL orders must pass through this gateway to ensure:
 This eliminates the gaps where orders could bypass safety checks.
 """
 
-import asyncio
 import logging
-from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
 from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 from utils.audit_log import AuditEventType, AuditLog, log_order_event
-from utils.order_lifecycle import OrderLifecycleTracker, OrderState
+from utils.order_lifecycle import OrderLifecycleTracker
 
 logger = logging.getLogger(__name__)
 

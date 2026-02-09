@@ -16,7 +16,6 @@ Tests cover:
 import os
 import sys
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -25,7 +24,6 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from brokers.backtest_broker import BacktestBroker
-
 
 # =============================================================================
 # FIXTURES
@@ -84,7 +82,7 @@ class TestBacktestBrokerInit:
         assert broker.balance == 10000
         assert broker.slippage_bps == 5.0
         assert broker.spread_bps == 3.0
-        assert broker.enable_partial_fills == True
+        assert broker.enable_partial_fills
         assert broker.positions == {}
         assert broker.orders == []
         assert broker.trades == []
@@ -106,7 +104,7 @@ class TestBacktestBrokerInit:
         assert broker.balance == 50000
         assert broker.slippage_bps == 10.0
         assert broker.spread_bps == 5.0
-        assert broker.enable_partial_fills == False
+        assert not broker.enable_partial_fills
 
 
 # =============================================================================
@@ -602,7 +600,6 @@ class TestEdgeCases:
 
     def test_price_data_with_timezone(self, broker):
         """Test handling price data with timezone-aware index."""
-        import pytz
 
         dates = pd.date_range(start="2024-01-01", periods=10, freq="B", tz="UTC")
         prices = [100 + i for i in range(10)]
@@ -626,7 +623,7 @@ class TestEdgeCases:
 
     def test_multiple_orders_same_symbol(self, broker_with_data):
         """Test multiple orders for same symbol."""
-        for i in range(5):
+        for _i in range(5):
             broker_with_data.place_order("AAPL", 10, "buy")
 
         position = broker_with_data.get_position("AAPL")
@@ -667,11 +664,11 @@ class TestRealisticScenarios:
 
         # Buy
         buy_order = broker_with_data.place_order("AAPL", 100, "buy")
-        buy_price = buy_order["filled_avg_price"]
+        buy_order["filled_avg_price"]
 
         # Sell
         sell_order = broker_with_data.place_order("AAPL", 100, "sell")
-        sell_price = sell_order["filled_avg_price"]
+        sell_order["filled_avg_price"]
 
         final_balance = broker_with_data.get_balance()
 

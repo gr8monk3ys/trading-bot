@@ -5,14 +5,12 @@ Unit tests for utils/sector_rotation.py
 Tests SectorRotator class and EconomicPhase enum.
 """
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-import numpy as np
+import pytest
 
-from utils.sector_rotation import SectorRotator, EconomicPhase
-
+from utils.sector_rotation import EconomicPhase, SectorRotator
 
 # ============================================================================
 # Fixtures
@@ -291,7 +289,6 @@ class TestGetSectorAllocations:
         allocations = await rotator.get_sector_allocations()
 
         # With low confidence, allocations should be closer to equal weight
-        equal_weight = 1.0 / 11
         for alloc in allocations.values():
             # Should be somewhat close to equal weight
             assert 0.05 <= alloc <= 0.15
@@ -381,7 +378,7 @@ class TestGetSectorMomentum:
         momentum = await rotator.get_sector_momentum()
 
         # All sectors should have positive momentum
-        for etf, mom in momentum.items():
+        for _etf, mom in momentum.items():
             assert mom > 0
 
     @pytest.mark.asyncio
@@ -394,7 +391,7 @@ class TestGetSectorMomentum:
         momentum = await rotator.get_sector_momentum()
 
         # All sectors should have negative momentum
-        for etf, mom in momentum.items():
+        for _etf, mom in momentum.items():
             assert mom < 0
 
     @pytest.mark.asyncio

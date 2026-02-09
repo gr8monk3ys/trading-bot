@@ -3,7 +3,6 @@ Order Reconciliation - verify broker orders vs internal lifecycle tracker.
 """
 
 import logging
-from typing import Optional
 
 from utils.order_lifecycle import OrderState
 

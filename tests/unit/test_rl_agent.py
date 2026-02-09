@@ -1,25 +1,25 @@
 """
 Tests for the DQN Reinforcement Learning agent.
 """
-import pytest
-import numpy as np
 import os
-import tempfile
+
+import numpy as np
+import pytest
 
 # Skip all tests if torch is not installed
 torch = pytest.importorskip("torch")
 
-from ml.rl_agent import (
-    DQNAgent,
+from ml.rl_agent import (  # noqa: E402
+    DEFAULT_SPREAD_BPS,
+    DRAWDOWN_PENALTY_COEFF,
+    MARKET_IMPACT_COEFF,
     DoubleDQNAgent,
-    TradingAction,
+    DQNAgent,
+    DQNNetwork,
     Experience,
     ReplayBuffer,
-    DQNNetwork,
     RewardConfig,
-    DEFAULT_SPREAD_BPS,
-    MARKET_IMPACT_COEFF,
-    DRAWDOWN_PENALTY_COEFF,
+    TradingAction,
 )
 
 
@@ -93,7 +93,7 @@ class TestReplayBuffer:
     def test_sample_more_than_available(self):
         """Test sampling when requesting more than available."""
         buffer = ReplayBuffer(capacity=100)
-        for i in range(5):
+        for _i in range(5):
             exp = Experience(np.zeros(20), 0, 0.0, np.zeros(20), False)
             buffer.push(exp)
 
@@ -103,7 +103,7 @@ class TestReplayBuffer:
     def test_clear_buffer(self):
         """Test clearing buffer."""
         buffer = ReplayBuffer(capacity=100)
-        for i in range(10):
+        for _i in range(10):
             exp = Experience(np.zeros(20), 0, 0.0, np.zeros(20), False)
             buffer.push(exp)
         assert len(buffer) == 10
@@ -160,7 +160,7 @@ class TestDQNAgent:
         """Generate sample OHLCV price data."""
         base_price = 100.0
         prices = []
-        for i in range(20):
+        for _i in range(20):
             change = np.random.randn() * 0.02
             close = base_price * (1 + change)
             prices.append({
@@ -453,7 +453,7 @@ class TestIntegration:
         position = 0.0
         prices = []
 
-        for step in range(100):
+        for _step in range(100):
             # Generate price movement
             change = np.random.randn() * 0.02
             price = base_price * (1 + change)
@@ -529,7 +529,7 @@ class TestIntegration:
             prices = []
             total_reward = 0.0
 
-            for step in range(50):
+            for _step in range(50):
                 # Uptrend with noise
                 trend = 0.002  # 0.2% trend
                 noise = np.random.randn() * 0.01
@@ -571,15 +571,15 @@ class TestIntegration:
 
         # Run multiple episodes
         rewards = []
-        for ep in range(20):
+        for _ep in range(20):
             reward = run_episode(agent)
             rewards.append(reward)
             agent.end_episode()
 
         # Check that later episodes have higher average reward
         # (learning is happening)
-        early_avg = np.mean(rewards[:5])
-        late_avg = np.mean(rewards[-5:])
+        np.mean(rewards[:5])
+        np.mean(rewards[-5:])
 
         # Allow some variance - just check agent is functioning
         assert len(rewards) == 20
@@ -782,7 +782,6 @@ class TestDrawdownPenalty:
         penalty_20pct = agent.calculate_drawdown_penalty(80000)  # 20%
 
         # Penalty should be 4x for 2x drawdown (quadratic)
-        expected_ratio = 4.0
         actual_ratio = penalty_20pct / penalty_10pct
         assert 3.5 < actual_ratio < 4.5
 

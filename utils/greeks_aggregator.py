@@ -147,8 +147,8 @@ class GreeksLimitResult:
             "portfolio_value": self.portfolio_value,
             "greeks": self.greeks.to_dict(),
             "violations": [
-                {"description": d, "type": t.value, "value": v, "limit": l}
-                for d, t, v, l in self.violations
+                {"description": d, "type": t.value, "value": v, "limit": lim}
+                for d, t, v, lim in self.violations
             ],
             "position_count": self.position_count,
             "underlying_count": self.underlying_count,
@@ -423,9 +423,8 @@ class GreeksAggregator:
             return recommendations
 
         greeks = result.greeks
-        portfolio_value = result.portfolio_value
 
-        for desc, violation_type, value, limit in result.violations:
+        for _desc, violation_type, value, limit in result.violations:
             if violation_type == GreeksViolation.DELTA_TOO_HIGH:
                 # Delta hedge with shares or futures
                 excess_delta = greeks.net_delta * (1 - limit / value) * np.sign(greeks.net_delta)
@@ -449,7 +448,7 @@ class GreeksAggregator:
                     "details": "Consider selling premium to reduce long gamma or buying to reduce short gamma",
                 }
                 recommendations["summary"].append(
-                    f"Reduce gamma exposure via options spreads"
+                    "Reduce gamma exposure via options spreads"
                 )
 
             elif violation_type == GreeksViolation.VEGA_TOO_HIGH:
@@ -462,7 +461,7 @@ class GreeksAggregator:
                     "details": "Consider VIX products for broad vol hedge or calendars for single-name",
                 }
                 recommendations["summary"].append(
-                    f"Reduce vega exposure via VIX or calendar spreads"
+                    "Reduce vega exposure via VIX or calendar spreads"
                 )
 
         return recommendations
@@ -587,7 +586,7 @@ def print_greeks_report(result: GreeksLimitResult):
 
     if result.violations:
         print("\n--- Violations ---")
-        for desc, vtype, value, limit in result.violations:
+        for desc, _vtype, _value, _limit in result.violations:
             print(f"  ✗ {desc}")
 
     print("=" * 60 + "\n")

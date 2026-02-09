@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        /* ---- Custom dark theme tokens ---- */
+        :root {
+            --bg-primary: #0f1117;
+            --bg-card: #1a1d29;
+            --bg-card-hover: #1f2333;
+            --border-card: #2a2d3a;
+            --border-subtle: #222530;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --green: #22c55e;
+            --green-dim: #16a34a;
+            --red: #ef4444;
+            --red-dim: #dc2626;
+            --accent: #3b82f6;
+            --accent-dim: #2563eb;
+            --amber: #f59e0b;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+        }
+
+        /* Smooth data transitions */
+        .data-cell { transition: color 0.4s ease, background-color 0.4s ease; }
+
+        /* Skeleton pulse */
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.15; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg, #2a2d3a 25%, #353849 50%, #2a2d3a 75%);
+            background-size: 200% 100%;
+            animation: pulse 1.8s ease-in-out infinite;
+            border-radius: 4px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-card); border-radius: 3px; }
+
+        /* Chart canvas */
+        #equityChart { max-height: 320px; }
+
+        /* Table row hover */
+        .tbl-row:hover { background-color: var(--bg-card-hover); }
+
+        /* Status dot animation */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .status-dot-blink { animation: blink 2s ease-in-out infinite; }
+
+        /* Toast notification */
+        .toast {
+            transform: translateX(120%);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .toast.show { transform: translateX(0); }
+    </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Toast container -->
+<div id="toast" class="toast fixed top-4 right-4 z-50 px-4 py-3 rounded-lg border text-sm max-w-xs"
+     style="background:var(--bg-card);border-color:var(--border-card);">
+    <span id="toastMsg"></span>
+</div>
+
+<!-- ================================================================== -->
+<!-- HEADER                                                              -->
+<!-- ================================================================== -->
+<header class="border-b" style="border-color:var(--border-card);background:var(--bg-card);">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-2">
+        <!-- Left -->
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg font-semibold tracking-tight" style="color:var(--text-primary);">
+                Trading Dashboard
+            </h1>
+            <!-- Mode badge -->
+            <span id="modeBadge" class="text-xs font-medium px-2 py-0.5 rounded"
+                  style="background:{% if paper_mode %}#1e3a5f;color:#60a5fa{% else %}#3b1c1c;color:#f87171{% endif %};">
+                {% if paper_mode %}PAPER{% else %}LIVE{% endif %}
+            </span>
+            <span class="text-xs" style="color:var(--text-muted);">v{{ version }}</span>
+        </div>
+        <!-- Right -->
+        <div class="flex items-center gap-4 text-xs" style="color:var(--text-secondary);">
+            <!-- Market status -->
+            <div class="flex items-center gap-1.5">
+                <span id="marketDot" class="inline-block w-2 h-2 rounded-full" style="background:var(--text-muted);"></span>
+                <span id="marketLabel">Market: --</span>
+            </div>
+            <!-- Uptime -->
+            <div class="hidden sm:block">
+                <span id="uptimeLabel">Uptime: --</span>
+            </div>
+            <!-- Last updated -->
+            <div>
+                <span id="lastUpdated">Updated: --</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- ============================================================== -->
+    <!-- KPI CARDS                                                       -->
+    <!-- ============================================================== -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpiSection">
+        <!-- Equity -->
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Total Equity</p>
+            <p id="kpiEquity" class="text-2xl font-bold data-cell skeleton" style="min-height:2rem;">&nbsp;</p>
+        </div>
+        <!-- Day P&L -->
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Day P&amp;L</p>
+            <p id="kpiDayPnl" class="text-2xl font-bold data-cell skeleton" style="min-height:2rem;">&nbsp;</p>
+            <p id="kpiDayPnlPct" class="text-xs mt-0.5 data-cell" style="color:var(--text-secondary);">&nbsp;</p>
+        </div>
+        <!-- Open Positions -->
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Open Positions</p>
+            <p id="kpiPositions" class="text-2xl font-bold data-cell skeleton" style="min-height:2rem;">&nbsp;</p>
+        </div>
+        <!-- Win Rate -->
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Win Rate</p>
+            <p id="kpiWinRate" class="text-2xl font-bold data-cell skeleton" style="min-height:2rem;">&nbsp;</p>
+        </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- EQUITY CURVE                                                    -->
+    <!-- ============================================================== -->
+    <section class="rounded-lg border p-4" style="background:var(--bg-card);border-color:var(--border-card);">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold" style="color:var(--text-secondary);">Equity Curve</h2>
+            <span id="chartRange" class="text-xs" style="color:var(--text-muted);">Last 30 days</span>
+        </div>
+        <div class="relative" style="height:300px;">
+            <canvas id="equityChart"></canvas>
+            <div id="chartEmpty" class="hidden absolute inset-0 flex items-center justify-center text-sm"
+                 style="color:var(--text-muted);">
+                No equity data available yet. Metrics will appear once the bot has been running.
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- POSITIONS  +  TRADES  (two columns on desktop)                  -->
+    <!-- ============================================================== -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <!-- Open Positions -->
+        <div class="rounded-lg border overflow-hidden" style="background:var(--bg-card);border-color:var(--border-card);">
+            <div class="px-4 py-3 border-b" style="border-color:var(--border-subtle);">
+                <h2 class="text-sm font-semibold" style="color:var(--text-secondary);">Open Positions</h2>
+            </div>
+            <div class="overflow-x-auto" style="max-height:380px;overflow-y:auto;">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr style="color:var(--text-muted);" class="border-b" style="border-color:var(--border-subtle);">
+                            <th class="px-4 py-2 text-left font-medium">Symbol</th>
+                            <th class="px-3 py-2 text-right font-medium">Qty</th>
+                            <th class="px-3 py-2 text-right font-medium">Entry</th>
+                            <th class="px-3 py-2 text-right font-medium">Current</th>
+                            <th class="px-3 py-2 text-right font-medium">Mkt Value</th>
+                            <th class="px-3 py-2 text-right font-medium">P&amp;L ($)</th>
+                            <th class="px-3 py-2 text-right font-medium">P&amp;L (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positionsBody">
+                        <tr><td colspan="7" class="px-4 py-8 text-center" style="color:var(--text-muted);">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Trades -->
+        <div class="rounded-lg border overflow-hidden" style="background:var(--bg-card);border-color:var(--border-card);">
+            <div class="px-4 py-3 border-b" style="border-color:var(--border-subtle);">
+                <h2 class="text-sm font-semibold" style="color:var(--text-secondary);">Recent Trades</h2>
+            </div>
+            <div class="overflow-x-auto" style="max-height:380px;overflow-y:auto;">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr style="color:var(--text-muted);" class="border-b" style="border-color:var(--border-subtle);">
+                            <th class="px-4 py-2 text-left font-medium">Time</th>
+                            <th class="px-3 py-2 text-left font-medium">Symbol</th>
+                            <th class="px-3 py-2 text-left font-medium">Side</th>
+                            <th class="px-3 py-2 text-right font-medium">Qty</th>
+                            <th class="px-3 py-2 text-right font-medium">Price</th>
+                            <th class="px-3 py-2 text-right font-medium">P&amp;L</th>
+                            <th class="px-3 py-2 text-left font-medium">Strategy</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradesBody">
+                        <tr><td colspan="7" class="px-4 py-8 text-center" style="color:var(--text-muted);">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- PERFORMANCE METRICS                                             -->
+    <!-- ============================================================== -->
+    <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4" id="perfSection">
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Sharpe Ratio</p>
+            <p id="perfSharpe" class="text-xl font-bold data-cell skeleton" style="min-height:1.75rem;">&nbsp;</p>
+        </div>
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Sortino Ratio</p>
+            <p id="perfSortino" class="text-xl font-bold data-cell skeleton" style="min-height:1.75rem;">&nbsp;</p>
+        </div>
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Max Drawdown</p>
+            <p id="perfDrawdown" class="text-xl font-bold data-cell skeleton" style="min-height:1.75rem;">&nbsp;</p>
+        </div>
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Profit Factor</p>
+            <p id="perfProfitFactor" class="text-xl font-bold data-cell skeleton" style="min-height:1.75rem;">&nbsp;</p>
+        </div>
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Total Trades</p>
+            <p id="perfTotalTrades" class="text-xl font-bold data-cell skeleton" style="min-height:1.75rem;">&nbsp;</p>
+        </div>
+        <div class="rounded-lg p-4 border" style="background:var(--bg-card);border-color:var(--border-card);">
+            <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--text-muted);">Total P&amp;L</p>
+            <p id="perfTotalPnl" class="text-xl font-bold data-cell skeleton" style="min-height:1.75rem;">&nbsp;</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs pb-4" style="color:var(--text-muted);">
+        Trading Bot Dashboard v{{ version }} &middot; Data refreshes every 30 s
+    </footer>
+
+</main>
+
+<!-- ================================================================== -->
+<!-- JAVASCRIPT                                                          -->
+<!-- ================================================================== -->
+<script>
+(function () {
+    "use strict";
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
+
+    function fmtCurrency(n) {
+        if (n == null || isNaN(n)) return "--";
+        return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
+    }
+
+    function fmtNumber(n, decimals) {
+        if (n == null || isNaN(n)) return "--";
+        return new Intl.NumberFormat("en-US", { minimumFractionDigits: decimals || 0, maximumFractionDigits: decimals || 0 }).format(n);
+    }
+
+    function fmtPct(n, decimals) {
+        if (n == null || isNaN(n)) return "--";
+        const d = decimals != null ? decimals : 2;
+        return (n >= 0 ? "+" : "") + n.toFixed(d) + "%";
+    }
+
+    function fmtPnl(n) {
+        if (n == null || isNaN(n)) return "--";
+        return (n >= 0 ? "+" : "") + fmtCurrency(n);
+    }
+
+    function pnlColor(n) {
+        if (n == null || n === 0) return "var(--text-secondary)";
+        return n > 0 ? "var(--green)" : "var(--red)";
+    }
+
+    function fmtTime(iso) {
+        if (!iso) return "--";
+        try {
+            const d = new Date(iso);
+            return d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+        } catch { return iso; }
+    }
+
+    function fmtDate(iso) {
+        if (!iso) return "--";
+        try {
+            const d = new Date(iso);
+            return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        } catch { return iso; }
+    }
+
+    function clearSkeleton(el) {
+        if (el) el.classList.remove("skeleton");
+    }
+
+    function showToast(msg, durationMs) {
+        const toast = $("#toast");
+        const toastMsg = $("#toastMsg");
+        toastMsg.textContent = msg;
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), durationMs || 3000);
+    }
+
+    // ------------------------------------------------------------------
+    // State
+    // ------------------------------------------------------------------
+    let equityChart = null;
+    let refreshInterval = null;
+    let consecutiveErrors = 0;
+    const MAX_ERRORS_BEFORE_TOAST = 3;
+
+    // ------------------------------------------------------------------
+    // Data fetchers
+    // ------------------------------------------------------------------
+    async function fetchJSON(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+    }
+
+    // ------------------------------------------------------------------
+    // Render: KPI Cards
+    // ------------------------------------------------------------------
+    function renderAccount(data) {
+        const eq = $("#kpiEquity");
+        clearSkeleton(eq);
+        eq.textContent = fmtCurrency(data.equity);
+        eq.style.color = "var(--text-primary)";
+
+        const pnl = $("#kpiDayPnl");
+        clearSkeleton(pnl);
+        pnl.textContent = fmtPnl(data.day_pnl);
+        pnl.style.color = pnlColor(data.day_pnl);
+
+        const pct = $("#kpiDayPnlPct");
+        pct.textContent = data.day_pnl_pct != null ? fmtPct(data.day_pnl_pct) : "";
+        pct.style.color = pnlColor(data.day_pnl_pct);
+    }
+
+    function renderPositionCount(count) {
+        const el = $("#kpiPositions");
+        clearSkeleton(el);
+        el.textContent = fmtNumber(count);
+        el.style.color = "var(--text-primary)";
+    }
+
+    function renderWinRate(rate) {
+        const el = $("#kpiWinRate");
+        clearSkeleton(el);
+        if (rate == null || isNaN(rate)) {
+            el.textContent = "--";
+            el.style.color = "var(--text-secondary)";
+        } else {
+            el.textContent = rate.toFixed(1) + "%";
+            el.style.color = rate >= 50 ? "var(--green)" : rate >= 40 ? "var(--amber)" : "var(--red)";
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Render: Positions table
+    // ------------------------------------------------------------------
+    function renderPositions(positions) {
+        const body = $("#positionsBody");
+        if (!positions || positions.length === 0) {
+            body.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center" style="color:var(--text-muted);">No open positions</td></tr>`;
+            return;
+        }
+        let html = "";
+        for (const p of positions) {
+            const plColor = pnlColor(p.unrealized_pl);
+            const plPct = p.unrealized_plpc != null ? (p.unrealized_plpc * 100) : null;
+            html += `<tr class="tbl-row border-b" style="border-color:var(--border-subtle);">
+                <td class="px-4 py-2 font-medium" style="color:var(--accent);">${p.symbol}</td>
+                <td class="px-3 py-2 text-right">${fmtNumber(p.qty, 2)}</td>
+                <td class="px-3 py-2 text-right">${fmtCurrency(p.avg_entry_price)}</td>
+                <td class="px-3 py-2 text-right">${fmtCurrency(p.current_price)}</td>
+                <td class="px-3 py-2 text-right">${fmtCurrency(p.market_value)}</td>
+                <td class="px-3 py-2 text-right data-cell" style="color:${plColor};">${fmtPnl(p.unrealized_pl)}</td>
+                <td class="px-3 py-2 text-right data-cell" style="color:${plColor};">${fmtPct(plPct)}</td>
+            </tr>`;
+        }
+        body.innerHTML = html;
+    }
+
+    // ------------------------------------------------------------------
+    // Render: Trades table
+    // ------------------------------------------------------------------
+    function renderTrades(trades) {
+        const body = $("#tradesBody");
+        if (!trades || trades.length === 0) {
+            body.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center" style="color:var(--text-muted);">No trades recorded yet</td></tr>`;
+            return;
+        }
+        let html = "";
+        for (const t of trades) {
+            const sideColor = (t.side || "").toLowerCase() === "buy" ? "var(--green)" : "var(--red)";
+            const sideLabel = (t.side || "").toUpperCase();
+            const plColor = pnlColor(t.pnl);
+            html += `<tr class="tbl-row border-b" style="border-color:var(--border-subtle);">
+                <td class="px-4 py-2" style="color:var(--text-secondary);">${fmtTime(t.timestamp)}</td>
+                <td class="px-3 py-2 font-medium" style="color:var(--accent);">${t.symbol}</td>
+                <td class="px-3 py-2 font-medium" style="color:${sideColor};">${sideLabel}</td>
+                <td class="px-3 py-2 text-right">${fmtNumber(t.qty, 2)}</td>
+                <td class="px-3 py-2 text-right">${fmtCurrency(t.price)}</td>
+                <td class="px-3 py-2 text-right data-cell" style="color:${plColor};">${t.pnl != null ? fmtPnl(t.pnl) : "--"}</td>
+                <td class="px-3 py-2" style="color:var(--text-muted);">${t.strategy || "--"}</td>
+            </tr>`;
+        }
+        body.innerHTML = html;
+    }
+
+    // ------------------------------------------------------------------
+    // Render: Equity chart
+    // ------------------------------------------------------------------
+    function renderChart(metrics) {
+        const canvas = $("#equityChart");
+        const emptyMsg = $("#chartEmpty");
+
+        if (!metrics || metrics.length === 0) {
+            if (equityChart) { equityChart.destroy(); equityChart = null; }
+            canvas.style.display = "none";
+            emptyMsg.classList.remove("hidden");
+            return;
+        }
+        canvas.style.display = "block";
+        emptyMsg.classList.add("hidden");
+
+        const labels = metrics.map(m => fmtDate(m.date));
+        const equityData = metrics.map(m => m.ending_equity);
+        const pnlData = metrics.map(m => m.pnl);
+
+        if (equityChart) {
+            equityChart.data.labels = labels;
+            equityChart.data.datasets[0].data = equityData;
+            equityChart.data.datasets[1].data = pnlData;
+            equityChart.update("none");
+            return;
+        }
+
+        const ctx = canvas.getContext("2d");
+
+        /* Gradient fill for equity line */
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, "rgba(34,197,94,0.25)");
+        gradient.addColorStop(1, "rgba(34,197,94,0.0)");
+
+        equityChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: "Equity",
+                        data: equityData,
+                        borderColor: "#22c55e",
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHitRadius: 8,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: "y",
+                    },
+                    {
+                        label: "Daily P&L",
+                        data: pnlData,
+                        type: "bar",
+                        backgroundColor: pnlData.map(v => v >= 0 ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"),
+                        borderColor: pnlData.map(v => v >= 0 ? "#22c55e" : "#ef4444"),
+                        borderWidth: 1,
+                        borderRadius: 2,
+                        yAxisID: "y1",
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: "index", intersect: false },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: "top",
+                        align: "end",
+                        labels: { color: "#94a3b8", boxWidth: 12, padding: 16, font: { size: 11 } },
+                    },
+                    tooltip: {
+                        backgroundColor: "#1a1d29",
+                        titleColor: "#e2e8f0",
+                        bodyColor: "#94a3b8",
+                        borderColor: "#2a2d3a",
+                        borderWidth: 1,
+                        padding: 10,
+                        callbacks: {
+                            label: function (ctx) {
+                                const val = ctx.parsed.y;
+                                if (ctx.dataset.label === "Equity") return " Equity: " + fmtCurrency(val);
+                                return " P&L: " + fmtPnl(val);
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        grid: { color: "rgba(42,45,58,0.5)", drawBorder: false },
+                        ticks: { color: "#64748b", font: { size: 10 }, maxTicksLimit: 10 },
+                    },
+                    y: {
+                        position: "left",
+                        grid: { color: "rgba(42,45,58,0.5)", drawBorder: false },
+                        ticks: {
+                            color: "#64748b",
+                            font: { size: 10 },
+                            callback: (v) => "$" + fmtNumber(v),
+                        },
+                    },
+                    y1: {
+                        position: "right",
+                        grid: { display: false },
+                        ticks: {
+                            color: "#64748b",
+                            font: { size: 10 },
+                            callback: (v) => (v >= 0 ? "+" : "") + "$" + fmtNumber(v),
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Render: Performance metrics cards
+    // ------------------------------------------------------------------
+    function renderPerformance(perf) {
+        function set(id, val, colorize) {
+            const el = $(id);
+            clearSkeleton(el);
+            if (val == null || val === undefined || isNaN(val)) {
+                el.textContent = "--";
+                el.style.color = "var(--text-secondary)";
+            } else {
+                el.textContent = typeof val === "string" ? val : val;
+                if (colorize) el.style.color = "var(--text-primary)";
+            }
+        }
+
+        set("#perfSharpe", perf.sharpe_ratio != null ? perf.sharpe_ratio.toFixed(2) : null, true);
+        set("#perfSortino", perf.sortino_ratio != null ? perf.sortino_ratio.toFixed(2) : null, true);
+
+        const ddEl = $("#perfDrawdown");
+        clearSkeleton(ddEl);
+        if (perf.max_drawdown != null) {
+            ddEl.textContent = perf.max_drawdown.toFixed(2) + "%";
+            ddEl.style.color = perf.max_drawdown > 10 ? "var(--red)" : perf.max_drawdown > 5 ? "var(--amber)" : "var(--green)";
+        } else {
+            ddEl.textContent = "--";
+            ddEl.style.color = "var(--text-secondary)";
+        }
+
+        set("#perfProfitFactor", perf.profit_factor != null ? perf.profit_factor.toFixed(2) : null, true);
+        set("#perfTotalTrades", perf.total_trades != null ? fmtNumber(perf.total_trades) : null, true);
+
+        const pnlEl = $("#perfTotalPnl");
+        clearSkeleton(pnlEl);
+        if (perf.total_pnl != null) {
+            pnlEl.textContent = fmtPnl(perf.total_pnl);
+            pnlEl.style.color = pnlColor(perf.total_pnl);
+        } else {
+            pnlEl.textContent = "--";
+            pnlEl.style.color = "var(--text-secondary)";
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Render: Market status
+    // ------------------------------------------------------------------
+    function renderMarketStatus(data) {
+        const dot = $("#marketDot");
+        const label = $("#marketLabel");
+        if (data && data.is_open) {
+            dot.style.background = "var(--green)";
+            dot.classList.add("status-dot-blink");
+            label.textContent = "Market: Open";
+            label.style.color = "var(--green)";
+        } else {
+            dot.style.background = "var(--red)";
+            dot.classList.remove("status-dot-blink");
+            label.textContent = "Market: Closed";
+            label.style.color = "var(--text-secondary)";
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Master refresh
+    // ------------------------------------------------------------------
+    async function refreshAll() {
+        const ts = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+        let hadError = false;
+
+        // Fetch all endpoints in parallel
+        const [accountRes, positionsRes, tradesRes, perfRes, dailyRes, marketRes, healthRes] = await Promise.allSettled([
+            fetchJSON("/api/account"),
+            fetchJSON("/api/positions"),
+            fetchJSON("/api/trades?limit=20"),
+            fetchJSON("/api/performance"),
+            fetchJSON("/api/daily-metrics?days=30"),
+            fetchJSON("/api/market-status"),
+            fetchJSON("/api/health"),
+        ]);
+
+        // Account
+        if (accountRes.status === "fulfilled" && !accountRes.value.error) {
+            renderAccount(accountRes.value);
+        } else { hadError = true; }
+
+        // Positions
+        if (positionsRes.status === "fulfilled") {
+            const pd = positionsRes.value;
+            renderPositions(pd.positions || []);
+            renderPositionCount(pd.count || 0);
+        } else { hadError = true; }
+
+        // Trades
+        if (tradesRes.status === "fulfilled") {
+            renderTrades(tradesRes.value.trades || []);
+        } else { hadError = true; }
+
+        // Performance
+        if (perfRes.status === "fulfilled" && !perfRes.value.error) {
+            renderPerformance(perfRes.value);
+            renderWinRate(perfRes.value.win_rate);
+        } else { hadError = true; }
+
+        // Daily metrics / chart
+        if (dailyRes.status === "fulfilled") {
+            renderChart(dailyRes.value.metrics || []);
+        } else { hadError = true; }
+
+        // Market status
+        if (marketRes.status === "fulfilled") {
+            renderMarketStatus(marketRes.value);
+        }
+
+        // Health / uptime
+        if (healthRes.status === "fulfilled") {
+            const h = healthRes.value;
+            $("#uptimeLabel").textContent = "Uptime: " + (h.uptime_human || "--");
+        }
+
+        // Update timestamp
+        $("#lastUpdated").textContent = "Updated: " + ts;
+
+        // Error handling
+        if (hadError) {
+            consecutiveErrors++;
+            if (consecutiveErrors === MAX_ERRORS_BEFORE_TOAST) {
+                showToast("Some data failed to load. Retrying...", 4000);
+            }
+        } else {
+            if (consecutiveErrors >= MAX_ERRORS_BEFORE_TOAST) {
+                showToast("Connection restored", 2000);
+            }
+            consecutiveErrors = 0;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Init
+    // ------------------------------------------------------------------
+    async function init() {
+        await refreshAll();
+        refreshInterval = setInterval(refreshAll, 30000);
+    }
+
+    // Run on DOM ready
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+    } else {
+        init();
+    }
+})();
+</script>
+</body>
+</html>

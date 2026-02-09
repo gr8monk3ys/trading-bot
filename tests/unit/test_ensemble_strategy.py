@@ -12,13 +12,12 @@ Tests cover:
 
 import warnings
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pytest
 
 from strategies.ensemble_strategy import EnsembleStrategy
-
 
 # =============================================================================
 # FIXTURES
@@ -49,7 +48,7 @@ def sample_price_history():
     prices = base * np.cumprod(1 + returns)
 
     history = []
-    for i, p in enumerate(prices):
+    for _i, p in enumerate(prices):
         high = p * (1 + abs(np.random.normal(0, 0.01)))
         low = p * (1 - abs(np.random.normal(0, 0.01)))
         open_price = p * (1 + np.random.normal(0, 0.005))
@@ -537,7 +536,7 @@ class TestSubStrategySignals:
 
         signals = strategy.sub_strategy_signals["AAPL"]
         # All should be neutral in ranging market with neutral indicators
-        for strategy_name, signal_data in signals.items():
+        for _strategy_name, signal_data in signals.items():
             assert signal_data["signal"] in ["neutral", "buy", "sell"]
 
 

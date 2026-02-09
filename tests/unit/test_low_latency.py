@@ -9,23 +9,22 @@ Tests:
 - Executor operations
 """
 
-import pytest
 import asyncio
 import time
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from execution.low_latency import (
-    LowLatencyExecutor,
-    LatencyMonitor,
-    LatencyStats,
-    LatencyBucket,
     ConnectionPool,
-    OrderQueue,
-    OrderMessage,
     ExecutionConfig,
-    LatencyOptimizer,
     FastJSONSerializer,
+    LatencyBucket,
+    LatencyMonitor,
+    LatencyOptimizer,
+    LatencyStats,
+    LowLatencyExecutor,
+    OrderMessage,
+    OrderQueue,
     create_low_latency_executor,
     get_monotonic_us,
 )

@@ -69,7 +69,7 @@ class MockMomentumStrategy:
                 continue
 
             # Generate and process signals
-            signal = self.get_signal(symbol, latest_data)
+            self.get_signal(symbol, latest_data)
 
     def get_signal(self, symbol, bar_data):
         """Generate trading signal for a symbol"""

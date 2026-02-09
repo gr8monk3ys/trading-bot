@@ -13,9 +13,9 @@ positions in the same symbol, leading to unintended double exposure.
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Optional, Set, List
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 

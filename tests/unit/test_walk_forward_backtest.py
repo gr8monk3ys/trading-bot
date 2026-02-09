@@ -7,15 +7,12 @@ These tests verify the walk-forward analysis functionality which:
 - Calculates degradation metrics
 """
 
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
+from unittest.mock import patch
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from engine.backtest_engine import BacktestEngine
-
 
 # ============================================================================
 # FIXTURES
@@ -204,7 +201,7 @@ class TestWalkForwardBacktest:
         assert result["is_sharpe"] > 0
         assert result["oos_sharpe"] < result["is_sharpe"]
         # Overfitting should be detected
-        assert result["overfit_detected"] == True  # Use == for numpy bool compatibility
+        assert result["overfit_detected"]  # Use == for numpy bool compatibility
 
     @pytest.mark.asyncio
     async def test_walk_forward_no_overfit(self, engine, mock_strategy_class):
@@ -227,7 +224,7 @@ class TestWalkForwardBacktest:
             )
 
         # Should NOT detect overfitting
-        assert result["overfit_detected"] == False  # Use == for numpy bool compatibility
+        assert not result["overfit_detected"]  # Use == for numpy bool compatibility
 
     @pytest.mark.asyncio
     async def test_walk_forward_embargo_days(self, engine, mock_strategy_class):

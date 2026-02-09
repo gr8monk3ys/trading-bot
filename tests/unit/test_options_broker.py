@@ -22,17 +22,15 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from brokers.options_broker import (
-    OptionsBroker,
-    OptionContract,
-    OptionChain,
-    OptionType,
-    OptionsError,
     InvalidContractError,
+    OptionChain,
+    OptionContract,
+    OptionsBroker,
+    OptionType,
     calculate_contract_value,
     get_monthly_expiration,
     get_weekly_expiration,
 )
-
 
 # =============================================================================
 # TEST FIXTURES
@@ -574,7 +572,7 @@ class TestStrategyHelpers:
         mock_submit = AsyncMock(return_value={"id": "order-123"})
 
         with patch.object(options_broker, 'submit_option_order', mock_submit):
-            result = await options_broker.buy_call(
+            await options_broker.buy_call(
                 underlying="AAPL",
                 expiration=sample_expiration,
                 strike=150.0,
@@ -593,7 +591,7 @@ class TestStrategyHelpers:
         mock_submit = AsyncMock(return_value={"id": "order-123"})
 
         with patch.object(options_broker, 'submit_option_order', mock_submit):
-            result = await options_broker.buy_put(
+            await options_broker.buy_put(
                 underlying="AAPL",
                 expiration=sample_expiration,
                 strike=140.0,
@@ -611,7 +609,7 @@ class TestStrategyHelpers:
         mock_submit = AsyncMock(return_value={"id": "order-123"})
 
         with patch.object(options_broker, 'submit_option_order', mock_submit):
-            result = await options_broker.sell_covered_call(
+            await options_broker.sell_covered_call(
                 underlying="AAPL",
                 expiration=sample_expiration,
                 strike=160.0,
@@ -630,7 +628,7 @@ class TestStrategyHelpers:
         mock_submit = AsyncMock(return_value={"id": "order-123"})
 
         with patch.object(options_broker, 'submit_option_order', mock_submit):
-            result = await options_broker.sell_cash_secured_put(
+            await options_broker.sell_cash_secured_put(
                 underlying="AAPL",
                 expiration=sample_expiration,
                 strike=140.0,

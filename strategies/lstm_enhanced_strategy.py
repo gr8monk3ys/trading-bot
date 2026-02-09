@@ -21,13 +21,12 @@ Usage:
     })
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-from strategies.momentum_strategy import MomentumStrategy
 from ml.lstm_predictor import LSTMPredictor, PredictionResult
+from strategies.momentum_strategy import MomentumStrategy
 
 logger = logging.getLogger(__name__)
 

@@ -5,21 +5,20 @@ Unit tests for utils/extended_hours.py
 Tests ExtendedHoursManager, GapTradingStrategy, and EarningsReactionStrategy classes.
 """
 
-import pytest
 from datetime import datetime, time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 import pytz
 
 from utils.extended_hours import (
+    ET,
+    EarningsReactionStrategy,
     ExtendedHoursManager,
     GapTradingStrategy,
-    EarningsReactionStrategy,
     TradingSession,
     format_session_info,
-    ET,
 )
-
 
 # ============================================================================
 # Fixtures

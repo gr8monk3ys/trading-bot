@@ -9,9 +9,9 @@ These tests verify that:
 5. ReconciliationError is raised when configured
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime
+
+import pytest
 
 
 class TestPositionMismatch:
@@ -37,7 +37,7 @@ class TestReconciliationResult:
 
     def test_result_calculates_total_discrepancy(self):
         """ReconciliationResult should sum discrepancy values."""
-        from utils.reconciliation import ReconciliationResult, PositionMismatch
+        from utils.reconciliation import PositionMismatch, ReconciliationResult
 
         mismatches = [
             PositionMismatch("AAPL", 100, 90, broker_avg_price=150.0),

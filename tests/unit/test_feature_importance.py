@@ -13,21 +13,19 @@ All heavy dependencies (SHAP, PyTorch) are mocked for isolated testing.
 
 from datetime import datetime
 from typing import Dict, List
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from ml.feature_importance import (
+    FeatureImportanceAnalyzer,
     FeatureImportanceResult,
     ImportanceDriftResult,
-    FeatureImportanceAnalyzer,
     LSTMFeatureImportance,
     analyze_feature_importance,
-    _import_shap,
 )
-
 
 # =============================================================================
 # TEST FIXTURES
@@ -722,7 +720,7 @@ class TestGradientImportance:
             with patch("ml.feature_importance.FeatureImportanceAnalyzer.calculate_gradient_importance") as mock_grad:
                 mock_grad.return_value = FeatureImportanceResult(
                     feature_names=sample_feature_names,
-                    importance_scores={f: 0.2 for f in sample_feature_names},
+                    importance_scores=dict.fromkeys(sample_feature_names, 0.2),
                     method="gradient",
                     timestamp=datetime.now(),
                     model_type="neural_network",
@@ -749,7 +747,7 @@ class TestImportanceDriftDetection:
     def test_drift_detection_insufficient_history(self, analyzer_with_features):
         """Test drift detection with insufficient history."""
         # Only add 3 results (need at least 2 * window_size)
-        for i in range(3):
+        for _i in range(3):
             result = FeatureImportanceResult(
                 feature_names=["f1"],
                 importance_scores={"f1": 0.5},
@@ -1306,7 +1304,7 @@ class TestAnalyzeFeatureImportanceFunction:
         ) as mock_grad:
             mock_grad.return_value = FeatureImportanceResult(
                 feature_names=sample_feature_names,
-                importance_scores={f: 0.2 for f in sample_feature_names},
+                importance_scores=dict.fromkeys(sample_feature_names, 0.2),
                 method="gradient",
                 timestamp=datetime.now(),
                 model_type="neural_network",

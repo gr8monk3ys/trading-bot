@@ -15,8 +15,8 @@ Run with: python scripts/validate_alternative_data.py
 
 import asyncio
 import sys
-from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from datetime import datetime
+from typing import Dict
 
 # Color codes for terminal output
 GREEN = "\033[92m"
@@ -71,14 +71,13 @@ def validate_core_types() -> Dict[str, bool]:
 
     try:
         from data.alt_data_types import (
+            AggregatedSignal,
             AltDataSource,
+            AlternativeSignal,
+            OrderFlowSignal,
             SignalDirection,
             SignalStrength,
-            AlternativeSignal,
             SocialSentimentSignal,
-            OrderFlowSignal,
-            WebScrapingSignal,
-            AggregatedSignal,
         )
         results["Import alt_data_types"] = True
 
@@ -167,8 +166,8 @@ def validate_cache() -> Dict[str, bool]:
     results = {}
 
     try:
-        from data.alternative_data_provider import AltDataCache
         from data.alt_data_types import AltDataSource, AlternativeSignal
+        from data.alternative_data_provider import AltDataCache
 
         cache = AltDataCache(default_ttl_seconds=300)
         results["Create cache"] = True
@@ -218,7 +217,6 @@ async def validate_social_sentiment() -> Dict[str, bool]:
         from data.social_sentiment_advanced import (
             RedditSentimentProvider,
             TickerExtractor,
-            SentimentAnalyzer,
         )
 
         # Test TickerExtractor
@@ -262,8 +260,8 @@ async def validate_order_flow() -> Dict[str, bool]:
 
     try:
         from data.order_flow_analyzer import (
-            OrderFlowAnalyzer,
             DarkPoolProvider,
+            OrderFlowAnalyzer,
         )
 
         # Test OrderFlowAnalyzer
@@ -306,9 +304,9 @@ async def validate_web_scrapers() -> Dict[str, bool]:
 
     try:
         from data.web_scraper import (
-            JobPostingsProvider,
-            GlassdoorSentimentProvider,
             AppRankingsProvider,
+            GlassdoorSentimentProvider,
+            JobPostingsProvider,
             WebScraperAggregator,
         )
 
@@ -361,10 +359,10 @@ async def validate_aggregator() -> Dict[str, bool]:
     results = {}
 
     try:
-        from data.alternative_data_provider import AltDataAggregator
-        from data.social_sentiment_advanced import RedditSentimentProvider
-        from data.order_flow_analyzer import OrderFlowAnalyzer
         from data.alt_data_types import AltDataSource
+        from data.alternative_data_provider import AltDataAggregator
+        from data.order_flow_analyzer import OrderFlowAnalyzer
+        from data.social_sentiment_advanced import RedditSentimentProvider
 
         # Create aggregator with multiple providers
         aggregator = AltDataAggregator()
@@ -415,11 +413,11 @@ def validate_ensemble_integration() -> Dict[str, bool]:
 
     try:
         from ml.ensemble_predictor import (
-            SignalSource,
-            SignalComponent,
+            AltDataSignalGenerator,
             EnsemblePredictor,
             MarketRegime,
-            AltDataSignalGenerator,
+            SignalComponent,
+            SignalSource,
             create_ensemble_with_alt_data,
         )
 
@@ -504,13 +502,13 @@ async def validate_end_to_end() -> Dict[str, bool]:
 
     try:
         from data.alternative_data_provider import AltDataAggregator
-        from data.social_sentiment_advanced import RedditSentimentProvider
         from data.order_flow_analyzer import OrderFlowAnalyzer
-        from data.web_scraper import JobPostingsProvider, GlassdoorSentimentProvider
+        from data.social_sentiment_advanced import RedditSentimentProvider
+        from data.web_scraper import GlassdoorSentimentProvider, JobPostingsProvider
         from ml.ensemble_predictor import (
             EnsemblePredictor,
-            SignalSource,
             SignalComponent,
+            SignalSource,
         )
 
         # Step 1: Initialize all alt data providers
@@ -537,7 +535,7 @@ async def validate_end_to_end() -> Dict[str, bool]:
         results["Fetch signals for portfolio"] = True
 
         # Step 3: Verify signal quality
-        for symbol, signal in signals.items():
+        for _symbol, signal in signals.items():
             assert signal.composite_signal is not None
             assert -1.0 <= signal.composite_signal <= 1.0
             assert 0.0 <= signal.composite_confidence <= 1.0
@@ -571,14 +569,14 @@ async def validate_end_to_end() -> Dict[str, bool]:
         results["Ensemble integration"] = True
 
         # Step 5: Test caching
-        cached_signals = await aggregator.get_signals(["AAPL"], use_cache=True)
+        await aggregator.get_signals(["AAPL"], use_cache=True)
         cache_stats = aggregator.get_cache_stats()
         assert cache_stats["hits"] >= 0
         results["Caching works"] = True
 
         # Step 6: Get provider statuses
         statuses = aggregator.get_all_statuses()
-        for source, status in statuses.items():
+        for _source, status in statuses.items():
             assert status.source is not None
             assert isinstance(status.is_healthy, bool)
         results["Provider status reporting"] = True

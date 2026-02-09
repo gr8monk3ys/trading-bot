@@ -350,7 +350,7 @@ class ExecutionTracker:
 
         # Breakdown by symbol
         by_symbol = {}
-        symbols = set(r.symbol for r in records)
+        symbols = {r.symbol for r in records}
         for sym in symbols:
             sym_records = [r for r in records if r.symbol == sym]
             if sym_records:
@@ -362,7 +362,7 @@ class ExecutionTracker:
 
         # Breakdown by algorithm
         by_algo = {}
-        algos = set(r.execution_algo for r in records)
+        algos = {r.execution_algo for r in records}
         for algo in algos:
             algo_records = [r for r in records if r.execution_algo == algo]
             if algo_records:
@@ -480,7 +480,7 @@ class ExecutionTracker:
         if not records:
             return {}
 
-        algos = set(r.execution_algo for r in records)
+        algos = {r.execution_algo for r in records}
         comparison = {}
 
         for algo in algos:

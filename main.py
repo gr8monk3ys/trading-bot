@@ -22,9 +22,9 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from brokers.alpaca_broker import AlpacaBroker
 from config import ALPACA_CREDS, SYMBOL_SELECTION, SYMBOLS
 from engine.strategy_manager import StrategyManager
-from utils.reconciliation import PositionReconciler
-from utils.order_reconciliation import OrderReconciler
 from utils.circuit_breaker import CircuitBreaker
+from utils.order_reconciliation import OrderReconciler
+from utils.reconciliation import PositionReconciler
 from utils.simple_symbol_selector import SimpleSymbolSelector
 
 # Set up logging

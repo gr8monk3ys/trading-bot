@@ -446,7 +446,7 @@ class NewsSentimentAnalyzer:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         sentiment_map = {}
-        for symbol, result in zip(symbols, results):
+        for symbol, result in zip(symbols, results, strict=False):
             if isinstance(result, Exception):
                 self.logger.error(f"Error getting sentiment for {symbol}: {result}")
                 sentiment_map[symbol] = SentimentResult(

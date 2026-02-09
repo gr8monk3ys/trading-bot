@@ -13,20 +13,18 @@ Tests cover:
 import asyncio
 import os
 import tempfile
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from utils.database import (
-    TradingDatabase,
-    Trade,
     DailyMetrics,
-    Position,
     DatabaseError,
+    Trade,
+    TradingDatabase,
     create_database,
 )
-
 
 # =============================================================================
 # FIXTURES

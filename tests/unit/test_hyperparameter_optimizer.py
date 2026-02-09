@@ -14,23 +14,23 @@ Mock optuna to avoid long optimization runs.
 """
 
 from dataclasses import asdict
-from unittest.mock import MagicMock, patch, PropertyMock
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pytest
 
 from ml.hyperparameter_optimizer import (
-    OptimizationResult,
-    HyperparameterSpace,
+    DQN_SEARCH_SPACE,
+    LSTM_SEARCH_SPACE,
     HyperparameterOptimizer,
-    WalkForwardOptimizer,
-    RegimeAwareOptimizer,
+    HyperparameterSpace,
     NestedCVOptimizer,
     NestedCVResult,
-    LSTM_SEARCH_SPACE,
-    DQN_SEARCH_SPACE,
+    OptimizationResult,
+    RegimeAwareOptimizer,
+    WalkForwardOptimizer,
     _import_optuna,
 )
-
 
 # =============================================================================
 # FIXTURES

@@ -8,16 +8,15 @@ These tests verify that:
 4. comprehensive_statistical_validation applies corrections
 """
 
-import pytest
 import numpy as np
+import pytest
+
 from engine.statistical_tests import (
-    bonferroni_correction,
     benjamini_hochberg_fdr,
+    bonferroni_correction,
     calculate_effect_size,
     calculate_strategy_effect_size,
     comprehensive_statistical_validation,
-    MultipleTestingResult,
-    EffectSizeResult,
 )
 
 

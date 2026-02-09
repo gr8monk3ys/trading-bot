@@ -34,9 +34,9 @@ Usage:
 """
 
 from research.research_registry import (
-    ResearchRegistry,
     Experiment,
     ExperimentStatus,
+    ResearchRegistry,
     ValidationGate,
     ValidationResult,
     print_experiment_summary,

@@ -214,7 +214,7 @@ class TestDailyVeto:
         result = await analyzer.analyze("AAPL", min_confidence=0.5, require_daily_alignment=True)
 
         assert result is not None
-        assert result["daily_conflicts"] == True
+        assert result["daily_conflicts"]
         assert not result["should_enter"]  # Should be vetoed
 
     @pytest.mark.asyncio
@@ -236,7 +236,7 @@ class TestDailyVeto:
         result = await analyzer.analyze("AAPL", min_confidence=0.5, require_daily_alignment=True)
 
         assert result is not None
-        assert result["daily_conflicts"] == True
+        assert result["daily_conflicts"]
         assert not result["should_enter"]  # Should be vetoed
 
     @pytest.mark.asyncio
@@ -258,7 +258,7 @@ class TestDailyVeto:
         result = await analyzer.analyze("AAPL", min_confidence=0.5, require_daily_alignment=False)
 
         assert result is not None
-        assert result["daily_conflicts"] == False  # Veto disabled
+        assert not result["daily_conflicts"]  # Veto disabled
 
 
 class TestTimeframeWeights:

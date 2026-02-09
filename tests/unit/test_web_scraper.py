@@ -2,22 +2,21 @@
 Unit tests for web scraper alternative data providers.
 """
 
-import pytest
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
 
-from data.alt_data_types import AltDataSource, SignalDirection
+import pytest
+
+from data.alt_data_types import AltDataSource
 from data.web_scraper import (
-    JobPostingsProvider,
-    GlassdoorSentimentProvider,
-    AppRankingsProvider,
-    WebScraperAggregator,
-    JobPostingData,
-    GlassdoorData,
-    AppRankingData,
-    create_web_scraper_provider,
     COMPANY_TICKER_MAP,
     TICKER_COMPANY_MAP,
+    AppRankingData,
+    AppRankingsProvider,
+    GlassdoorData,
+    GlassdoorSentimentProvider,
+    JobPostingData,
+    JobPostingsProvider,
+    WebScraperAggregator,
+    create_web_scraper_provider,
 )
 
 
@@ -388,7 +387,7 @@ class TestCompanyTickerMapping:
 
     def test_mapping_consistency(self):
         """Test mapping is bidirectional."""
-        for company, ticker in COMPANY_TICKER_MAP.items():
+        for _company, ticker in COMPANY_TICKER_MAP.items():
             # Some companies share tickers (google, alphabet -> GOOGL)
             # So reverse mapping picks one
             if ticker in TICKER_COMPANY_MAP:

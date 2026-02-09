@@ -1,6 +1,6 @@
-import pytest
-
 from datetime import datetime
+
+import pytest
 
 from engine.backtest_engine import BacktestEngine
 
@@ -54,7 +54,7 @@ async def test_run_walk_forward_backtest_single_fold(monkeypatch):
     assert result["fold_results"]
     assert result["n_folds"] == 1
     assert result["is_sharpe"] >= 0
-    assert result["overfit_detected"] == False
+    assert not result["overfit_detected"]
 
 
 @pytest.mark.asyncio

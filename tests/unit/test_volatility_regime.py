@@ -85,7 +85,7 @@ class TestRegimeClassification:
         assert adjustments["pos_mult"] == 1.4  # 40% larger positions
         assert adjustments["stop_mult"] == 0.7  # 30% tighter stops
         assert adjustments["max_positions"] == 12
-        assert adjustments["trade"] == True
+        assert adjustments["trade"]
 
     @pytest.mark.asyncio
     async def test_low_regime(self):
@@ -138,7 +138,7 @@ class TestRegimeClassification:
         assert adjustments["pos_mult"] == 0.4  # 60% smaller positions
         assert adjustments["stop_mult"] == 1.5  # 50% wider stops
         assert adjustments["max_positions"] == 3
-        assert adjustments["trade"] == True  # Still allowed to trade
+        assert adjustments["trade"]  # Still allowed to trade
 
     @pytest.mark.asyncio
     async def test_boundary_values(self):
@@ -330,7 +330,7 @@ class TestCrisisMode:
         detector = VolatilityRegimeDetector(broker)
 
         is_crisis = await detector.is_crisis_mode()
-        assert is_crisis == True
+        assert is_crisis
 
     @pytest.mark.asyncio
     async def test_no_crisis_mode_when_vix_below_40(self):
@@ -339,7 +339,7 @@ class TestCrisisMode:
         detector = VolatilityRegimeDetector(broker)
 
         is_crisis = await detector.is_crisis_mode()
-        assert is_crisis == False
+        assert not is_crisis
 
     @pytest.mark.asyncio
     async def test_crisis_mode_handles_vix_unavailable(self):
@@ -348,7 +348,7 @@ class TestCrisisMode:
         detector = VolatilityRegimeDetector(broker)
 
         is_crisis = await detector.is_crisis_mode()
-        assert is_crisis == False
+        assert not is_crisis
 
 
 class TestReduceExposure:
@@ -361,7 +361,7 @@ class TestReduceExposure:
         detector = VolatilityRegimeDetector(broker)
 
         should_reduce = await detector.should_reduce_exposure()
-        assert should_reduce == True
+        assert should_reduce
 
     @pytest.mark.asyncio
     async def test_should_reduce_in_high_regime(self):
@@ -370,7 +370,7 @@ class TestReduceExposure:
         detector = VolatilityRegimeDetector(broker)
 
         should_reduce = await detector.should_reduce_exposure()
-        assert should_reduce == True
+        assert should_reduce
 
     @pytest.mark.asyncio
     async def test_should_not_reduce_in_normal_regime(self):
@@ -379,7 +379,7 @@ class TestReduceExposure:
         detector = VolatilityRegimeDetector(broker)
 
         should_reduce = await detector.should_reduce_exposure()
-        assert should_reduce == False
+        assert not should_reduce
 
 
 class TestVIXStatistics:

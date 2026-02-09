@@ -38,7 +38,7 @@ Usage:
 import logging
 from datetime import datetime, time
 from enum import Enum
-from typing import Dict, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 import pytz
 
@@ -314,7 +314,7 @@ class ExtendedHoursManager:
             if not is_tradeable:
                 return False, f"{symbol} is not available for overnight trading"
 
-        return True, f"Eligible for overnight trading"
+        return True, "Eligible for overnight trading"
 
     async def check_overnight_tradeable(self, broker: "AlpacaBroker", symbol: str) -> bool:
         """

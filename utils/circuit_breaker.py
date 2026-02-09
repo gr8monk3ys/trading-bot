@@ -533,7 +533,7 @@ class CircuitBreaker:
             raise TradingHaltedException(
                 f"Circuit breaker check failed: {e}",
                 reason="check_error",
-            )
+            ) from e
 
     async def check_before_order(self, is_exit_order: bool = False) -> bool:
         """

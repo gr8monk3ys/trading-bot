@@ -1,4 +1,3 @@
-import numpy as np
 
 from engine.performance_metrics import PerformanceMetrics
 

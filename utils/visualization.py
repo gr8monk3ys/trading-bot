@@ -101,7 +101,7 @@ def plot_returns_distribution(returns: pd.Series) -> Figure:
         transform=ax.transAxes,
         fontsize=10,
         verticalalignment="top",
-        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
     )
 
     # Format plot

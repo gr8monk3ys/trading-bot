@@ -164,10 +164,9 @@ async def run_comparison(
 
         # Calculate improvement vs baseline
         if baseline_return is not None and r["config"]["name"] != "Baseline":
-            improvement = r["total_return"] - baseline_return
-            improvement_str = f"({improvement:+.1%})"
+            r["total_return"] - baseline_return
         else:
-            improvement_str = ""
+            pass
 
         print(
             f"{r['config']['name']:<20} {r['total_return']:>+9.2%} {r['sharpe_ratio']:>8.2f} {r['win_rate']:>9.1%} {r['max_drawdown']:>9.2%} {r['num_trades']:>8} {sig:>12}"

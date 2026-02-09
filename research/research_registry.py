@@ -48,8 +48,7 @@ Usage:
 import hashlib
 import json
 import logging
-import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path

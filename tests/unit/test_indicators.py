@@ -11,16 +11,17 @@ Tests TechnicalIndicators class for:
 - Analysis functions
 """
 
-import pytest
-import numpy as np
 from datetime import datetime, timedelta
+
+import numpy as np
+import pytest
+
 from utils.indicators import (
     TechnicalIndicators,
-    analyze_trend,
     analyze_momentum,
+    analyze_trend,
     analyze_volatility,
 )
-
 
 # ============================================================================
 # Fixtures

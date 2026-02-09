@@ -437,7 +437,7 @@ class RiskManager:
 
             # Calculate position weights
             total_value = sum(pos["value"] for pos in positions.values())
-            for symbol, pos in positions.items():
+            for _symbol, pos in positions.items():
                 weight = pos["value"] / total_value if total_value > 0 else 0
                 position_weights.append(weight)
 
@@ -925,7 +925,7 @@ class RiskManager:
             return {}
 
         # Current margin
-        current_margin_pct = equity / total_position_value if total_position_value > 0 else 1.0
+        equity / total_position_value if total_position_value > 0 else 1.0
 
         for symbol, pos in positions.items():
             price = pos.get("price", 0)
@@ -938,7 +938,7 @@ class RiskManager:
                 # At liquidation: margin_req = equity / (position_value * (1 - X))
                 # Solving for X: 1 - X = equity / (position_value * margin_req)
 
-                position_value = pos.get("value", quantity * price)
+                pos.get("value", quantity * price)
                 # How much can position drop before liquidation?
                 # equity / (position_value * (1 - drop_pct)) = margin_req
                 # (1 - drop_pct) = equity / (position_value * margin_req)

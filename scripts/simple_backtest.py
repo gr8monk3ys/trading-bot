@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import our mock strategies
-from mock_strategies import MockMeanReversionStrategy, MockMomentumStrategy
+from mock_strategies import MockMeanReversionStrategy, MockMomentumStrategy  # noqa: E402
 
 # Define symbols
 DEFAULT_SYMBOLS = ["AAPL", "MSFT", "AMZN", "GOOGL", "META"]
@@ -100,7 +100,7 @@ class SimpleBacktester:
         prices = []
         price = base_price
 
-        for i, date in enumerate(date_range):
+        for i, _date in enumerate(date_range):
             # Add random component
             daily_return = np.random.normal(0, volatility)
 
@@ -224,124 +224,6 @@ class SimpleBacktester:
                 value += position["qty"] * price
 
         return value
-
-    async def run(self, strategy_classes, symbols, start_date, end_date):
-        """Run the backtest"""
-        # Make sure dates are datetime
-        if isinstance(start_date, str):
-            start_date = datetime.fromisoformat(start_date)
-        if isinstance(end_date, str):
-            end_date = datetime.fromisoformat(end_date)
-
-        # Load data
-        self.load_data(symbols, start_date, end_date)
-
-        # Get all trading dates
-        all_dates = set()
-        for symbol, df in self.data.items():
-            symbol_dates = df.index
-            all_dates.update(symbol_dates)
-        trading_dates = sorted(list(all_dates))
-
-        # Initialize strategies
-        strategies = []
-        for strategy_class in strategy_classes:
-            strategy = strategy_class(parameters={"symbols": symbols})
-            strategies.append(strategy)
-
-        # Track equity curve
-        self.equity_curve = []
-
-        # Run simulation day by day
-        for date in trading_dates:
-            # Skip if date is outside range
-            if date < start_date or date > end_date:
-                continue
-
-            # Update data for each strategy
-            for strategy in strategies:
-                # Set current data and date
-                strategy.current_date = date
-                strategy.data = {symbol: df[df.index <= date] for symbol, df in self.data.items()}
-
-                # Run strategy's trading logic
-                strategy.on_trading_iteration()
-
-                # Get and process signals
-                for symbol in symbols:
-                    try:
-                        signal = strategy.get_signal(symbol, self.data[symbol].loc[date])
-
-                        if signal:
-                            logger.info(
-                                f"[{date}] {strategy.__class__.__name__} signal for {symbol}: {signal['side']} {signal['qty']} @ {signal['price']:.2f} - {signal.get('reason', 'no reason')}"
-                            )
-                            side = signal["side"]
-                            qty = signal["qty"]
-
-                            if side and qty > 0:
-                                success = self.place_order(date, symbol, qty, side)
-                                if success:
-                                    logger.info(
-                                        f"[{date}] Order executed: {side} {qty} {symbol} @ {signal['price']:.2f}"
-                                    )
-                                    # If order was successful, update strategy's positions
-                                    if side == "buy":
-                                        strategy.positions[symbol] = qty
-                                        # Track entry price for position
-                                        strategy.position_entry_prices[symbol] = signal["price"]
-                                    elif side == "sell":
-                                        strategy.positions.pop(symbol, None)
-                                        # Clear entry price when position closed
-                                        strategy.position_entry_prices.pop(symbol, None)
-                    except Exception as e:
-                        logger.error(f"Error processing {symbol} on {date}: {e}")
-
-            # Record portfolio value
-            portfolio_value = self.calculate_portfolio_value(date)
-            self.equity_curve.append({"date": date, "value": portfolio_value})
-
-        # Calculate performance metrics
-        return self.calculate_performance()
-
-    def calculate_performance(self):
-        """Calculate performance metrics"""
-        if not self.equity_curve:
-            return {"total_return": 0, "sharpe_ratio": 0, "max_drawdown": 0}
-
-        # Convert to dataframe
-        equity_df = pd.DataFrame(self.equity_curve)
-        equity_df.set_index("date", inplace=True)
-
-        # Calculate returns
-        equity_df["daily_return"] = equity_df["value"].pct_change()
-
-        # Total return
-        total_return = (equity_df["value"].iloc[-1] / self.initial_capital) - 1
-
-        # Calculate drawdown
-        equity_df["peak"] = equity_df["value"].cummax()
-        equity_df["drawdown"] = (equity_df["value"] - equity_df["peak"]) / equity_df["peak"]
-        max_drawdown = equity_df["drawdown"].min()
-
-        # Sharpe ratio (assuming 0% risk-free rate)
-        if len(equity_df) > 1 and equity_df["daily_return"].std() > 0:
-            sharpe = equity_df["daily_return"].mean() / equity_df["daily_return"].std() * (252**0.5)
-        else:
-            sharpe = 0
-
-        results = {
-            "equity_curve": equity_df,
-            "total_return": total_return,
-            "total_return_pct": f"{total_return * 100:.2f}%",
-            "sharpe_ratio": sharpe,
-            "max_drawdown": max_drawdown,
-            "max_drawdown_pct": f"{max_drawdown * 100:.2f}%",
-            "final_value": equity_df["value"].iloc[-1],
-            "trade_count": len(self.trades),
-        }
-
-        return results
 
     def plot_results(self, title="Backtest Results"):
         """Plot equity curve and drawdowns"""
@@ -582,10 +464,10 @@ class SimpleBacktester:
 
         # Get all trading dates
         all_dates = set()
-        for symbol, df in self.data.items():
+        for _symbol, df in self.data.items():
             symbol_dates = df.index
             all_dates.update(symbol_dates)
-        trading_dates = sorted(list(all_dates))
+        trading_dates = sorted(all_dates)
 
         # Initialize strategies
         strategies = []

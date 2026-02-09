@@ -19,11 +19,11 @@ from datetime import datetime
 from pathlib import Path
 
 from brokers.alpaca_broker import AlpacaBroker
+from engine.strategy_manager import StrategyManager
 from engine.validated_backtest import (
     ValidatedBacktestRunner,
     format_validated_backtest_report,
 )
-from engine.strategy_manager import StrategyManager
 
 
 def _parse_args() -> argparse.Namespace:

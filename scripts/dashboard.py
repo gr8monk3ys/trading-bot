@@ -14,7 +14,6 @@ Usage:
 """
 
 import asyncio
-import os
 from datetime import datetime
 
 from brokers.alpaca_broker import AlpacaBroker

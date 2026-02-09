@@ -20,19 +20,18 @@ Usage:
     print(f"Regime performance: {result.regime_metrics}")
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
 
 import numpy as np
 import pandas as pd
 
 from config import BACKTEST_PARAMS
-from engine.walk_forward import WalkForwardValidator, WalkForwardResult
 from engine.performance_metrics import apply_bonferroni_correction, apply_fdr_correction
 from engine.statistical_tests import permutation_test_returns
+from engine.walk_forward import WalkForwardResult, WalkForwardValidator
 
 logger = logging.getLogger(__name__)
 
@@ -224,8 +223,8 @@ class ValidatedBacktestRunner:
     ) -> Dict[str, Any]:
         """Run the main backtest."""
         try:
-            from engine.backtest_engine import BacktestEngine
             from brokers.backtest_broker import BacktestBroker
+            from engine.backtest_engine import BacktestEngine
 
             # Create backtest broker
             backtest_broker = BacktestBroker(
@@ -498,7 +497,7 @@ class ValidatedBacktestRunner:
             "method": method,
             "tests": {},
         }
-        for stat, raw, adj in zip(stats, raw_results, adjusted):
+        for stat, raw, adj in zip(stats, raw_results, adjusted, strict=False):
             summary["tests"][stat] = {
                 "p_value": raw.p_value,
                 "adjusted_p_value": adj.adjusted_p_value,

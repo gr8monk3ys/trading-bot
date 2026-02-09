@@ -254,9 +254,11 @@ class AdaptiveStrategy(BaseStrategy):
             try:
                 from data.cross_asset_provider import (
                     CrossAssetAggregator as CAA,
+                )
+                from data.cross_asset_provider import (
+                    FxCorrelationProvider,
                     VixTermStructureProvider,
                     YieldCurveProvider,
-                    FxCorrelationProvider,
                 )
 
                 CrossAssetAggregator = CAA
@@ -364,9 +366,10 @@ class AdaptiveStrategy(BaseStrategy):
             try:
                 from ml.ensemble_predictor import (
                     EnsemblePredictor as EP,
-                    SignalSource,
+                )
+                from ml.ensemble_predictor import (
                     SignalComponent,
-                    MarketRegime,
+                    SignalSource,
                 )
 
                 global EnsemblePredictor
@@ -965,7 +968,7 @@ class AdaptiveStrategy(BaseStrategy):
                         1.3, regime_info.get("position_multiplier", 1.0) * 1.1
                     )
                     logger.debug(
-                        f"Cross-asset: VIX complacency detected, boosting BULL confidence"
+                        "Cross-asset: VIX complacency detected, boosting BULL confidence"
                     )
 
             # --- Yield Curve Override ---
@@ -1025,8 +1028,8 @@ class AdaptiveStrategy(BaseStrategy):
                 enhanced_info["position_multiplier"] = min(current_mult, 0.6)
                 enhanced_info["cross_asset_reduce_exposure"] = True
                 logger.warning(
-                    f"Cross-asset: Multiple signals recommend reducing exposure, "
-                    f"capping position multiplier at 0.6x"
+                    "Cross-asset: Multiple signals recommend reducing exposure, "
+                    "capping position multiplier at 0.6x"
                 )
 
             return enhanced_info

@@ -198,7 +198,7 @@ async def run_backtest(strategy_names, days=30, symbols=None, output_dir=None):
 async def _get_historical_data(symbol, start_date, end_date):
     """Get historical data for a symbol."""
     # For simplicity, generate some mock data
-    days = (end_date - start_date).days
+    _days = (end_date - start_date).days
     dates = pd.date_range(start=start_date, end=end_date, freq="B")
 
     # Generate random prices with upward trend

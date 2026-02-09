@@ -633,7 +633,7 @@ class Notifier:
 
         # Telegram
         if self.telegram_enabled:
-            tg_message = f"<b>Daily Summary</b>\n\n"
+            tg_message = "<b>Daily Summary</b>\n\n"
             tg_message += f"P&L: ${pnl:,.2f} ({pnl_pct:+.2f}%)\n"
             tg_message += f"Trades: {trades}\n"
             tg_message += f"Win Rate: {win_rate:.1f}%\n"

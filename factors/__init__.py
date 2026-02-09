@@ -17,9 +17,9 @@ Usage:
 """
 
 from factors.base_factor import BaseFactor
+from factors.factor_portfolio import FactorPortfolio
 from factors.momentum_factor import MomentumFactor
 from factors.volatility_factor import VolatilityFactor
-from factors.factor_portfolio import FactorPortfolio
 
 __all__ = [
     "BaseFactor",

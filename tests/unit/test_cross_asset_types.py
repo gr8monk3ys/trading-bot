@@ -2,19 +2,18 @@
 Unit tests for cross-asset data types.
 """
 
-import pytest
 from datetime import datetime
 
 from data.alt_data_types import AltDataSource, SignalDirection
 from data.cross_asset_types import (
+    CrossAssetAggregatedSignal,
     CrossAssetSource,
-    VolatilityRegime,
-    YieldCurveRegime,
+    FxCorrelationSignal,
     RiskAppetiteRegime,
     VixTermStructureSignal,
+    VolatilityRegime,
+    YieldCurveRegime,
     YieldCurveSignal,
-    FxCorrelationSignal,
-    CrossAssetAggregatedSignal,
 )
 
 

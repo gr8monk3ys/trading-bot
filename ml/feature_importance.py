@@ -195,7 +195,7 @@ class FeatureImportanceAnalyzer:
                 )
                 feature_names = [f"feature_{i}" for i in range(len(mean_abs_shap))]
 
-            importance_scores = dict(zip(feature_names, mean_abs_shap))
+            importance_scores = dict(zip(feature_names, mean_abs_shap, strict=False))
 
             result = FeatureImportanceResult(
                 feature_names=feature_names,
@@ -362,7 +362,7 @@ class FeatureImportanceAnalyzer:
             if not feature_names or len(feature_names) != len(importance):
                 feature_names = [f"feature_{i}" for i in range(len(importance))]
 
-            importance_scores = dict(zip(feature_names, importance))
+            importance_scores = dict(zip(feature_names, importance, strict=False))
 
             return FeatureImportanceResult(
                 feature_names=feature_names,

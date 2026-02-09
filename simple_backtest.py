@@ -239,7 +239,7 @@ async def simple_backtest(
         return None
 
     # Create date range
-    trading_days = sorted(set(bar.timestamp.date() for bars in all_bars.values() for bar in bars))
+    trading_days = sorted({bar.timestamp.date() for bars in all_bars.values() for bar in bars})
 
     # P2 Fix: Handle empty trading_days gracefully
     if not trading_days:
@@ -263,7 +263,7 @@ async def simple_backtest(
     # P2 Fix: Initialize equity curve with first actual trading day
     equity_curve = [{"date": trading_days[0], "equity": capital}]
 
-    for day_idx, current_date in enumerate(trading_days):
+    for _day_idx, current_date in enumerate(trading_days):
         # Get prices for this day
         day_prices = {}
         for symbol, bars in all_bars.items():

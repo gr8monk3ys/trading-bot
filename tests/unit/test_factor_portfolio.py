@@ -20,13 +20,12 @@ Tests cover:
 
 from datetime import datetime, timedelta
 from typing import Dict
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from strategies.factor_models import CompositeScore, FactorModel, FactorScore, FactorType
+from strategies.factor_models import CompositeScore, FactorScore, FactorType
 from strategies.factor_portfolio import (
     FactorPortfolioConstructor,
     FactorPortfolioStrategy,
@@ -34,7 +33,6 @@ from strategies.factor_portfolio import (
     PortfolioType,
     Position,
 )
-
 
 # =============================================================================
 # FIXTURES
@@ -738,7 +736,7 @@ class TestConstructSectorNeutral:
                 sector_weights[pos.sector]["short"] += abs(pos.weight)
 
         # Each sector should have roughly balanced long and short
-        for sector, weights in sector_weights.items():
+        for _sector, weights in sector_weights.items():
             if weights["long"] > 0 and weights["short"] > 0:
                 # Allow some tolerance for different within-sector scoring
                 assert abs(weights["long"] - weights["short"]) < 0.1
@@ -747,7 +745,7 @@ class TestConstructSectorNeutral:
         """Test sector neutral handles sectors with too few stocks."""
         # Create a universe with only 2 stocks per sector
         limited_scores = {}
-        for i, (symbol, sector) in enumerate(list(mock_sectors.items())[:6]):
+        for i, (symbol, _sector) in enumerate(list(mock_sectors.items())[:6]):
             limited_scores[symbol] = CompositeScore(
                 symbol=symbol,
                 composite_z=1.0 - i * 0.5,
@@ -847,7 +845,7 @@ class TestCalculateTurnover:
 
         # Mix of existing and new positions
         existing = {}
-        for i, pos in enumerate(allocation.positions[:5]):
+        for _i, pos in enumerate(allocation.positions[:5]):
             existing[pos.symbol] = pos.weight * 0.8  # Slightly different weights
         existing["NEW_SYMBOL"] = 0.10
 
@@ -1365,7 +1363,7 @@ class TestIntegration:
 
         symbols = list(mock_price_data.columns)
 
-        signals = await strategy.generate_signals(symbols, mock_price_data)
+        await strategy.generate_signals(symbols, mock_price_data)
         allocation = strategy.get_target_allocation(mock_sectors)
 
         # Should be dollar neutral

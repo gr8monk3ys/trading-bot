@@ -71,12 +71,11 @@ async def verify_statistical_validation():
 
     # Test 2: Permutation testing
     try:
+        import numpy as np
+
         from engine.statistical_tests import (
             PermutationTest,
-            calculate_permutation_pvalue,
         )
-
-        import numpy as np
 
         # Create sample returns
         strategy_returns = np.random.normal(0.001, 0.02, 252)
@@ -93,12 +92,12 @@ async def verify_statistical_validation():
 
     # Test 3: Effect size reporting
     try:
+        import numpy as np
+
         from engine.performance_metrics import (
             calculate_cohens_d,
             calculate_hedges_g,
         )
-
-        import numpy as np
 
         # Sample data
         returns1 = np.random.normal(0.001, 0.02, 100)
@@ -133,7 +132,7 @@ async def verify_statistical_validation():
     try:
         from engine.parameter_stability import ParameterStabilityAnalyzer
 
-        analyzer = ParameterStabilityAnalyzer()
+        ParameterStabilityAnalyzer()
         logger.info("  Parameter stability analyzer available")
 
         results["passed"].append("Parameter stability analysis")
@@ -182,13 +181,13 @@ async def verify_alpha_decay():
 
     # Test 1: Alpha decay monitor
     try:
-        from utils.alpha_decay_monitor import AlphaDecayMonitor, AlertLevel
+        from utils.alpha_decay_monitor import AlphaDecayMonitor
 
         monitor = AlphaDecayMonitor(retraining_threshold=0.5)
 
         # Simulate adding OOS Sharpe values
         for sharpe in [1.2, 1.1, 1.0, 0.9, 0.8]:
-            alert = monitor.check_decay(sharpe, is_sharpe=1.5)
+            monitor.check_decay(sharpe, is_sharpe=1.5)
 
         report = monitor.get_decay_report()
         logger.info(f"  Alpha decay monitor: {report}")
@@ -202,7 +201,7 @@ async def verify_alpha_decay():
     try:
         from utils.ic_tracker import ICTracker
 
-        tracker = ICTracker(min_ic_threshold=0.02)
+        ICTracker(min_ic_threshold=0.02)
         logger.info("  IC tracker available")
 
         results["passed"].append("IC tracker")
@@ -226,7 +225,7 @@ async def verify_factor_models():
 
     # Test 1: Factor calculator
     try:
-        from strategies.factor_models import FactorCalculator, FactorType
+        from strategies.factor_models import FactorCalculator
 
         calculator = FactorCalculator()
 
@@ -320,7 +319,7 @@ async def verify_factor_models():
     try:
         from engine.factor_attribution import FactorAttributor
 
-        attributor = FactorAttributor(min_observations=10)
+        FactorAttributor(min_observations=10)
         logger.info("  Factor attributor available")
 
         results["passed"].append("Factor attribution")
@@ -342,9 +341,9 @@ async def verify_ml_infrastructure():
     # Test 1: Hyperparameter optimizer
     try:
         from ml.hyperparameter_optimizer import (
-            HyperparameterOptimizer,
-            LSTM_SEARCH_SPACE,
             DQN_SEARCH_SPACE,
+            LSTM_SEARCH_SPACE,
+            HyperparameterOptimizer,
         )
 
         logger.info(f"  LSTM search space: {len(LSTM_SEARCH_SPACE)} hyperparameters")
@@ -354,7 +353,7 @@ async def verify_ml_infrastructure():
         def dummy_objective(params):
             return 0.5
 
-        optimizer = HyperparameterOptimizer(
+        HyperparameterOptimizer(
             model_type="lstm",
             objective_fn=dummy_objective,
         )
@@ -369,7 +368,7 @@ async def verify_ml_infrastructure():
     try:
         from ml.lstm_predictor import LSTMPredictor, MCDropoutResult
 
-        predictor = LSTMPredictor()
+        LSTMPredictor()
         logger.info("  LSTM predictor with MC Dropout available")
         logger.info(f"  MCDropoutResult fields: {[f.name for f in MCDropoutResult.__dataclass_fields__.values()]}")
 
@@ -382,7 +381,7 @@ async def verify_ml_infrastructure():
     try:
         from ml.feature_importance import FeatureImportanceAnalyzer
 
-        analyzer = FeatureImportanceAnalyzer(
+        FeatureImportanceAnalyzer(
             feature_names=["open", "high", "low", "close", "volume"]
         )
         logger.info("  Feature importance analyzer available")
@@ -407,9 +406,9 @@ async def verify_ensemble_integration():
     try:
         from ml.ensemble_predictor import (
             EnsemblePredictor,
-            SignalSource,
-            SignalComponent,
             MarketRegime,
+            SignalComponent,
+            SignalSource,
         )
 
         ensemble = EnsemblePredictor(
@@ -442,8 +441,9 @@ async def verify_ensemble_integration():
 
     # Test 2: DQN with confidence
     try:
-        from ml.rl_agent import DQNAgent
         import numpy as np
+
+        from ml.rl_agent import DQNAgent
 
         agent = DQNAgent(state_size=20, action_size=3)
         agent.set_inference_mode()
@@ -480,7 +480,7 @@ async def verify_ensemble_integration():
 async def main():
     parser = argparse.ArgumentParser(description="Verify institutional-grade features")
     parser.add_argument("--quick", action="store_true", help="Run quick verification")
-    args = parser.parse_args()
+    parser.parse_args()
 
     logger.info("=" * 60)
     logger.info("INSTITUTIONAL-GRADE TRADING BOT VERIFICATION")

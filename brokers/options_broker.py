@@ -165,7 +165,7 @@ class OptionChain:
 
     def get_atm_strike(self, underlying_price: float) -> float:
         """Get the at-the-money strike closest to underlying price."""
-        all_strikes = sorted(set(c.strike for c in self.calls))
+        all_strikes = sorted({c.strike for c in self.calls})
         if not all_strikes:
             return underlying_price
 
@@ -287,7 +287,7 @@ class OptionsBroker:
                 self.logger.debug("Initialized options trading client")
             except ImportError as e:
                 self.logger.error(f"Failed to import TradingClient: {e}")
-                raise OptionsError("alpaca-py package not installed or import error")
+                raise OptionsError("alpaca-py package not installed or import error") from e
         return self._trading_client
 
     def _get_options_client(self):
@@ -416,7 +416,7 @@ class OptionsBroker:
                 "strike": strike
             }
         except ValueError as e:
-            raise InvalidContractError(f"Error parsing OCC symbol '{occ_symbol}': {e}")
+            raise InvalidContractError(f"Error parsing OCC symbol '{occ_symbol}': {e}") from e
 
     @staticmethod
     def is_option_symbol(symbol: str) -> bool:
@@ -771,12 +771,8 @@ class OptionsBroker:
         try:
             client = self._get_trading_client()
 
-            from alpaca.trading.requests import (
-                MarketOrderRequest,
-                LimitOrderRequest,
-                OrderSide,
-                TimeInForce as TIF
-            )
+            from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest, OrderSide
+            from alpaca.trading.requests import TimeInForce as TIF
 
             # Map side
             order_side = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL

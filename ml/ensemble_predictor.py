@@ -26,7 +26,6 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 from scipy import stats as scipy_stats
 
 logger = logging.getLogger(__name__)
@@ -574,8 +573,8 @@ class EnsemblePredictor:
             model_type: 'logistic', 'random_forest', or 'xgboost'
         """
         try:
-            from sklearn.linear_model import LogisticRegression
             from sklearn.ensemble import RandomForestClassifier
+            from sklearn.linear_model import LogisticRegression
 
             if model_type == "logistic":
                 self._meta_learner = LogisticRegression()
@@ -857,7 +856,6 @@ class AltDataSignalGenerator:
         """Initialize all alternative data providers."""
         try:
             from data.alternative_data_provider import AltDataAggregator
-            from data.alt_data_types import AltDataSource
 
             self._aggregator = AltDataAggregator()
 
@@ -878,9 +876,9 @@ class AltDataSignalGenerator:
 
             if self.use_web_data:
                 from data.web_scraper import (
-                    JobPostingsProvider,
-                    GlassdoorSentimentProvider,
                     AppRankingsProvider,
+                    GlassdoorSentimentProvider,
+                    JobPostingsProvider,
                 )
 
                 for ProviderClass in [JobPostingsProvider, GlassdoorSentimentProvider, AppRankingsProvider]:

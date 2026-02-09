@@ -53,8 +53,8 @@ async def main():
     print(format_session_info(session_info))
 
     # Initialize strategies for different sessions
-    gap_strategy = GapTradingStrategy(gap_threshold=0.02)  # 2% gap threshold
-    earnings_strategy = EarningsReactionStrategy(min_move_pct=0.03)  # 3% move threshold
+    GapTradingStrategy(gap_threshold=0.02)  # 2% gap threshold
+    EarningsReactionStrategy(min_move_pct=0.03)  # 3% move threshold
 
     # Stocks to monitor
     symbols = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]

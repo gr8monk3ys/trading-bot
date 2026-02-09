@@ -7,7 +7,7 @@ Tests the simple moving average crossover strategy including:
 - Trade execution logic
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pandas as pd

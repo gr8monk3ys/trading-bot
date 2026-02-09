@@ -14,18 +14,15 @@ reliable behavior under adverse network conditions.
 
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from brokers.alpaca_broker import (
     AlpacaBroker,
-    BrokerError,
     BrokerConnectionError,
-    OrderError,
     retry_with_backoff,
 )
-
 
 # =============================================================================
 # FIXTURES
@@ -327,9 +324,9 @@ class TestOrderSubmissionErrors:
         """Create broker with mocked clients."""
         with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
             "brokers.alpaca_broker.TradingClient"
-        ) as mock_tc, patch("brokers.alpaca_broker.StockHistoricalDataClient") as mock_dc, patch(
+        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
             "brokers.alpaca_broker.StockDataStream"
-        ) as mock_stream:
+        ):
             broker = AlpacaBroker(paper=True)
             broker.trading_client = MagicMock()
             broker.data_client = MagicMock()
@@ -734,7 +731,6 @@ class TestConnectionErrors:
     @pytest.mark.asyncio
     async def test_get_positions_raises_on_timeout(self, broker_with_mocks):
         """Should raise BrokerConnectionError on timeout (fail fast for unreachable broker)."""
-        from brokers.alpaca_broker import BrokerConnectionError
         broker = broker_with_mocks
 
         # Mock the _async_call_with_timeout to simulate timeout

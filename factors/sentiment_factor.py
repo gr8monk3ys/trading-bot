@@ -25,7 +25,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from factors.base_factor import BaseFactor
+from factors.base_factor import BaseFactor, FactorScore
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +173,7 @@ class NewsSentimentFactor(BaseFactor):
 
     async def calculate_scores_batch(
         self, symbols: List[str]
-    ) -> Dict[str, "FactorScore"]:
+    ) -> Dict[str, FactorScore]:
         """
         Calculate sentiment scores for multiple symbols efficiently.
 
@@ -185,7 +185,6 @@ class NewsSentimentFactor(BaseFactor):
         Returns:
             Dict of symbol -> FactorScore
         """
-        from factors.base_factor import FactorScore
         import numpy as np
 
         analyzer = self._get_analyzer()
@@ -223,8 +222,8 @@ class NewsSentimentFactor(BaseFactor):
 
             # Normalize scores
             all_raw = list(raw_scores.values())
-            mean = np.mean(all_raw)
-            std = np.std(all_raw) if len(all_raw) > 1 else 1.0
+            np.mean(all_raw)
+            np.std(all_raw) if len(all_raw) > 1 else 1.0
 
             for symbol, raw_score in raw_scores.items():
                 # Map -1 to +1 sentiment to 0-100 scale

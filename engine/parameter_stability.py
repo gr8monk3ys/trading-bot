@@ -11,10 +11,9 @@ Key Concepts:
 - Cliff effects: Performance falls off sharply at certain thresholds
 """
 
-import asyncio
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -133,7 +132,7 @@ class ParameterStabilityAnalyzer:
         # Analyze each parameter
         sensitivities = {}
 
-        for param_name, base_value in base_params.items():
+        for param_name, _base_value in base_params.items():
             print(f"\nAnalyzing sensitivity to: {param_name}")
 
             sensitivity = await self._analyze_parameter(

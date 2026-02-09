@@ -1,6 +1,4 @@
-from datetime import datetime, timedelta
 
-import pandas as pd
 import pytest
 
 from strategies.momentum_strategy import MomentumStrategy

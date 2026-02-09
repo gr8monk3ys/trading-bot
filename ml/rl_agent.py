@@ -18,16 +18,16 @@ Usage:
     agent.store_experience(state, action, reward, next_state, done)
     loss = agent.train_step()
 """
-import numpy as np
 import logging
-from typing import List, Tuple, Optional, Dict, Any
-from dataclasses import dataclass
-from collections import deque
-import random
 import os
+import random
+from collections import deque
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
-from ml.torch_utils import import_torch, get_torch_device
+import numpy as np
 
+from ml.torch_utils import get_torch_device, import_torch
 
 # Institutional-grade reward constants
 DEFAULT_SPREAD_BPS = 5  # 5 basis points typical spread
@@ -302,7 +302,7 @@ class DQNAgent:
 
         # Extract close prices for calculations
         closes = np.array([p.get("close", p.get("c", 0)) for p in recent_prices])
-        opens = np.array([p.get("open", p.get("o", 0)) for p in recent_prices])
+        np.array([p.get("open", p.get("o", 0)) for p in recent_prices])
         highs = np.array([p.get("high", p.get("h", 0)) for p in recent_prices])
         lows = np.array([p.get("low", p.get("l", 0)) for p in recent_prices])
         volumes = np.array([p.get("volume", p.get("v", 0)) for p in recent_prices])

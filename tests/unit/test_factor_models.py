@@ -19,7 +19,6 @@ Tests cover:
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
@@ -32,7 +31,6 @@ from strategies.factor_models import (
     FactorScore,
     FactorType,
 )
-
 
 # =============================================================================
 # Constants - No magic numbers
@@ -130,7 +128,7 @@ def sample_market_caps(sample_symbols):
     log_caps = np.random.normal(np.log(50e9), 1.5, len(sample_symbols))
     caps = np.exp(log_caps)
 
-    return {symbol: float(cap) for symbol, cap in zip(sample_symbols, caps)}
+    return {symbol: float(cap) for symbol, cap in zip(sample_symbols, caps, strict=False)}
 
 
 @pytest.fixture
@@ -450,7 +448,7 @@ class TestMomentumFactor:
         results = factor_calculator.calculate_momentum(sample_price_data)
 
         assert len(results) > 0
-        for symbol, score in results.items():
+        for _symbol, score in results.items():
             assert score.factor == FactorType.MOMENTUM
             assert isinstance(score.raw_score, float)
             assert isinstance(score.z_score, float)
@@ -476,7 +474,7 @@ class TestMomentumFactor:
         assert len(results_no_skip) > 0
 
         # The raw scores should differ since one includes recent month
-        common_symbol = list(results_skip.keys())[0]
+        list(results_skip.keys())[0]
         # Note: values may be close but calculation differs
 
     def test_momentum_custom_lookback(self, factor_calculator, sample_price_data):
@@ -539,7 +537,7 @@ class TestValueFactor:
         results = factor_calculator.calculate_value(sample_fundamental_data)
 
         assert len(results) > 0
-        for symbol, score in results.items():
+        for _symbol, score in results.items():
             assert score.factor == FactorType.VALUE
             assert isinstance(score.raw_score, float)
             assert isinstance(score.z_score, float)
@@ -628,7 +626,7 @@ class TestQualityFactor:
         results = factor_calculator.calculate_quality(sample_fundamental_data)
 
         assert len(results) > 0
-        for symbol, score in results.items():
+        for _symbol, score in results.items():
             assert score.factor == FactorType.QUALITY
             assert isinstance(score.z_score, float)
 
@@ -699,7 +697,7 @@ class TestLowVolatilityFactor:
         results = factor_calculator.calculate_low_volatility(sample_price_data)
 
         assert len(results) > 0
-        for symbol, score in results.items():
+        for _symbol, score in results.items():
             assert score.factor == FactorType.LOW_VOLATILITY
             assert score.raw_score > 0  # Volatility should be positive
 
@@ -778,7 +776,7 @@ class TestSizeFactor:
         results = factor_calculator.calculate_size(sample_market_caps)
 
         assert len(results) > 0
-        for symbol, score in results.items():
+        for _symbol, score in results.items():
             assert score.factor == FactorType.SIZE
             assert score.raw_score > 0  # Market cap should be positive
 
@@ -842,7 +840,7 @@ class TestSizeFactor:
 # =============================================================================
 # Composite Score Tests
 # =============================================================================
-class TestCompositeScore:
+class TestCompositeScoreCalculation:
     """Tests for calculate_composite method."""
 
     def test_composite_calculation(self, factor_calculator, sample_price_data, sample_fundamental_data, sample_market_caps):
@@ -861,7 +859,7 @@ class TestCompositeScore:
         results = factor_calculator.calculate_composite(factor_scores)
 
         assert len(results) > 0
-        for symbol, score in results.items():
+        for _symbol, score in results.items():
             assert 1 <= score.quintile <= 5
             assert score.signal in ["long", "short", "neutral"]
 
@@ -965,7 +963,7 @@ class TestCompositeScore:
 
         results = lenient_calculator.calculate_composite(factor_scores)
 
-        signals = set(r.signal for r in results.values())
+        signals = {r.signal for r in results.values()}
         assert "long" in signals
         assert "short" in signals
         assert "neutral" in signals
@@ -1040,7 +1038,7 @@ class TestFactorModel:
         )
 
         assert len(results) > 0
-        for symbol, score in results.items():
+        for _symbol, score in results.items():
             assert score.signal in ["long", "short", "neutral"]
             assert 1 <= score.quintile <= 5
 

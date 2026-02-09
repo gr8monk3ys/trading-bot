@@ -483,11 +483,11 @@ class TestAccountMethods:
         """Should raise on API error."""
         from brokers.alpaca_broker import AlpacaBroker
 
-        mock_trading.return_value.get_account.side_effect = Exception("API error")
+        mock_trading.return_value.get_account.side_effect = RuntimeError("API error")
 
         broker = AlpacaBroker(paper=True)
 
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             await broker.get_account()
 
     @pytest.mark.asyncio
