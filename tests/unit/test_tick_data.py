@@ -9,21 +9,18 @@ Tests:
 - Order flow imbalance
 """
 
-import pytest
-import numpy as np
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from data.tick_data import (
-    Trade,
-    Quote,
     AggregatedBar,
-    MicrostructureSnapshot,
-    TickAggregator,
-    TickDataManager,
-    TAQDataParser,
     Exchange,
-    TickType,
+    MicrostructureSnapshot,
+    Quote,
+    TAQDataParser,
+    TickAggregator,
+    Trade,
     create_tick_manager,
 )
 

@@ -9,24 +9,23 @@ Tests:
 - Feature matrix operations
 """
 
-import pytest
+from datetime import date, timedelta
+
 import numpy as np
 import pandas as pd
-from datetime import datetime, date, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+import pytest
 
 from data.feature_store import (
-    FeatureStore,
+    STANDARD_FEATURES,
+    ComputeFrequency,
     FeatureDefinition,
-    FeatureValue,
-    FeatureSet,
     FeatureMatrix,
     FeatureRegistry,
+    FeatureSet,
     FeatureType,
-    ComputeFrequency,
+    FeatureValue,
     SQLiteFeatureBackend,
     create_feature_store,
-    STANDARD_FEATURES,
 )
 
 

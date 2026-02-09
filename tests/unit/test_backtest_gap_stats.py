@@ -4,7 +4,7 @@ from engine.backtest_engine import BacktestEngine
 
 
 def test_gap_statistics_empty():
-    engine = BacktestEngine()
+    BacktestEngine()
 
     # Directly simulate zero gap events by calling helper via public method
     # by crafting minimal fake broker stats in the return path.
@@ -25,7 +25,7 @@ def test_gap_statistics_empty():
 
 
 def test_gap_statistics_structure():
-    engine = BacktestEngine()
+    BacktestEngine()
 
     result = {
         "gap_statistics": {

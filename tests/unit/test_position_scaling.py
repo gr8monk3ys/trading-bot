@@ -10,12 +10,11 @@ Tests PositionScaler class for:
 - Plan management
 """
 
-import pytest
 from datetime import datetime, timedelta
-from unittest.mock import patch
+
+import pytest
 
 from utils.position_scaling import PositionScaler, ScaleMethod
-
 
 # ============================================================================
 # Fixtures
@@ -384,7 +383,7 @@ class TestCheckScaleOutTrigger:
         result = scaler.check_scale_out_trigger(
             entry_price=100.0, current_price=102.0, shares_held=100
         )
-        assert result["should_scale_out"] == False
+        assert not result["should_scale_out"]
         assert "below threshold" in result["reason"]
 
     def test_trigger_at_first_level(self, scaler):
@@ -393,7 +392,7 @@ class TestCheckScaleOutTrigger:
             entry_price=100.0, current_price=106.0, shares_held=100
         )
         # Default first level is 5%
-        assert result["should_scale_out"] == True
+        assert result["should_scale_out"]
         assert result["shares_to_sell"] > 0
 
     def test_trigger_at_second_level(self, scaler):
@@ -402,7 +401,7 @@ class TestCheckScaleOutTrigger:
             entry_price=100.0, current_price=111.0, shares_held=100
         )
         # Should have hit 5% and 10% levels
-        assert result["should_scale_out"] == True
+        assert result["should_scale_out"]
 
     def test_already_sold_reduces_shares(self, scaler):
         """Test already sold shares reduces recommendation."""
@@ -455,7 +454,7 @@ class TestRecommendAddToWinner:
             current_shares=100,
             max_position_shares=200,
         )
-        assert result["should_add"] == False
+        assert not result["should_add"]
         assert "below min" in result["reason"]
 
     def test_no_add_at_max_position(self, scaler):
@@ -466,7 +465,7 @@ class TestRecommendAddToWinner:
             current_shares=200,
             max_position_shares=200,
         )
-        assert result["should_add"] == False
+        assert not result["should_add"]
         assert "max position" in result["reason"]
 
     def test_add_when_profitable(self, scaler):
@@ -477,7 +476,7 @@ class TestRecommendAddToWinner:
             current_shares=100,
             max_position_shares=200,
         )
-        assert result["should_add"] == True
+        assert result["should_add"]
         assert result["shares_to_add"] > 0
 
     def test_adds_half_of_remaining_room(self, scaler):
@@ -513,7 +512,7 @@ class TestRecommendAddToWinner:
             min_profit_to_add=0.05,  # Requires 5%
         )
         # Only 4% profit, below 5% threshold
-        assert result["should_add"] == False
+        assert not result["should_add"]
 
 
 # ============================================================================
@@ -667,7 +666,7 @@ class TestEdgeCases:
         result = scaler.check_scale_out_trigger(
             entry_price=100.0, current_price=100.0, shares_held=100
         )
-        assert result["should_scale_out"] == False
+        assert not result["should_scale_out"]
         assert result["profit_pct"] == 0
 
     def test_negative_profit(self, scaler):
@@ -675,7 +674,7 @@ class TestEdgeCases:
         result = scaler.check_scale_out_trigger(
             entry_price=100.0, current_price=90.0, shares_held=100
         )
-        assert result["should_scale_out"] == False
+        assert not result["should_scale_out"]
         assert result["profit_pct"] < 0
 
     def test_large_profit(self, scaler):
@@ -683,7 +682,7 @@ class TestEdgeCases:
         result = scaler.check_scale_out_trigger(
             entry_price=100.0, current_price=200.0, shares_held=100
         )
-        assert result["should_scale_out"] == True
+        assert result["should_scale_out"]
         assert result["profit_pct"] == 1.0
 
     def test_pyramid_with_large_num_tranches(self, scaler):

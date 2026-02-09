@@ -152,7 +152,7 @@ def example_2_compare_kelly_fractions():
         )
 
         # Add trades
-        for i, (is_winner, pnl_pct) in enumerate(trades):
+        for _i, (is_winner, pnl_pct) in enumerate(trades):
             trade = Trade(
                 symbol="TEST",
                 entry_time=datetime.now(),
@@ -231,7 +231,7 @@ def example_3_adaptive_position_sizing():
         (True, 0.02),
     ]
 
-    for i, (is_winner, pnl_pct) in enumerate(trades_hot):
+    for _i, (is_winner, pnl_pct) in enumerate(trades_hot):
         trade = Trade(
             symbol="TEST",
             entry_time=datetime.now(),
@@ -261,7 +261,7 @@ def example_3_adaptive_position_sizing():
         (False, -0.01),
     ]
 
-    for i, (is_winner, pnl_pct) in enumerate(trades_cold):
+    for _i, (is_winner, pnl_pct) in enumerate(trades_cold):
         trade = Trade(
             symbol="TEST",
             entry_time=datetime.now(),
@@ -315,7 +315,7 @@ def example_4_negative_kelly_warning():
         (False, -0.02),
     ]
 
-    for i, (is_winner, pnl_pct) in enumerate(trades_losing):
+    for _i, (is_winner, pnl_pct) in enumerate(trades_losing):
         trade = Trade(
             symbol="TEST",
             entry_time=datetime.now(),

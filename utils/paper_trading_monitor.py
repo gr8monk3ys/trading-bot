@@ -25,12 +25,10 @@ Usage:
         print("Safe to go live!")
 """
 
-import asyncio
 import json
 import logging
-import os
-from dataclasses import dataclass, field, asdict
-from datetime import date, datetime, timedelta
+from dataclasses import asdict, dataclass, field
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

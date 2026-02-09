@@ -719,7 +719,7 @@ class FactorModel:
         Returns:
             Dictionary of factor exposures (weighted average z-scores)
         """
-        exposures = {ft: 0.0 for ft in FactorType}
+        exposures = dict.fromkeys(FactorType, 0.0)
         total_weight = 0.0
 
         for symbol, weight in portfolio:

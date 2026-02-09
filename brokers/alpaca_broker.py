@@ -6,11 +6,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Dict, List, Optional
 
-from utils.audit_log import AuditEventType, AuditLog, log_order_event
-from utils.order_lifecycle import OrderLifecycleTracker, OrderState
-
 import numpy as np
-
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.live import CryptoDataStream, StockDataStream
 from alpaca.data.requests import (
@@ -34,11 +30,12 @@ from alpaca.trading.requests import (
 # lumibot.credentials.py trying to instantiate Alpaca broker before config is ready
 # We don't actually need lumibot's Broker class - we built our own implementation
 from config import ALPACA_CREDS, SYMBOLS
+from utils.audit_log import AuditEventType, AuditLog, log_order_event
 from utils.crypto_utils import (
-    CRYPTO_PAIRS,
     is_crypto_symbol,
     normalize_crypto_symbol,
 )
+from utils.order_lifecycle import OrderLifecycleTracker, OrderState
 
 # P2 FIX: Environment-aware logging - only show full tracebacks in debug mode
 # This prevents sensitive information from leaking in production logs
@@ -317,7 +314,7 @@ class AlpacaBroker:
 
             # INSTITUTIONAL SAFETY: Partial fill tracking
             # Tracks order fills and handles unfilled quantities
-            from utils.partial_fill_tracker import PartialFillTracker, PartialFillPolicy
+            from utils.partial_fill_tracker import PartialFillPolicy, PartialFillTracker
             self._partial_fill_tracker = PartialFillTracker(
                 policy=PartialFillPolicy.ALERT_ONLY,  # Default to alerting
             )
@@ -852,7 +849,7 @@ class AlpacaBroker:
             )
             return account
         except asyncio.TimeoutError:
-            raise BrokerConnectionError("Account fetch timed out - broker may be unreachable")
+            raise BrokerConnectionError("Account fetch timed out - broker may be unreachable") from None
         except Exception as e:
             logger.error(f"Error getting account info: {e}", exc_info=DEBUG_MODE)
             raise
@@ -892,7 +889,7 @@ class AlpacaBroker:
             )
             return positions
         except asyncio.TimeoutError:
-            raise BrokerConnectionError("Position fetch timed out - broker may be unreachable")
+            raise BrokerConnectionError("Position fetch timed out - broker may be unreachable") from None
         except Exception as e:
             logger.error(f"Error getting positions: {e}", exc_info=DEBUG_MODE)
             raise
@@ -1196,7 +1193,7 @@ class AlpacaBroker:
             return result
 
         except asyncio.TimeoutError:
-            raise OrderError(f"Order submission timed out for {order['symbol']} - check order status manually")
+            raise OrderError(f"Order submission timed out for {order['symbol']} - check order status manually") from None
         except Exception as e:
             logger.error(f"Error submitting order: {e}", exc_info=DEBUG_MODE)
             raise
@@ -1335,7 +1332,7 @@ class AlpacaBroker:
             return result
 
         except asyncio.TimeoutError:
-            raise OrderError(f"Advanced order submission timed out - check order status manually")
+            raise OrderError("Advanced order submission timed out - check order status manually") from None
         except Exception as e:
             logger.error(f"Error submitting advanced order: {e}", exc_info=DEBUG_MODE)
             raise
@@ -1436,7 +1433,7 @@ class AlpacaBroker:
             return result
 
         except asyncio.TimeoutError:
-            raise OrderError(f"Order submission timed out - check order status manually")
+            raise OrderError("Order submission timed out - check order status manually") from None
         except GatewayBypassError:
             raise  # Re-raise gateway errors
         except Exception as e:
@@ -1604,7 +1601,7 @@ class AlpacaBroker:
             )
             return orders
         except asyncio.TimeoutError:
-            raise BrokerConnectionError("Get orders timed out - broker may be unreachable")
+            raise BrokerConnectionError("Get orders timed out - broker may be unreachable") from None
         except Exception as e:
             logger.error(f"Error getting orders: {e}", exc_info=DEBUG_MODE)
             raise
@@ -1690,10 +1687,10 @@ class AlpacaBroker:
 
         except ValueError as e:
             logger.error(f"Invalid symbol in batch: {e}")
-            return {s: None for s in symbols}
+            return dict.fromkeys(symbols)
         except Exception as e:
             logger.error(f"Error fetching batch prices for {symbols}: {e}", exc_info=DEBUG_MODE)
-            return {s: None for s in symbols}
+            return dict.fromkeys(symbols)
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_bars(self, symbol, timeframe=TimeFrame.Day, limit=100, start=None, end=None):
@@ -2133,7 +2130,7 @@ class AlpacaBroker:
             return result
 
         except asyncio.TimeoutError:
-            raise OrderError(f"Crypto order submission timed out for {symbol}")
+            raise OrderError(f"Crypto order submission timed out for {symbol}") from None
         except ValueError as e:
             logger.error(f"Invalid crypto order parameters: {e}")
             raise
@@ -2564,7 +2561,7 @@ class AlpacaBroker:
 
         # Ensure both lists have the same length
         min_len = min(len(timestamps), len(equity_values))
-        return list(zip(timestamps[:min_len], equity_values[:min_len]))
+        return list(zip(timestamps[:min_len], equity_values[:min_len], strict=False))
 
     async def get_performance_summary(self, period: str = "1M") -> Optional[dict]:
         """

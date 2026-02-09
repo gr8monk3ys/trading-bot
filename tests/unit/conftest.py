@@ -185,7 +185,7 @@ def generate_correlated_price_histories(
     prices1 = [start_price1]
     prices2 = [start_price2]
 
-    for r1, r2 in zip(returns1, returns2):
+    for r1, r2 in zip(returns1, returns2, strict=False):
         prices1.append(prices1[-1] * (1 + r1))
         prices2.append(prices2[-1] * (1 + r2))
 

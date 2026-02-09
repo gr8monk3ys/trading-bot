@@ -33,7 +33,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ml.torch_utils import import_torch, get_torch_device
+from ml.torch_utils import get_torch_device, import_torch
 
 logger = logging.getLogger(__name__)
 
@@ -963,7 +963,7 @@ class LSTMPredictor:
             std_pred = np.std(predictions)
 
             # Confidence interval
-            alpha = 1 - confidence_level
+            1 - confidence_level
             z_score = 1.96  # For 95% CI
             if confidence_level == 0.99:
                 z_score = 2.576

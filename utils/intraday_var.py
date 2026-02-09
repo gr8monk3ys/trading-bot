@@ -29,9 +29,9 @@ Usage:
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from datetime import datetime
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -227,7 +227,7 @@ class IntradayVaRMonitor:
             # Get current prices for all symbols
             prices = await self.broker.get_last_prices(self._symbols)
 
-            now = datetime.now()
+            datetime.now()
             for symbol in self._symbols:
                 price = prices.get(symbol)
                 if price:

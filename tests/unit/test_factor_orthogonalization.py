@@ -8,17 +8,17 @@ Tests:
 - Adaptive factor weighter
 """
 
+from datetime import datetime
+
 import numpy as np
 import pytest
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
 
 from factors.factor_orthogonalization import (
-    FactorOrthogonalizer,
-    RiskParityWeighter,
     AdaptiveFactorWeighter,
+    FactorOrthogonalizer,
     OrthogonalizationMethod,
     OrthogonalizedFactors,
+    RiskParityWeighter,
     RiskParityWeights,
 )
 
@@ -172,7 +172,7 @@ class TestRiskParityWeighter:
         result = weighter.calculate_weights()
 
         assert result is not None
-        contributions = list(result.risk_contributions.values())
+        list(result.risk_contributions.values())
 
         # Risk parity optimization should produce more balanced risk contributions
         # than equal weights. With 3 factors, verify the concentration metric

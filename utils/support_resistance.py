@@ -260,7 +260,7 @@ class SupportResistanceAnalyzer:
         highs = [b["high"] for b in bars]
         lows = [b["low"] for b in bars]
         closes = [b["close"] for b in bars]
-        volumes = [b.get("volume", 1) for b in bars]
+        [b.get("volume", 1) for b in bars]
 
         current_price = current_price or closes[-1]
 
@@ -471,7 +471,7 @@ if __name__ == "__main__":
     bars = []
     price = base_price
 
-    for i in range(100):
+    for _i in range(100):
         change = np.random.randn() * 2
         high = price + abs(np.random.randn() * 1.5)
         low = price - abs(np.random.randn() * 1.5)

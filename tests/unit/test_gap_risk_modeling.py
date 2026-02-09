@@ -5,15 +5,13 @@ These tests verify that overnight gaps are properly simulated and that
 stop orders that are gapped through fill at the open price, not the stop price.
 """
 
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from brokers.backtest_broker import BacktestBroker, GapEvent, GapStatistics
-
 
 # ============================================================================
 # FIXTURES
@@ -351,7 +349,7 @@ class TestGapSimulation:
 # ============================================================================
 
 
-class TestGapStatistics:
+class TestGapStatisticsCalculation:
     """Tests for gap statistics calculation."""
 
     def test_get_gap_statistics_empty(self, broker):

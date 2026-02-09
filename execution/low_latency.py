@@ -15,16 +15,16 @@ Why low-latency matters:
 
 import asyncio
 import logging
+import queue
+import statistics
+import threading
 import time
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any, Callable, Tuple, Deque
-import threading
-import queue
-import statistics
+from typing import Any, Callable, Deque, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 

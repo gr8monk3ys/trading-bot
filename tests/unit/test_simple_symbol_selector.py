@@ -9,10 +9,7 @@ Tests the symbol selection logic including:
 - Selecting top symbols
 """
 
-from datetime import datetime
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 
 class MockAsset:
@@ -78,7 +75,7 @@ class TestSimpleSymbolSelectorInit:
         """Test initialization with live trading (paper=False)."""
         from utils.simple_symbol_selector import SimpleSymbolSelector
 
-        selector = SimpleSymbolSelector(
+        SimpleSymbolSelector(
             api_key="live_key",
             secret_key="live_secret",
             paper=False

@@ -12,7 +12,7 @@ Tests cover:
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
@@ -22,7 +22,6 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from engine.backtest_engine import BacktestEngine
-
 
 # =============================================================================
 # FIXTURES

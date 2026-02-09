@@ -12,13 +12,12 @@ Tests cover:
 
 import warnings
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pytest
 
 from strategies.bracket_momentum_strategy import BracketMomentumStrategy
-
 
 # =============================================================================
 # FIXTURES
@@ -49,7 +48,7 @@ def sample_price_history():
     prices = base * np.cumprod(1 + returns)
 
     history = []
-    for i, p in enumerate(prices):
+    for _i, p in enumerate(prices):
         # Generate realistic OHLCV data
         high = p * (1 + abs(np.random.normal(0, 0.01)))
         low = p * (1 - abs(np.random.normal(0, 0.01)))

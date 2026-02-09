@@ -23,7 +23,7 @@ Usage:
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -281,7 +281,7 @@ class FactorScreener:
         volumes = await asyncio.gather(*volume_tasks, return_exceptions=True)
 
         volume_map = {}
-        for symbol, vol in zip(universe, volumes):
+        for symbol, vol in zip(universe, volumes, strict=False):
             if isinstance(vol, Exception):
                 volume_map[symbol] = 0
             else:

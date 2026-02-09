@@ -12,7 +12,7 @@ statistical validation including:
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 from scipy import stats
@@ -130,7 +130,7 @@ def apply_fdr_correction(
 
     # Determine significance using step-up procedure
     significant = [False] * n_tests
-    for rank, (original_idx, raw_p) in enumerate(indexed_pvals, 1):
+    for rank, (_original_idx, raw_p) in enumerate(indexed_pvals, 1):
         threshold = (rank / n_tests) * alpha
         if raw_p <= threshold:
             # Mark this and all smaller p-values as significant
@@ -660,7 +660,7 @@ class PerformanceMetrics:
         # Calculate overall rank (average rank across metrics)
         strategy_ranks = {name: [] for name in metrics}
 
-        for metric, ranked_names in rankings.items():
+        for _metric, ranked_names in rankings.items():
             for i, name in enumerate(ranked_names):
                 strategy_ranks[name].append(i + 1)  # 1-based ranking
 

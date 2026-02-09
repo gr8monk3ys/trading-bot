@@ -1032,7 +1032,7 @@ class BaseStrategy(ABC):
         """
         try:
             symbol = position.symbol
-            current_price = float(position.current_price)
+            float(position.current_price)
             avg_entry_price = float(position.avg_entry_price)
             volatility = self._calculate_volatility(symbol)
 

@@ -373,7 +373,7 @@ class SimpleSymbolSelector:
         if not self.sector_rotator:
             symbols = self.select_top_symbols(top_n, min_score)
             equal_weight = 1.0 / len(symbols) if symbols else 0
-            return {s: equal_weight for s in symbols}
+            return dict.fromkeys(symbols, equal_weight)
 
         try:
             # Get sector rotation recommendations
@@ -445,7 +445,7 @@ class SimpleSymbolSelector:
             # Fallback to standard selection
             symbols = self.select_top_symbols(top_n, min_score)
             equal_weight = 1.0 / len(symbols) if symbols else 0
-            return {s: equal_weight for s in symbols}
+            return dict.fromkeys(symbols, equal_weight)
 
     def _get_stock_sector(self, symbol: str) -> str:
         """Get the sector name for a stock symbol."""

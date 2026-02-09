@@ -13,12 +13,10 @@ Tests cover:
 """
 
 from datetime import datetime
-from unittest.mock import patch
 
 import pytest
 
 from utils.streak_sizing import StreakSizer, TradeResult
-
 
 # ============================================================================
 # TradeResult Tests
@@ -139,7 +137,7 @@ class TestRecordTrade:
         """Test recording multiple trades."""
         sizer = StreakSizer()
 
-        for i in range(5):
+        for _i in range(5):
             sizer.record_trade(is_winner=True, pnl_pct=0.01)
 
         assert len(sizer.trades) == 5
@@ -294,7 +292,6 @@ class TestUpdateStreakStatus:
         # Continue winning (should reset after reset_after_trades)
         # After streak change, trades_in_streak resets to 0
         # Then we need reset_after_trades more to trigger reset
-        initial_trades_in_streak = sizer.trades_in_streak
 
         # Add more wins to trigger reset
         for _ in range(5):

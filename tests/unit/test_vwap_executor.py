@@ -11,18 +11,18 @@ Tests VWAPExecutor class for:
 - Order cancellation
 """
 
-import pytest
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
+
 import numpy as np
+import pytest
 
 from utils.vwap_executor import (
     VWAPExecutor,
-    VWAPSlice,
     VWAPResult,
+    VWAPSlice,
     execute_vwap,
 )
-
 
 # ============================================================================
 # Fixtures
@@ -664,14 +664,14 @@ class TestCancelActiveOrder:
 
         result = executor.cancel_active_order("AAPL")
 
-        assert result == True
+        assert result
         for slice_obj in executor.active_orders["AAPL"]:
             assert slice_obj.status == "cancelled"
 
     def test_cancel_nonexistent_order(self, executor):
         """Test cancelling a non-existent order."""
         result = executor.cancel_active_order("AAPL")
-        assert result == False
+        assert not result
 
     def test_only_pending_slices_cancelled(self, executor):
         """Test that only pending slices are cancelled."""

@@ -78,7 +78,7 @@ async def test_simple_market_order(broker, symbol="AAPL"):
 
     try:
         # Build market order
-        order = OrderBuilder(symbol, "buy", 1).market().day().build()
+        OrderBuilder(symbol, "buy", 1).market().day().build()
 
         logger.info(f"📝 Market order created: Buy 1 share of {symbol}")
         logger.info("   Would submit order (commented out for safety)")
@@ -107,7 +107,7 @@ async def test_limit_order(broker, symbol="AAPL", limit_price=None):
             limit_price = current_price * 0.98
 
         # Build limit order
-        order = (
+        (
             OrderBuilder(symbol, "buy", 1).limit(limit_price).gtc().build()  # Good-Till-Canceled
         )
 
@@ -137,7 +137,7 @@ async def test_stop_order(broker, symbol="AAPL"):
         stop_price = current_price * 1.05
 
         # Build stop order
-        order = OrderBuilder(symbol, "buy", 1).stop(stop_price).gtc().build()
+        OrderBuilder(symbol, "buy", 1).stop(stop_price).gtc().build()
 
         logger.info(
             f"📝 Stop order created: Buy 1 share of {symbol} when price hits ${stop_price:.2f}"
@@ -159,7 +159,7 @@ async def test_trailing_stop_order(broker, symbol="AAPL"):
 
     try:
         # Trailing stop with 2.5% trail
-        order = OrderBuilder(symbol, "sell", 1).trailing_stop(trail_percent=2.5).gtc().build()
+        OrderBuilder(symbol, "sell", 1).trailing_stop(trail_percent=2.5).gtc().build()
 
         logger.info(f"📝 Trailing stop order created: Sell 1 share of {symbol}")
         logger.info("   Trail: 2.5% below highest price")
@@ -187,7 +187,7 @@ async def test_bracket_order(broker, symbol="AAPL"):
         stop_limit_price = current_price * 0.965  # 0.5% below stop
 
         # Build bracket order
-        order = (
+        (
             OrderBuilder(symbol, "buy", 1)
             .market()
             .bracket(
@@ -232,7 +232,7 @@ async def test_oco_order(broker, symbol="AAPL"):
         stop_loss = current_price * 0.97
 
         # Build OCO order
-        order = (
+        (
             OrderBuilder(symbol, "sell", 1)
             .limit(current_price)  # Required for OCO
             .oco(take_profit=take_profit, stop_loss=stop_loss)
@@ -288,15 +288,15 @@ async def test_convenience_functions(symbol="AAPL"):
 
     try:
         # Simple market order
-        order1 = market_order(symbol, "buy", 1, gtc=True)
+        market_order(symbol, "buy", 1, gtc=True)
         logger.info("✅ market_order() created successfully")
 
         # Simple limit order
-        order2 = limit_order(symbol, "sell", 1, 200.00, gtc=True)
+        limit_order(symbol, "sell", 1, 200.00, gtc=True)
         logger.info("✅ limit_order() created successfully")
 
         # Bracket order
-        order3 = bracket_order(
+        bracket_order(
             symbol,
             "buy",
             1,

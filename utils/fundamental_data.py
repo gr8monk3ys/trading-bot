@@ -29,7 +29,9 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from factors.base_factor import BaseFactor
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +300,7 @@ class FundamentalDataProvider:
 
         # Weighted average
         total_weight = sum(weights)
-        quality_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
+        quality_score = sum(s * w for s, w in zip(scores, weights, strict=False)) / total_weight
 
         return quality_score
 
@@ -344,7 +346,7 @@ class FundamentalDataProvider:
 
         # Weighted average
         total_weight = sum(weights)
-        value_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
+        value_score = sum(s * w for s, w in zip(scores, weights, strict=False)) / total_weight
 
         return value_score
 
@@ -402,8 +404,6 @@ class FundamentalDataProvider:
 
 
 # Value and Quality factors using fundamental data
-from factors.base_factor import BaseFactor, FactorScore
-from typing import Tuple
 
 
 class ValueFactor(BaseFactor):

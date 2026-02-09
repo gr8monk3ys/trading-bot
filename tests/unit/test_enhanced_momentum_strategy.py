@@ -96,12 +96,12 @@ def create_oversold_bars(length=60):
     price = 100
 
     # First build up price
-    for i in range(50):
+    for _i in range(50):
         price = price * 1.002
         bars.append(MockBar(close=price, volume=1000000))
 
     # Then sharp drop to trigger RSI-2 < 10
-    for i in range(10):
+    for _i in range(10):
         price = price * 0.97  # 3% drop each bar
         bars.append(MockBar(close=price, volume=2000000))  # High volume
 
@@ -114,12 +114,12 @@ def create_overbought_bars(length=60):
     price = 100
 
     # First build up slowly
-    for i in range(50):
+    for _i in range(50):
         price = price * 1.001
         bars.append(MockBar(close=price, volume=1000000))
 
     # Then sharp rise to trigger RSI-2 > 90
-    for i in range(10):
+    for _i in range(10):
         price = price * 1.03  # 3% rise each bar
         bars.append(MockBar(close=price, volume=2000000))
 
@@ -142,9 +142,9 @@ class TestStrategyInitialization:
         assert params["rsi_overbought"] == 90
 
         # Profit features enabled
-        assert params["use_kelly_criterion"] == True
-        assert params["use_multi_timeframe"] == True
-        assert params["use_volatility_regime"] == True
+        assert params["use_kelly_criterion"]
+        assert params["use_multi_timeframe"]
+        assert params["use_volatility_regime"]
 
         # Position sizing
         assert params["kelly_fraction"] == 0.5
@@ -323,7 +323,7 @@ class TestTradeExecution:
         # Execute trade
         result = await strategy.execute_trade("AAPL", "buy")
 
-        assert result == True
+        assert result
         assert len(broker.submitted_orders) == 1
 
     @pytest.mark.asyncio
@@ -449,7 +449,7 @@ class TestFeatureFlags:
         )
         await strategy.initialize()
 
-        assert strategy.use_kelly == False
+        assert not strategy.use_kelly
 
     @pytest.mark.asyncio
     async def test_mtf_can_be_disabled(self):
@@ -460,7 +460,7 @@ class TestFeatureFlags:
         )
         await strategy.initialize()
 
-        assert strategy.use_mtf == False
+        assert not strategy.use_mtf
 
     @pytest.mark.asyncio
     async def test_volatility_regime_can_be_disabled(self):
@@ -471,7 +471,7 @@ class TestFeatureFlags:
         )
         await strategy.initialize()
 
-        assert strategy.use_vol_regime == False
+        assert not strategy.use_vol_regime
 
 
 class TestEdgeCases:
@@ -513,7 +513,7 @@ class TestEdgeCases:
         # Don't analyze, so no current price
         result = await strategy.execute_trade("AAPL", "buy")
 
-        assert result == False  # Should fail gracefully
+        assert not result  # Should fail gracefully
 
 
 class TestATRStops:
@@ -560,7 +560,7 @@ class TestATRStops:
         result = await strategy.execute_trade("AAPL", "buy")
 
         # Trade should succeed and stop prices should be set
-        assert result == True
+        assert result
         actual_stop = strategy.stop_prices["AAPL"]
 
         # Should be approximately ATR-based

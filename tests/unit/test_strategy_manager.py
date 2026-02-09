@@ -68,7 +68,7 @@ class TestStrategyManagerInitialization:
             from engine.strategy_manager import StrategyManager
 
             mock_alpaca.return_value = Mock()
-            manager = StrategyManager(broker=None, broker_type="alpaca")
+            StrategyManager(broker=None, broker_type="alpaca")
 
             mock_alpaca.assert_called_once()
 
@@ -368,7 +368,7 @@ class TestOptimizeAllocations:
         """Test that strategies are selected if none provided."""
         manager_for_allocation.select_top_strategies = AsyncMock(return_value=["Strategy1"])
 
-        allocations = await manager_for_allocation.optimize_allocations(strategies=None)
+        await manager_for_allocation.optimize_allocations(strategies=None)
 
         manager_for_allocation.select_top_strategies.assert_called_once()
 
@@ -506,7 +506,6 @@ class TestStopStrategy:
         result = await manager_for_stop.stop_strategy("TestStrategy", liquidate=True)
 
         assert result is True
-        strategy = manager_for_stop.active_strategies  # Deleted by now
         # Verify liquidation was called (we need to check before deletion)
 
     @pytest.mark.asyncio

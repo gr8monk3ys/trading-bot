@@ -329,16 +329,16 @@ async def run_live_trading(broker, symbols: List[str]) -> None:
     )
 
     # NEW: Volume filter
-    volume_filter = VolumeFilter(min_volume_ratio=1.2, breakout_volume_ratio=1.5)
+    VolumeFilter(min_volume_ratio=1.2, breakout_volume_ratio=1.5)
 
     # NEW: Relative strength ranker
     rs_filter = RSMomentumFilter(broker)
 
     # NEW: Support/Resistance analyzer
-    sr_analyzer = SupportResistanceAnalyzer(swing_lookback=5, min_touches=2)
+    SupportResistanceAnalyzer(swing_lookback=5, min_touches=2)
 
     # NEW: Position scaler
-    position_scaler = PositionScaler(
+    PositionScaler(
         default_tranches=3, scale_out_levels=[0.05, 0.10, 0.20]  # 5%, 10%, 20%
     )
 

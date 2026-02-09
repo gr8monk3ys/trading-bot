@@ -26,7 +26,6 @@ Usage:
         print(f"Strategy failed: {result['blockers']}")
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -518,7 +517,7 @@ async def validate_before_live(
     Returns:
         True if strategy passed validation, False otherwise
     """
-    from datetime import date, timedelta
+    from datetime import date
 
     validator = StrategyValidator(broker=broker)
 

@@ -10,17 +10,17 @@ Tests:
 - Execution cost tracking
 """
 
+from datetime import datetime, time
+
 import numpy as np
 import pytest
-from datetime import datetime, time
-from unittest.mock import MagicMock
 
 from utils.market_impact import (
     AlmgrenChrissModel,
-    MarketImpactResult,
-    MarketCondition,
-    VolumeCurveModel,
     ExecutionCostTracker,
+    MarketCondition,
+    MarketImpactResult,
+    VolumeCurveModel,
 )
 
 

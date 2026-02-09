@@ -163,7 +163,7 @@ class TestOverfittingDetection:
         summary = validator._aggregate_results()
 
         # With our fix, high overfit ratio (10.0) should fail validation
-        assert summary["passes_validation"] == False
+        assert not summary["passes_validation"]
         assert summary["avg_overfit_ratio"] >= 2.0
 
     def test_good_oos_performance_passes(self):
@@ -317,7 +317,7 @@ class TestValidationCriteria:
         summary = validator._aggregate_results()
 
         # Negative OOS return should fail validation
-        assert summary["passes_validation"] == False
+        assert not summary["passes_validation"]
 
     def test_low_consistency_fails(self):
         """Consistency below 50% should fail validation."""

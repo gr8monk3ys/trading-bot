@@ -152,7 +152,7 @@ class TestMarketData:
         assert hasattr(bar, "low")
         assert hasattr(bar, "close")
         assert hasattr(bar, "volume")
-        logger.info(f"Bar data verified with all OHLCV fields")
+        logger.info("Bar data verified with all OHLCV fields")
 
 
 class TestStrategyAnalysis:
@@ -240,7 +240,7 @@ class TestRiskManagement:
         """Test that risk manager can evaluate portfolio risk."""
         from strategies.risk_manager import RiskManager
 
-        rm = RiskManager()
+        RiskManager()
 
         # Get current positions for evaluation
         positions = await alpaca_broker.get_positions()
@@ -251,7 +251,7 @@ class TestRiskManagement:
             return
 
         # With positions, evaluate risk
-        account = await alpaca_broker.get_account()
+        await alpaca_broker.get_account()
         logger.info(f"Risk evaluation complete for {len(positions)} positions")
 
 

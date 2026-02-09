@@ -11,7 +11,6 @@ Tests the real-time performance tracking system including:
 
 import os
 import tempfile
-import pytest
 from datetime import datetime, timedelta
 
 
@@ -119,8 +118,9 @@ class TestInitDatabase:
 
     def test_creates_tables(self):
         """Test that all required tables are created."""
-        from utils.performance_tracker import PerformanceTracker
         import sqlite3
+
+        from utils.performance_tracker import PerformanceTracker
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "trading.db")
@@ -186,8 +186,9 @@ class TestLogTrade:
 
     def test_log_trade_persists_to_database(self):
         """Test that logged trades are saved to database."""
-        from utils.performance_tracker import PerformanceTracker, Trade
         import sqlite3
+
+        from utils.performance_tracker import PerformanceTracker, Trade
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "trading.db")
@@ -259,8 +260,8 @@ class TestLoadTrades:
 
     def test_load_trades_on_init(self):
         """Test that trades are loaded from database on initialization."""
+
         from utils.performance_tracker import PerformanceTracker, Trade
-        import sqlite3
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "trading.db")
@@ -311,8 +312,9 @@ class TestUpdateEquity:
 
     def test_update_equity_calculates_daily_pnl(self):
         """Test that daily P/L is calculated correctly."""
-        from utils.performance_tracker import PerformanceTracker
         import sqlite3
+
+        from utils.performance_tracker import PerformanceTracker
 
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "trading.db")

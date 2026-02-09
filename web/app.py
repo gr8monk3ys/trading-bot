@@ -15,7 +15,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -60,8 +60,8 @@ async def lifespan(app: FastAPI):
 
     # --- Broker (optional – dashboard still works without it) ---
     try:
-        from config import ALPACA_CREDS
         from brokers.alpaca_broker import AlpacaBroker
+        from config import ALPACA_CREDS
 
         api_key = ALPACA_CREDS.get("API_KEY", "")
         if api_key:

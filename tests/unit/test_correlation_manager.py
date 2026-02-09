@@ -10,7 +10,6 @@ Tests the correlation management system including:
 - Portfolio reporting
 """
 
-import pytest
 
 
 class TestCorrelationManagerInit:

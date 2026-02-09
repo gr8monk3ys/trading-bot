@@ -407,8 +407,8 @@ class VolumeAnalyzer:
 
             # A/D trend
             bar_dicts = [
-                {"high": h, "low": l, "close": c, "volume": v}
-                for h, l, c, v in zip(highs, lows, prices, volumes)
+                {"high": h, "low": low, "close": c, "volume": v}
+                for h, low, c, v in zip(highs, lows, prices, volumes, strict=False)
             ]
             ad_trend = self.filter.get_ad_trend(bar_dicts)
 

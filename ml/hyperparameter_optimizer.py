@@ -19,7 +19,6 @@ Why Bayesian Optimization:
 """
 
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -911,8 +910,8 @@ class RegimeAwareOptimizer:
         for regime in regimes:
             logger.info(f"Optimizing for {regime} regime...")
 
-            def regime_objective(params):
-                return self.objective_fn(params, regime)
+            def regime_objective(params, _regime=regime):
+                return self.objective_fn(params, _regime)
 
             optimizer = HyperparameterOptimizer(
                 model_type=self.model_type,
@@ -971,7 +970,7 @@ def optimize_lstm_hyperparameters(
         # Split data
         split_idx = int(len(price_data) * (1 - validation_split))
         train_data = price_data[:split_idx]
-        val_data = price_data[split_idx:]
+        price_data[split_idx:]
 
         try:
             # Train

@@ -174,7 +174,7 @@ class StreamingDemo:
         logger.info("Starting Real-Time Streaming Demo")
         logger.info("=" * 60)
         logger.info(f"Symbols: {', '.join(self.symbols)}")
-        logger.info(f"Subscribe to bars: True")
+        logger.info("Subscribe to bars: True")
         logger.info(f"Subscribe to quotes: {self.subscribe_quotes}")
         logger.info(f"Subscribe to trades: {self.subscribe_trades}")
         logger.info(f"Duration: {duration} seconds" if duration else "Duration: Until interrupted (Ctrl+C)")

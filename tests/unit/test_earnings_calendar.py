@@ -5,13 +5,13 @@ Unit tests for utils/earnings_calendar.py
 Tests EarningsCalendar class for earnings-related trading filters.
 """
 
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
+
 import pandas as pd
+import pytest
 
 from utils.earnings_calendar import EarningsCalendar, check_earnings_safety
-
 
 # ============================================================================
 # Fixtures
@@ -159,7 +159,7 @@ class TestGetNextEarningsDate:
             mock_ticker.calendar = None
             mock_yf.return_value = mock_ticker
 
-            result = calendar.get_next_earnings_date("AAPL")
+            calendar.get_next_earnings_date("AAPL")
             mock_yf.assert_called_once_with("AAPL")
 
     def test_no_earnings_returns_none(self, calendar):
@@ -214,7 +214,7 @@ class TestGetNextEarningsDate:
             mock_ticker.calendar = mock_calendar
             mock_yf.return_value = mock_ticker
 
-            result = calendar.get_next_earnings_date("AAPL")
+            calendar.get_next_earnings_date("AAPL")
             # Should handle list without crashing
 
 
@@ -295,7 +295,7 @@ class TestIsSafeToHold:
         threshold_date = datetime.now() + timedelta(days=3)
         calendar._cache["AAPL"] = (threshold_date, datetime.now())
 
-        result = calendar.is_safe_to_hold("AAPL")
+        calendar.is_safe_to_hold("AAPL")
         # Should be unsafe (days <= exit_days_before)
 
 
@@ -363,7 +363,7 @@ class TestGetEarningsRiskLevel:
         moderate_date = datetime.now() + timedelta(days=5)
         calendar._cache["AAPL"] = (moderate_date, datetime.now())
 
-        risk = calendar.get_earnings_risk_level("AAPL")
+        calendar.get_earnings_risk_level("AAPL")
         # Could be medium or low depending on exact calculation
 
 
@@ -626,5 +626,5 @@ class TestEdgeCases:
             mock_ticker.calendar = None
             mock_yf.return_value = mock_ticker
 
-            result = calendar.filter_symbols(["A", "B"], for_entry=True)
+            calendar.filter_symbols(["A", "B"], for_entry=True)
             # Should handle both cached and uncached symbols

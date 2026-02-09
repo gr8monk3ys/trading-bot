@@ -10,9 +10,9 @@ from engine.strategy_evaluator import StrategyEvaluator
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
 from utils.audit_log import AuditEventType, AuditLog
-from utils.runtime_state import RuntimeStateStore
 from utils.order_gateway import OrderGateway
 from utils.position_manager import PositionManager
+from utils.runtime_state import RuntimeStateStore
 
 # Set up logging
 logger = logging.getLogger(__name__)

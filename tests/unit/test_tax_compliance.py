@@ -14,12 +14,9 @@ import pytest
 
 from utils.tax_compliance import (
     CostBasisMethod,
-    SaleRecord,
     TaxLot,
-    WashSaleEvent,
     WashSaleTracker,
 )
-
 
 # ============================================================================
 # TAX LOT TESTS
@@ -292,7 +289,7 @@ class TestWashSaleTrackerSales:
         # Get the middle lot
         summary = tracker_with_lots.get_tax_lot_summary("AAPL")
         lots = summary["lots"]
-        middle_lot = [l for l in lots if l["cost_basis"] == 150.0][0]
+        middle_lot = [lot for lot in lots if lot["cost_basis"] == 150.0][0]
 
         records = tracker_with_lots.record_sale(
             symbol="AAPL",
@@ -399,7 +396,7 @@ class TestWashSaleDetection:
         tracker.add_tax_lot("AAPL", 50, 145.0, datetime(2024, 6, 10))
 
         # Sell original shares at loss - but we have recent purchase
-        records = tracker.record_sale("AAPL", 100, 140.0, datetime(2024, 6, 15))
+        tracker.record_sale("AAPL", 100, 140.0, datetime(2024, 6, 15))
 
         # This triggers wash sale because of purchase within 30 days AFTER sale
         # Wait, the second lot was purchased BEFORE the sale, so we need to check
@@ -418,7 +415,7 @@ class TestWashSaleDetection:
         tracker.record_sale("AAPL", 100, 160.0, datetime(2024, 6, 1))
 
         # Repurchase within 30 days - but no wash sale since original was gain
-        lot = tracker.add_tax_lot("AAPL", 100, 155.0, datetime(2024, 6, 15))
+        tracker.add_tax_lot("AAPL", 100, 155.0, datetime(2024, 6, 15))
 
         summary = tracker.get_wash_sale_summary()
         assert summary["total_wash_sales"] == 0
@@ -772,7 +769,7 @@ class TestWashSaleEdgeCases:
 
         tracker.add_tax_lot("AAPL", 100, 150.0, datetime(2024, 1, 1))
         tracker.record_sale("AAPL", 100, 140.0, sale_date)
-        lot = tracker.add_tax_lot("AAPL", 100, 138.0, purchase_date)
+        tracker.add_tax_lot("AAPL", 100, 138.0, purchase_date)
 
         # Should still trigger wash sale (within 30 days includes day 30)
         summary = tracker.get_wash_sale_summary()
@@ -787,7 +784,7 @@ class TestWashSaleEdgeCases:
 
         tracker.add_tax_lot("AAPL", 100, 150.0, datetime(2024, 1, 1))
         tracker.record_sale("AAPL", 100, 140.0, sale_date)
-        lot = tracker.add_tax_lot("AAPL", 100, 138.0, purchase_date)
+        tracker.add_tax_lot("AAPL", 100, 138.0, purchase_date)
 
         # Should NOT trigger wash sale
         summary = tracker.get_wash_sale_summary()

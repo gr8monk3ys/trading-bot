@@ -46,7 +46,7 @@ class BacktestEngine:
 
         # Initialize result tracking for each strategy
         results = []
-        for strategy in strategies:
+        for _strategy in strategies:
             # Create daily results dataframe with date index
             dates = pd.date_range(start=start_date, end=end_date, freq="B")
             result_df = pd.DataFrame(

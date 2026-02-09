@@ -1047,7 +1047,7 @@ class TestOnBar:
     @pytest.mark.asyncio
     async def test_on_bar_trims_price_history(self, initialized_strategy):
         """Test that on_bar trims price history to max length."""
-        for i in range(100):
+        for _i in range(100):
             await initialized_strategy.on_bar("AAPL", 150, 152, 149, 151, 1000000, datetime.now())
 
         max_history = 60  # slow_ma + 10
@@ -1069,7 +1069,7 @@ class TestOnBar:
     @pytest.mark.asyncio
     async def test_on_bar_calls_execute_signal_on_buy(self, initialized_strategy):
         """Test that on_bar calls _execute_signal when buy signal."""
-        for i in range(60):
+        for _i in range(60):
             initialized_strategy.price_history["AAPL"].append(
                 {
                     "timestamp": datetime.now(),
@@ -1118,6 +1118,7 @@ class TestExecuteSignal:
     def trading_strategy(self):
         """Create a strategy ready for trading."""
         import logging
+
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy.__new__(MomentumStrategy)
@@ -1264,7 +1265,7 @@ class TestExecuteSignal:
     @pytest.mark.asyncio
     async def test_execute_signal_uses_risk_manager(self, trading_strategy):
         """Test that execute_signal uses risk manager for position sizing."""
-        for i in range(25):
+        for _i in range(25):
             trading_strategy.price_history["AAPL"].append({"close": 150})
 
         await trading_strategy._execute_signal("AAPL", "buy")
@@ -1274,7 +1275,7 @@ class TestExecuteSignal:
     @pytest.mark.asyncio
     async def test_execute_signal_risk_manager_rejects_position(self, trading_strategy):
         """Test that execution stops when risk manager rejects position."""
-        for i in range(25):
+        for _i in range(25):
             trading_strategy.price_history["AAPL"].append({"close": 150})
 
         trading_strategy.risk_manager.adjust_position_size = Mock(return_value=0)
@@ -1325,6 +1326,7 @@ class TestCheckExitConditions:
     def strategy_with_position(self):
         """Create a strategy with an existing position."""
         import logging
+
         from strategies.momentum_strategy import MomentumStrategy
 
         strategy = MomentumStrategy.__new__(MomentumStrategy)

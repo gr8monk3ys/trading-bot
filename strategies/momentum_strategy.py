@@ -9,7 +9,6 @@ import talib
 from brokers.order_builder import OrderBuilder
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
-from utils.indicators import safe_last
 from utils.multi_timeframe import MultiTimeframeAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -875,7 +874,6 @@ class MomentumStrategy(BaseStrategy):
             # Determine if this is a long or short position
             qty = float(current_position.qty)
             is_long = qty > 0
-            is_short = qty < 0
 
             # Calculate current profit/loss percentage
             if is_long:

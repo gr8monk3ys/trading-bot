@@ -8,8 +8,9 @@ These tests verify that:
 4. BaseStrategy routes orders through gateway
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # Test GatewayBypassError exception
@@ -23,7 +24,7 @@ class TestGatewayBypassError:
 
     def test_exception_is_broker_error(self):
         """GatewayBypassError should inherit from BrokerError."""
-        from brokers.alpaca_broker import GatewayBypassError, BrokerError
+        from brokers.alpaca_broker import BrokerError, GatewayBypassError
         assert issubclass(GatewayBypassError, BrokerError)
 
     def test_exception_message(self):
@@ -143,7 +144,7 @@ class TestInternalSubmitOrder:
 
     async def test_internal_submit_rejects_invalid_token(self, mock_order_request):
         """_internal_submit_order should reject invalid tokens."""
-        from brokers.alpaca_broker import GatewayBypassError, AlpacaBroker
+        from brokers.alpaca_broker import AlpacaBroker, GatewayBypassError
 
         broker = MagicMock()
         broker._gateway_required = True
@@ -326,7 +327,7 @@ class TestBaseStrategyGatewayUsage:
             order_gateway=mock_gateway,
         )
 
-        result = await strategy.submit_exit_order("AAPL", 100)
+        await strategy.submit_exit_order("AAPL", 100)
 
         mock_gateway.submit_exit_order.assert_called_once()
 
@@ -341,8 +342,7 @@ class TestFullGatewayEnforcementFlow:
         1. Direct broker access is blocked
         2. Gateway access works with valid token
         """
-        from brokers.alpaca_broker import GatewayBypassError, AlpacaBroker
-        from utils.order_gateway import OrderGateway
+        from brokers.alpaca_broker import AlpacaBroker, GatewayBypassError
 
         # Create minimal mock broker
         broker = MagicMock()

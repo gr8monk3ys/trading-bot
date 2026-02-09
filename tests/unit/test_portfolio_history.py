@@ -14,10 +14,9 @@ Tests cover:
 # Test credentials are provided by the session-scoped _patch_broker_credentials
 # fixture in tests/unit/conftest.py (patches brokers.alpaca_broker.ALPACA_CREDS).
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-
 
 # ============================================================================
 # Helper Functions for Creating Mock Data
@@ -50,7 +49,7 @@ def create_mock_portfolio_history(
     profit_loss = [0.0]
     profit_loss_pct = [0.0]
 
-    for i in range(1, num_points):
+    for _i in range(1, num_points):
         daily_pnl = equity[-1] * daily_return
         equity.append(equity[-1] + daily_pnl)
         profit_loss.append(daily_pnl)

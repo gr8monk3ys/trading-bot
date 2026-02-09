@@ -36,7 +36,7 @@ Usage:
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -304,6 +304,8 @@ class RealisticBacktester:
             try:
                 from utils.market_impact import (
                     AlmgrenChrissModel as ACM,
+                )
+                from utils.market_impact import (
                     MarketImpactResult as MIR,
                 )
                 AlmgrenChrissModel = ACM
@@ -429,7 +431,7 @@ class RealisticBacktester:
                 self.equity_history.append((current_date, equity))
 
             # Close all remaining positions at end
-            for symbol, position in list(self.positions.items()):
+            for symbol, _position in list(self.positions.items()):
                 if symbol in all_bars:
                     final_price = all_bars[symbol][-1]["close"]
                     await self._close_position(symbol, final_price, end_date)

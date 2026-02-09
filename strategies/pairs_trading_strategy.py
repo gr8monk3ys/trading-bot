@@ -106,7 +106,7 @@ class PairsTradingStrategy(BaseStrategy):
 
             # Store pairs
             self.pairs = self.symbols
-            self.all_symbols = list(set([s for pair in self.pairs for s in pair]))
+            self.all_symbols = list({s for pair in self.pairs for s in pair})
 
             # Initialize tracking
             self.price_history = {symbol: [] for symbol in self.all_symbols}

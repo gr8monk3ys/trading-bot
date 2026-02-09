@@ -20,9 +20,9 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List
 
 import aiohttp
 
@@ -225,7 +225,7 @@ class UniverseProvider:
 
         except ImportError:
             logger.warning("yfinance not available for sector mapping")
-            return {s: "Unknown" for s in symbols}
+            return dict.fromkeys(symbols, "Unknown")
 
         return sector_map
 

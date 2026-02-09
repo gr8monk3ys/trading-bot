@@ -217,7 +217,7 @@ class RelativeStrengthFactor(BaseFactor):
 
     async def _get_benchmark_data(self) -> Optional[List[Dict]]:
         """Get cached benchmark data."""
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
         now = datetime.now()
         if (

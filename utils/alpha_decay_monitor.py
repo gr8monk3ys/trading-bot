@@ -22,8 +22,8 @@ import json
 import logging
 import os
 from collections import deque
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -430,7 +430,7 @@ class AlphaDecayMonitor:
 
         # Calculate trends
         sharpe_ratios = [m.sharpe_ratio for m in history]
-        return_ratios = [m.return_ratio for m in history]
+        [m.return_ratio for m in history]
 
         # Linear regression for trend
         if len(sharpe_ratios) >= 3:

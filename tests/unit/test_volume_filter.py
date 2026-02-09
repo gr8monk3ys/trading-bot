@@ -11,12 +11,12 @@ Tests VolumeFilter class for:
 - Accumulation/Distribution analysis
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
 import numpy as np
+import pytest
 
-from utils.volume_filter import VolumeFilter, VolumeAnalyzer
-
+from utils.volume_filter import VolumeAnalyzer, VolumeFilter
 
 # ============================================================================
 # Fixtures
@@ -224,7 +224,7 @@ class TestCheckVolumeDivergence:
         prices = [100, 101, 102, 103, 104, 106, 108, 110, 112, 115]  # Increasing
         volumes = [150000, 145000, 140000, 135000, 130000, 110000, 100000, 90000, 80000, 70000]  # Decreasing
         has_div, div_type = filter_default.check_volume_divergence(prices, volumes)
-        assert has_div == True
+        assert has_div
         assert div_type == "bearish"
 
     def test_bullish_divergence(self, filter_default):
@@ -232,7 +232,7 @@ class TestCheckVolumeDivergence:
         prices = [115, 112, 110, 108, 106, 104, 102, 100, 98, 95]  # Decreasing
         volumes = [70000, 80000, 90000, 100000, 110000, 130000, 140000, 150000, 160000, 180000]  # Increasing
         has_div, div_type = filter_default.check_volume_divergence(prices, volumes)
-        assert has_div == True
+        assert has_div
         assert div_type == "bullish"
 
     def test_no_divergence(self, filter_default, price_history, volume_history):
@@ -246,20 +246,20 @@ class TestCheckVolumeDivergence:
         prices = [100, 101, 102, 103, 104, 106, 108, 110, 112, 115]
         volumes = [100000, 105000, 110000, 115000, 120000, 130000, 140000, 150000, 160000, 180000]
         has_div, div_type = filter_default.check_volume_divergence(prices, volumes)
-        assert has_div == False or div_type == "none"
+        assert not has_div or div_type == "none"
 
     def test_insufficient_price_data(self, filter_default, volume_history):
         """Test with insufficient price data."""
         short_prices = [100, 101, 102]
         has_div, div_type = filter_default.check_volume_divergence(short_prices, volume_history)
-        assert has_div == False
+        assert not has_div
         assert div_type == "none"
 
     def test_insufficient_volume_data(self, filter_default, price_history):
         """Test with insufficient volume data."""
         short_volumes = [100000, 110000, 120000]
         has_div, div_type = filter_default.check_volume_divergence(price_history, short_volumes)
-        assert has_div == False
+        assert not has_div
         assert div_type == "none"
 
     def test_zero_previous_price(self, filter_default):
@@ -293,7 +293,7 @@ class TestIsVolumeConfirmed:
         is_confirmed, analysis = filter_default.is_volume_confirmed(
             current_volume, volume_history, "normal"
         )
-        assert is_confirmed == True
+        assert is_confirmed
         assert "volume_ratio" in analysis
         assert analysis["signal_type"] == "normal"
 
@@ -304,7 +304,7 @@ class TestIsVolumeConfirmed:
         is_confirmed, analysis = filter_default.is_volume_confirmed(
             current_volume, volume_history, "normal"
         )
-        assert is_confirmed == False
+        assert not is_confirmed
 
     def test_breakout_requires_higher_ratio(self, filter_default, volume_history):
         """Test breakout signals require higher volume ratio."""
@@ -319,8 +319,8 @@ class TestIsVolumeConfirmed:
             current_volume, volume_history, "breakout"
         )
 
-        assert normal_confirmed == True
-        assert breakout_confirmed == False  # Needs 1.5x
+        assert normal_confirmed
+        assert not breakout_confirmed  # Needs 1.5x
 
     def test_breakout_confirmed(self, filter_default, volume_history):
         """Test breakout signal confirmation with high volume."""
@@ -329,7 +329,7 @@ class TestIsVolumeConfirmed:
         is_confirmed, analysis = filter_default.is_volume_confirmed(
             current_volume, volume_history, "breakout"
         )
-        assert is_confirmed == True
+        assert is_confirmed
         assert analysis["required_ratio"] == 1.5
 
     def test_reversal_requires_extra_confirmation(self, filter_default, volume_history):
@@ -345,8 +345,8 @@ class TestIsVolumeConfirmed:
             current_volume, volume_history, "reversal"
         )
 
-        assert normal_confirmed == True
-        assert reversal_confirmed == False  # Needs 1.2 * 1.3 = 1.56x
+        assert normal_confirmed
+        assert not reversal_confirmed  # Needs 1.2 * 1.3 = 1.56x
         assert analysis["required_ratio"] == pytest.approx(1.56, rel=0.01)
 
     def test_analysis_dict_contents(self, filter_default, volume_history):
@@ -382,7 +382,7 @@ class TestConfirmsSignal:
         is_confirmed, analysis = filter_default.confirms_signal(
             "neutral", 500000, volume_history, price_history
         )
-        assert is_confirmed == True
+        assert is_confirmed
         assert "reason" in analysis
 
     def test_long_signal_confirmed(self, filter_default, volume_history, price_history):
@@ -392,7 +392,7 @@ class TestConfirmsSignal:
         is_confirmed, analysis = filter_default.confirms_signal(
             "long", current_volume, volume_history, price_history
         )
-        assert is_confirmed == True
+        assert is_confirmed
 
     def test_short_signal_confirmed(self, filter_default, volume_history, price_history):
         """Test short signal confirmation."""
@@ -401,7 +401,7 @@ class TestConfirmsSignal:
         is_confirmed, analysis = filter_default.confirms_signal(
             "short", current_volume, volume_history, price_history
         )
-        assert is_confirmed == True
+        assert is_confirmed
 
     def test_breakout_flag(self, filter_default, volume_history):
         """Test is_breakout flag changes required volume."""
@@ -415,8 +415,8 @@ class TestConfirmsSignal:
             "long", current_volume, volume_history, is_breakout=True
         )
 
-        assert normal_confirmed == True
-        assert breakout_confirmed == False
+        assert normal_confirmed
+        assert not breakout_confirmed
 
     def test_divergence_reduces_confidence(self, filter_default):
         """Test that divergence reduces confidence for contradicting signals."""
@@ -852,7 +852,7 @@ class TestIntegration:
         assert ratio > 1.0
         assert trend in ["increasing", "decreasing", "stable"]
         assert div_type in ["none", "bearish", "bullish"]
-        assert is_confirmed == True  # Should be confirmed at 1.4x
+        assert is_confirmed  # Should be confirmed at 1.4x
         assert 0 <= score <= 1
 
     def test_breakout_confirmation_flow(self, filter_default):

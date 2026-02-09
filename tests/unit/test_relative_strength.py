@@ -5,14 +5,12 @@ Unit tests for utils/relative_strength.py
 Tests RelativeStrengthRanker and RSMomentumFilter classes.
 """
 
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
+import pytest
 
 from utils.relative_strength import RelativeStrengthRanker, RSMomentumFilter
-
 
 # ============================================================================
 # Fixtures

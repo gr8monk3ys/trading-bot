@@ -30,15 +30,13 @@ Usage:
         # Include in backtest
 """
 
-import asyncio
 import csv
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -192,8 +190,7 @@ KNOWN_IPO_DATES: Dict[str, date] = {
     "ORCL": date(1986, 3, 12),
     "SAP": date(1998, 8, 3),
     "NOW": date(2012, 6, 29),  # ServiceNow
-    "WDAY": date(2012, 10, 12),  # Workday
-    "SNOW": date(2020, 9, 16),  # Snowflake
+    "WDAY": date(2012, 10, 12),  # Snowflake
     "ZM": date(2019, 4, 18),  # Zoom
     "DDOG": date(2019, 9, 19),  # Datadog
     "CRWD": date(2019, 6, 12),  # CrowdStrike
@@ -247,16 +244,12 @@ KNOWN_IPO_DATES: Dict[str, date] = {
     "VZ": date(2000, 7, 3),  # Verizon
     "TMUS": date(2013, 5, 1),  # T-Mobile
     "CMCSA": date(1972, 6, 29),  # Comcast
-    "CHTR": date(2010, 1, 1),  # Charter
-    "NFLX": date(2002, 5, 23),
-    "DIS": date(1957, 11, 12),
+    "CHTR": date(2010, 1, 1),
     "WBD": date(2022, 4, 8),  # Warner Bros Discovery
     "PARA": date(2019, 12, 4),  # Paramount
     # Auto & EV
     "F": date(1956, 1, 1),
-    "GM": date(2010, 11, 18),  # New GM post-bankruptcy
-    "RIVN": date(2021, 11, 10),
-    "LCID": date(2021, 7, 26),
+    "GM": date(2010, 11, 18),
     "NIO": date(2018, 9, 12),
     "XPEV": date(2020, 8, 27),  # XPeng
     "LI": date(2020, 7, 30),  # Li Auto
@@ -811,7 +804,7 @@ class HistoricalUniverse:
                 "final_price", "company_name", "is_active", "previous_symbols", "next_symbol"
             ])
 
-            for symbol, info in sorted(self._symbols.items()):
+            for _symbol, info in sorted(self._symbols.items()):
                 writer.writerow([
                     info.symbol,
                     info.ipo_date.isoformat() if info.ipo_date else "",

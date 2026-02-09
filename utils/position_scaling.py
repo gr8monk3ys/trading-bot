@@ -302,7 +302,7 @@ class PositionScaler:
         tranches = []
         remaining_shares = shares_held
 
-        for i, (target_pct, weight) in enumerate(zip(profit_targets, weights)):
+        for i, (target_pct, weight) in enumerate(zip(profit_targets, weights, strict=False)):
             if i == num_tranches - 1:
                 shares = remaining_shares
             else:

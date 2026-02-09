@@ -3,12 +3,11 @@
 Startup script for Railway deployment.
 Runs the trading bot and web dashboard concurrently.
 """
-import asyncio
-import subprocess
-import sys
+import logging
 import os
 import signal
-import logging
+import subprocess
+import sys
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("startup")

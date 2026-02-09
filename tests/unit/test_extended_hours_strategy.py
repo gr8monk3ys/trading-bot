@@ -14,11 +14,9 @@ import warnings
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import pytest
 
 from strategies.extended_hours_strategy import ExtendedHoursStrategy
-
 
 # =============================================================================
 # FIXTURES

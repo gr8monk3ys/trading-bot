@@ -16,7 +16,7 @@ Usage:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -26,7 +26,7 @@ from factors.base_factor import BaseFactor
 logger = logging.getLogger(__name__)
 
 # Shared cache with other fundamental factors
-from factors.value_factor import _fundamental_cache, _CACHE_TTL_HOURS
+from factors.value_factor import _CACHE_TTL_HOURS, _fundamental_cache  # noqa: E402
 
 
 class GrowthFactor(BaseFactor):

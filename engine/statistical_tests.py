@@ -12,7 +12,7 @@ These tests help validate that observed performance is not due to chance.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from scipy import stats

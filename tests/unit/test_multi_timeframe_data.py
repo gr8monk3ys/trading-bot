@@ -19,7 +19,6 @@ import pytest
 
 from utils.multi_timeframe import MultiTimeframeAnalyzer, TimeframeData
 
-
 # ============================================================================
 # TimeframeData Tests
 # ============================================================================

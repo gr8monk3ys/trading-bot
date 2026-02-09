@@ -5,11 +5,11 @@ This package contains utility functions and classes used throughout the trading 
 """
 
 from utils.database import (
-    TradingDatabase,
-    Trade,
     DailyMetrics,
-    Position,
     DatabaseError,
+    Position,
+    Trade,
+    TradingDatabase,
     create_database,
 )
 from utils.visualization import (

@@ -465,7 +465,7 @@ class VWAPExecutor:
         if not prices or not volumes:
             return 0.0
 
-        total_value = sum(p * v for p, v in zip(prices, volumes))
+        total_value = sum(p * v for p, v in zip(prices, volumes, strict=False))
         total_volume = sum(volumes)
 
         if total_volume == 0:

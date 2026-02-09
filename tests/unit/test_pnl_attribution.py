@@ -9,17 +9,18 @@ Tests:
 - Rolling beta calculation
 """
 
-import numpy as np
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import numpy as np
+import pytest
+
 from utils.pnl_attribution import (
-    PnLAttributor,
-    DailyAttribution,
-    AttributionReport,
-    AttributionComponent,
     SECTOR_MAPPING,
+    AttributionComponent,
+    AttributionReport,
+    DailyAttribution,
+    PnLAttributor,
     print_attribution_report,
 )
 

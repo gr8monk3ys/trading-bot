@@ -5,14 +5,13 @@ Unit tests for utils/economic_calendar.py
 Tests EconomicEventCalendar class for economic event tracking.
 """
 
-import pytest
-from datetime import datetime, time, timedelta
+from datetime import datetime
 from unittest.mock import patch
 
+import pytest
 import pytz
 
 from utils.economic_calendar import EconomicEventCalendar, EventImpact
-
 
 # ============================================================================
 # Fixtures
@@ -258,7 +257,7 @@ class TestGetUpcomingEvents:
             mock_dt.now.return_value = eastern_tz.localize(nfp_date)
             mock_dt.max = datetime.max
             events = calendar.get_upcoming_events(days_ahead=0)
-            nfp_events = [e for e in events if "NFP" in e.get("name", "")]
+            [e for e in events if "NFP" in e.get("name", "")]
             # May or may not include depending on implementation
 
     def test_includes_jobless_claims_on_thursday(self, calendar, eastern_tz):
@@ -442,7 +441,7 @@ class TestGetCalendarReport:
     def test_events_count_matches(self, calendar):
         """Test events count matches."""
         report = calendar.get_calendar_report(days_ahead=7)
-        total = report["high_impact_events"] + report["medium_impact_events"]
+        report["high_impact_events"] + report["medium_impact_events"]
         # May also include low impact events
 
 
@@ -498,7 +497,7 @@ class TestEdgeCases:
 
     def test_multiple_events_same_day(self, calendar, eastern_tz):
         """Test handling multiple events on same day."""
-        events = calendar.get_upcoming_events(days_ahead=30)
+        calendar.get_upcoming_events(days_ahead=30)
         # Just verify it doesn't crash
 
     def test_is_safe_uses_current_time(self, calendar):

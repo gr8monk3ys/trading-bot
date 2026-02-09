@@ -11,14 +11,14 @@ Tests:
 import os
 import shutil
 import tempfile
-import pytest
 from datetime import datetime
-from pathlib import Path
+
+import pytest
 
 from research.research_registry import (
-    ResearchRegistry,
     Experiment,
     ExperimentStatus,
+    ResearchRegistry,
     ValidationGate,
     ValidationResult,
     print_experiment_summary,
@@ -358,7 +358,7 @@ class TestResearchRegistry:
         # Create and promote two experiments
         exp1 = registry.create_experiment(name="exp1", description="1", author="test")
         exp2 = registry.create_experiment(name="exp2", description="2", author="test")
-        exp3 = registry.create_experiment(name="exp3", description="3", author="test")
+        registry.create_experiment(name="exp3", description="3", author="test")
 
         registry.promote_to_production(exp1, force=True)
         registry.promote_to_production(exp2, force=True)

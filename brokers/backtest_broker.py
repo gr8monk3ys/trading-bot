@@ -5,7 +5,7 @@ Mock broker for backtesting purposes with institutional-grade gap risk modeling.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -633,11 +633,11 @@ class BacktestBroker:
         df = self.price_data[symbol]
 
         class MockBar:
-            def __init__(self, timestamp, o, h, l, c, v):
+            def __init__(self, timestamp, o, h, low, c, v):
                 self.timestamp = timestamp
                 self.open = o
                 self.high = h
-                self.low = l
+                self.low = low
                 self.close = c
                 self.volume = v
 

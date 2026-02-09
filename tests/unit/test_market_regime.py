@@ -9,10 +9,11 @@ Tests the market regime detection system including:
 - Helper methods
 """
 
-import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
+
 import numpy as np
+import pytest
 
 
 class TestMarketRegimeEnum:
@@ -289,7 +290,7 @@ class TestClassifyRegime:
 
     def test_classify_high_volatility(self):
         """Test classification with high volatility."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -307,7 +308,7 @@ class TestClassifyRegime:
 
     def test_classify_bull_trending(self):
         """Test classification for bull trending market."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -325,7 +326,7 @@ class TestClassifyRegime:
 
     def test_classify_bear_trending(self):
         """Test classification for bear trending market."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -343,7 +344,7 @@ class TestClassifyRegime:
 
     def test_classify_sideways_ranging(self):
         """Test classification for sideways ranging market."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -361,7 +362,7 @@ class TestClassifyRegime:
 
     def test_classify_weak_uptrend(self):
         """Test classification for weak uptrend."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -379,7 +380,7 @@ class TestClassifyRegime:
 
     def test_classify_weak_downtrend(self):
         """Test classification for weak downtrend."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -397,7 +398,7 @@ class TestClassifyRegime:
 
     def test_classify_flat_no_trend(self):
         """Test classification for flat market with no trend."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -419,7 +420,7 @@ class TestGetStrategyRecommendation:
 
     def test_bull_regime_recommendation(self):
         """Test recommendation for bull regime."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -433,7 +434,7 @@ class TestGetStrategyRecommendation:
 
     def test_bear_regime_recommendation(self):
         """Test recommendation for bear regime."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -447,7 +448,7 @@ class TestGetStrategyRecommendation:
 
     def test_sideways_regime_recommendation(self):
         """Test recommendation for sideways regime."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -461,7 +462,7 @@ class TestGetStrategyRecommendation:
 
     def test_volatile_regime_recommendation(self):
         """Test recommendation for volatile regime."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -475,7 +476,7 @@ class TestGetStrategyRecommendation:
 
     def test_unknown_regime_recommendation(self):
         """Test recommendation for unknown regime."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -489,7 +490,7 @@ class TestGetStrategyRecommendation:
 
     def test_low_confidence_adjustment(self):
         """Test multiplier adjustment for low confidence."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -508,7 +509,7 @@ class TestGetStrategyRecommendation:
 
     def test_volatility_adjustment(self):
         """Test multiplier adjustment for volatility."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -525,7 +526,7 @@ class TestGetStrategyRecommendation:
 
     def test_multiplier_caps(self):
         """Test that multiplier is properly capped."""
-        from utils.market_regime import MarketRegimeDetector, MarketRegime
+        from utils.market_regime import MarketRegime, MarketRegimeDetector
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
@@ -580,7 +581,6 @@ class TestGetRegimeHistory:
     def test_history_after_changes(self):
         """Test regime history accumulates changes."""
         from utils.market_regime import MarketRegimeDetector
-        from datetime import datetime
 
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)

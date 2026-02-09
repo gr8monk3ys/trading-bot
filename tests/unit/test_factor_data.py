@@ -13,24 +13,21 @@ Tests cover:
 - Sector classification
 """
 
-import asyncio
 import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from utils.factor_data import (
-    FundamentalData,
     FactorDataProvider,
+    FundamentalData,
     PointInTimeDataManager,
     create_sample_fundamentals_csv,
 )
-
 
 # =============================================================================
 # FIXTURES
@@ -234,7 +231,7 @@ class TestFactorDataProviderInitialization:
     def test_initialize_creates_cache_directory(self, temp_cache_dir):
         """Test that initialization creates the cache directory."""
         new_cache_dir = os.path.join(temp_cache_dir, "new_cache")
-        provider = FactorDataProvider(cache_dir=new_cache_dir)
+        FactorDataProvider(cache_dir=new_cache_dir)
 
         assert Path(new_cache_dir).exists()
 
@@ -1060,7 +1057,7 @@ class TestIntegration:
         """Test full workflow with CSV data source."""
         symbols = ["AAPL", "MSFT"]
         as_of_date = datetime(2024, 2, 15)
-        price_data = pd.DataFrame({
+        pd.DataFrame({
             "AAPL": [150.0, 151.0, 152.0],
             "MSFT": [350.0, 352.0, 354.0],
         })

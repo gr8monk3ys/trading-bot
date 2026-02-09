@@ -9,7 +9,7 @@ Tests the performance metrics calculation including:
 - Strategy analysis and comparison
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pytest

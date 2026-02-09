@@ -22,14 +22,13 @@ Tests cover:
 
 import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import numpy as np
 import pytest
 
 # Import the actual modules - we'll use @patch decorators for isolation
 from strategies.base_strategy import BaseStrategy
-
 
 # ============================================================================
 # Concrete Strategy for Testing

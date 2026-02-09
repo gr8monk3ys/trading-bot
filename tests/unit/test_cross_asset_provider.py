@@ -2,27 +2,22 @@
 Unit tests for cross-asset data providers.
 """
 
-import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-import pandas as pd
-import numpy as np
 
-from data.cross_asset_types import (
-    CrossAssetSource,
-    VolatilityRegime,
-    YieldCurveRegime,
-    RiskAppetiteRegime,
-    VixTermStructureSignal,
-    YieldCurveSignal,
-    FxCorrelationSignal,
-)
+import pandas as pd
+import pytest
+
 from data.cross_asset_provider import (
-    CrossAssetProvider,
+    CrossAssetAggregator,
+    FxCorrelationProvider,
     VixTermStructureProvider,
     YieldCurveProvider,
-    FxCorrelationProvider,
-    CrossAssetAggregator,
+)
+from data.cross_asset_types import (
+    FxCorrelationSignal,
+    VixTermStructureSignal,
+    YieldCurveSignal,
 )
 
 
@@ -526,9 +521,9 @@ class TestCrossAssetIntegration:
             await yield_prov.initialize()
             await fx.initialize()
 
-            vix_signal = await vix.fetch_signal()
-            yield_signal = await yield_prov.fetch_signal()
-            fx_signal = await fx.fetch_signal()
+            await vix.fetch_signal()
+            await yield_prov.fetch_signal()
+            await fx.fetch_signal()
 
             # All should work independently
             assert vix._initialized or True  # May fail on actual yfinance

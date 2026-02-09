@@ -17,7 +17,6 @@ Data Processing:
 """
 
 import asyncio
-import json
 import logging
 import os
 from dataclasses import dataclass
@@ -213,7 +212,7 @@ class FactorDataProvider:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         data = {}
-        for symbol, result in zip(symbols, results):
+        for symbol, result in zip(symbols, results, strict=False):
             if isinstance(result, FundamentalData):
                 data[symbol] = result
             elif isinstance(result, Exception):

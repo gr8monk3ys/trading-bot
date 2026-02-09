@@ -435,7 +435,7 @@ class EnsembleStrategy(BaseStrategy):
             sell_votes = 0
             total_weight = 0
 
-            for strategy_name, signal_data in signals.items():
+            for _strategy_name, signal_data in signals.items():
                 signal = signal_data["signal"]
                 strength = signal_data["strength"]
                 best_regime = signal_data["best_regime"]

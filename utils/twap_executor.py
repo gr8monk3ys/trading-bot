@@ -256,7 +256,7 @@ class TWAPExecutor:
             if filled_quantities:
                 # Calculate average price
                 result.average_price = sum(
-                    p * q for p, q in zip(filled_prices, filled_quantities)
+                    p * q for p, q in zip(filled_prices, filled_quantities, strict=False)
                 ) / sum(filled_quantities)
 
                 # Calculate VWAP (same as average for TWAP)
@@ -607,7 +607,7 @@ class VWAPExecutor(TWAPExecutor):
 
         if filled_quantities:
             result.average_price = sum(
-                p * q for p, q in zip(filled_prices, filled_quantities)
+                p * q for p, q in zip(filled_prices, filled_quantities, strict=False)
             ) / sum(filled_quantities)
             result.vwap = result.average_price
             result.fill_rate = result.filled_quantity / quantity

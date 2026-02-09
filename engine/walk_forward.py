@@ -18,7 +18,7 @@ not just compared against arbitrary thresholds.
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -522,7 +522,7 @@ class WalkForwardValidator:
         degradation_test = check_degradation_significance(is_returns, oos_returns)
 
         # Calculate Sharpe confidence intervals
-        is_returns_arr = np.array([r.is_return for r in self.results])
+        np.array([r.is_return for r in self.results])
         oos_returns_arr = np.array([r.oos_return for r in self.results])
 
         oos_sharpe, oos_sharpe_ci_lower, oos_sharpe_ci_upper = calculate_sharpe_confidence_interval(

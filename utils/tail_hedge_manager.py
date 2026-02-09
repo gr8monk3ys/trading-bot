@@ -26,7 +26,7 @@ Usage:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict
 
 from config import OPTIONS_PARAMS
 

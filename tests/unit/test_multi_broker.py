@@ -9,10 +9,9 @@ Tests:
 - Operation routing
 """
 
-import asyncio
+from datetime import datetime
+
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from brokers.broker_interface import (
     AccountInfo,
@@ -27,13 +26,12 @@ from brokers.broker_interface import (
     OrderStatus,
     OrderType,
     Position,
-    TimeInForce,
 )
 from brokers.multi_broker import (
-    MultiBrokerManager,
     BrokerHealth,
     FailoverEvent,
     FailoverLog,
+    MultiBrokerManager,
     print_broker_status,
 )
 

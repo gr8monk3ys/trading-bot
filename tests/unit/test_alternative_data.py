@@ -9,28 +9,24 @@ These tests verify:
 - Order flow analyzers
 """
 
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
 
 import pytest
 
 from data.alt_data_types import (
     AggregatedSignal,
-    AltDataProviderStatus,
     AltDataSource,
     AlternativeSignal,
     OrderFlowSignal,
     SignalDirection,
     SignalStrength,
     SocialSentimentSignal,
-    WebScrapingSignal,
 )
 from data.alternative_data_provider import (
     AltDataAggregator,
     AltDataCache,
     AlternativeDataProvider,
 )
-
 
 # ============================================================================
 # ALT DATA TYPES TESTS

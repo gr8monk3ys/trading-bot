@@ -7,9 +7,10 @@ These tests verify that:
 3. OrderGateway properly catches TradingHaltedException
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 class TestTradingHaltedException:
@@ -281,8 +282,8 @@ class TestOrderGatewayCircuitBreakerIntegration:
 
     async def test_gateway_catches_trading_halted_exception(self):
         """OrderGateway should catch TradingHaltedException and reject order."""
-        from utils.order_gateway import OrderGateway, OrderResult
         from utils.circuit_breaker import TradingHaltedException
+        from utils.order_gateway import OrderGateway
 
         # Create mock broker and circuit breaker
         mock_broker = MagicMock()

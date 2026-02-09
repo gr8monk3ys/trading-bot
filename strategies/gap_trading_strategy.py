@@ -155,7 +155,7 @@ class GapTradingStrategy(BaseStrategy):
         tasks = [self._detect_gap(symbol) for symbol in symbols]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for symbol, result in zip(symbols, results):
+        for symbol, result in zip(symbols, results, strict=False):
             if isinstance(result, Exception):
                 logger.warning(f"Error scanning gap for {symbol}: {result}")
             elif result and result["is_tradeable"]:
@@ -349,7 +349,7 @@ class GapTradingStrategy(BaseStrategy):
                     continue
 
                 current_price = gap_info["current_price"]
-                entry_price = trade["entry_price"]
+                trade["entry_price"]
                 direction = trade["direction"]
 
                 # Check exit conditions

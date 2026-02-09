@@ -13,7 +13,7 @@ Key Features:
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
@@ -420,10 +420,10 @@ class WashSaleTracker:
             }
 
         if recent_purchases:
-            total_at_risk = sum(l["potential_loss"] for l in losses_at_risk)
+            total_at_risk = sum(loss["potential_loss"] for loss in losses_at_risk)
             return {
                 "risk": "HIGH",
-                "message": f"Sale would trigger wash sale - recent purchases within 30 days",
+                "message": "Sale would trigger wash sale - recent purchases within 30 days",
                 "recent_purchases": len(recent_purchases),
                 "losses_at_risk": losses_at_risk,
                 "total_at_risk": total_at_risk,

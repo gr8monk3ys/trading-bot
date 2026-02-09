@@ -115,7 +115,7 @@ class OrderBuilder:
             try:
                 self.qty = float(qty)
             except (TypeError, ValueError):
-                raise ValueError(f"Quantity must be numeric, got: {qty}")
+                raise ValueError(f"Quantity must be numeric, got: {qty}") from None
 
             if self.qty <= 0:
                 raise ValueError(f"Quantity must be positive, got: {self.qty}")
@@ -188,7 +188,7 @@ class OrderBuilder:
         try:
             amount = float(amount)
         except (TypeError, ValueError):
-            raise ValueError(f"Notional amount must be numeric, got: {amount}")
+            raise ValueError(f"Notional amount must be numeric, got: {amount}") from None
 
         if amount < self.MIN_NOTIONAL:
             raise ValueError(f"Minimum notional order is ${self.MIN_NOTIONAL:.2f}")

@@ -10,20 +10,17 @@ Tests cover:
 - Statistics calculation
 """
 
-import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from utils.partial_fill_tracker import (
+    OrderTrackingRecord,
     PartialFillEvent,
     PartialFillPolicy,
     PartialFillStatistics,
     PartialFillTracker,
-    OrderTrackingRecord,
 )
-
 
 # ============================================================================
 # FIXTURES
