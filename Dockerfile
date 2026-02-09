@@ -76,7 +76,7 @@ USER trader
 
 # Health check
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
-    CMD python -c "import os; exit(0 if os.path.exists('bot.pid') else 1)" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1
 
 # Default environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -89,4 +89,4 @@ ENV PYTHONUNBUFFERED=1 \
 EXPOSE 8000
 
 # Default command: run paper trading
-CMD ["python", "main.py", "live", "--strategy", "MomentumStrategy", "--force"]
+CMD ["python", "start.py"]
