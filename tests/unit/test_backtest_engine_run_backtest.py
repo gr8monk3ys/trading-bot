@@ -155,3 +155,35 @@ async def test_run_backtest_handles_no_data(monkeypatch):
 
     assert "equity_curve" in result
     assert result["total_trades"] == 0
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_persists_observability_artifacts(monkeypatch, tmp_path):
+    monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _FakeDataBroker)
+    monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
+    monkeypatch.setattr("engine.backtest_engine.HistoricalUniverse", _FakeHistoricalUniverse)
+
+    engine = BacktestEngine()
+    run_id = "backtest_20240101_000000_testabcd"
+
+    result = await engine.run_backtest(
+        strategy_class=_DummyStrategy,
+        symbols=["AAPL"],
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 3),
+        initial_capital=100000,
+        run_id=run_id,
+        persist_artifacts=True,
+        artifacts_dir=str(tmp_path),
+    )
+
+    metadata = result["run_metadata"]
+    assert metadata["run_id"] == run_id
+    assert metadata["persist_artifacts"] is True
+
+    run_dir = tmp_path / run_id
+    assert run_dir.exists()
+    assert (run_dir / "summary.json").exists()
+    assert (run_dir / "manifest.json").exists()
+    assert (run_dir / "decision_events.jsonl").exists()
+    assert (run_dir / "trades.jsonl").exists()

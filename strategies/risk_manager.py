@@ -72,29 +72,57 @@ class RiskManager:
         if value == 0 and name.endswith("_threshold"):
             raise ValueError(f"{name} cannot be zero (would cause division by zero)")
 
+    @staticmethod
+    def _compute_returns(price_history) -> np.ndarray:
+        """Compute simple returns without emitting runtime warnings."""
+        prices = np.asarray(price_history, dtype=np.float64)
+        if prices.size < 2:
+            return np.array([], dtype=np.float64)
+
+        prev = prices[:-1]
+        curr = prices[1:]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            returns = np.divide(
+                curr - prev,
+                prev,
+                out=np.full(prev.shape, np.nan, dtype=np.float64),
+                where=prev != 0,
+            )
+        return returns[np.isfinite(returns)]
+
     def _calculate_volatility(self, price_history):
         """Calculate annualized volatility."""
         if len(price_history) < 2:
             return 0.0
         # Avoid division by zero
-        prices = price_history[:-1]
+        prices = np.asarray(price_history[:-1], dtype=np.float64)
+        if np.any(~np.isfinite(prices)):
+            logger.warning("Invalid prices detected in volatility calculation")
+            return 1.0  # Return high volatility to signal caution
         if np.any(prices == 0):
             logger.warning("Zero prices detected in volatility calculation")
             return 1.0  # Return high volatility to signal caution
-        returns = np.diff(price_history) / prices
-        return np.std(returns) * np.sqrt(252)
+        returns = self._compute_returns(price_history)
+        if returns.size == 0:
+            return 1.0
+        return float(np.std(returns) * np.sqrt(252))
 
     def _calculate_var(self, price_history):
         """Calculate Value at Risk (VaR) at 95% confidence level using historical method."""
         if len(price_history) < 2:
             return 0.0
         # Avoid division by zero
-        prices = price_history[:-1]
+        prices = np.asarray(price_history[:-1], dtype=np.float64)
+        if np.any(~np.isfinite(prices)):
+            logger.warning("Invalid prices detected in VaR calculation")
+            return -0.1  # Return large negative VaR to signal high risk
         if np.any(prices == 0):
             logger.warning("Zero prices detected in VaR calculation")
             return -0.1  # Return large negative VaR to signal high risk
-        returns = np.diff(price_history) / prices
-        return np.percentile(returns, 5) * np.sqrt(252)
+        returns = self._compute_returns(price_history)
+        if returns.size == 0:
+            return -0.1
+        return float(np.percentile(returns, 5) * np.sqrt(252))
 
     def _calculate_parametric_var(self, price_history, confidence: float = 0.95):
         """
@@ -110,12 +138,17 @@ class RiskManager:
         if len(price_history) < 2:
             return 0.0
 
-        prices = np.array(price_history[:-1])
+        prices = np.asarray(price_history[:-1], dtype=np.float64)
+        if np.any(~np.isfinite(prices)):
+            logger.warning("Invalid prices detected in parametric VaR calculation")
+            return -0.1
         if np.any(prices == 0):
             logger.warning("Zero prices detected in parametric VaR calculation")
             return -0.1
 
-        returns = np.diff(price_history) / prices
+        returns = self._compute_returns(price_history)
+        if returns.size == 0:
+            return -0.1
         mean = np.mean(returns)
         std = np.std(returns)
 
@@ -147,12 +180,17 @@ class RiskManager:
         if len(price_history) < 20:  # Need reasonable history for MC
             return self._calculate_var(price_history)  # Fall back to historical
 
-        prices = np.array(price_history[:-1])
+        prices = np.asarray(price_history[:-1], dtype=np.float64)
+        if np.any(~np.isfinite(prices)):
+            logger.warning("Invalid prices detected in Monte Carlo VaR calculation")
+            return -0.1
         if np.any(prices == 0):
             logger.warning("Zero prices detected in Monte Carlo VaR calculation")
             return -0.1
 
-        returns = np.diff(price_history) / prices
+        returns = self._compute_returns(price_history)
+        if returns.size == 0:
+            return -0.1
         mean = np.mean(returns)
         std = np.std(returns)
 
@@ -193,12 +231,17 @@ class RiskManager:
         if len(price_history) < 30:  # Need enough data for skew/kurtosis
             return self._calculate_parametric_var(price_history, confidence)
 
-        prices = np.array(price_history[:-1])
+        prices = np.asarray(price_history[:-1], dtype=np.float64)
+        if np.any(~np.isfinite(prices)):
+            logger.warning("Invalid prices detected in Cornish-Fisher VaR calculation")
+            return -0.1
         if np.any(prices == 0):
             logger.warning("Zero prices detected in Cornish-Fisher VaR calculation")
             return -0.1
 
-        returns = np.diff(price_history) / prices
+        returns = self._compute_returns(price_history)
+        if returns.size == 0:
+            return -0.1
         mean = np.mean(returns)
         std = np.std(returns)
 
@@ -296,28 +339,46 @@ class RiskManager:
         if len(price_history) < 2:
             return 0.0
         # Avoid division by zero
-        prices = price_history[:-1]
+        prices = np.asarray(price_history[:-1], dtype=np.float64)
+        if np.any(~np.isfinite(prices)):
+            logger.warning("Invalid prices detected in ES calculation")
+            return -0.15  # Return large negative ES to signal high risk
         if np.any(prices == 0):
             logger.warning("Zero prices detected in ES calculation")
             return -0.15  # Return large negative ES to signal high risk
-        returns = np.diff(price_history) / prices
+        returns = self._compute_returns(price_history)
+        if returns.size == 0:
+            return var_value if var_value is not None else -0.15
         var_95 = var_value if var_value is not None else self._calculate_var(price_history)
         tail_returns = returns[returns <= var_95]
         if len(tail_returns) == 0:
             return var_95  # Return VaR if no tail returns
-        return np.mean(tail_returns) * np.sqrt(252)
+        return float(np.mean(tail_returns) * np.sqrt(252))
 
     def _calculate_max_drawdown(self, price_history):
         """Calculate maximum drawdown."""
         if len(price_history) < 2:
             return 0.0
-        rolling_max = np.maximum.accumulate(price_history)
+        prices = np.asarray(price_history, dtype=np.float64)
+        if np.any(~np.isfinite(prices)):
+            logger.warning("Invalid prices detected in drawdown calculation")
+            return -0.5  # Return large negative drawdown to signal high risk
+        rolling_max = np.maximum.accumulate(prices)
         # Avoid division by zero
-        if np.any(rolling_max == 0):
+        if np.any(~np.isfinite(rolling_max)) or np.any(rolling_max == 0):
             logger.warning("Zero rolling max detected in drawdown calculation")
             return -0.5  # Return large negative drawdown to signal high risk
-        drawdowns = (price_history - rolling_max) / rolling_max
-        return np.min(drawdowns)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            drawdowns = np.divide(
+                prices - rolling_max,
+                rolling_max,
+                out=np.full(prices.shape, np.nan, dtype=np.float64),
+                where=rolling_max != 0,
+            )
+        finite_drawdowns = drawdowns[np.isfinite(drawdowns)]
+        if finite_drawdowns.size == 0:
+            return -0.5
+        return float(np.min(finite_drawdowns))
 
     def calculate_position_risk(self, symbol: str, price_history: List[float]) -> float:
         """
@@ -405,15 +466,31 @@ class RiskManager:
                 )
                 return 1.0
 
-            returns1 = np.diff(prices1) / prices1[:-1]
-            returns2 = np.diff(prices2) / prices2[:-1]
+            if np.any(~np.isfinite(prices1)) or np.any(~np.isfinite(prices2)):
+                logger.warning(f"Non-finite prices in correlation calculation: {symbol1}, {symbol2}")
+                return 1.0
+
+            with np.errstate(divide="ignore", invalid="ignore"):
+                returns1 = np.divide(
+                    np.diff(prices1),
+                    prices1[:-1],
+                    out=np.full(prices1.shape[0] - 1, np.nan, dtype=np.float64),
+                    where=prices1[:-1] != 0,
+                )
+                returns2 = np.divide(
+                    np.diff(prices2),
+                    prices2[:-1],
+                    out=np.full(prices2.shape[0] - 1, np.nan, dtype=np.float64),
+                    where=prices2[:-1] != 0,
+                )
 
             # Check for NaN/Inf values
             if np.any(~np.isfinite(returns1)) or np.any(~np.isfinite(returns2)):
                 logger.warning(f"Invalid returns in correlation calculation: {symbol1}, {symbol2}")
                 return 1.0
 
-            correlation = np.corrcoef(returns1, returns2)[0, 1]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                correlation = np.corrcoef(returns1, returns2)[0, 1]
 
             # Handle NaN correlation (can occur with zero variance)
             if not np.isfinite(correlation):

@@ -39,6 +39,46 @@ class GapStatistics:
     average_gap_pct: float
 
 
+@dataclass
+class ExecutionProfile:
+    """Execution realism profile for paper/backtest fills."""
+
+    name: str
+    slippage_multiplier: float = 1.0
+    partial_fill_multiplier: float = 1.0
+    min_latency_ms: int = 15
+    max_latency_ms: int = 120
+    reject_probability: float = 0.0
+
+
+EXECUTION_PROFILE_PRESETS: Dict[str, ExecutionProfile] = {
+    "idealistic": ExecutionProfile(
+        name="idealistic",
+        slippage_multiplier=0.7,
+        partial_fill_multiplier=1.1,
+        min_latency_ms=2,
+        max_latency_ms=20,
+        reject_probability=0.0,
+    ),
+    "realistic": ExecutionProfile(
+        name="realistic",
+        slippage_multiplier=1.0,
+        partial_fill_multiplier=1.0,
+        min_latency_ms=15,
+        max_latency_ms=120,
+        reject_probability=0.0,
+    ),
+    "stressed": ExecutionProfile(
+        name="stressed",
+        slippage_multiplier=1.6,
+        partial_fill_multiplier=0.75,
+        min_latency_ms=80,
+        max_latency_ms=500,
+        reject_probability=0.02,
+    ),
+}
+
+
 class BacktestBroker:
     """Simple broker for backtesting purposes with realistic slippage modeling"""
 
@@ -51,6 +91,9 @@ class BacktestBroker:
         slippage_bps=5.0,
         spread_bps=3.0,
         enable_partial_fills=True,
+        execution_profile: str = "realistic",
+        random_seed: Optional[int] = None,
+        run_id: Optional[str] = None,
     ):
         """
         Initialize broker with starting balance and slippage parameters.
@@ -63,6 +106,9 @@ class BacktestBroker:
             slippage_bps: Slippage in basis points (default 5.0 = 0.05%)
             spread_bps: Bid-ask spread in basis points (default 3.0 = 0.03%)
             enable_partial_fills: Whether to simulate partial fills on large orders
+            execution_profile: Fill realism profile ('idealistic', 'realistic', 'stressed')
+            random_seed: Optional seed for deterministic simulations
+            run_id: Optional run identifier for observability correlation
         """
         # Note: api_key, api_secret, paper are accepted for API compatibility
         # but not stored (unused in backtesting, avoids accidental credential exposure)
@@ -76,6 +122,10 @@ class BacktestBroker:
         self.slippage_bps = slippage_bps
         self.spread_bps = spread_bps
         self.enable_partial_fills = enable_partial_fills
+        self._rng = np.random.default_rng(random_seed)
+        self.execution_profile = EXECUTION_PROFILE_PRESETS["realistic"]
+        self.set_execution_profile(execution_profile)
+        self.run_id = run_id
 
         # Current date for backtesting (set by BacktestEngine)
         self._current_date = None
@@ -84,6 +134,23 @@ class BacktestBroker:
         self._gap_events: List[GapEvent] = []
         self._stop_orders: Dict[str, Dict] = {}  # symbol -> stop order details
         self._prev_day_close: Dict[str, float] = {}  # symbol -> previous close
+
+    def set_execution_profile(self, execution_profile: str | ExecutionProfile) -> None:
+        """Set execution realism profile."""
+        if isinstance(execution_profile, ExecutionProfile):
+            self.execution_profile = execution_profile
+            return
+        profile = EXECUTION_PROFILE_PRESETS.get(str(execution_profile).lower())
+        if profile is None:
+            raise ValueError(
+                f"Unknown execution_profile '{execution_profile}'. "
+                f"Expected one of: {', '.join(sorted(EXECUTION_PROFILE_PRESETS.keys()))}"
+            )
+        self.execution_profile = profile
+
+    def get_execution_profile(self) -> ExecutionProfile:
+        """Return active execution profile."""
+        return self.execution_profile
 
     def _get_actual_daily_volume(self, symbol: str, date) -> float:
         """
@@ -314,7 +381,7 @@ class BacktestBroker:
             np.random.seed(42 + hash(symbol) % 100)  # Consistent but different for each symbol
             price = 100 + np.random.rand() * 100  # Random start price between 100-200
             daily_returns = np.random.normal(0.0005, 0.015, len(dates))  # Slight upward bias
-            prices = price * (1 + pd.Series(daily_returns)).cumprod()
+            prices = price * np.cumprod(1 + daily_returns)
 
             # Create OHLC data
             data = pd.DataFrame(
@@ -387,6 +454,8 @@ class BacktestBroker:
         else:  # limit orders pay less (assuming they get filled at limit)
             total_slippage = market_impact_cost * 0.3  # 30% of market order slippage
 
+        total_slippage *= self.execution_profile.slippage_multiplier
+
         # 5. Apply slippage direction
         if side == "buy":
             execution_price = base_price + total_slippage  # Buy at higher price
@@ -432,14 +501,16 @@ class BacktestBroker:
             # At 50% participation: ~70% fill
             # At 100%+ participation: ~50% fill
             if participation_rate >= 1.0:
-                fill_rate = 0.5 + (np.random.rand() * 0.15)
+                fill_rate = 0.5 + (self._rng.random() * 0.15)
             elif participation_rate >= 0.5:
-                fill_rate = 0.65 + (np.random.rand() * 0.15)
+                fill_rate = 0.65 + (self._rng.random() * 0.15)
             elif participation_rate >= 0.2:
-                fill_rate = 0.75 + (np.random.rand() * 0.15)
+                fill_rate = 0.75 + (self._rng.random() * 0.15)
             else:  # 10-20%
-                fill_rate = 0.85 + (np.random.rand() * 0.10)
+                fill_rate = 0.85 + (self._rng.random() * 0.10)
 
+            fill_rate *= self.execution_profile.partial_fill_multiplier
+            fill_rate = max(0.05, min(fill_rate, 1.0))
             filled_qty = int(quantity * fill_rate)
             logger.warning(
                 f"Partial fill for {symbol}: {filled_qty}/{quantity} "
@@ -448,6 +519,15 @@ class BacktestBroker:
             return max(filled_qty, 1)  # Fill at least 1 share
 
         return quantity
+
+    def _sample_execution_latency_ms(self) -> int:
+        """Sample simulated venue/network latency."""
+        return int(
+            self._rng.integers(
+                self.execution_profile.min_latency_ms,
+                self.execution_profile.max_latency_ms + 1,
+            )
+        )
 
     def place_order(self, symbol, quantity, side, price=None, order_type="market"):
         """
@@ -464,9 +544,32 @@ class BacktestBroker:
             Order dict with execution details
         """
         current_date = self._current_date if self._current_date else datetime.now()
+        latency_ms = self._sample_execution_latency_ms()
 
         # Get base price (mid price)
         base_price = price if price else self.get_price(symbol, current_date)
+
+        if self._rng.random() < self.execution_profile.reject_probability:
+            order = {
+                "id": len(self.orders) + 1,
+                "run_id": self.run_id,
+                "symbol": symbol,
+                "quantity": quantity,
+                "filled_qty": 0,
+                "side": side,
+                "price": base_price,
+                "filled_avg_price": None,
+                "type": order_type,
+                "status": "rejected",
+                "created_at": current_date,
+                "filled_at": None,
+                "slippage_bps": 0.0,
+                "latency_ms": latency_ms,
+                "execution_profile": self.execution_profile.name,
+                "rejection_reason": "simulated_liquidity_reject",
+            }
+            self.orders.append(order)
+            return order
 
         # Apply slippage to get realistic execution price
         execution_price = self._calculate_slippage(symbol, quantity, side, base_price, order_type)
@@ -476,6 +579,7 @@ class BacktestBroker:
 
         order = {
             "id": len(self.orders) + 1,
+            "run_id": self.run_id,
             "symbol": symbol,
             "quantity": quantity,
             "filled_qty": filled_quantity,  # Actual filled amount
@@ -486,7 +590,11 @@ class BacktestBroker:
             "status": "filled" if filled_quantity == quantity else "partially_filled",
             "created_at": current_date,
             "filled_at": current_date,
-            "slippage_bps": abs((execution_price - base_price) / base_price) * 10000,
+            "slippage_bps": (
+                abs((execution_price - base_price) / base_price) * 10000 if base_price else 0.0
+            ),
+            "latency_ms": latency_ms,
+            "execution_profile": self.execution_profile.name,
         }
 
         self.orders.append(order)
@@ -497,13 +605,34 @@ class BacktestBroker:
         if side == "buy":
             self.balance -= cost
             if symbol in self.positions:
-                self.positions[symbol]["quantity"] += filled_quantity
-                # Average the price
-                total_qty = self.positions[symbol]["quantity"]
-                prev_cost = self.positions[symbol]["entry_price"] * (total_qty - filled_quantity)
-                new_cost = cost
-                self.positions[symbol]["entry_price"] = (prev_cost + new_cost) / total_qty
-            else:
+                existing_qty = self.positions[symbol]["quantity"]
+                existing_entry = self.positions[symbol]["entry_price"]
+                new_qty = existing_qty + filled_quantity
+
+                if existing_qty < 0:
+                    # Covering a short position: avoid averaging long entry across a zero-cross.
+                    if new_qty < 0:
+                        self.positions[symbol]["quantity"] = new_qty
+                    elif new_qty == 0:
+                        del self.positions[symbol]
+                    else:
+                        self.positions[symbol] = {
+                            "symbol": symbol,
+                            "quantity": new_qty,
+                            "entry_price": execution_price,
+                        }
+                else:
+                    # Long-only path with safe average-price update.
+                    if new_qty > 0:
+                        prev_cost = existing_entry * existing_qty
+                        self.positions[symbol]["quantity"] = new_qty
+                        self.positions[symbol]["entry_price"] = (prev_cost + cost) / new_qty
+                    elif new_qty == 0:
+                        del self.positions[symbol]
+                    else:
+                        # Defensive fallback: do not keep negative quantity in long-only path.
+                        del self.positions[symbol]
+            elif filled_quantity > 0:
                 self.positions[symbol] = {
                     "symbol": symbol,
                     "quantity": filled_quantity,
@@ -512,14 +641,37 @@ class BacktestBroker:
         else:  # sell
             self.balance += cost
             if symbol in self.positions:
-                self.positions[symbol]["quantity"] -= filled_quantity
-                if self.positions[symbol]["quantity"] <= 0:
-                    del self.positions[symbol]
+                existing_qty = self.positions[symbol]["quantity"]
+                new_qty = existing_qty - filled_quantity
+
+                if existing_qty <= 0:
+                    # Existing short position and additional sell keeps/increases short.
+                    if new_qty < 0:
+                        existing_abs = abs(existing_qty)
+                        added_abs = filled_quantity
+                        total_abs = existing_abs + added_abs
+                        if total_abs > 0:
+                            avg_entry = (
+                                (self.positions[symbol]["entry_price"] * existing_abs)
+                                + (execution_price * added_abs)
+                            ) / total_abs
+                            self.positions[symbol]["entry_price"] = avg_entry
+                        self.positions[symbol]["quantity"] = new_qty
+                    elif new_qty == 0:
+                        del self.positions[symbol]
+                    else:
+                        # Defensive fallback for unexpected sign flip in sell path.
+                        del self.positions[symbol]
+                else:
+                    self.positions[symbol]["quantity"] = new_qty
+                    if new_qty <= 0:
+                        del self.positions[symbol]
 
         # Record the trade with actual execution details
         self.trades.append(
             {
                 "id": len(self.trades) + 1,
+                "run_id": self.run_id,
                 "symbol": symbol,
                 "quantity": filled_quantity,
                 "side": side,

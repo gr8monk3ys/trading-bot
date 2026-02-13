@@ -370,9 +370,21 @@ class FactorDataProvider:
         # Append if exists, otherwise create
         if csv_path.exists():
             existing = pd.read_csv(csv_path)
-            df = pd.concat([existing, df]).drop_duplicates(
-                subset=["symbol", "date"], keep="last"
-            )
+            existing_records = existing.dropna(how="all").to_dict(orient="records")
+            new_records = df.dropna(how="all").to_dict(orient="records")
+
+            merged_by_key = {}
+            for record in existing_records + new_records:
+                key = (record.get("symbol"), record.get("date"))
+                merged_by_key[key] = record
+
+            if merged_by_key:
+                all_columns = sorted(
+                    {column for record in merged_by_key.values() for column in record.keys()}
+                )
+                df = pd.DataFrame(merged_by_key.values()).reindex(columns=all_columns)
+            else:
+                df = pd.DataFrame(columns=existing.columns if not existing.empty else df.columns)
 
         df.to_csv(csv_path, index=False)
         logger.info(f"Saved {len(rows)} records to {csv_path}")

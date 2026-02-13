@@ -544,10 +544,15 @@ class WalkForwardValidator:
             degradation_test.effect_magnitude in ["negligible", "small"]
         )
 
-        passes_validation = (
+        # Keep a hard overfitting-ratio guard even when sample size is too small
+        # for significance testing (e.g., a single fold).
+        passes_overfit_ratio = bool(avg_overfit_ratio <= self.overfitting_threshold)
+
+        passes_validation = bool(
             avg_oos_return > 0
             and passes_statistical_test
             and consistency >= 0.5
+            and passes_overfit_ratio
         )
 
         # Print summary
@@ -595,6 +600,11 @@ class WalkForwardValidator:
                 )
             if consistency < 0.5:
                 print(f"   - Inconsistent results ({consistency:.0%} folds profitable)")
+            if not passes_overfit_ratio:
+                print(
+                    f"   - Overfit ratio too high ({avg_overfit_ratio:.2f} > "
+                    f"{self.overfitting_threshold:.2f})"
+                )
 
         print("=" * 80 + "\n")
 

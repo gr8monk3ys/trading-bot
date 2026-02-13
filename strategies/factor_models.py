@@ -115,20 +115,42 @@ class FactorCalculator:
 
     def _winsorize(self, values: np.ndarray) -> np.ndarray:
         """Winsorize values at specified standard deviations."""
-        mean = np.nanmean(values)
-        std = np.nanstd(values)
+        values = np.asarray(values, dtype=float)
+        finite_mask = np.isfinite(values)
+        if not finite_mask.any():
+            return values.copy()
+
+        finite_values = values[finite_mask]
+        mean = float(np.mean(finite_values))
+        std = float(np.std(finite_values))
+        if not np.isfinite(std) or std == 0:
+            return values.copy()
+
         lower = mean - self.winsorize_std * std
         upper = mean + self.winsorize_std * std
-        return np.clip(values, lower, upper)
+        clipped = values.copy()
+        clipped[finite_mask] = np.clip(finite_values, lower, upper)
+        return clipped
 
     def _z_score(self, values: np.ndarray) -> np.ndarray:
         """Calculate z-scores with winsorization."""
         winsorized = self._winsorize(values)
-        mean = np.nanmean(winsorized)
-        std = np.nanstd(winsorized)
-        if std == 0:
-            return np.zeros_like(values)
-        return (winsorized - mean) / std
+        finite_mask = np.isfinite(winsorized)
+        if not finite_mask.any():
+            return np.zeros_like(winsorized, dtype=float)
+
+        finite_values = winsorized[finite_mask]
+        mean = float(np.mean(finite_values))
+        std = float(np.std(finite_values))
+        if not np.isfinite(std) or std == 0:
+            z_scores = np.zeros_like(winsorized, dtype=float)
+            z_scores[~finite_mask] = np.nan
+            return z_scores
+
+        z_scores = np.zeros_like(winsorized, dtype=float)
+        z_scores[finite_mask] = (finite_values - mean) / std
+        z_scores[~finite_mask] = np.nan
+        return z_scores
 
     def _percentile_rank(self, values: np.ndarray) -> np.ndarray:
         """Calculate percentile ranks (0-100)."""
@@ -425,8 +447,10 @@ class FactorCalculator:
         if valid_mask.sum() < self.min_universe_size:
             return {}
 
-        # Log transform for better distribution
-        log_caps = np.log(caps)
+        # Log transform only valid values to avoid runtime warnings on zero/negative caps.
+        log_caps = np.full(caps.shape, np.nan, dtype=float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            np.log(caps, out=log_caps, where=valid_mask)
 
         # Z-score (invert if small cap premium)
         z_scores = self._z_score(log_caps)

@@ -808,62 +808,67 @@ class BaseStrategy(ABC):
             Order result or None on failure
         """
         try:
+            strategy_name = getattr(self, "name", self.__class__.__name__)
+            order_gateway = getattr(self, "order_gateway", None)
+            strategy_logger = getattr(self, "logger", logger)
+
             # Verify we own this position
             positions = await self.broker.get_positions()
             current_position = next((p for p in positions if p.symbol == symbol), None)
 
             if not current_position:
-                self.logger.warning(f"EXIT REJECTED: No position found for {symbol}")
+                strategy_logger.warning(f"EXIT REJECTED: No position found for {symbol}")
                 return None
 
             actual_qty = abs(float(current_position.qty))
             if qty > actual_qty * 1.01:  # Allow 1% tolerance for fractional shares
-                self.logger.warning(
+                strategy_logger.warning(
                     f"EXIT ADJUSTED: Requested {qty} but only have {actual_qty} {symbol}"
                 )
                 qty = actual_qty
 
             # INSTITUTIONAL SAFETY: Route through OrderGateway if available
-            if self.order_gateway:
-                result = await self.order_gateway.submit_exit_order(
+            if order_gateway:
+                result = await order_gateway.submit_exit_order(
                     symbol=symbol,
                     quantity=qty,
-                    strategy_name=self.name,
+                    strategy_name=strategy_name,
                     side=side,
                     reason=reason,
                 )
                 if result.success:
-                    self.logger.info(
+                    strategy_logger.info(
                         f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
                         f"(Order ID: {result.order_id})"
                     )
                     return result
                 else:
-                    self.logger.warning(
+                    strategy_logger.warning(
                         f"EXIT ORDER FAILED for {symbol}: {result.rejection_reason}"
                     )
                     return None
             else:
                 # Fallback for backwards compatibility (will fail if gateway enforcement enabled)
                 from brokers.order_builder import OrderBuilder
-                self.logger.warning(
+                strategy_logger.warning(
                     f"⚠️ No OrderGateway configured - using direct broker access for {symbol}"
                 )
                 order = OrderBuilder(symbol, side, qty).market().day().build()
                 result = await self.broker.submit_order_advanced(order)
 
                 if result:
-                    self.logger.info(
+                    strategy_logger.info(
                         f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
                         f"(Order ID: {result.id})"
                     )
                 else:
-                    self.logger.warning(f"EXIT ORDER FAILED for {symbol}")
+                    strategy_logger.warning(f"EXIT ORDER FAILED for {symbol}")
 
                 return result
 
         except Exception as e:
-            self.logger.error(f"EXIT ORDER ERROR for {symbol}: {e}")
+            strategy_logger = getattr(self, "logger", logger)
+            strategy_logger.error(f"EXIT ORDER ERROR for {symbol}: {e}")
             return None
 
     async def submit_entry_order(
@@ -889,9 +894,13 @@ class BaseStrategy(ABC):
         Raises:
             RuntimeError: If no OrderGateway is configured and gateway enforcement is enabled
         """
-        if not self.order_gateway:
+        order_gateway = getattr(self, "order_gateway", None)
+        strategy_name = getattr(self, "name", self.__class__.__name__)
+        strategy_logger = getattr(self, "logger", logger)
+
+        if not order_gateway:
             # No gateway configured - try direct submission (will fail if enforcement enabled)
-            self.logger.warning(
+            strategy_logger.warning(
                 "⚠️ No OrderGateway configured - attempting direct broker access. "
                 "This will fail if gateway enforcement is enabled."
             )
@@ -899,7 +908,7 @@ class BaseStrategy(ABC):
                 result = await self.broker.submit_order_advanced(order_request)
                 return result
             except Exception as e:
-                self.logger.error(f"Entry order failed: {e}")
+                strategy_logger.error(f"Entry order failed: {e}")
                 return None
 
         try:
@@ -909,28 +918,28 @@ class BaseStrategy(ABC):
                 built = order_request.build()
                 symbol = getattr(built, 'symbol', symbol)
 
-            result = await self.order_gateway.submit_order(
+            result = await order_gateway.submit_order(
                 order_request=order_request,
-                strategy_name=self.name,
+                strategy_name=strategy_name,
                 max_positions=max_positions,
                 price_history=self.price_history.get(symbol, []),
                 is_exit_order=False,
             )
 
             if result.success:
-                self.logger.info(
+                strategy_logger.info(
                     f"ENTRY ORDER: {reason} - {result.side.upper()} {result.quantity} {symbol} "
                     f"(Order ID: {result.order_id})"
                 )
             else:
-                self.logger.warning(
+                strategy_logger.warning(
                     f"ENTRY ORDER REJECTED for {symbol}: {result.rejection_reason}"
                 )
 
             return result
 
         except Exception as e:
-            self.logger.error(f"Entry order error: {e}")
+            strategy_logger.error(f"Entry order error: {e}")
             return None
 
     async def run(self):

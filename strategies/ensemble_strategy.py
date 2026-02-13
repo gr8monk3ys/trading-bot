@@ -17,6 +17,7 @@ Expected Sharpe Ratio: 0.95-1.25 (research target)
 import logging
 import warnings
 from datetime import datetime
+import asyncio
 
 import numpy as np
 
@@ -124,7 +125,9 @@ class EnsembleStrategy(BaseStrategy):
 
             # Add as subscriber
             if hasattr(self.broker, "_add_subscriber"):
-                self.broker._add_subscriber(self)
+                subscribe_result = self.broker._add_subscriber(self)
+                if asyncio.iscoroutine(subscribe_result):
+                    await subscribe_result
 
             logger.info(f"Initialized {self.NAME} with {len(self.symbols)} symbols")
             logger.info("  Sub-strategies: Mean Reversion, Momentum, Trend Following")

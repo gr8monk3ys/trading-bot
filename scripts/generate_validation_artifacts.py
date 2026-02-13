@@ -25,6 +25,7 @@ from engine.validated_backtest import (
     ValidatedBacktestRunner,
     format_validated_backtest_report,
 )
+from utils.execution_quality_gate import extract_execution_quality_metrics
 from utils.paper_trading_monitor import PaperTradingMonitor
 
 
@@ -53,6 +54,12 @@ async def _paper_trading_summary(strategy: str) -> Dict[str, Any]:
     result = await monitor.is_go_live_ready()
     result["state"] = monitor.state.__dict__
     result["state"]["start_date"] = monitor.state.start_date.isoformat()
+    execution_metrics = extract_execution_quality_metrics(result)
+    result["execution_quality"] = {
+        "execution_score": execution_metrics.get("execution_quality_score"),
+        "avg_actual_slippage_bps": execution_metrics.get("avg_actual_slippage_bps"),
+        "fill_rate": execution_metrics.get("fill_rate"),
+    }
     return result
 
 

@@ -115,7 +115,9 @@ class BracketMomentumStrategy(BaseStrategy):
 
             # Add strategy as subscriber to broker
             if hasattr(self.broker, "_add_subscriber"):
-                self.broker._add_subscriber(self)
+                subscribe_result = self.broker._add_subscriber(self)
+                if asyncio.iscoroutine(subscribe_result):
+                    await subscribe_result
 
             logger.info(f"Initialized {self.NAME} with {len(self.symbols)} symbols")
             logger.info(
@@ -338,7 +340,22 @@ class BracketMomentumStrategy(BaseStrategy):
             )
 
             if result and (not hasattr(result, "success") or result.success):
-                order_id = result.order_id if hasattr(result, "order_id") else result.id
+                order_id = None
+                if isinstance(result, dict):
+                    for key in ("order_id", "id"):
+                        value = result.get(key)
+                        if isinstance(value, (str, int, float)):
+                            order_id = str(value)
+                            break
+                else:
+                    for attr in ("order_id", "id"):
+                        value = getattr(result, attr, None)
+                        if isinstance(value, (str, int, float)):
+                            order_id = str(value)
+                            break
+
+                if order_id is None:
+                    order_id = "unknown"
                 logger.info(f"✅ Bracket order submitted for {symbol}: {order_id}")
                 logger.info(
                     f"   Risk/Reward: {self.stop_loss_pct:.1%} / {self.profit_target_pct:.1%}"

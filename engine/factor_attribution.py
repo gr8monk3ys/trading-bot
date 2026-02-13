@@ -14,6 +14,7 @@ This is CRITICAL for institutional-grade analysis:
 """
 
 import logging
+import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -126,6 +127,70 @@ class FactorAttributor:
         self._factor_returns: Dict[datetime, Dict[FactorType, float]] = {}
         self._portfolio_returns: List[Tuple[datetime, float]] = []
         self._portfolio_exposures: Dict[datetime, Dict[FactorType, float]] = {}
+
+    @staticmethod
+    def _safe_ttest_1samp(samples: np.ndarray, popmean: float = 0.0) -> tuple[float, float]:
+        """
+        Run one-sample t-test with deterministic handling for degenerate samples.
+
+        Avoids scipy runtime warnings when all observations are effectively identical.
+        """
+        values = np.asarray(samples, dtype=float)
+        values = values[np.isfinite(values)]
+        if values.size < 2:
+            return 0.0, 1.0
+
+        sample_mean = float(np.mean(values))
+        sample_std = float(np.std(values))
+        if sample_std <= 1e-12:
+            if np.isclose(sample_mean, popmean, atol=1e-12):
+                return 0.0, 1.0
+            t_stat = np.inf if sample_mean > popmean else -np.inf
+            return float(t_stat), 0.0
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            t_stat, p_value = stats.ttest_1samp(values, popmean)
+        if not np.isfinite(t_stat):
+            t_stat = 0.0
+        if not np.isfinite(p_value):
+            p_value = 1.0
+        return float(t_stat), float(p_value)
+
+    @staticmethod
+    def _safe_ttest_ind(sample_a: np.ndarray, sample_b: np.ndarray) -> tuple[float, float]:
+        """
+        Run two-sample t-test with deterministic handling for degenerate samples.
+
+        Avoids scipy runtime warnings when both samples have near-zero variance.
+        """
+        a = np.asarray(sample_a, dtype=float)
+        b = np.asarray(sample_b, dtype=float)
+        a = a[np.isfinite(a)]
+        b = b[np.isfinite(b)]
+
+        if a.size < 2 or b.size < 2:
+            return 0.0, 1.0
+
+        mean_a = float(np.mean(a))
+        mean_b = float(np.mean(b))
+        std_a = float(np.std(a))
+        std_b = float(np.std(b))
+
+        if std_a <= 1e-12 and std_b <= 1e-12:
+            if np.isclose(mean_a, mean_b, atol=1e-12):
+                return 0.0, 1.0
+            t_stat = np.inf if mean_a > mean_b else -np.inf
+            return float(t_stat), 0.0
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            t_stat, p_value = stats.ttest_ind(a, b, equal_var=False)
+        if not np.isfinite(t_stat):
+            t_stat = 0.0
+        if not np.isfinite(p_value):
+            p_value = 1.0
+        return float(t_stat), float(p_value)
 
     def add_factor_returns(
         self,
@@ -428,8 +493,8 @@ class FactorAttributor:
             volatility = np.std(returns) * np.sqrt(252)
             sharpe = (np.mean(returns) * 252) / volatility if volatility > 0 else 0
 
-            # T-test vs zero
-            t_stat, p_value = stats.ttest_1samp(returns, 0) if len(returns) > 1 else (0, 1)
+            # T-test vs zero with stable handling for low-variance samples.
+            t_stat, p_value = self._safe_ttest_1samp(returns, 0.0)
 
             report[factor_type.value] = {
                 "cumulative_return": f"{cumulative:.2%}",
@@ -483,8 +548,8 @@ class FactorAttributor:
             historical_mean = np.mean(historical_exp)
             change = recent_mean - historical_mean
 
-            # T-test for significant difference
-            t_stat, p_value = stats.ttest_ind(recent_exp, historical_exp)
+            # T-test for significant difference with stable degenerate-sample handling.
+            t_stat, p_value = self._safe_ttest_ind(recent_exp, historical_exp)
 
             drift_results[factor_type.value] = {
                 "recent_exposure": f"{recent_mean:.2f}",

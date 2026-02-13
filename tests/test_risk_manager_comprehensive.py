@@ -87,14 +87,12 @@ class TestVolatilityCalculation:
         assert rm._calculate_volatility([]) == 0.0
 
     def test_volatility_with_zero_prices(self):
-        """Zero prices produce NaN due to divide-by-zero in returns calculation."""
+        """Zero prices trigger conservative fallback volatility."""
         rm = RiskManager()
         prices = [100, 0, 102]  # Contains zero
 
         vol = rm._calculate_volatility(prices)
-        # The zero-price guard uses list comparison which doesn't catch zeros,
-        # resulting in NaN from divide-by-zero in numpy
-        assert np.isnan(vol)
+        assert vol == 1.0
 
 
 class TestVaRCalculation:
@@ -119,14 +117,12 @@ class TestVaRCalculation:
         assert rm._calculate_var([]) == 0.0
 
     def test_var_with_zero_prices(self):
-        """Zero prices produce inf due to divide-by-zero in returns calculation."""
+        """Zero prices trigger conservative fallback VaR."""
         rm = RiskManager()
         prices = [100, 0, 102]
 
         var = rm._calculate_var(prices)
-        # The zero-price guard uses list comparison which doesn't catch zeros,
-        # resulting in inf from divide-by-zero in numpy
-        assert np.isinf(var)
+        assert var == -0.1
 
 
 class TestExpectedShortfall:

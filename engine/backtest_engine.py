@@ -6,7 +6,15 @@ from typing import Any, Dict, List, Type
 import pandas as pd
 import pytz
 
+from utils.data_quality import validate_ohlcv_frame
 from utils.historical_universe import HistoricalUniverse
+from utils.portfolio_stress import run_portfolio_stress_test
+from utils.run_artifacts import (
+    JsonlWriter,
+    ensure_run_directory,
+    generate_run_id,
+    write_json,
+)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -49,10 +57,12 @@ class BacktestEngine:
         for _strategy in strategies:
             # Create daily results dataframe with date index
             dates = pd.date_range(start=start_date, end=end_date, freq="B")
-            result_df = pd.DataFrame(
-                index=dates, columns=["equity", "cash", "holdings", "returns", "trades"]
-            )
-            result_df["trades"] = 0
+            result_df = pd.DataFrame(index=dates)
+            result_df["equity"] = pd.Series(index=dates, dtype="float64")
+            result_df["cash"] = pd.Series(index=dates, dtype="float64")
+            result_df["holdings"] = pd.Series(index=dates, dtype="float64")
+            result_df["returns"] = pd.Series(index=dates, dtype="float64")
+            result_df["trades"] = pd.Series(0, index=dates, dtype="int64")
             results.append(result_df)
 
         # Initialize strategies with broker
@@ -179,7 +189,7 @@ class BacktestEngine:
 
     async def _process_symbol_signal(
         self, symbol: str, strategy, backtest_broker, day_num: int
-    ) -> None:
+    ) -> Dict[str, Any]:
         """Process a single symbol's signal in parallel.
 
         Performance optimization: This method allows multiple symbols to be
@@ -191,29 +201,47 @@ class BacktestEngine:
             backtest_broker: The backtest broker instance
             day_num: Current day number (for debug logging)
         """
+        event: Dict[str, Any] = {
+            "event_type": "decision",
+            "symbol": symbol,
+            "day_num": day_num,
+            "action": "neutral",
+            "trade_attempted": False,
+            "trade_executed": False,
+            "error": None,
+        }
+
         if symbol not in backtest_broker.price_data:
-            return
+            event["action"] = "no_data"
+            return event
 
         try:
             signal = await strategy.analyze_symbol(symbol)
+            event["signal"] = signal if isinstance(signal, (dict, list, str, int, float, bool)) else str(signal)
             if signal:
                 # Handle both string and dict signal formats
                 if isinstance(signal, str):
                     action = signal
                 else:
                     action = signal.get("action") if isinstance(signal, dict) else "neutral"
+                event["action"] = action
 
                 if day_num < 5:  # Log first few days for debugging
                     logger.debug(f"  {symbol} signal: {action}")
 
                 if action not in ["hold", "neutral", None]:
+                    event["trade_attempted"] = True
                     logger.info(f"  Trade signal: {symbol} - {action}")
                     # Convert string signal to dict for execute_trade
                     if isinstance(signal, str):
                         signal = {"action": signal, "symbol": symbol}
                     await strategy.execute_trade(symbol, signal)
+                    event["trade_executed"] = True
         except Exception as e:
             logger.warning(f"Error processing {symbol}: {e}")
+            event["error"] = str(e)
+
+        return event
 
     async def run_backtest(
         self,
@@ -222,6 +250,11 @@ class BacktestEngine:
         start_date,
         end_date,
         initial_capital: float = 100000,
+        strategy_params: Dict[str, Any] | None = None,
+        execution_profile: str = "realistic",
+        run_id: str | None = None,
+        persist_artifacts: bool = False,
+        artifacts_dir: str = "results/runs",
     ) -> Dict[str, Any]:
         """
         Run a comprehensive backtest for a strategy.
@@ -232,6 +265,11 @@ class BacktestEngine:
             start_date: Start date for backtest (date or datetime)
             end_date: End date for backtest (date or datetime)
             initial_capital: Starting capital
+            strategy_params: Optional strategy parameter overrides
+            execution_profile: Backtest execution realism profile
+            run_id: Optional externally provided run ID
+            persist_artifacts: If True, persist run artifacts to disk
+            artifacts_dir: Base path for run artifact directories
 
         Returns:
             Dictionary with backtest results including equity_curve and trades
@@ -239,8 +277,24 @@ class BacktestEngine:
         from brokers.alpaca_broker import AlpacaBroker
         from brokers.backtest_broker import BacktestBroker
 
+        run_started_at = datetime.utcnow()
+        run_id = run_id or generate_run_id("backtest")
+        run_dir = ensure_run_directory(artifacts_dir, run_id) if persist_artifacts else None
+        decision_log_writer = (
+            JsonlWriter(run_dir / "decision_events.jsonl")
+            if run_dir is not None
+            else None
+        )
+        trades_log_writer = JsonlWriter(run_dir / "trades.jsonl") if run_dir is not None else None
+        decision_event_count = 0
+        decision_error_count = 0
+
         # Create backtest broker
-        backtest_broker = BacktestBroker(initial_balance=initial_capital)
+        backtest_broker = BacktestBroker(
+            initial_balance=initial_capital,
+            execution_profile=execution_profile,
+            run_id=run_id,
+        )
 
         # Use existing broker for data if available, otherwise create one
         data_broker = self.broker if self.broker else AlpacaBroker(paper=True)
@@ -269,6 +323,7 @@ class BacktestEngine:
         logger.info(
             f"Loading historical data for {len(symbols)} symbols from {start_dt.date()} to {end_dt.date()}..."
         )
+        data_quality_reports: dict[str, dict] = {}
 
         async def _load_symbol_data(symbol: str) -> None:
             """Load historical data for a single symbol."""
@@ -294,13 +349,60 @@ class BacktestEngine:
                         index=pd.DatetimeIndex([b.timestamp for b in bars]),
                     )
 
+                    quality = validate_ohlcv_frame(
+                        data,
+                        symbol=symbol,
+                        stale_after_days=10,
+                        reference_time=end_dt,
+                    )
+                    data_quality_reports[symbol] = quality.to_dict()
+                    if quality.has_errors:
+                        logger.warning(
+                            f"Data quality errors for {symbol}: "
+                            f"{quality.error_count} errors, {quality.warning_count} warnings. "
+                            "Skipping symbol."
+                        )
+                        return
+
                     backtest_broker.set_price_data(symbol, data)
                     logger.debug(f"Loaded {len(bars)} bars for {symbol}")
                 else:
                     logger.warning(f"No data available for {symbol}")
+                    data_quality_reports[symbol] = {
+                        "symbol": symbol,
+                        "rows": 0,
+                        "has_errors": True,
+                        "error_count": 1,
+                        "warning_count": 0,
+                        "issues": [
+                            {
+                                "severity": "error",
+                                "code": "no_data",
+                                "message": "No historical bars returned",
+                                "symbol": symbol,
+                                "affected_rows": 0,
+                            }
+                        ],
+                    }
 
             except Exception as e:
                 logger.warning(f"Failed to load data for {symbol}: {e}")
+                data_quality_reports[symbol] = {
+                    "symbol": symbol,
+                    "rows": 0,
+                    "has_errors": True,
+                    "error_count": 1,
+                    "warning_count": 0,
+                    "issues": [
+                        {
+                            "severity": "error",
+                            "code": "data_load_error",
+                            "message": f"Failed to load data: {e}",
+                            "symbol": symbol,
+                            "affected_rows": 0,
+                        }
+                    ],
+                }
 
         # Load all symbols in parallel for faster data fetching
         await asyncio.gather(
@@ -309,7 +411,10 @@ class BacktestEngine:
         )
 
         # Instantiate strategy with backtest broker and symbols
-        strategy = strategy_class(broker=backtest_broker, parameters={"symbols": symbols})
+        params = {"symbols": symbols}
+        if strategy_params:
+            params.update(strategy_params)
+        strategy = strategy_class(broker=backtest_broker, parameters=params)
 
         # Initialize the strategy if it has an initialize method
         if hasattr(strategy, "initialize"):
@@ -406,7 +511,7 @@ class BacktestEngine:
                 # This significantly speeds up backtests with many symbols by running
                 # analyze_symbol and execute_trade concurrently
                 # Only process symbols that were tradeable on this date
-                await asyncio.gather(
+                decision_events = await asyncio.gather(
                     *[
                         self._process_symbol_signal(symbol, strategy, backtest_broker, day_num)
                         for symbol in tradeable_symbols
@@ -414,9 +519,53 @@ class BacktestEngine:
                     return_exceptions=True,  # Don't fail on individual symbol errors
                 )
 
+                for event in decision_events:
+                    if isinstance(event, Exception):
+                        decision_error_count += 1
+                        if decision_log_writer:
+                            decision_log_writer.write(
+                                {
+                                    "event_type": "decision",
+                                    "run_id": run_id,
+                                    "date": current_date.date().isoformat(),
+                                    "error": str(event),
+                                }
+                            )
+                        continue
+
+                    if not isinstance(event, dict):
+                        continue
+
+                    decision_event_count += 1
+                    if event.get("error"):
+                        decision_error_count += 1
+
+                    if decision_log_writer:
+                        decision_log_writer.write(
+                            {
+                                "run_id": run_id,
+                                "date": current_date.date().isoformat(),
+                                "strategy": strategy_class.__name__,
+                                "execution_profile": execution_profile,
+                                **event,
+                            }
+                        )
+
                 # Record equity at end of day
                 portfolio_value = backtest_broker.get_portfolio_value(current_date)
                 equity_curve.append(portfolio_value)
+
+                if decision_log_writer:
+                    decision_log_writer.write(
+                        {
+                            "event_type": "portfolio_snapshot",
+                            "run_id": run_id,
+                            "date": current_date.date().isoformat(),
+                            "equity": portfolio_value,
+                            "cash": backtest_broker.get_balance(),
+                            "open_positions": len(backtest_broker.get_positions()),
+                        }
+                    )
 
                 # ==========================================
                 # GAP RISK MODELING: Update previous closes
@@ -443,26 +592,82 @@ class BacktestEngine:
 
         logger.info(f"Backtest complete: Final equity = ${final_equity:,.2f} ({total_return:+.2%})")
         logger.info(f"Total trades: {len(trade_records)}")
+        stress_test = run_portfolio_stress_test(
+            backtest_broker.get_positions(),
+            equity=final_equity,
+        )
 
         # ==========================================
         # GAP RISK STATISTICS
         # ==========================================
-        gap_stats = backtest_broker.get_gap_statistics()
-        gap_events = backtest_broker.get_gap_events()
+        def _safe_numeric(value, default=0.0):
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return value
+            return default
 
-        if gap_stats.total_gaps > 0:
+        gap_stats_obj = (
+            backtest_broker.get_gap_statistics()
+            if hasattr(backtest_broker, "get_gap_statistics")
+            else None
+        )
+        gap_events_raw = (
+            backtest_broker.get_gap_events()
+            if hasattr(backtest_broker, "get_gap_events")
+            else []
+        )
+        gap_events = gap_events_raw if isinstance(gap_events_raw, list) else []
+
+        total_gaps = int(_safe_numeric(getattr(gap_stats_obj, "total_gaps", 0), 0))
+        gaps_exceeding_2pct = int(
+            _safe_numeric(getattr(gap_stats_obj, "gaps_exceeding_2pct", 0), 0)
+        )
+        stops_gapped_through = int(
+            _safe_numeric(getattr(gap_stats_obj, "stops_gapped_through", 0), 0)
+        )
+        total_gap_slippage = float(
+            _safe_numeric(getattr(gap_stats_obj, "total_gap_slippage", 0.0), 0.0)
+        )
+        largest_gap_pct = float(_safe_numeric(getattr(gap_stats_obj, "largest_gap_pct", 0.0), 0.0))
+        average_gap_pct = float(_safe_numeric(getattr(gap_stats_obj, "average_gap_pct", 0.0), 0.0))
+
+        if total_gaps > 0:
             logger.info(
-                f"Gap Risk Analysis: {gap_stats.total_gaps} gap events, "
-                f"{gap_stats.stops_gapped_through} stops gapped through, "
-                f"total gap slippage: ${gap_stats.total_gap_slippage:.2f}"
+                f"Gap Risk Analysis: {total_gaps} gap events, "
+                f"{stops_gapped_through} stops gapped through, "
+                f"total gap slippage: ${total_gap_slippage:.2f}"
             )
-            if gap_stats.largest_gap_pct > 0.05:  # >5% gap
+            if largest_gap_pct > 0.05:  # >5% gap
                 logger.warning(
-                    f"  WARNING: Largest gap was {gap_stats.largest_gap_pct:.1%} - "
+                    f"  WARNING: Largest gap was {largest_gap_pct:.1%} - "
                     f"consider tighter position sizing"
                 )
 
-        return {
+        run_completed_at = datetime.utcnow()
+
+        for trade in trade_records:
+            if trades_log_writer:
+                trades_log_writer.write(
+                    {
+                        "event_type": "trade",
+                        "run_id": run_id,
+                        "date": str(trade.get("timestamp", ""))[:10],
+                        **trade,
+                    }
+                )
+
+        order_records = backtest_broker.get_orders() if hasattr(backtest_broker, "get_orders") else []
+        for order in order_records:
+            if trades_log_writer:
+                trades_log_writer.write(
+                    {
+                        "event_type": "order",
+                        "run_id": run_id,
+                        "date": str(order.get("created_at", ""))[:10],
+                        **order,
+                    }
+                )
+
+        result = {
             "equity_curve": equity_curve,
             "trades": trade_records,
             "start_date": start_dt,
@@ -471,31 +676,127 @@ class BacktestEngine:
             "final_equity": final_equity,
             "positions": backtest_broker.get_positions(),
             "total_trades": len(trade_records),
+            "stress_test": stress_test,
+            "run_metadata": {
+                "run_id": run_id,
+                "started_at": run_started_at.isoformat(),
+                "completed_at": run_completed_at.isoformat(),
+                "persist_artifacts": persist_artifacts,
+                "artifacts_dir": str(run_dir) if run_dir else None,
+                "decision_events": decision_event_count,
+                "decision_errors": decision_error_count,
+                "execution_profile": execution_profile,
+            },
+            "data_quality": {
+                "reports": data_quality_reports,
+                "symbols_loaded": len(backtest_broker.price_data),
+                "symbols_requested": len(symbols),
+                "symbols_rejected": len(symbols) - len(backtest_broker.price_data),
+            },
             # Gap risk modeling results
             "gap_statistics": {
-                "total_gaps": gap_stats.total_gaps,
-                "gaps_exceeding_2pct": gap_stats.gaps_exceeding_2pct,
-                "stops_gapped_through": gap_stats.stops_gapped_through,
-                "total_gap_slippage": gap_stats.total_gap_slippage,
-                "largest_gap_pct": gap_stats.largest_gap_pct,
-                "average_gap_pct": gap_stats.average_gap_pct,
+                "total_gaps": total_gaps,
+                "gaps_exceeding_2pct": gaps_exceeding_2pct,
+                "stops_gapped_through": stops_gapped_through,
+                "total_gap_slippage": total_gap_slippage,
+                "largest_gap_pct": largest_gap_pct,
+                "average_gap_pct": average_gap_pct,
             },
             "gap_events": [
                 {
-                    "symbol": e.symbol,
-                    "date": e.date.isoformat() if hasattr(e.date, "isoformat") else str(e.date),
-                    "prev_close": e.prev_close,
-                    "open_price": e.open_price,
-                    "gap_pct": e.gap_pct,
-                    "position_side": e.position_side,
-                    "position_qty": e.position_qty,
-                    "stop_price": e.stop_price,
-                    "stop_triggered": e.stop_triggered,
-                    "slippage_from_stop": e.slippage_from_stop,
+                    "symbol": e.get("symbol")
+                    if isinstance(e, dict)
+                    else getattr(e, "symbol", None),
+                    "date": (
+                        e.get("date").isoformat() if isinstance(e, dict) and hasattr(e.get("date"), "isoformat")
+                        else (
+                            e.get("date")
+                            if isinstance(e, dict)
+                            else (
+                                getattr(e, "date").isoformat()
+                                if hasattr(getattr(e, "date", None), "isoformat")
+                                else str(getattr(e, "date", ""))
+                            )
+                        )
+                    ),
+                    "prev_close": e.get("prev_close")
+                    if isinstance(e, dict)
+                    else getattr(e, "prev_close", None),
+                    "open_price": e.get("open_price")
+                    if isinstance(e, dict)
+                    else getattr(e, "open_price", None),
+                    "gap_pct": e.get("gap_pct")
+                    if isinstance(e, dict)
+                    else getattr(e, "gap_pct", None),
+                    "position_side": e.get("position_side")
+                    if isinstance(e, dict)
+                    else getattr(e, "position_side", None),
+                    "position_qty": e.get("position_qty")
+                    if isinstance(e, dict)
+                    else getattr(e, "position_qty", None),
+                    "stop_price": e.get("stop_price")
+                    if isinstance(e, dict)
+                    else getattr(e, "stop_price", None),
+                    "stop_triggered": e.get("stop_triggered")
+                    if isinstance(e, dict)
+                    else getattr(e, "stop_triggered", None),
+                    "slippage_from_stop": e.get("slippage_from_stop")
+                    if isinstance(e, dict)
+                    else getattr(e, "slippage_from_stop", None),
                 }
                 for e in gap_events
             ],
         }
+
+        if run_dir is not None:
+            summary_payload = {
+                "run_id": run_id,
+                "strategy": strategy_class.__name__,
+                "symbols": symbols,
+                "start_date": start_dt,
+                "end_date": end_dt,
+                "initial_capital": initial_capital,
+                "final_equity": final_equity,
+                "total_return": total_return,
+                "total_trades": len(trade_records),
+                "execution_profile": execution_profile,
+                "decision_events": decision_event_count,
+                "decision_errors": decision_error_count,
+                "data_quality": result.get("data_quality", {}),
+                "gap_statistics": result.get("gap_statistics", {}),
+                "stress_test": result.get("stress_test", {}),
+                "started_at": run_started_at,
+                "completed_at": run_completed_at,
+            }
+
+            write_json(run_dir / "summary.json", summary_payload)
+            write_json(
+                run_dir / "manifest.json",
+                {
+                    "run_id": run_id,
+                    "generated_at": run_completed_at,
+                    "artifacts": {
+                        "summary": "summary.json",
+                        "decision_events": "decision_events.jsonl",
+                        "trades": "trades.jsonl",
+                    },
+                },
+            )
+            result["run_metadata"].update(
+                {
+                    "summary_path": str(run_dir / "summary.json"),
+                    "manifest_path": str(run_dir / "manifest.json"),
+                    "decision_events_path": str(run_dir / "decision_events.jsonl"),
+                    "trades_path": str(run_dir / "trades.jsonl"),
+                }
+            )
+
+        if decision_log_writer:
+            decision_log_writer.close()
+        if trades_log_writer:
+            trades_log_writer.close()
+
+        return result
 
     def _calculate_trade_pnl(self, trades: List[Dict]) -> List[Dict]:
         """

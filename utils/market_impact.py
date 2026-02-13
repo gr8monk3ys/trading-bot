@@ -460,6 +460,30 @@ class ExecutionCostTracker:
         self.execution_history: List[Dict[str, Any]] = []
         self._daily_stats: Dict[str, Dict[str, float]] = {}
 
+    @staticmethod
+    def _safe_correlation(x: List[float], y: List[float]) -> float:
+        """
+        Compute correlation robustly for small/degenerate samples.
+
+        Returns 0.0 when variance is zero or data is insufficient.
+        """
+        x_arr = np.asarray(x, dtype=float)
+        y_arr = np.asarray(y, dtype=float)
+        if x_arr.size < 2 or y_arr.size < 2:
+            return 0.0
+
+        mask = np.isfinite(x_arr) & np.isfinite(y_arr)
+        if np.sum(mask) < 2:
+            return 0.0
+
+        x_clean = x_arr[mask]
+        y_clean = y_arr[mask]
+        if float(np.std(x_clean)) <= 1e-12 or float(np.std(y_clean)) <= 1e-12:
+            return 0.0
+
+        corr = np.corrcoef(x_clean, y_clean)[0, 1]
+        return float(corr) if np.isfinite(corr) else 0.0
+
     def record_execution(
         self,
         symbol: str,
@@ -552,7 +576,7 @@ class ExecutionCostTracker:
             "prediction_accuracy": {
                 "mean_error_bps": float(np.mean(errors)),
                 "rmse_bps": float(np.sqrt(np.mean(np.array(errors) ** 2))),
-                "correlation": float(np.corrcoef(predicted, actual)[0, 1]) if n > 1 else 0,
+                "correlation": self._safe_correlation(predicted, actual),
             },
         }
 

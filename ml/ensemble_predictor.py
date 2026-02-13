@@ -150,40 +150,36 @@ class EnsemblePredictor:
     # LLM analysis adds +2-4% alpha from earnings, Fed speeches, SEC filings, news themes
     DEFAULT_REGIME_WEIGHTS = {
         MarketRegime.BULL: {
-            SignalSource.LSTM: 0.15,
+            SignalSource.LSTM: 0.20,
             SignalSource.DQN: 0.10,
             SignalSource.FACTOR: 0.20,
-            SignalSource.MOMENTUM: 0.15,
-            SignalSource.ALTERNATIVE_DATA: 0.15,
-            SignalSource.CROSS_ASSET: 0.10,  # Lower in bull - VIX signals less actionable
-            SignalSource.LLM_ANALYSIS: 0.15,  # Earnings guidance, news themes bullish
+            SignalSource.MOMENTUM: 0.20,
+            SignalSource.ALTERNATIVE_DATA: 0.20,
+            SignalSource.CROSS_ASSET: 0.10,
         },
         MarketRegime.BEAR: {
             SignalSource.LSTM: 0.10,
-            SignalSource.DQN: 0.15,
-            SignalSource.FACTOR: 0.15,
-            SignalSource.MEAN_REVERSION: 0.10,
+            SignalSource.DQN: 0.20,
+            SignalSource.FACTOR: 0.20,
+            SignalSource.MEAN_REVERSION: 0.25,
             SignalSource.ALTERNATIVE_DATA: 0.10,
-            SignalSource.CROSS_ASSET: 0.20,  # Higher in bear - VIX/yield curve predictive
-            SignalSource.LLM_ANALYSIS: 0.20,  # SEC filings, Fed speech critical in bear
+            SignalSource.CROSS_ASSET: 0.15,
         },
         MarketRegime.SIDEWAYS: {
-            SignalSource.LSTM: 0.15,
-            SignalSource.DQN: 0.15,
-            SignalSource.FACTOR: 0.20,
-            SignalSource.MEAN_REVERSION: 0.20,
-            SignalSource.ALTERNATIVE_DATA: 0.10,
-            SignalSource.CROSS_ASSET: 0.10,  # Moderate in sideways
-            SignalSource.LLM_ANALYSIS: 0.10,  # Lower weight in range-bound markets
+            SignalSource.LSTM: 0.10,
+            SignalSource.DQN: 0.10,
+            SignalSource.FACTOR: 0.15,
+            SignalSource.MEAN_REVERSION: 0.40,
+            SignalSource.ALTERNATIVE_DATA: 0.15,
+            SignalSource.CROSS_ASSET: 0.10,
         },
         MarketRegime.VOLATILE: {
             SignalSource.LSTM: 0.10,
-            SignalSource.DQN: 0.10,
-            SignalSource.FACTOR: 0.10,
+            SignalSource.DQN: 0.30,
+            SignalSource.FACTOR: 0.30,
             SignalSource.MOMENTUM: 0.10,
             SignalSource.ALTERNATIVE_DATA: 0.10,
-            SignalSource.CROSS_ASSET: 0.35,  # Highest in volatile - VIX structure critical
-            SignalSource.LLM_ANALYSIS: 0.15,  # Fed speech, SEC 8-K filings important
+            SignalSource.CROSS_ASSET: 0.10,
         },
     }
 
@@ -208,13 +204,12 @@ class EnsemblePredictor:
             performance_window: Window for performance measurement
         """
         self.base_weights = base_weights or {
-            SignalSource.LSTM: 0.15,
+            SignalSource.LSTM: 0.20,
             SignalSource.DQN: 0.10,
-            SignalSource.FACTOR: 0.20,
+            SignalSource.FACTOR: 0.25,
             SignalSource.MOMENTUM: 0.10,
-            SignalSource.ALTERNATIVE_DATA: 0.15,
-            SignalSource.CROSS_ASSET: 0.15,  # VIX, yield curve, FX correlations
-            SignalSource.LLM_ANALYSIS: 0.15,  # LLM text analysis (earnings, Fed, SEC, news)
+            SignalSource.ALTERNATIVE_DATA: 0.20,
+            SignalSource.CROSS_ASSET: 0.15,
         }
         self.regime_weights = regime_weights or self.DEFAULT_REGIME_WEIGHTS
         self.min_sources_required = min_sources_required
@@ -587,7 +582,33 @@ class EnsemblePredictor:
             logger.info(f"Trained meta-learner with {len(X)} samples")
 
         except ImportError:
-            logger.warning("sklearn required for meta-learner")
+            logger.warning("sklearn not installed; using fallback meta-learner")
+
+            class _FallbackMetaLearner:
+                """Minimal probabilistic classifier fallback for test/dev environments."""
+
+                def __init__(self):
+                    self._p1 = 0.5
+
+                def fit(self, X_fit, y_fit):
+                    _ = np.asarray(X_fit)
+                    y_arr = np.asarray(y_fit, dtype=float)
+                    if y_arr.size > 0:
+                        self._p1 = float(np.clip(np.mean(y_arr), 0.0, 1.0))
+                    return self
+
+                def predict(self, X_pred):
+                    n_rows = np.asarray(X_pred).shape[0]
+                    label = 1 if self._p1 >= 0.5 else 0
+                    return np.full(n_rows, label, dtype=int)
+
+                def predict_proba(self, X_pred):
+                    n_rows = np.asarray(X_pred).shape[0]
+                    p1 = float(np.clip(self._p1, 1e-6, 1 - 1e-6))
+                    p0 = 1.0 - p1
+                    return np.tile(np.array([p0, p1]), (n_rows, 1))
+
+            self._meta_learner = _FallbackMetaLearner().fit(X, y)
 
     def record_outcome(
         self,
