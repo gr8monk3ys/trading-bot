@@ -13,6 +13,8 @@ import logging
 import os
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -20,23 +22,48 @@ import pandas as pd
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from brokers.alpaca_broker import AlpacaBroker
-from config import ALPACA_CREDS, SYMBOL_SELECTION, SYMBOLS
+from config import RISK_PARAMS, SYMBOL_SELECTION, SYMBOLS, require_alpaca_credentials
 from engine.strategy_manager import StrategyManager
 from utils.circuit_breaker import CircuitBreaker
+from utils.data_quality import (
+    should_halt_trading_for_data_quality,
+    summarize_quality_reports,
+    validate_ohlcv_frame,
+)
 from utils.order_reconciliation import OrderReconciler
 from utils.reconciliation import PositionReconciler
+from utils.incident_tracker import IncidentTracker
+from utils.run_artifacts import JsonlWriter, ensure_run_directory, generate_run_id, write_json
 from utils.simple_symbol_selector import SimpleSymbolSelector
+from utils.slo_alerting import build_slo_alert_notifier
+from utils.slo_monitor import SLOMonitor
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(f"trading_bot_{datetime.now().strftime('%Y%m%d')}.log"),
-    ],
-)
 logger = logging.getLogger(__name__)
+
+
+_LOGGING_CONFIGURED = False
+
+
+def configure_logging() -> None:
+    """Configure application logging exactly once per process."""
+    global _LOGGING_CONFIGURED
+    if _LOGGING_CONFIGURED:
+        return
+
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        _LOGGING_CONFIGURED = True
+        return
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(f"trading_bot_{datetime.now().strftime('%Y%m%d')}.log"),
+        ],
+    )
+    _LOGGING_CONFIGURED = True
 
 
 async def run_walk_forward_validation(strategy_class, strategy_manager, symbols, start_date, end_date, args):
@@ -69,6 +96,8 @@ async def run_walk_forward_validation(strategy_class, strategy_manager, symbols,
             start_date=s_date,
             end_date=e_date,
             initial_capital=args.capital,
+            execution_profile=args.execution_profile,
+            persist_artifacts=False,
         )
         metrics = strategy_manager.perf_metrics.calculate_metrics(result)
         return metrics
@@ -113,6 +142,7 @@ async def run_walk_forward_validation(strategy_class, strategy_manager, symbols,
 
 async def run_backtest(args):
     """Run backtest mode with selected strategies."""
+    strategy_manager = None
     try:
         logger.info(f"Starting backtest from {args.start_date} to {args.end_date}")
 
@@ -214,6 +244,10 @@ async def run_backtest(args):
                         start_date=start_date,
                         end_date=end_date,
                         initial_capital=args.capital,
+                        execution_profile=args.execution_profile,
+                        run_id=args.run_id,
+                        persist_artifacts=not args.no_run_artifacts,
+                        artifacts_dir=args.artifacts_dir,
                     )
 
                     # Calculate metrics
@@ -294,6 +328,9 @@ async def run_backtest(args):
 
     except Exception as e:
         logger.error(f"Error in backtest mode: {e}", exc_info=True)
+    finally:
+        if strategy_manager is not None:
+            strategy_manager.close()
 
 
 async def select_trading_symbols(broker):
@@ -305,10 +342,11 @@ async def select_trading_symbols(broker):
     if SYMBOL_SELECTION.get("USE_DYNAMIC_SELECTION", False):
         logger.info("🔍 Using dynamic symbol selection...")
         try:
+            creds = require_alpaca_credentials("dynamic symbol selection")
             selector = SimpleSymbolSelector(
-                api_key=ALPACA_CREDS["API_KEY"],
-                secret_key=ALPACA_CREDS["API_SECRET"],
-                paper=ALPACA_CREDS["PAPER"],
+                api_key=str(creds["API_KEY"]),
+                secret_key=str(creds["API_SECRET"]),
+                paper=bool(creds["PAPER"]),
             )
             symbols = selector.select_top_symbols(
                 top_n=SYMBOL_SELECTION.get("TOP_N_SYMBOLS", 20),
@@ -326,8 +364,15 @@ async def select_trading_symbols(broker):
 
 async def run_live(args):
     """Run live trading mode."""
+    strategy_manager = None
+    session_run_id = args.run_id or generate_run_id("live")
+    session_run_dir = ensure_run_directory(args.artifacts_dir, session_run_id)
+    slo_monitor = None
+    data_quality_writer = None
     try:
         logger.info("Starting live trading mode")
+        logger.info(f"Live session run_id={session_run_id}")
+        logger.info(f"Live artifacts directory={session_run_dir}")
 
         # P0 FIX: Safety confirmation for live trading with real money
         paper = not args.real
@@ -400,18 +445,150 @@ async def run_live(args):
         )
 
         # Reconciliation loop (detect broker/internal drift)
+        data_quality_writer = JsonlWriter(session_run_dir / "data_quality_events.jsonl")
         reconciler = PositionReconciler(
             broker=broker,
             internal_tracker=strategy_manager.position_manager,
             halt_on_mismatch=False,
             sync_to_broker=True,
             audit_log=strategy_manager.audit_log,
+            events_path=session_run_dir / "position_reconciliation_events.jsonl",
+            run_id=session_run_id,
         )
         order_reconciler = OrderReconciler(
             broker=broker,
             lifecycle_tracker=strategy_manager.order_gateway.lifecycle_tracker,
             audit_log=strategy_manager.audit_log,
+            mismatch_halt_threshold=RISK_PARAMS.get("ORDER_RECON_MISMATCH_HALT_RUNS", 3),
+            events_path=session_run_dir / "order_reconciliation_events.jsonl",
+            run_id=session_run_id,
         )
+        incident_tracker = IncidentTracker(
+            events_path=session_run_dir / "incident_events.jsonl",
+            run_id=session_run_id,
+            ack_sla_minutes=RISK_PARAMS.get("INCIDENT_ACK_SLA_MINUTES", 15),
+        )
+        slo_alert_notifier = build_slo_alert_notifier(RISK_PARAMS, source="main.run_live")
+        if slo_alert_notifier:
+            logger.info(
+                "SLO paging alerts enabled (severity>=%s)",
+                RISK_PARAMS.get("SLO_PAGING_MIN_SEVERITY", "critical"),
+            )
+        slo_monitor = SLOMonitor(
+            audit_log=strategy_manager.audit_log,
+            events_path=session_run_dir / "ops_slo_events.jsonl",
+            alert_notifier=slo_alert_notifier,
+            incident_tracker=incident_tracker,
+            recon_mismatch_halt_runs=RISK_PARAMS.get("ORDER_RECON_MISMATCH_HALT_RUNS", 3),
+            max_data_quality_errors=RISK_PARAMS.get("DATA_QUALITY_MAX_ERRORS", 0),
+            max_stale_data_warnings=RISK_PARAMS.get("DATA_QUALITY_MAX_STALE_WARNINGS", 0),
+            shadow_drift_warning_threshold=RISK_PARAMS.get("PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12),
+            shadow_drift_critical_threshold=RISK_PARAMS.get("PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15),
+        )
+        quality_symbols = (
+            [s.strip() for s in args.symbols.split(",") if s.strip()]
+            if args.symbols
+            else list(trading_symbols)
+        )
+
+        async def run_data_quality_gate():
+            reference_time = datetime.utcnow()
+            start = (reference_time - timedelta(days=30)).strftime("%Y-%m-%d")
+            end = reference_time.strftime("%Y-%m-%d")
+            stale_after_days = RISK_PARAMS.get("DATA_QUALITY_STALE_AFTER_DAYS", 3)
+            reports = []
+
+            for symbol in quality_symbols:
+                try:
+                    bars = await broker.get_bars(
+                        symbol,
+                        start=start,
+                        end=end,
+                        timeframe="1Day",
+                    )
+                    if not bars:
+                        reports.append(
+                            {
+                                "symbol": symbol,
+                                "rows": 0,
+                                "error_count": 1,
+                                "warning_count": 0,
+                                "issues": [
+                                    {
+                                        "severity": "error",
+                                        "code": "no_data",
+                                        "message": "No bars returned in data quality gate",
+                                    }
+                                ],
+                            }
+                        )
+                        continue
+
+                    frame = pd.DataFrame(
+                        {
+                            "open": [float(b.open) for b in bars],
+                            "high": [float(b.high) for b in bars],
+                            "low": [float(b.low) for b in bars],
+                            "close": [float(b.close) for b in bars],
+                            "volume": [float(b.volume) for b in bars],
+                        },
+                        index=pd.DatetimeIndex([b.timestamp for b in bars]),
+                    )
+                    reports.append(
+                        validate_ohlcv_frame(
+                            frame,
+                            symbol=symbol,
+                            stale_after_days=stale_after_days,
+                            reference_time=reference_time,
+                        )
+                    )
+                except Exception as e:
+                    reports.append(
+                        {
+                            "symbol": symbol,
+                            "rows": 0,
+                            "error_count": 1,
+                            "warning_count": 0,
+                            "issues": [
+                                {
+                                    "severity": "error",
+                                    "code": "data_quality_exception",
+                                    "message": str(e),
+                                }
+                            ],
+                        }
+                    )
+
+            summary = summarize_quality_reports(reports)
+            payload = {
+                "event_type": "data_quality_snapshot",
+                "run_id": session_run_id,
+                "timestamp": reference_time.isoformat(),
+                **summary,
+            }
+            write_json(session_run_dir / "data_quality_latest.json", payload)
+            if data_quality_writer:
+                data_quality_writer.write(payload)
+
+            if slo_monitor:
+                breaches = slo_monitor.record_data_quality_summary(summary)
+                if SLOMonitor.has_critical_breach(breaches):
+                    strategy_manager.order_gateway.activate_kill_switch(
+                        reason="Critical data quality SLO breach",
+                        source="slo_monitor",
+                    )
+                    return
+
+            should_halt, reason = should_halt_trading_for_data_quality(
+                summary,
+                max_errors=RISK_PARAMS.get("DATA_QUALITY_MAX_ERRORS", 0),
+                max_stale_warnings=RISK_PARAMS.get("DATA_QUALITY_MAX_STALE_WARNINGS", 0),
+            )
+            if should_halt and reason:
+                strategy_manager.order_gateway.activate_kill_switch(
+                    reason=reason,
+                    source="data_quality",
+                )
 
         async def periodic_housekeeping():
             state_interval = 60
@@ -424,14 +601,39 @@ async def run_live(args):
                     counter += 1
                     if counter % state_interval == 0:
                         await strategy_manager.save_runtime_state()
+                        if slo_monitor:
+                            slo_monitor.check_incident_ack_sla()
                     if counter % reconciliation_interval == 0:
                         try:
                             await reconciler.reconcile()
                         except Exception as e:
                             logger.error(f"Reconciliation error: {e}")
+                        try:
+                            await run_data_quality_gate()
+                        except Exception as e:
+                            logger.error(f"Data quality gate error: {e}")
                     if counter % order_recon_interval == 0:
                         try:
                             await order_reconciler.reconcile()
+                            if slo_monitor:
+                                breaches = slo_monitor.record_order_reconciliation_health(
+                                    order_reconciler.get_health_snapshot()
+                                )
+                                if SLOMonitor.has_critical_breach(breaches):
+                                    strategy_manager.order_gateway.activate_kill_switch(
+                                        reason="Critical order reconciliation SLO breach",
+                                        source="slo_monitor",
+                                    )
+                            if order_reconciler.should_halt_trading():
+                                health = order_reconciler.get_health_snapshot()
+                                reason = (
+                                    health.get("halt_reason")
+                                    or "Order reconciliation drift threshold breached"
+                                )
+                                strategy_manager.order_gateway.activate_kill_switch(
+                                    reason=reason,
+                                    source="order_reconciliation",
+                                )
                         except Exception as e:
                             logger.error(f"Order reconciliation error: {e}")
             except asyncio.CancelledError:
@@ -589,12 +791,45 @@ async def run_live(args):
             except Exception as e:
                 logger.error(f"Error stopping websocket: {e}")
 
+            try:
+                reconciler.close()
+            except Exception:
+                pass
+            try:
+                order_reconciler.close()
+            except Exception:
+                pass
+            if slo_monitor:
+                slo_monitor.close()
+            if data_quality_writer:
+                data_quality_writer.close()
+
+            write_json(
+                session_run_dir / "live_session_summary.json",
+                {
+                    "run_id": session_run_id,
+                    "strategy_mode": args.strategy,
+                    "paper": paper,
+                    "symbols": quality_symbols,
+                    "ended_at": datetime.utcnow().isoformat(),
+                    "slo_status": slo_monitor.get_status_snapshot() if slo_monitor else {},
+                },
+            )
+
     except Exception as e:
         logger.error(f"Error in live trading mode: {e}", exc_info=True)
+    finally:
+        if slo_monitor:
+            slo_monitor.close()
+        if data_quality_writer:
+            data_quality_writer.close()
+        if strategy_manager is not None:
+            strategy_manager.close()
 
 
 async def optimize_parameters(args):
     """Optimize strategy parameters."""
+    strategy_manager = None
     try:
         logger.info(f"Starting parameter optimization for strategy: {args.strategy}")
 
@@ -698,6 +933,8 @@ async def optimize_parameters(args):
                 end_date=end_date,
                 initial_capital=args.capital,
                 strategy_params=params,
+                execution_profile=args.execution_profile,
+                persist_artifacts=False,
             )
 
             # Calculate metrics
@@ -744,17 +981,217 @@ async def optimize_parameters(args):
 
     except Exception as e:
         logger.error(f"Error in parameter optimization: {e}", exc_info=True)
+    finally:
+        if strategy_manager is not None:
+            strategy_manager.close()
+
+
+def _load_json_object(value: str | None, field_name: str) -> dict[str, Any]:
+    """Load JSON object from inline JSON string or file path."""
+    if not value:
+        return {}
+
+    raw = value
+    try:
+        candidate = Path(value)
+        if candidate.exists() and candidate.is_file():
+            raw = candidate.read_text(encoding="utf-8")
+    except OSError:
+        # Inline JSON payloads can exceed filesystem name limits.
+        raw = value
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON for {field_name}: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError(f"{field_name} must decode to a JSON object")
+
+    return payload
+
+
+def _parse_csv_list(value: str | None) -> list[str]:
+    """Parse comma-separated values into a cleaned list."""
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def run_research(args) -> int:
+    """
+    Run research registry operations from a single CLI entry point.
+
+    Returns:
+        Process-style exit code (0 success, non-zero failure)
+    """
+    from research.research_registry import ResearchRegistry, print_experiment_summary
+
+    registry = ResearchRegistry(
+        registry_path=args.research_registry_path,
+        production_path=args.research_production_path,
+        parameter_registry_path=args.research_parameter_registry_path,
+        artifacts_path=args.research_artifacts_path,
+    )
+
+    action = args.research_action
+
+    if action == "create":
+        if not args.name or not args.description or not args.author:
+            raise ValueError("create action requires --name, --description, and --author")
+        exp_id = registry.create_experiment(
+            name=args.name,
+            description=args.description,
+            author=args.author,
+            parameters=_load_json_object(args.parameters_json, "parameters_json"),
+            tags=_parse_csv_list(args.tags),
+        )
+        print(f"Experiment created: {exp_id}")
+        print_experiment_summary(registry, exp_id)
+        return 0
+
+    if not args.experiment_id:
+        raise ValueError(f"{action} action requires --experiment-id")
+
+    if action == "snapshot":
+        if not args.parameters_json:
+            raise ValueError("snapshot action requires --parameters-json")
+        snapshot = registry.record_parameter_snapshot(
+            args.experiment_id,
+            parameters=_load_json_object(args.parameters_json, "parameters_json"),
+            source=args.source,
+            notes=args.notes or "",
+            make_active=not args.no_make_active,
+        )
+        print(
+            f"Recorded parameter snapshot for {args.experiment_id}: "
+            f"{snapshot['snapshot_id']} ({snapshot['hash']})"
+        )
+        return 0
+
+    if action == "record-backtest":
+        if not args.backtest_json:
+            raise ValueError("record-backtest action requires --backtest-json")
+        registry.record_backtest_results(
+            args.experiment_id,
+            _load_json_object(args.backtest_json, "backtest_json"),
+        )
+        print(f"Recorded backtest results for {args.experiment_id}")
+        return 0
+
+    if action == "record-validation":
+        if not args.validation_json:
+            raise ValueError("record-validation action requires --validation-json")
+        registry.record_validation_results(
+            args.experiment_id,
+            _load_json_object(args.validation_json, "validation_json"),
+        )
+        print(f"Recorded validation results for {args.experiment_id}")
+        return 0
+
+    if action == "record-paper":
+        if not args.paper_json:
+            raise ValueError("record-paper action requires --paper-json")
+        registry.record_paper_results(
+            args.experiment_id,
+            _load_json_object(args.paper_json, "paper_json"),
+        )
+        print(f"Recorded paper results for {args.experiment_id}")
+        return 0
+
+    if action == "store-walk-forward":
+        if not args.walk_forward_json:
+            raise ValueError("store-walk-forward action requires --walk-forward-json")
+        paths = registry.store_walk_forward_artifacts(
+            args.experiment_id,
+            _load_json_object(args.walk_forward_json, "walk_forward_json"),
+            source_run_id=args.source_run_id,
+        )
+        print(f"Stored walk-forward artifacts for {args.experiment_id}")
+        print(f"  - {paths['results_path']}")
+        print(f"  - {paths['summary_path']}")
+        return 0
+
+    if action == "approve-review":
+        if not args.reviewer:
+            raise ValueError("approve-review action requires --reviewer")
+        registry.approve_manual_review(
+            args.experiment_id,
+            reviewer=args.reviewer,
+            notes=args.notes or "",
+        )
+        print(f"Approved manual review for {args.experiment_id} by {args.reviewer}")
+        return 0
+
+    if action == "summary":
+        print_experiment_summary(registry, args.experiment_id)
+        return 0
+
+    checklist = registry.generate_promotion_checklist(args.experiment_id)
+    blockers = registry.get_promotion_blockers(args.experiment_id, strict=args.strict)
+    ready = registry.is_promotion_ready(args.experiment_id, strict=args.strict)
+
+    if action == "blockers":
+        print(f"Promotion blockers for {args.experiment_id}:")
+        if blockers:
+            for blocker in blockers:
+                print(f"  - {blocker}")
+        else:
+            print("  none")
+        return 0 if not blockers else 1
+
+    if action == "check":
+        payload = {
+            "experiment_id": args.experiment_id,
+            "strict": args.strict,
+            "ready": ready,
+            "blockers": blockers,
+            "checklist": checklist,
+            "summary": registry.get_experiment_summary(args.experiment_id),
+        }
+        if args.output:
+            output = Path(args.output)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        print(
+            f"Promotion check for {args.experiment_id}: "
+            f"{'READY' if ready else 'NOT READY'} (strict={args.strict})"
+        )
+        if blockers:
+            print("Blockers:")
+            for blocker in blockers:
+                print(f"  - {blocker}")
+        return 0 if ready else 1
+
+    if action == "promote":
+        if args.strict and not args.force and not ready:
+            print(
+                f"Strict promotion blocked for {args.experiment_id}: "
+                f"{len(blockers)} blockers"
+            )
+            for blocker in blockers:
+                print(f"  - {blocker}")
+            return 1
+        promoted = registry.promote_to_production(args.experiment_id, force=args.force)
+        print(
+            f"Promotion {'succeeded' if promoted else 'blocked'} for "
+            f"{args.experiment_id} (force={args.force})"
+        )
+        return 0 if promoted else 1
+
+    raise ValueError(f"Unknown research action: {action}")
 
 
 def main():
     """Entry point for the trading bot."""
+    configure_logging()
     parser = argparse.ArgumentParser(description="Alpaca Trading Bot")
 
     # Mode selection
     parser.add_argument(
         "mode",
-        choices=["live", "backtest", "optimize"],
-        help="Operation mode: live trading, backtesting, or parameter optimization",
+        choices=["live", "backtest", "optimize", "replay", "research"],
+        help="Operation mode: live trading, backtesting, optimization, replay, or research registry",
     )
 
     # Strategy selection
@@ -766,6 +1203,7 @@ def main():
 
     # Symbol selection
     parser.add_argument("--symbols", default=None, help="Comma-separated list of symbols to trade")
+    parser.add_argument("--symbol", default=None, help="Single symbol filter (replay mode)")
 
     # Live trading options
     parser.add_argument(
@@ -814,9 +1252,30 @@ def main():
     )
     parser.add_argument("--plot", action="store_true", help="Generate plots for backtest results")
     parser.add_argument(
+        "--execution-profile",
+        choices=["idealistic", "realistic", "stressed"],
+        default="realistic",
+        help="Execution realism profile for backtest fills",
+    )
+    parser.add_argument(
         "--validated",
         action="store_true",
         help="Run validated backtest (walk-forward + profitability gates + permutation tests)",
+    )
+    parser.add_argument(
+        "--run-id",
+        default=None,
+        help="Optional run ID for backtest artifacts (or replay target run ID)",
+    )
+    parser.add_argument(
+        "--artifacts-dir",
+        default="results/runs",
+        help="Directory for run artifacts and replay inputs",
+    )
+    parser.add_argument(
+        "--no-run-artifacts",
+        action="store_true",
+        help="Disable writing run artifacts in backtest mode",
     )
 
     # Walk-forward validation options
@@ -859,6 +1318,125 @@ def main():
         default="sharpe",
         help="Metric to optimize for",
     )
+    parser.add_argument(
+        "--replay-date",
+        default=None,
+        help="Filter replay events by YYYY-MM-DD date prefix",
+    )
+    parser.add_argument(
+        "--errors-only",
+        action="store_true",
+        help="Replay only events that contain errors",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="Max number of replay events to display",
+    )
+    parser.add_argument(
+        "--research-action",
+        choices=[
+            "create",
+            "snapshot",
+            "record-backtest",
+            "record-validation",
+            "record-paper",
+            "store-walk-forward",
+            "approve-review",
+            "summary",
+            "blockers",
+            "check",
+            "promote",
+        ],
+        default="check",
+        help="Research registry action (research mode)",
+    )
+    parser.add_argument(
+        "--experiment-id",
+        default=None,
+        help="Experiment ID for research actions",
+    )
+    parser.add_argument("--name", default=None, help="Experiment name (create action)")
+    parser.add_argument("--description", default=None, help="Experiment description (create action)")
+    parser.add_argument("--author", default=None, help="Experiment author (create action)")
+    parser.add_argument("--tags", default=None, help="Comma-separated experiment tags")
+    parser.add_argument(
+        "--parameters-json",
+        default=None,
+        help="JSON object or file path for parameter payload",
+    )
+    parser.add_argument(
+        "--source",
+        default="manual",
+        help="Source label for parameter snapshots",
+    )
+    parser.add_argument("--notes", default="", help="Optional notes for review/snapshots")
+    parser.add_argument(
+        "--reviewer",
+        default=None,
+        help="Reviewer name for approve-review action",
+    )
+    parser.add_argument(
+        "--backtest-json",
+        default=None,
+        help="JSON object or file path for backtest results",
+    )
+    parser.add_argument(
+        "--validation-json",
+        default=None,
+        help="JSON object or file path for validation results",
+    )
+    parser.add_argument(
+        "--paper-json",
+        default=None,
+        help="JSON object or file path for paper trading results",
+    )
+    parser.add_argument(
+        "--walk-forward-json",
+        default=None,
+        help="JSON object or file path for walk-forward results",
+    )
+    parser.add_argument(
+        "--source-run-id",
+        default=None,
+        help="Optional source run ID for stored walk-forward artifacts",
+    )
+    parser.add_argument(
+        "--research-registry-path",
+        default=".research/experiments",
+        help="Research experiment registry path",
+    )
+    parser.add_argument(
+        "--research-production-path",
+        default=".research/production",
+        help="Research production registry path",
+    )
+    parser.add_argument(
+        "--research-parameter-registry-path",
+        default=".research/parameters",
+        help="Research parameter registry path",
+    )
+    parser.add_argument(
+        "--research-artifacts-path",
+        default=".research/artifacts",
+        help="Research artifacts path",
+    )
+    parser.add_argument(
+        "--no-make-active",
+        action="store_true",
+        help="When snapshotting parameters, do not set snapshot as active config",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Use strict promotion checks for research actions",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="Optional output path for check action payload",
+    )
 
     args = parser.parse_args()
 
@@ -869,6 +1447,48 @@ def main():
             asyncio.run(run_backtest(args))
         elif args.mode == "optimize":
             asyncio.run(optimize_parameters(args))
+        elif args.mode == "replay":
+            from utils.run_replay import (
+                filter_events,
+                format_replay_report,
+                load_run_artifacts,
+            )
+
+            if not args.run_id:
+                logger.error("Replay mode requires --run-id")
+                sys.exit(2)
+
+            artifacts = load_run_artifacts(args.run_id, artifacts_dir=args.artifacts_dir)
+            decisions = filter_events(
+                artifacts["decisions"],
+                symbol=args.symbol,
+                date_prefix=args.replay_date,
+                errors_only=args.errors_only,
+                limit=args.limit,
+            )
+            trades = filter_events(
+                artifacts["trades"],
+                symbol=args.symbol,
+                date_prefix=args.replay_date,
+                limit=args.limit,
+            )
+            print(
+                format_replay_report(
+                    artifacts["summary"],
+                    decisions=decisions,
+                    trades=trades,
+                    order_reconciliation=artifacts.get("order_reconciliation"),
+                    position_reconciliation=artifacts.get("position_reconciliation"),
+                    slo_events=artifacts.get("slo_events"),
+                    incident_events=artifacts.get("incident_events"),
+                    data_quality_events=artifacts.get("data_quality_events"),
+                    limit=args.limit,
+                )
+            )
+        elif args.mode == "research":
+            exit_code = run_research(args)
+            if exit_code != 0:
+                sys.exit(exit_code)
     except Exception as e:
         logger.error(f"Error running {args.mode} mode: {e}", exc_info=True)
         sys.exit(1)

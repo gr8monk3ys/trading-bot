@@ -62,6 +62,8 @@ class TestResearchRegistry:
         assert exp.author == "test_user"
         assert exp.parameters == {"lookback": 12}
         assert "momentum" in exp.tags
+        assert len(exp.parameter_history) == 1
+        assert exp.parameter_history[0]["source"] == "create_experiment"
 
     def test_experiment_has_validation_gates(self, registry):
         """Test that new experiments have validation gates."""
@@ -104,6 +106,59 @@ class TestResearchRegistry:
         # Check that gates were evaluated
         sharpe_gate = next(g for g in exp.validation_gates if g.name == "backtest_sharpe")
         assert sharpe_gate.result == ValidationResult.PASS
+
+    def test_record_parameter_snapshot(self, registry):
+        """Test adding parameter snapshots after creation."""
+        exp_id = registry.create_experiment(
+            name="snapshot_exp",
+            description="Test snapshots",
+            author="test_user",
+            parameters={"lookback": 20},
+        )
+        snapshot = registry.record_parameter_snapshot(
+            exp_id,
+            parameters={"lookback": 30, "threshold": 1.2},
+            source="optimizer",
+            notes="Grid search winner",
+            make_active=True,
+        )
+
+        exp = registry.experiments[exp_id]
+        assert snapshot["source"] == "optimizer"
+        assert snapshot["parameters"]["lookback"] == 30
+        assert exp.parameters["lookback"] == 30
+        assert len(exp.parameter_history) == 2
+
+        param_file = registry.parameter_registry_path / f"{exp_id}.json"
+        assert param_file.exists()
+
+    def test_store_walk_forward_artifacts(self, registry):
+        """Test walk-forward artifact storage and gate normalization."""
+        exp_id = registry.create_experiment(
+            name="wf_exp",
+            description="Walk-forward artifact test",
+            author="test_user",
+        )
+
+        paths = registry.store_walk_forward_artifacts(
+            exp_id,
+            walk_forward_results={
+                "is_avg_sharpe": 2.0,
+                "oos_avg_sharpe": 1.4,
+                "alpha_t_stat": 2.3,
+                "avg_overfit_ratio": 1.2,
+                "passes_validation": True,
+            },
+            source_run_id="backtest_123",
+        )
+
+        assert os.path.exists(paths["results_path"])
+        assert os.path.exists(paths["summary_path"])
+
+        exp = registry.experiments[exp_id]
+        assert "walk_forward_latest" in exp.artifact_index
+        gate = next(g for g in exp.validation_gates if g.name == "walk_forward_oos")
+        assert gate.result == ValidationResult.PASS
 
     def test_backtest_sharpe_gate_fail(self, registry):
         """Test that low Sharpe fails the gate."""
@@ -198,6 +253,9 @@ class TestResearchRegistry:
         results = {
             "trading_days": 25,
             "net_return": 0.05,
+            "execution_quality_score": 80.0,
+            "avg_actual_slippage_bps": 12.0,
+            "fill_rate": 0.97,
         }
 
         registry.record_paper_results(exp_id, results)
@@ -208,6 +266,16 @@ class TestResearchRegistry:
 
         days_gate = next(g for g in exp.validation_gates if g.name == "paper_trading_days")
         assert days_gate.result == ValidationResult.PASS
+        recon_gate = next(g for g in exp.validation_gates if g.name == "paper_reconciliation_rate")
+        assert recon_gate.result == ValidationResult.PASS
+        err_gate = next(g for g in exp.validation_gates if g.name == "paper_operational_error_rate")
+        exec_score_gate = next(g for g in exp.validation_gates if g.name == "paper_execution_quality_score")
+        slippage_gate = next(g for g in exp.validation_gates if g.name == "paper_avg_slippage_bps")
+        fill_gate = next(g for g in exp.validation_gates if g.name == "paper_fill_rate")
+        assert err_gate.result == ValidationResult.PASS
+        assert exec_score_gate.result == ValidationResult.PASS
+        assert slippage_gate.result == ValidationResult.PASS
+        assert fill_gate.result == ValidationResult.PASS
 
     def test_insufficient_paper_days(self, registry):
         """Test that insufficient paper trading days fails."""
@@ -227,6 +295,29 @@ class TestResearchRegistry:
         exp = registry.experiments[exp_id]
         days_gate = next(g for g in exp.validation_gates if g.name == "paper_trading_days")
         assert days_gate.result == ValidationResult.FAIL
+
+    def test_paper_kpi_gates_fail_for_poor_reconciliation_and_error_rate(self, registry):
+        exp_id = registry.create_experiment(
+            name="paper_kpi_fail",
+            description="Test paper KPI failures",
+            author="test",
+        )
+
+        registry.record_paper_results(
+            exp_id,
+            {
+                "trading_days": 30,
+                "net_return": 0.01,
+                "reconciliation_pass_rate": 0.90,
+                "operational_error_rate": 0.10,
+            },
+        )
+
+        exp = registry.experiments[exp_id]
+        recon_gate = next(g for g in exp.validation_gates if g.name == "paper_reconciliation_rate")
+        err_gate = next(g for g in exp.validation_gates if g.name == "paper_operational_error_rate")
+        assert recon_gate.result == ValidationResult.FAIL
+        assert err_gate.result == ValidationResult.FAIL
 
     def test_approve_manual_review(self, registry):
         """Test manual review approval."""
@@ -280,11 +371,185 @@ class TestResearchRegistry:
         registry.record_paper_results(exp_id, {
             "trading_days": 25,
             "net_return": 0.05,
+            "execution_quality_score": 78.0,
+            "avg_actual_slippage_bps": 16.0,
+            "fill_rate": 0.96,
         })
 
         registry.approve_manual_review(exp_id, "reviewer")
 
         assert registry.is_promotion_ready(exp_id)
+
+    def test_is_promotion_ready_strict_requires_artifacts(self, registry):
+        """Strict promotion requires artifacts and checklist criteria."""
+        exp_id = registry.create_experiment(
+            name="strict_exp",
+            description="Strict readiness test",
+            author="test",
+        )
+
+        registry.record_backtest_results(exp_id, {
+            "sharpe_ratio": 1.5,
+            "max_drawdown": -0.10,
+        })
+        registry.record_validation_results(exp_id, {
+            "in_sample_sharpe": 2.0,
+            "out_of_sample_sharpe": 1.5,
+            "alpha_t_stat": 2.5,
+        })
+        registry.record_paper_results(exp_id, {
+            "trading_days": 70,
+            "total_trades": 140,
+            "net_return": 0.05,
+            "max_drawdown": -0.12,
+            "reconciliation_pass_rate": 0.999,
+            "operational_error_rate": 0.006,
+            "execution_quality_score": 81.0,
+            "avg_actual_slippage_bps": 13.0,
+            "fill_rate": 0.97,
+            "paper_live_shadow_drift": 0.08,
+            "critical_slo_breaches": 0,
+        })
+        registry.approve_manual_review(exp_id, "reviewer")
+
+        assert registry.is_promotion_ready(exp_id) is True
+        assert registry.is_promotion_ready(exp_id, strict=True) is False
+
+        registry.store_walk_forward_artifacts(
+            exp_id,
+            walk_forward_results={
+                "is_avg_sharpe": 2.0,
+                "oos_avg_sharpe": 1.5,
+                "alpha_t_stat": 2.5,
+                "passes_validation": True,
+            },
+        )
+
+        assert registry.is_promotion_ready(exp_id, strict=True) is True
+
+    def test_strict_checklist_requires_burn_in_signoff(self, registry):
+        exp_id = registry.create_experiment(
+            name="strict_burn_in",
+            description="Strict checklist burn-in coverage",
+            author="test",
+        )
+        registry.record_backtest_results(exp_id, {"sharpe_ratio": 1.5, "max_drawdown": -0.1})
+        registry.record_validation_results(
+            exp_id,
+            {"in_sample_sharpe": 2.0, "out_of_sample_sharpe": 1.4, "alpha_t_stat": 2.3},
+        )
+        registry.record_paper_results(
+            exp_id,
+            {
+                "trading_days": 30,
+                "total_trades": 40,
+                "net_return": 0.03,
+                "execution_quality_score": 80.0,
+                "avg_actual_slippage_bps": 12.0,
+                "fill_rate": 0.97,
+                "paper_live_shadow_drift": 0.08,
+                "reconciliation_pass_rate": 0.998,
+                "operational_error_rate": 0.004,
+            },
+        )
+        registry.approve_manual_review(exp_id, "reviewer")
+        registry.store_walk_forward_artifacts(
+            exp_id,
+            {
+                "is_avg_sharpe": 2.0,
+                "oos_avg_sharpe": 1.4,
+                "alpha_t_stat": 2.3,
+                "passes_validation": True,
+            },
+        )
+
+        checklist = registry.generate_promotion_checklist(exp_id)
+
+        assert checklist["ready_for_promotion"] is False
+        assert any(
+            "paper_burn_in_signoff" in blocker
+            for blocker in checklist.get("blockers", [])
+        )
+
+    def test_generate_promotion_checklist(self, registry):
+        """Checklist should include required criteria and blockers."""
+        exp_id = registry.create_experiment(
+            name="checklist_exp",
+            description="Checklist test",
+            author="test",
+        )
+        checklist = registry.generate_promotion_checklist(exp_id)
+        assert checklist["experiment_id"] == exp_id
+        assert "criteria" in checklist
+        assert "blockers" in checklist
+        assert checklist["ready_for_promotion"] is False
+
+    def test_strict_checklist_requires_execution_quality_metrics(self, registry):
+        exp_id = registry.create_experiment(
+            name="strict_exec_quality",
+            description="Strict checklist execution quality coverage",
+            author="test",
+        )
+        registry.record_backtest_results(exp_id, {"sharpe_ratio": 1.5, "max_drawdown": -0.1})
+        registry.record_validation_results(
+            exp_id,
+            {"in_sample_sharpe": 2.0, "out_of_sample_sharpe": 1.4, "alpha_t_stat": 2.3},
+        )
+        registry.record_paper_results(exp_id, {"trading_days": 25, "net_return": 0.03})
+        registry.approve_manual_review(exp_id, "reviewer")
+        registry.store_walk_forward_artifacts(
+            exp_id,
+            {
+                "is_avg_sharpe": 2.0,
+                "oos_avg_sharpe": 1.4,
+                "alpha_t_stat": 2.3,
+                "passes_validation": True,
+            },
+        )
+
+        checklist = registry.generate_promotion_checklist(exp_id)
+        blockers = checklist.get("blockers", [])
+
+        assert checklist["ready_for_promotion"] is False
+        assert any("paper_execution_quality_score_ci_gate" in blocker for blocker in blockers)
+
+    def test_strict_checklist_requires_shadow_drift_metric(self, registry):
+        exp_id = registry.create_experiment(
+            name="strict_shadow_drift",
+            description="Strict checklist shadow drift coverage",
+            author="test",
+        )
+        registry.record_backtest_results(exp_id, {"sharpe_ratio": 1.5, "max_drawdown": -0.1})
+        registry.record_validation_results(
+            exp_id,
+            {"in_sample_sharpe": 2.0, "out_of_sample_sharpe": 1.4, "alpha_t_stat": 2.3},
+        )
+        registry.record_paper_results(
+            exp_id,
+            {
+                "trading_days": 25,
+                "net_return": 0.03,
+                "execution_quality_score": 81.0,
+                "avg_actual_slippage_bps": 13.0,
+                "fill_rate": 0.97,
+            },
+        )
+        registry.approve_manual_review(exp_id, "reviewer")
+        registry.store_walk_forward_artifacts(
+            exp_id,
+            {
+                "is_avg_sharpe": 2.0,
+                "oos_avg_sharpe": 1.4,
+                "alpha_t_stat": 2.3,
+                "passes_validation": True,
+            },
+        )
+
+        checklist = registry.generate_promotion_checklist(exp_id)
+        blockers = checklist.get("blockers", [])
+
+        assert checklist["ready_for_promotion"] is False
+        assert any("paper_live_shadow_drift_ci_gate" in blocker for blocker in blockers)
 
     def test_get_promotion_blockers(self, registry):
         """Test getting list of blocking gates."""
