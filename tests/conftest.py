@@ -1,16 +1,62 @@
 import os
 import sys
+import asyncio
+import contextlib
+import gc
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
 import pytest
+
+if "numpy" in sys.modules:
+    np = sys.modules["numpy"]
+else:
+    import numpy as np
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from strategies.mean_reversion_strategy import MeanReversionStrategy
-from strategies.momentum_strategy import MomentumStrategy
+
+def _get_policy_loop():
+    """Return the current event loop bound to policy without creating one."""
+    policy = asyncio.get_event_loop_policy()
+    local_state = getattr(policy, "_local", None)
+    if local_state is None:
+        return None
+    return getattr(local_state, "_loop", None)
+
+
+def _close_loop(loop: asyncio.AbstractEventLoop) -> None:
+    if loop.is_closed() or loop.is_running():
+        return
+    with contextlib.suppress(Exception):
+        loop.run_until_complete(loop.shutdown_asyncgens())
+    with contextlib.suppress(Exception):
+        loop.run_until_complete(loop.shutdown_default_executor())
+    with contextlib.suppress(Exception):
+        loop.close()
+
+
+def _close_lingering_event_loops() -> None:
+    loop = _get_policy_loop()
+    if loop is not None:
+        _close_loop(loop)
+    with contextlib.suppress(Exception):
+        asyncio.get_event_loop_policy().set_event_loop(None)
+
+    for obj in gc.get_objects():
+        if isinstance(obj, asyncio.AbstractEventLoop):
+            _close_loop(obj)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Best-effort close of lingering loops before plugin cleanup callbacks."""
+    _close_lingering_event_loops()
+
+
+def pytest_unconfigure(config):
+    """Final loop cleanup before pytest cleanup stack raises unraisable warnings."""
+    _close_lingering_event_loops()
 
 
 @pytest.fixture
@@ -81,6 +127,8 @@ def test_symbols():
 @pytest.fixture
 def momentum_strategy(mock_broker):
     """Momentum strategy fixture"""
+    from strategies.momentum_strategy import MomentumStrategy
+
     strategy = MomentumStrategy(broker=mock_broker)
     strategy.set_parameters(
         {
@@ -99,6 +147,8 @@ def momentum_strategy(mock_broker):
 @pytest.fixture
 def mean_reversion_strategy(mock_broker):
     """Mean reversion strategy fixture"""
+    from strategies.mean_reversion_strategy import MeanReversionStrategy
+
     strategy = MeanReversionStrategy(broker=mock_broker)
     strategy.set_parameters(
         {

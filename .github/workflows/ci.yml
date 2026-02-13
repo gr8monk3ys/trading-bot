@@ -18,6 +18,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Detect promotion-relevant changes
+        id: promotion_changes
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            promotion_relevant:
+              - 'strategies/**'
+              - 'engine/**'
+              - 'research/**'
+              - 'main.py'
+              - 'scripts/strategy_promotion_gate.py'
+              - 'scripts/generate_validation_artifacts.py'
+              - 'scripts/validated_backtest_report.py'
+
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
@@ -56,12 +71,48 @@ jobs:
         continue-on-error: true
         run: uv run mypy strategies/ brokers/ engine/ utils/
 
-      - name: Run tests
+      - name: Run strict warning gate
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+          PAPER: "True"
+        run: |
+          uv run pytest tests/unit/ --no-cov \
+            -W error \
+            -W ignore::DeprecationWarning \
+            -W ignore::PendingDeprecationWarning
+
+      - name: Run chaos drills
+        run: |
+          uv run python scripts/chaos_drill.py \
+            --output "results/chaos_drill_ci.json"
+
+      - name: Run tests with coverage
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
           PAPER: "True"
         run: uv run pytest tests/unit/
+
+      - name: Require promotion experiment ID for strategy-impacting PRs
+        if: github.event_name == 'pull_request' && steps.promotion_changes.outputs.promotion_relevant == 'true'
+        env:
+          PROMOTION_EXPERIMENT_ID: ${{ vars.PROMOTION_EXPERIMENT_ID }}
+        run: |
+          if [ -z "${PROMOTION_EXPERIMENT_ID}" ]; then
+            echo "::error::PROMOTION_EXPERIMENT_ID repository variable is required for strategy-impacting PRs."
+            exit 1
+          fi
+
+      - name: Strategy promotion gate (strict)
+        if: github.event_name == 'pull_request' && steps.promotion_changes.outputs.promotion_relevant == 'true'
+        env:
+          PROMOTION_EXPERIMENT_ID: ${{ vars.PROMOTION_EXPERIMENT_ID }}
+        run: |
+          uv run python scripts/strategy_promotion_gate.py \
+            --experiment-id "${PROMOTION_EXPERIMENT_ID}" \
+            --strict \
+            --output "results/promotion_gate_${PROMOTION_EXPERIMENT_ID}.json"
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v5

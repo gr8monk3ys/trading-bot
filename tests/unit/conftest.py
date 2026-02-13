@@ -15,11 +15,16 @@ Helper Functions:
 - generate_price_history: Generate price history for testing
 """
 
+import sys
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
-import numpy as np
 import pytest
+
+if "numpy" in sys.modules:
+    np = sys.modules["numpy"]
+else:
+    import numpy as np
 
 import brokers.alpaca_broker as _broker_mod
 
