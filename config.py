@@ -70,6 +70,94 @@ def _validate_config():
             f"VAR_CONFIDENCE must be between 0.5 and 1 (exclusive), got {RISK_PARAMS['VAR_CONFIDENCE']}"
         )
 
+    if (
+        RISK_PARAMS["ORDER_RECON_MISMATCH_HALT_RUNS"] < 1
+        or RISK_PARAMS["ORDER_RECON_MISMATCH_HALT_RUNS"] > 20
+    ):
+        errors.append(
+            "ORDER_RECON_MISMATCH_HALT_RUNS must be between 1 and 20, got "
+            f"{RISK_PARAMS['ORDER_RECON_MISMATCH_HALT_RUNS']}"
+        )
+
+    if RISK_PARAMS["DATA_QUALITY_MAX_ERRORS"] < 0 or RISK_PARAMS["DATA_QUALITY_MAX_ERRORS"] > 100:
+        errors.append(
+            "DATA_QUALITY_MAX_ERRORS must be between 0 and 100, got "
+            f"{RISK_PARAMS['DATA_QUALITY_MAX_ERRORS']}"
+        )
+
+    if (
+        RISK_PARAMS["DATA_QUALITY_MAX_STALE_WARNINGS"] < 0
+        or RISK_PARAMS["DATA_QUALITY_MAX_STALE_WARNINGS"] > 100
+    ):
+        errors.append(
+            "DATA_QUALITY_MAX_STALE_WARNINGS must be between 0 and 100, got "
+            f"{RISK_PARAMS['DATA_QUALITY_MAX_STALE_WARNINGS']}"
+        )
+
+    if (
+        RISK_PARAMS["DATA_QUALITY_STALE_AFTER_DAYS"] < 1
+        or RISK_PARAMS["DATA_QUALITY_STALE_AFTER_DAYS"] > 30
+    ):
+        errors.append(
+            "DATA_QUALITY_STALE_AFTER_DAYS must be between 1 and 30, got "
+            f"{RISK_PARAMS['DATA_QUALITY_STALE_AFTER_DAYS']}"
+        )
+
+    if (
+        RISK_PARAMS["SLO_PAGING_TIMEOUT_SECONDS"] < 1
+        or RISK_PARAMS["SLO_PAGING_TIMEOUT_SECONDS"] > 30
+    ):
+        errors.append(
+            "SLO_PAGING_TIMEOUT_SECONDS must be between 1 and 30, got "
+            f"{RISK_PARAMS['SLO_PAGING_TIMEOUT_SECONDS']}"
+        )
+
+    if RISK_PARAMS["SLO_PAGING_MIN_SEVERITY"] not in {"warning", "critical"}:
+        errors.append(
+            "SLO_PAGING_MIN_SEVERITY must be one of {'warning','critical'}, got "
+            f"{RISK_PARAMS['SLO_PAGING_MIN_SEVERITY']}"
+        )
+
+    if RISK_PARAMS["SLO_PAGING_ENABLED"] and not RISK_PARAMS["SLO_PAGING_WEBHOOK_URL"]:
+        errors.append("SLO_PAGING_ENABLED=True requires SLO_PAGING_WEBHOOK_URL to be set")
+
+    if (
+        RISK_PARAMS["INCIDENT_ACK_SLA_MINUTES"] < 1
+        or RISK_PARAMS["INCIDENT_ACK_SLA_MINUTES"] > 1440
+    ):
+        errors.append(
+            "INCIDENT_ACK_SLA_MINUTES must be between 1 and 1440, got "
+            f"{RISK_PARAMS['INCIDENT_ACK_SLA_MINUTES']}"
+        )
+
+    if (
+        RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"] < 0
+        or RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"] > 1
+    ):
+        errors.append(
+            "PAPER_LIVE_SHADOW_DRIFT_MAX must be between 0 and 1, got "
+            f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_MAX']}"
+        )
+
+    if (
+        RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] < 0
+        or RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] > 1
+    ):
+        errors.append(
+            "PAPER_LIVE_SHADOW_DRIFT_WARNING must be between 0 and 1, got "
+            f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_WARNING']}"
+        )
+
+    if (
+        RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"]
+        > RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"]
+    ):
+        errors.append(
+            "PAPER_LIVE_SHADOW_DRIFT_WARNING must be <= PAPER_LIVE_SHADOW_DRIFT_MAX, got "
+            f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_WARNING']} > "
+            f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_MAX']}"
+        )
+
     # Validate TECHNICAL_PARAMS
     if TECHNICAL_PARAMS["RSI_PERIOD"] < 2 or TECHNICAL_PARAMS["RSI_PERIOD"] > 100:
         warnings.append(
@@ -96,28 +184,76 @@ def _validate_config():
         raise ValueError(error_msg)
 
 
-# Alpaca credentials configuration
-# P0 FIX: Validate credentials exist instead of defaulting to empty strings
-_api_key = os.environ.get("ALPACA_API_KEY")
-_api_secret = os.environ.get("ALPACA_SECRET_KEY")
+def _parse_bool_env(name: str, default: bool = True) -> bool:
+    """Parse a boolean environment variable using permissive truthy values."""
+    raw = str(os.environ.get(name, str(default))).strip().lower()
+    return raw in {"1", "true", "yes", "y", "on"}
 
-if not _api_key or not _api_secret:
-    # Only raise if we're not in a test environment
-    _is_test = os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("TESTING")
-    if not _is_test:
-        logger.error(
-            "ALPACA_API_KEY and ALPACA_SECRET_KEY must be set in environment variables. "
-            "Create a .env file with your Alpaca credentials."
-        )
-        # Don't raise immediately - allow imports to work, but log a clear warning
-        # The broker will raise when it tries to connect
-        logger.warning("Trading will fail until valid API credentials are provided.")
 
-ALPACA_CREDS = {
-    "API_KEY": _api_key or "",
-    "API_SECRET": _api_secret or "",
-    "PAPER": str(os.environ.get("PAPER", "True")).lower() == "true",  # Ensure string comparison
-}
+def _parse_int_env(name: str, default: int) -> int:
+    """Parse an integer environment variable with fallback."""
+    raw = str(os.environ.get(name, default)).strip()
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def _parse_float_env(name: str, default: float) -> float:
+    """Parse a float environment variable with fallback."""
+    raw = str(os.environ.get(name, default)).strip()
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _read_alpaca_creds_from_env() -> dict[str, str | bool]:
+    """
+    Read Alpaca credentials from environment variables.
+
+    Supports both explicit names (ALPACA_API_KEY/ALPACA_SECRET_KEY) and
+    compatibility aliases (API_KEY/API_SECRET).
+    """
+    return {
+        "API_KEY": os.environ.get("ALPACA_API_KEY") or os.environ.get("API_KEY") or "",
+        "API_SECRET": os.environ.get("ALPACA_SECRET_KEY") or os.environ.get("API_SECRET") or "",
+        "PAPER": _parse_bool_env("PAPER", default=True),
+    }
+
+
+# Snapshot of credentials for modules that rely on constant-style imports.
+# This is intentionally non-strict to avoid import-time side effects.
+ALPACA_CREDS = _read_alpaca_creds_from_env()
+
+
+def get_alpaca_creds(refresh: bool = False) -> dict[str, str | bool]:
+    """
+    Return Alpaca credentials.
+
+    Args:
+        refresh: Re-read from environment before returning.
+    """
+    if refresh:
+        ALPACA_CREDS.update(_read_alpaca_creds_from_env())
+    return ALPACA_CREDS.copy()
+
+
+def require_alpaca_credentials(context: str = "trading") -> dict[str, str | bool]:
+    """
+    Return Alpaca credentials and raise when missing required keys.
+
+    Use this in runtime paths that need broker connectivity.
+    """
+    creds = get_alpaca_creds(refresh=True)
+    if creds["API_KEY"] and creds["API_SECRET"]:
+        return creds
+
+    raise ValueError(
+        "Alpaca API credentials not found. Set ALPACA_API_KEY and ALPACA_SECRET_KEY "
+        "(or API_KEY/API_SECRET) before running "
+        f"{context}."
+    )
 
 # Trading symbols - Default list (used if dynamic selection is disabled)
 SYMBOLS = [
@@ -243,6 +379,21 @@ RISK_PARAMS = {
     "MAX_POSITION_RISK": 0.01,  # 1% individual position risk limit
     "MAX_CORRELATION": 0.7,  # Maximum position correlation
     "VAR_CONFIDENCE": 0.95,  # Value at Risk confidence level
+    "ORDER_RECON_MISMATCH_HALT_RUNS": 3,  # Consecutive mismatch runs before halting new entries
+    "DATA_QUALITY_MAX_ERRORS": 0,  # Maximum tolerated data quality errors before halting new entries
+    "DATA_QUALITY_MAX_STALE_WARNINGS": 0,  # Maximum stale data warnings before halting new entries
+    "DATA_QUALITY_STALE_AFTER_DAYS": 3,  # Data freshness threshold for live/paper quality gates
+    "SLO_PAGING_ENABLED": _parse_bool_env("SLO_PAGING_ENABLED", default=False),
+    "SLO_PAGING_WEBHOOK_URL": os.environ.get("SLO_PAGING_WEBHOOK_URL", "").strip(),
+    "SLO_PAGING_MIN_SEVERITY": str(
+        os.environ.get("SLO_PAGING_MIN_SEVERITY", "critical")
+    ).strip().lower(),
+    "SLO_PAGING_TIMEOUT_SECONDS": _parse_int_env("SLO_PAGING_TIMEOUT_SECONDS", 3),
+    "INCIDENT_ACK_SLA_MINUTES": _parse_int_env("INCIDENT_ACK_SLA_MINUTES", 15),
+    "PAPER_LIVE_SHADOW_DRIFT_WARNING": _parse_float_env(
+        "PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12
+    ),
+    "PAPER_LIVE_SHADOW_DRIFT_MAX": _parse_float_env("PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15),
 }
 
 # Technical analysis parameters

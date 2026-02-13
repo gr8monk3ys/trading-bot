@@ -84,6 +84,21 @@ class TestRiskParamsValidation:
         corr = RISK_PARAMS["MAX_CORRELATION"]
         assert -1 <= corr <= 1
 
+    def test_slo_paging_defaults_are_valid(self):
+        """SLO paging parameters should be well-formed."""
+        from config import RISK_PARAMS
+
+        assert isinstance(RISK_PARAMS["SLO_PAGING_ENABLED"], bool)
+        assert RISK_PARAMS["SLO_PAGING_MIN_SEVERITY"] in {"warning", "critical"}
+        assert 1 <= RISK_PARAMS["SLO_PAGING_TIMEOUT_SECONDS"] <= 30
+        assert 1 <= RISK_PARAMS["INCIDENT_ACK_SLA_MINUTES"] <= 1440
+        assert 0 <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] <= 1
+        assert 0 <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"] <= 1
+        assert (
+            RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"]
+            <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"]
+        )
+
 
 class TestTechnicalParamsValidation:
     """Test TECHNICAL_PARAMS validation."""
