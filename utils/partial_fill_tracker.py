@@ -49,10 +49,10 @@ class PartialFillEvent:
     requested_qty: float
     filled_qty: float
     unfilled_qty: float
-    delta_qty: float
     fill_price: float
     timestamp: datetime
     event_type: str  # 'partial_fill', 'fill', 'canceled', 'rejected'
+    delta_qty: float = 0.0
 
     @property
     def fill_rate(self) -> float:
@@ -459,6 +459,34 @@ class PartialFillTracker:
             for oid, record in self._orders.items()
             if record.status in ("pending", "partial")
         ]
+
+    def detect_stalled_orders(self, max_stall_seconds: float = 300.0) -> List[Dict[str, Any]]:
+        """
+        Detect pending/partial orders with no recent fill update.
+
+        Args:
+            max_stall_seconds: Age threshold since last update.
+
+        Returns:
+            List of order status dicts augmented with `stall_seconds`.
+        """
+        threshold = max(1.0, float(max_stall_seconds))
+        now = datetime.now()
+        stalled: List[Dict[str, Any]] = []
+        for order_id, record in self._orders.items():
+            if record.status not in ("pending", "partial"):
+                continue
+            if record.unfilled_qty <= 0:
+                continue
+            stall_seconds = (now - record.updated_at).total_seconds()
+            if stall_seconds < threshold:
+                continue
+
+            status = self.get_order_status(order_id) or {"order_id": order_id}
+            status["stall_seconds"] = stall_seconds
+            stalled.append(status)
+
+        return stalled
 
     def get_statistics(self) -> PartialFillStatistics:
         """Calculate aggregate statistics on partial fills."""

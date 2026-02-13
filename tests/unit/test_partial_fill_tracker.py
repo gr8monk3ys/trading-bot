@@ -10,7 +10,7 @@ Tests cover:
 - Statistics calculation
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -708,6 +708,20 @@ class TestUtilityMethods:
 
         assert len(pending) == 1
         assert pending[0]["order_id"] == "order-2"
+
+    @pytest.mark.asyncio
+    async def test_detect_stalled_orders(self, tracker):
+        """Test stalled pending order detection."""
+        tracker.track_order("order-1", "AAPL", "buy", 100)
+        await tracker.record_fill("order-1", 40, 150.0, is_final=False)
+
+        # Force order into stale state.
+        tracker._orders["order-1"].updated_at = datetime.now() - timedelta(minutes=10)
+        stalled = tracker.detect_stalled_orders(max_stall_seconds=60)
+
+        assert len(stalled) == 1
+        assert stalled[0]["order_id"] == "order-1"
+        assert stalled[0]["stall_seconds"] >= 60
 
     @pytest.mark.asyncio
     async def test_get_fill_events(self, tracker_with_order):

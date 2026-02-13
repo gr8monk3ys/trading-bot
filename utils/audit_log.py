@@ -161,6 +161,7 @@ class AuditLog:
         self._last_hash = self.GENESIS_HASH
         self._current_file: Optional[Path] = None
         self._file_handle = None
+        self._closed = False
 
         # Initialize
         self._initialize()
@@ -508,11 +509,26 @@ class AuditLog:
     def close(self) -> None:
         """Close the audit log (flush and close file handle)."""
         with self._lock:
+            if self._closed:
+                return
             if self._file_handle:
-                self._file_handle.flush()
-                os.fsync(self._file_handle.fileno())
-                self._file_handle.close()
-                self._file_handle = None
+                try:
+                    self._file_handle.flush()
+                    os.fsync(self._file_handle.fileno())
+                except OSError:
+                    # Best-effort flush/fsync during shutdown paths.
+                    pass
+                finally:
+                    self._file_handle.close()
+                    self._file_handle = None
+            self._closed = True
+
+    def __del__(self):
+        """Best-effort cleanup to avoid leaked file-handle warnings."""
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __enter__(self):
         """Context manager entry."""

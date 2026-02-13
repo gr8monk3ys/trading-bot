@@ -548,3 +548,88 @@ class TestWebSocketManagerTradeHandling:
         await manager._handle_trade(mock_trade)
 
         assert len(received_trades) == 1
+
+
+class _AlwaysFailStream:
+    def subscribe_bars(self, *args, **kwargs):
+        return None
+
+    def subscribe_quotes(self, *args, **kwargs):
+        return None
+
+    def subscribe_trades(self, *args, **kwargs):
+        return None
+
+    def run(self):
+        raise RuntimeError("simulated stream failure")
+
+
+class _ImmediateExitStream:
+    def subscribe_bars(self, *args, **kwargs):
+        return None
+
+    def subscribe_quotes(self, *args, **kwargs):
+        return None
+
+    def subscribe_trades(self, *args, **kwargs):
+        return None
+
+    def run(self):
+        return None
+
+
+class TestWebSocketManagerReconnectLogic:
+    """Tests for bounded reconnect behavior."""
+
+    @pytest.mark.asyncio
+    async def test_run_stream_stops_after_max_reconnect_attempts(self):
+        manager = WebSocketManager(
+            api_key="test_key",
+            secret_key="test_secret"
+        )
+        manager._running = True
+        manager._max_reconnect_attempts = 2
+        manager._base_reconnect_delay = 0
+        manager._max_reconnect_delay = 0
+        manager._create_stream = lambda: _AlwaysFailStream()  # type: ignore[assignment]
+        manager.subscribe_bars(["AAPL"])
+
+        await manager._run_stream()
+        stats = manager.get_connection_stats()
+
+        assert stats["is_running"] is False
+        assert stats["is_connected"] is False
+        assert stats["reconnect_attempts"] > manager._max_reconnect_attempts
+
+    @pytest.mark.asyncio
+    async def test_run_stream_bounds_clean_exit_reconnects(self):
+        manager = WebSocketManager(
+            api_key="test_key",
+            secret_key="test_secret"
+        )
+        manager._running = True
+        manager._max_reconnect_attempts = 1
+        manager._base_reconnect_delay = 0
+        manager._max_reconnect_delay = 0
+        manager._create_stream = lambda: _ImmediateExitStream()  # type: ignore[assignment]
+        manager.subscribe_bars(["AAPL"])
+
+        await manager._run_stream()
+        stats = manager.get_connection_stats()
+
+        assert stats["is_running"] is False
+        assert stats["reconnect_attempts"] > manager._max_reconnect_attempts
+
+    @pytest.mark.asyncio
+    async def test_handle_bar_resets_reconnect_attempt_counter(self):
+        manager = WebSocketManager(
+            api_key="test_key",
+            secret_key="test_secret"
+        )
+        manager._reconnect_attempts = 5
+        mock_bar = MagicMock()
+        mock_bar.symbol = "AAPL"
+
+        await manager._handle_bar(mock_bar)
+
+        assert manager._reconnect_attempts == 0

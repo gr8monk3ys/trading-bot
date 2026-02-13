@@ -166,6 +166,9 @@ class TradingDatabase:
 
         This method is idempotent and safe to call multiple times.
         """
+        if self._connection is not None:
+            return
+
         # Create directory if needed
         db_dir = Path(self.db_path).parent
         db_dir.mkdir(parents=True, exist_ok=True)
@@ -183,6 +186,13 @@ class TradingDatabase:
             self.logger.info(f"Database initialized: {self.db_path}")
 
         except Exception as e:
+            if self._connection is not None:
+                try:
+                    await self._connection.close()
+                except Exception:
+                    pass
+                finally:
+                    self._connection = None
             self.logger.error(f"Failed to initialize database: {e}")
             raise DatabaseError(f"Database initialization failed: {e}") from e
 

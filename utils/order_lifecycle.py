@@ -37,6 +37,7 @@ class OrderLifecycleRecord:
     side: str
     quantity: float
     strategy_name: Optional[str]
+    client_order_id: Optional[str] = None
     state: OrderState = OrderState.SUBMITTED
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
@@ -53,6 +54,7 @@ class OrderLifecycleTracker:
         side: str,
         quantity: float,
         strategy_name: Optional[str] = None,
+        client_order_id: Optional[str] = None,
     ) -> None:
         self._orders[order_id] = OrderLifecycleRecord(
             order_id=order_id,
@@ -60,6 +62,7 @@ class OrderLifecycleTracker:
             side=side,
             quantity=quantity,
             strategy_name=strategy_name,
+            client_order_id=client_order_id,
         )
 
     def update_state(self, order_id: str, new_state: OrderState) -> None:
@@ -91,6 +94,7 @@ class OrderLifecycleTracker:
                 "side": rec.side,
                 "quantity": rec.quantity,
                 "strategy_name": rec.strategy_name,
+                "client_order_id": rec.client_order_id,
                 "state": rec.state.value,
                 "created_at": rec.created_at.isoformat(),
                 "updated_at": rec.updated_at.isoformat(),
@@ -108,6 +112,7 @@ class OrderLifecycleTracker:
                 side=data["side"],
                 quantity=float(data["quantity"]),
                 strategy_name=data.get("strategy_name"),
+                client_order_id=data.get("client_order_id"),
                 state=OrderState(data["state"]),
                 created_at=datetime.fromisoformat(data["created_at"]),
                 updated_at=datetime.fromisoformat(data["updated_at"]),

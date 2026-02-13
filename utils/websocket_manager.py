@@ -327,6 +327,9 @@ class WebSocketManager:
         try:
             self._last_message_time = datetime.now()
             self._message_count += 1
+            # Receiving market data confirms a healthy stream; clear reconnect debt.
+            if self._reconnect_attempts:
+                self._reconnect_attempts = 0
 
             symbol = data.symbol
 
@@ -505,10 +508,35 @@ class WebSocketManager:
                 # messages (via _last_message_time) to confirm the stream
                 # is truly active.
                 self._connected = True
-                self._reconnect_attempts = 0
 
                 # Run the stream (blocking)
                 await asyncio.to_thread(self._stream.run)
+                self._connected = False
+
+                # If run() exits while still marked running, treat as disconnect
+                # and continue through the bounded reconnect path.
+                if not self._running:
+                    break
+
+                self._reconnect_attempts += 1
+                if self._reconnect_attempts > self._max_reconnect_attempts:
+                    logger.error(
+                        f"Max reconnection attempts ({self._max_reconnect_attempts}) "
+                        f"exceeded. Stopping WebSocket manager."
+                    )
+                    self._running = False
+                    break
+
+                delay = min(
+                    self._base_reconnect_delay * (2 ** (self._reconnect_attempts - 1)),
+                    self._max_reconnect_delay
+                )
+                logger.warning(
+                    "WebSocket stream exited unexpectedly. "
+                    f"Reconnecting in {delay:.1f}s "
+                    f"(attempt {self._reconnect_attempts}/{self._max_reconnect_attempts})"
+                )
+                await asyncio.sleep(delay)
 
             except asyncio.CancelledError:
                 logger.info("Stream task cancelled")

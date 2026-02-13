@@ -309,6 +309,37 @@ class TestPositionReconciler:
         assert result.positions_match is False
         assert result.mismatches[0].mismatch_type == "missing_internal"
 
+    async def test_writes_reconciliation_snapshots(self, mock_broker, mock_tracker, tmp_path):
+        """PositionReconciler should persist snapshot events when configured."""
+        from utils.reconciliation import PositionReconciler
+
+        mock_position = MagicMock()
+        mock_position.symbol = "AAPL"
+        mock_position.qty = "100"
+        mock_position.avg_entry_price = "150.00"
+        mock_broker.get_positions = AsyncMock(return_value=[mock_position])
+
+        internal_pos = MagicMock()
+        internal_pos.symbol = "AAPL"
+        internal_pos.qty = "100"
+        mock_tracker.get_positions = MagicMock(return_value=[internal_pos])
+
+        events_path = tmp_path / "position_reconciliation_events.jsonl"
+        reconciler = PositionReconciler(
+            broker=mock_broker,
+            internal_tracker=mock_tracker,
+            halt_on_mismatch=False,
+            events_path=events_path,
+            run_id="test_run",
+        )
+        await reconciler.reconcile()
+        reconciler.close()
+
+        lines = events_path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        assert '"event_type":"position_reconciliation_snapshot"' in lines[0]
+        assert '"run_id":"test_run"' in lines[0]
+
 
 class TestRunNightlyReconciliation:
     """Tests for the convenience function."""

@@ -225,8 +225,8 @@ class TestIsMarketOpen:
     def test_overnight_closed_when_disabled(self, manager_overnight_disabled):
         """Test overnight is closed when disabled."""
         # Even if we're in overnight time, disabled manager returns closed
-        ET.localize(datetime(2024, 1, 9, 22, 0))
-        assert manager_overnight_disabled.is_market_open() is False
+        dt = ET.localize(datetime(2024, 1, 9, 22, 0))
+        assert manager_overnight_disabled.is_market_open(dt=dt) is False
 
     def test_regular_hours_always_open(self, manager_no_broker):
         """Test regular hours is always open."""

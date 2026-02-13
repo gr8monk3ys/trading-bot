@@ -229,6 +229,7 @@ class ExtendedHoursManager:
         self,
         include_extended: bool = True,
         include_overnight: bool = None,
+        dt: datetime = None,
     ) -> bool:
         """
         Check if any trading session is currently active.
@@ -236,6 +237,7 @@ class ExtendedHoursManager:
         Args:
             include_extended: Include pre-market and after-hours (default: True)
             include_overnight: Include overnight session (default: follows enable_overnight)
+            dt: Optional datetime to evaluate (default: now)
 
         Returns:
             True if trading is possible in current session
@@ -243,7 +245,7 @@ class ExtendedHoursManager:
         if include_overnight is None:
             include_overnight = self.enable_overnight
 
-        session = self.get_current_session()
+        session = self.get_current_session(dt)
 
         if session == TradingSession.REGULAR:
             return True
@@ -711,7 +713,7 @@ class ExtendedHoursManager:
             "is_regular_hours": session == TradingSession.REGULAR,
             "is_extended": session in [TradingSession.PRE_MARKET, TradingSession.AFTER_HOURS],
             "is_overnight": session == TradingSession.OVERNIGHT,
-            "can_trade": self.is_market_open(),
+            "can_trade": self.is_market_open(dt=now),
         }
 
         if session == TradingSession.PRE_MARKET:

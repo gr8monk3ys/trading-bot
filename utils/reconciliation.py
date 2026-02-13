@@ -21,9 +21,11 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from utils.audit_log import AuditEventType, AuditLog
+from utils.run_artifacts import JsonlWriter
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +106,8 @@ class PositionReconciler:
         tolerance_pct: float = None,
         tolerance_abs: float = None,
         audit_log: Optional[AuditLog] = None,
+        events_path: str | Path | None = None,
+        run_id: Optional[str] = None,
     ):
         """
         Initialize the position reconciler.
@@ -122,6 +126,8 @@ class PositionReconciler:
         self.halt_on_mismatch = halt_on_mismatch
         self.sync_to_broker = sync_to_broker
         self.audit_log = audit_log
+        self.run_id = run_id
+        self._events_writer = JsonlWriter(events_path) if events_path else None
 
         self.tolerance_pct = tolerance_pct or self.QUANTITY_TOLERANCE_PCT
         self.tolerance_abs = tolerance_abs or self.QUANTITY_TOLERANCE_ABS
@@ -190,9 +196,11 @@ class PositionReconciler:
                         result=result,
                     )
 
+            self._write_snapshot(result)
             return result
 
-        except ReconciliationError:
+        except ReconciliationError as e:
+            self._write_snapshot(result=e.result)
             raise
         except Exception as e:
             logger.error(f"Reconciliation failed: {e}", exc_info=True)
@@ -455,6 +463,36 @@ class PositionReconciler:
             "last_reconciliation": self._reconciliation_history[-1].timestamp.isoformat(),
             "last_result": "PASS" if self._reconciliation_history[-1].positions_match else "FAIL",
         }
+
+    def close(self) -> None:
+        if self._events_writer:
+            self._events_writer.close()
+
+    def _write_snapshot(self, result: Optional[ReconciliationResult]) -> None:
+        """Persist reconciliation snapshot for replay/incident timelines."""
+        if not self._events_writer or result is None:
+            return
+
+        self._events_writer.write(
+            {
+                "event_type": "position_reconciliation_snapshot",
+                "timestamp": datetime.utcnow().isoformat(),
+                "run_id": self.run_id,
+                "reconciliation_id": result.reconciliation_id,
+                "positions_match": result.positions_match,
+                "mismatch_count": len(result.mismatches),
+                "total_discrepancy_value": result.total_discrepancy_value,
+                "mismatches": [
+                    {
+                        "symbol": m.symbol,
+                        "broker_qty": m.broker_qty,
+                        "internal_qty": m.internal_qty,
+                        "mismatch_type": m.mismatch_type,
+                    }
+                    for m in result.mismatches
+                ],
+            }
+        )
 
 
 async def run_nightly_reconciliation(
