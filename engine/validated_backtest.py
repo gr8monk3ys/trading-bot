@@ -36,6 +36,38 @@ from engine.walk_forward import WalkForwardResult, WalkForwardValidator
 logger = logging.getLogger(__name__)
 
 
+def _coerce_float(value: object, default: float) -> float:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _coerce_int(value: object, default: int) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _coerce_str(value: object, default: str) -> str:
+    return value if isinstance(value, str) else default
+
+
 @dataclass
 class RegimePerformance:
     """Performance metrics for a specific market regime."""
@@ -274,7 +306,7 @@ class ValidatedBacktestRunner:
         end_date: datetime,
         initial_capital: float,
         **strategy_kwargs,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Run walk-forward validation."""
         try:
             validator = WalkForwardValidator(n_splits=self.n_splits)
@@ -309,8 +341,8 @@ class ValidatedBacktestRunner:
                     **strategy_kwargs,
                 )
 
-                is_ret = is_result.get("total_return", 0)
-                oos_ret = oos_result.get("total_return", 0)
+                is_ret = float(is_result.get("total_return", 0.0))
+                oos_ret = float(oos_result.get("total_return", 0.0))
 
                 is_returns.append(is_ret)
                 oos_returns.append(oos_ret)
@@ -323,13 +355,13 @@ class ValidatedBacktestRunner:
                     test_start=test_start,
                     test_end=test_end,
                     is_return=is_ret,
-                    is_sharpe=is_result.get("sharpe_ratio", 0),
-                    is_trades=is_result.get("num_trades", 0),
-                    is_win_rate=is_result.get("win_rate", 0),
+                    is_sharpe=float(is_result.get("sharpe_ratio", 0.0)),
+                    is_trades=int(is_result.get("num_trades", 0)),
+                    is_win_rate=float(is_result.get("win_rate", 0.0)),
                     oos_return=oos_ret,
-                    oos_sharpe=oos_result.get("sharpe_ratio", 0),
-                    oos_trades=oos_result.get("num_trades", 0),
-                    oos_win_rate=oos_result.get("win_rate", 0),
+                    oos_sharpe=float(oos_result.get("sharpe_ratio", 0.0)),
+                    oos_trades=int(oos_result.get("num_trades", 0)),
+                    oos_win_rate=float(oos_result.get("win_rate", 0.0)),
                     overfitting_ratio=is_ret / oos_ret if oos_ret != 0 else float("inf"),
                     degradation=is_ret - oos_ret,
                 )
@@ -455,10 +487,11 @@ class ValidatedBacktestRunner:
             return 0
 
         excess_returns = returns - rf_rate / 252
-        if returns.std() == 0:
+        std = float(returns.std())
+        if std == 0.0:
             return 0
 
-        return np.sqrt(252) * excess_returns.mean() / returns.std()
+        return float(np.sqrt(252)) * float(excess_returns.mean()) / std
 
     def _calculate_significance(self, daily_returns: pd.Series) -> tuple[bool, Optional[float]]:
         """Calculate statistical significance of returns."""
@@ -488,8 +521,12 @@ class ValidatedBacktestRunner:
         if len(returns) < 10:
             return {"error": "Insufficient returns for permutation test (need >= 10)"}
 
-        alpha = BACKTEST_PARAMS.get("PERMUTATION_P_THRESHOLD", 0.05)
-        method = BACKTEST_PARAMS.get("MULTIPLE_TESTING_METHOD", "bonferroni")
+        alpha = _coerce_float(BACKTEST_PARAMS.get("PERMUTATION_P_THRESHOLD", 0.05), 0.05)
+        method = _coerce_str(
+            BACKTEST_PARAMS.get("MULTIPLE_TESTING_METHOD", "bonferroni"), "bonferroni"
+        )
+        if method not in {"fdr", "bonferroni"}:
+            method = "bonferroni"
 
         stats = ["mean", "sharpe"]
         raw_results = [
@@ -503,13 +540,14 @@ class ValidatedBacktestRunner:
             adjusted = apply_bonferroni_correction(p_values, alpha=alpha)
             method = "bonferroni"
 
-        summary = {
+        tests_summary: Dict[str, Any] = {}
+        summary: Dict[str, Any] = {
             "alpha": alpha,
             "method": method,
-            "tests": {},
+            "tests": tests_summary,
         }
         for stat, raw, adj in zip(stats, raw_results, adjusted, strict=False):
-            summary["tests"][stat] = {
+            tests_summary[stat] = {
                 "p_value": raw.p_value,
                 "adjusted_p_value": adj.adjusted_p_value,
                 "is_significant": adj.is_significant,
@@ -522,18 +560,22 @@ class ValidatedBacktestRunner:
         self, result: ValidatedBacktestResult
     ) -> tuple[Dict[str, Any], bool]:
         """Evaluate profitability validation gates for eligibility."""
-        min_trades = BACKTEST_PARAMS.get("MIN_TRADES_FOR_SIGNIFICANCE", 50)
-        min_sharpe = BACKTEST_PARAMS.get("MIN_SHARPE", 0.5)
-        max_drawdown = BACKTEST_PARAMS.get("MAX_DRAWDOWN", 0.15)
-        min_win_rate = BACKTEST_PARAMS.get("MIN_WIN_RATE", 0.35)
-        min_consistency = BACKTEST_PARAMS.get("MIN_WF_CONSISTENCY", 0.5)
-        overfit_threshold = BACKTEST_PARAMS.get("OVERFITTING_RATIO_THRESHOLD", 2.0)
+        min_trades = _coerce_int(BACKTEST_PARAMS.get("MIN_TRADES_FOR_SIGNIFICANCE", 50), 50)
+        min_sharpe = _coerce_float(BACKTEST_PARAMS.get("MIN_SHARPE", 0.5), 0.5)
+        max_drawdown = _coerce_float(BACKTEST_PARAMS.get("MAX_DRAWDOWN", 0.15), 0.15)
+        min_win_rate = _coerce_float(BACKTEST_PARAMS.get("MIN_WIN_RATE", 0.35), 0.35)
+        min_consistency = _coerce_float(BACKTEST_PARAMS.get("MIN_WF_CONSISTENCY", 0.5), 0.5)
+        overfit_threshold = _coerce_float(
+            BACKTEST_PARAMS.get("OVERFITTING_RATIO_THRESHOLD", 2.0), 2.0
+        )
+        perm_alpha = _coerce_float(BACKTEST_PARAMS.get("PERMUTATION_P_THRESHOLD", 0.05), 0.05)
 
         permutation = self._calculate_permutation_tests(result.daily_returns)
         mean_perm = permutation.get("tests", {}).get("mean", {})
         sharpe_perm = permutation.get("tests", {}).get("sharpe", {})
 
-        gates = {
+        max_drawdown_threshold = -max_drawdown
+        gates_detail: Dict[str, Dict[str, Any]] = {
             "min_trades": {
                 "passed": result.num_trades >= min_trades,
                 "value": result.num_trades,
@@ -545,9 +587,9 @@ class ValidatedBacktestRunner:
                 "threshold": min_sharpe,
             },
             "max_drawdown": {
-                "passed": result.max_drawdown >= -max_drawdown,
+                "passed": result.max_drawdown >= max_drawdown_threshold,
                 "value": result.max_drawdown,
-                "threshold": -max_drawdown,
+                "threshold": max_drawdown_threshold,
             },
             "min_win_rate": {
                 "passed": result.win_rate >= min_win_rate,
@@ -576,16 +618,20 @@ class ValidatedBacktestRunner:
             "permutation_mean": {
                 "passed": bool(mean_perm.get("is_significant")),
                 "value": mean_perm.get("adjusted_p_value"),
-                "threshold": BACKTEST_PARAMS.get("PERMUTATION_P_THRESHOLD", 0.05),
+                "threshold": perm_alpha,
             },
             "permutation_sharpe": {
                 "passed": bool(sharpe_perm.get("is_significant")),
                 "value": sharpe_perm.get("adjusted_p_value"),
-                "threshold": BACKTEST_PARAMS.get("PERMUTATION_P_THRESHOLD", 0.05),
+                "threshold": perm_alpha,
             },
         }
 
-        blockers = [name for name, gate in gates.items() if not gate.get("passed", False)]
+        blockers = [
+            name for name, gate in gates_detail.items() if not bool(gate.get("passed", False))
+        ]
+
+        gates: Dict[str, Any] = dict(gates_detail)
         gates["blockers"] = blockers
         gates["permutation"] = permutation
 
