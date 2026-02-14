@@ -61,7 +61,7 @@ class FundamentalData:
     sector: Optional[str] = None
     industry: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> Dict[str, float | str | None]:
         """Convert to dictionary for factor calculations."""
         return {
             "pe_ratio": self.pe_ratio,
@@ -127,10 +127,10 @@ class FactorDataProvider:
 
     def __init__(
         self,
-        cache_dir: str = None,
+        cache_dir: Optional[str] = None,
         cache_ttl_hours: int = 24,
-        alpaca_api_key: str = None,
-        alpaca_secret_key: str = None,
+        alpaca_api_key: Optional[str] = None,
+        alpaca_secret_key: Optional[str] = None,
         allow_synthetic_fallback: bool = True,
     ):
         """
@@ -155,7 +155,7 @@ class FactorDataProvider:
         self._cache: Dict[str, FundamentalData] = {}
         self._cache_timestamps: Dict[str, datetime] = {}
 
-    def _get_cache_key(self, symbol: str, as_of_date: datetime = None) -> str:
+    def _get_cache_key(self, symbol: str, as_of_date: Optional[datetime] = None) -> str:
         """Generate cache key."""
         date_str = (as_of_date or datetime.now()).strftime("%Y-%m-%d")
         return f"{symbol}_{date_str}"
@@ -170,7 +170,7 @@ class FactorDataProvider:
     async def get_fundamental_data(
         self,
         symbol: str,
-        as_of_date: datetime = None,
+        as_of_date: Optional[datetime] = None,
     ) -> Optional[FundamentalData]:
         """
         Get fundamental data for a single symbol.
@@ -201,7 +201,7 @@ class FactorDataProvider:
     async def get_batch_fundamental_data(
         self,
         symbols: List[str],
-        as_of_date: datetime = None,
+        as_of_date: Optional[datetime] = None,
     ) -> Dict[str, FundamentalData]:
         """
         Get fundamental data for multiple symbols.
@@ -403,7 +403,7 @@ class FactorDataProvider:
         self,
         symbols: List[str],
         price_data: pd.DataFrame,
-        as_of_date: datetime = None,
+        as_of_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Build all inputs needed for factor calculations.
@@ -533,7 +533,7 @@ class PointInTimeDataManager:
         self,
         symbols: List[str],
         as_of_date: datetime,
-    ) -> Dict[str, Dict[str, float]]:
+    ) -> Dict[str, Dict[str, float | str | None]]:
         """
         Get fundamental data that would have been available at as_of_date.
 
