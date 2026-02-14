@@ -85,7 +85,7 @@ def permutation_test_returns(
     rng = np.random.default_rng(random_state)
 
     # Calculate observed statistic
-    observed = _calculate_statistic(returns, statistic)
+    observed = float(_calculate_statistic(returns, statistic))
 
     # Generate null distribution by permuting returns
     null_distribution = np.zeros(n_permutations)
@@ -98,7 +98,7 @@ def permutation_test_returns(
     # Calculate p-value (one-tailed: observed > null)
     # Add 1 to numerator and denominator for continuity correction
     n_exceeds = np.sum(null_distribution >= observed)
-    p_value = (n_exceeds + 1) / (n_permutations + 1)
+    p_value = float((n_exceeds + 1) / (n_permutations + 1))
 
     is_significant = p_value < alpha
 
@@ -131,13 +131,15 @@ def permutation_test_returns(
 def _calculate_statistic(returns: np.ndarray, statistic: str) -> float:
     """Calculate the specified statistic from returns."""
     if statistic == "mean":
-        return np.mean(returns)
+        return float(np.mean(returns))
     elif statistic == "sharpe":
-        if np.std(returns) == 0:
+        std = float(np.std(returns))
+        if std == 0:
             return 0.0
-        return np.mean(returns) / np.std(returns) * np.sqrt(252)
+        mean = float(np.mean(returns))
+        return float(mean / std * np.sqrt(252))
     elif statistic == "total":
-        return np.sum(returns)
+        return float(np.sum(returns))
     else:
         raise ValueError(f"Unknown statistic: {statistic}")
 
@@ -367,10 +369,10 @@ def max_drawdown_significance(
         simulated_dds[i] = _calculate_max_drawdown(sim_returns)
 
     # Calculate percentile (lower is better for drawdown)
-    dd_percentile = 100 * np.mean(simulated_dds <= observed_dd)
-    p_value = dd_percentile / 100
+    dd_percentile = float(100 * np.mean(simulated_dds <= observed_dd))
+    p_value = float(dd_percentile / 100)
 
-    expected_dd = np.median(simulated_dds)
+    expected_dd = float(np.median(simulated_dds))
     is_significant = p_value < alpha
 
     # Interpretation
@@ -402,7 +404,7 @@ def _calculate_max_drawdown(returns: np.ndarray) -> float:
     equity = np.cumprod(1 + returns)
     peak = np.maximum.accumulate(equity)
     drawdown = (equity - peak) / peak
-    return abs(np.min(drawdown))
+    return float(abs(np.min(drawdown)))
 
 
 # =============================================================================
@@ -931,7 +933,7 @@ def comprehensive_statistical_validation(
     Returns:
         Dictionary with all test results and overall assessment
     """
-    results = {
+    results: Dict[str, Any] = {
         "n_returns": len(returns),
         "tests": {},
         "p_values": {},  # Collect all p-values for correction
