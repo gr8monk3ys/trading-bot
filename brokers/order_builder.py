@@ -8,7 +8,7 @@ bracket orders, OCO (One-Cancels-Other), OTO (One-Triggers-Other), and trailing 
 
 import logging
 import re
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Optional
 
 from alpaca.trading.enums import OrderClass, OrderSide, OrderType, TimeInForce
 from alpaca.trading.requests import (
@@ -72,7 +72,7 @@ class OrderBuilder:
 
     # CRYPTO_PAIRS is now imported from utils.crypto_utils for consistency
 
-    def __init__(self, symbol: str, side: Literal["buy", "sell"], qty: Optional[float] = None):
+    def __init__(self, symbol: str, side: str, qty: Optional[float] = None):
         """
         Initialize order builder.
 
@@ -450,7 +450,7 @@ class OrderBuilder:
         self._validate_order()
 
         # Build base kwargs common to all order types
-        base_kwargs = {
+        base_kwargs: Dict[str, Any] = {
             "symbol": self.symbol,
             "side": self.side,
             "time_in_force": self._time_in_force,
@@ -627,8 +627,8 @@ def bracket_order(
     side: str,
     qty: float,
     entry_price: Optional[float] = None,
-    take_profit: float = None,
-    stop_loss: float = None,
+    take_profit: Optional[float] = None,
+    stop_loss: Optional[float] = None,
     stop_limit: Optional[float] = None,
 ) -> Any:
     """Quick bracket order creation."""
@@ -638,6 +638,9 @@ def bracket_order(
         builder.limit(entry_price)
     else:
         builder.market()
+
+    if take_profit is None or stop_loss is None:
+        raise ValueError("Bracket orders require take_profit and stop_loss")
 
     builder.bracket(take_profit=take_profit, stop_loss=stop_loss, stop_limit=stop_limit).gtc()
 
@@ -702,7 +705,9 @@ def notional_limit_order(
 # =============================================================================
 
 
-def crypto_market_order(symbol: str, side: str, qty: float = None, notional: float = None) -> Any:
+def crypto_market_order(
+    symbol: str, side: str, qty: Optional[float] = None, notional: Optional[float] = None
+) -> Any:
     """
     Quick crypto market order creation.
 
