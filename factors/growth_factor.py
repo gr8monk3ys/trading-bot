@@ -88,11 +88,7 @@ class GrowthFactor(BaseFactor):
             qe_score = self._score_ratio(quarterly_earnings, low=-0.3, high=0.5)
 
             # Weighted composite
-            composite = (
-                0.40 * eg_score +
-                0.35 * rg_score +
-                0.25 * qe_score
-            )
+            composite = 0.40 * eg_score + 0.35 * rg_score + 0.25 * qe_score
 
             metadata = {
                 "earnings_growth": earnings_growth,

@@ -89,12 +89,7 @@ class ValueFactor(BaseFactor):
             dy_score = self._score_ratio(dy, low=0.0, high=0.08)
 
             # Weighted composite
-            composite = (
-                0.30 * pe_score +
-                0.25 * pb_score +
-                0.25 * ps_score +
-                0.20 * dy_score
-            )
+            composite = 0.30 * pe_score + 0.25 * pb_score + 0.25 * ps_score + 0.20 * dy_score
 
             metadata = {
                 "trailing_pe": pe,

@@ -11,7 +11,6 @@ Tests the correlation management system including:
 """
 
 
-
 class TestCorrelationManagerInit:
     """Test CorrelationManager initialization."""
 
@@ -34,7 +33,7 @@ class TestCorrelationManagerInit:
             max_sector_concentration=0.30,
             max_cluster_concentration=0.40,
             sector_correlation_penalty=0.50,
-            target_sector_count=5
+            target_sector_count=5,
         )
 
         assert manager.max_sector_concentration == 0.30
@@ -168,7 +167,7 @@ class TestGetSectorExposure:
         manager = CorrelationManager()
         positions = {
             "AAPL": {"value": 5000},  # Tech
-            "JPM": {"value": 5000},   # Financials
+            "JPM": {"value": 5000},  # Financials
         }
 
         exposure = manager.get_sector_exposure(positions)
@@ -232,9 +231,9 @@ class TestGetDiversificationScore:
         # Multiple sectors, evenly distributed
         positions = {
             "AAPL": {"value": 2500},  # Tech
-            "JPM": {"value": 2500},   # Financials
-            "XOM": {"value": 2500},   # Energy
-            "PG": {"value": 2500},    # Consumer Staples
+            "JPM": {"value": 2500},  # Financials
+            "XOM": {"value": 2500},  # Energy
+            "PG": {"value": 2500},  # Consumer Staples
         }
 
         score = manager.get_diversification_score(positions)
@@ -263,7 +262,7 @@ class TestGetSectorLimitMultiplier:
         # Tech at 50% (exceeds 40% limit)
         positions = {
             "AAPL": {"value": 5000},  # Tech
-            "JPM": {"value": 5000},   # Financials
+            "JPM": {"value": 5000},  # Financials
         }
 
         mult = manager.get_sector_limit_multiplier("MSFT", positions)
@@ -278,7 +277,7 @@ class TestGetSectorLimitMultiplier:
 
         positions = {
             "AAPL": {"value": 2000},  # Tech 20%
-            "JPM": {"value": 8000},   # Financials 80%
+            "JPM": {"value": 8000},  # Financials 80%
         }
 
         mult = manager.get_sector_limit_multiplier("MSFT", positions)
@@ -339,9 +338,7 @@ class TestGetAdjustedPositionSize:
         }
 
         size, info = manager.get_adjusted_position_size(
-            "JPM",  # Financials - different sector
-            10000,
-            positions
+            "JPM", 10000, positions  # Financials - different sector
         )
 
         assert size == 10000
@@ -359,9 +356,7 @@ class TestGetAdjustedPositionSize:
         }
 
         size, info = manager.get_adjusted_position_size(
-            "MSFT",  # Tech - same sector
-            10000,
-            positions
+            "MSFT", 10000, positions  # Tech - same sector
         )
 
         # Should be penalized
@@ -377,14 +372,10 @@ class TestGetAdjustedPositionSize:
         # Tech already at 50%
         positions = {
             "AAPL": {"value": 5000},  # Tech
-            "JPM": {"value": 5000},   # Financials
+            "JPM": {"value": 5000},  # Financials
         }
 
-        size, info = manager.get_adjusted_position_size(
-            "MSFT",  # Tech - at limit
-            10000,
-            positions
-        )
+        size, info = manager.get_adjusted_position_size("MSFT", 10000, positions)  # Tech - at limit
 
         # Should be heavily penalized
         assert size < 3000
@@ -413,9 +404,9 @@ class TestGetPortfolioReport:
 
         positions = {
             "AAPL": {"value": 2500},  # Tech
-            "JPM": {"value": 2500},   # Financials
-            "XOM": {"value": 2500},   # Energy
-            "PG": {"value": 2500},    # Consumer Staples
+            "JPM": {"value": 2500},  # Financials
+            "XOM": {"value": 2500},  # Energy
+            "PG": {"value": 2500},  # Consumer Staples
         }
 
         report = manager.get_portfolio_report(positions)
@@ -433,7 +424,7 @@ class TestGetPortfolioReport:
         positions = {
             "AAPL": {"value": 6000},  # Tech
             "MSFT": {"value": 6000},  # Tech - combined 60%
-            "JPM": {"value": 4000},   # Financials
+            "JPM": {"value": 4000},  # Financials
         }
 
         report = manager.get_portfolio_report(positions)

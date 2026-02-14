@@ -2,6 +2,7 @@
 """
 Quick script to check current paper trading positions and account status
 """
+
 import asyncio
 
 from brokers.alpaca_broker import AlpacaBroker

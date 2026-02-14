@@ -7,8 +7,6 @@ Fetches earnings call transcripts from various sources:
 - Seeking Alpha (scraping fallback)
 """
 
-import asyncio
-import hashlib
 import json
 import logging
 import os
@@ -282,7 +280,7 @@ class EarningsTranscriptFetcher:
             date_str = data.get("date", "")
             try:
                 date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-            except:
+            except (TypeError, ValueError):
                 date = datetime.now()
 
             # Parse quarter/year
@@ -325,7 +323,7 @@ class EarningsTranscriptFetcher:
             date_str = data.get("date", "")
             try:
                 date = datetime.fromisoformat(date_str)
-            except:
+            except (TypeError, ValueError):
                 date = datetime.now()
 
             quarter = f"Q{data.get('quarter', 4)}"

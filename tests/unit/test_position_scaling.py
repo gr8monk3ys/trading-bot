@@ -105,7 +105,7 @@ class TestGetTrancheWeights:
         """Test equal weights with 3 tranches."""
         weights = scaler.get_tranche_weights(ScaleMethod.EQUAL, 3)
         assert len(weights) == 3
-        assert all(abs(w - 1/3) < 0.01 for w in weights)
+        assert all(abs(w - 1 / 3) < 0.01 for w in weights)
         assert sum(weights) == pytest.approx(1.0)
 
     def test_pyramid_weights_2_tranches(self, scaler):
@@ -203,17 +203,13 @@ class TestCreateScaleInPlan:
 
     def test_custom_method(self, scaler):
         """Test with custom scaling method."""
-        plan = scaler.create_scale_in_plan(
-            "AAPL", 100, 150.0, method=ScaleMethod.EQUAL
-        )
+        plan = scaler.create_scale_in_plan("AAPL", 100, 150.0, method=ScaleMethod.EQUAL)
         assert plan["method"] == "equal"
 
     def test_custom_price_levels(self, scaler):
         """Test with custom price levels."""
         price_levels = [150.0, 145.0, 140.0]
-        plan = scaler.create_scale_in_plan(
-            "AAPL", 100, 150.0, price_levels=price_levels
-        )
+        plan = scaler.create_scale_in_plan("AAPL", 100, 150.0, price_levels=price_levels)
         for i, tranche in enumerate(plan["tranches"]):
             assert tranche["target_price"] == price_levels[i]
 
@@ -355,9 +351,7 @@ class TestCreateScaleOutPlan:
 
     def test_custom_profit_targets(self, scaler):
         """Test with custom profit targets."""
-        plan = scaler.create_scale_out_plan(
-            "AAPL", 100, 100.0, profit_targets=[0.10, 0.25, 0.50]
-        )
+        plan = scaler.create_scale_out_plan("AAPL", 100, 100.0, profit_targets=[0.10, 0.25, 0.50])
 
         assert plan["tranches"][0]["target_price"] == pytest.approx(110.0)
         assert plan["tranches"][1]["target_price"] == pytest.approx(125.0)

@@ -171,9 +171,7 @@ class NewsSentimentFactor(BaseFactor):
             logger.error(f"Error calculating sentiment for {symbol}: {e}")
             return 0.0, {"error": str(e), "news_count": 0}
 
-    async def calculate_scores_batch(
-        self, symbols: List[str]
-    ) -> Dict[str, FactorScore]:
+    async def calculate_scores_batch(self, symbols: List[str]) -> Dict[str, FactorScore]:
         """
         Calculate sentiment scores for multiple symbols efficiently.
 
@@ -367,9 +365,7 @@ class SentimentMomentumFactor(BaseFactor):
 
         try:
             # Get current sentiment (recent window)
-            current = await analyzer.get_symbol_sentiment(
-                symbol, lookback_hours=self.current_hours
-            )
+            current = await analyzer.get_symbol_sentiment(symbol, lookback_hours=self.current_hours)
 
             # Get historical sentiment (longer window)
             historical = await analyzer.get_symbol_sentiment(

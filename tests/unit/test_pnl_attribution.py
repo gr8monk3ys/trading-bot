@@ -72,7 +72,7 @@ class TestPnLAttributor:
         # Check that sectors are correctly assigned
         assert "Technology" in sector_weights  # AAPL, MSFT
         assert "Financials" in sector_weights  # JPM
-        assert "Energy" in sector_weights      # XOM
+        assert "Energy" in sector_weights  # XOM
         assert "Consumer Staples" in sector_weights  # PG
 
         # Check weights sum to 1
@@ -103,10 +103,10 @@ class TestPnLAttributor:
         date = datetime.now()
 
         # Mock benchmark return
-        with patch.object(attributor, '_get_benchmark_return', return_value=0.01):
-            with patch.object(attributor, '_get_factor_returns', return_value={}):
-                with patch.object(attributor, '_calculate_sector_contribution', return_value=0.002):
-                    with patch.object(attributor, '_estimate_factor_exposures', return_value={}):
+        with patch.object(attributor, "_get_benchmark_return", return_value=0.01):
+            with patch.object(attributor, "_get_factor_returns", return_value={}):
+                with patch.object(attributor, "_calculate_sector_contribution", return_value=0.002):
+                    with patch.object(attributor, "_estimate_factor_exposures", return_value={}):
                         attribution = await attributor.attribute_daily(
                             date=date,
                             positions=sample_positions,
@@ -152,10 +152,14 @@ class TestPnLAttributor:
         # Record several days
         for i in range(10):
             date = datetime.now() - timedelta(days=10 - i)
-            with patch.object(attributor, '_get_benchmark_return', return_value=0.005):
-                with patch.object(attributor, '_get_factor_returns', return_value={}):
-                    with patch.object(attributor, '_calculate_sector_contribution', return_value=0.001):
-                        with patch.object(attributor, '_estimate_factor_exposures', return_value={}):
+            with patch.object(attributor, "_get_benchmark_return", return_value=0.005):
+                with patch.object(attributor, "_get_factor_returns", return_value={}):
+                    with patch.object(
+                        attributor, "_calculate_sector_contribution", return_value=0.001
+                    ):
+                        with patch.object(
+                            attributor, "_estimate_factor_exposures", return_value={}
+                        ):
                             await attributor.attribute_daily(
                                 date=date,
                                 positions=sample_positions,
@@ -276,9 +280,17 @@ class TestSectorMapping:
     def test_sectors_are_valid(self):
         """Test that all sectors are valid GICS sectors."""
         valid_sectors = {
-            "Technology", "Financials", "Healthcare", "Energy",
-            "Consumer Discretionary", "Consumer Staples", "Industrials",
-            "Materials", "Utilities", "Real Estate", "Communication Services",
+            "Technology",
+            "Financials",
+            "Healthcare",
+            "Energy",
+            "Consumer Discretionary",
+            "Consumer Staples",
+            "Industrials",
+            "Materials",
+            "Utilities",
+            "Real Estate",
+            "Communication Services",
         }
 
         for symbol, sector in SECTOR_MAPPING.items():
@@ -291,10 +303,17 @@ class TestAttributionComponent:
     def test_all_components(self):
         """Test that all expected components exist."""
         expected = [
-            "TOTAL", "ALPHA", "BETA", "SECTOR",
-            "FACTOR_MOMENTUM", "FACTOR_VALUE", "FACTOR_SIZE",
-            "FACTOR_QUALITY", "FACTOR_VOLATILITY",
-            "COSTS", "RESIDUAL",
+            "TOTAL",
+            "ALPHA",
+            "BETA",
+            "SECTOR",
+            "FACTOR_MOMENTUM",
+            "FACTOR_VALUE",
+            "FACTOR_SIZE",
+            "FACTOR_QUALITY",
+            "FACTOR_VOLATILITY",
+            "COSTS",
+            "RESIDUAL",
         ]
 
         for component in expected:

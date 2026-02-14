@@ -99,7 +99,9 @@ class IncidentTracker:
                 incident = incidents.get(incident_id)
                 if incident is None:
                     continue
-                incident.sla_breached_at = self._parse_dt(event.get("breached_at")) or datetime.utcnow()
+                incident.sla_breached_at = (
+                    self._parse_dt(event.get("breached_at")) or datetime.utcnow()
+                )
 
         self._incidents = incidents
 

@@ -160,9 +160,7 @@ class FactorPortfolioConstructor:
     ) -> PortfolioAllocation:
         """Construct long-only factor-tilted portfolio."""
         # Sort by composite score
-        sorted_scores = sorted(
-            scores.items(), key=lambda x: x[1].composite_z, reverse=True
-        )
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1].composite_z, reverse=True)
 
         # Select top stocks
         selected = sorted_scores[: self.n_stocks_per_side]
@@ -206,13 +204,11 @@ class FactorPortfolioConstructor:
         sectors: Dict[str, str] = None,
     ) -> PortfolioAllocation:
         """Construct long-short factor portfolio."""
-        sorted_scores = sorted(
-            scores.items(), key=lambda x: x[1].composite_z, reverse=True
-        )
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1].composite_z, reverse=True)
 
         # Select top and bottom
         longs = sorted_scores[: self.n_stocks_per_side]
-        shorts = sorted_scores[-self.n_stocks_per_side:]
+        shorts = sorted_scores[-self.n_stocks_per_side :]
 
         positions = []
 
@@ -320,9 +316,7 @@ class FactorPortfolioConstructor:
                 continue
 
             # Sort by score
-            sorted_sector = sorted(
-                sector_list, key=lambda x: x[1].composite_z, reverse=True
-            )
+            sorted_sector = sorted(sector_list, key=lambda x: x[1].composite_z, reverse=True)
 
             # Take top 2 long, bottom 2 short
             n_per_side = max(1, min(2, len(sorted_sector) // 4))
@@ -522,9 +516,7 @@ class FactorPortfolioStrategy:
         if not self._scores:
             raise ValueError("Must call generate_signals first")
 
-        allocation = self.constructor.construct(
-            self._scores, sectors, existing_positions
-        )
+        allocation = self.constructor.construct(self._scores, sectors, existing_positions)
 
         self._current_allocation = allocation
         self._last_rebalance = datetime.now()
@@ -552,7 +544,5 @@ class FactorPortfolioStrategy:
         if not self._current_allocation or not self._scores:
             return {}
 
-        portfolio = [
-            (p.symbol, p.weight) for p in self._current_allocation.positions
-        ]
+        portfolio = [(p.symbol, p.weight) for p in self._current_allocation.positions]
         return self.factor_model.get_factor_exposures(portfolio, self._scores)

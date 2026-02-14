@@ -65,6 +65,7 @@ logger = logging.getLogger(__name__)
 
 class ExperimentStatus(Enum):
     """Status of a research experiment."""
+
     DRAFT = "draft"  # Initial development
     BACKTEST = "backtest"  # Backtesting phase
     VALIDATION = "validation"  # Walk-forward validation
@@ -77,6 +78,7 @@ class ExperimentStatus(Enum):
 
 class ValidationResult(Enum):
     """Result of validation check."""
+
     PASS = "pass"
     FAIL = "fail"
     WARNING = "warning"
@@ -303,15 +305,19 @@ class ResearchRegistry:
         # Parse validation gates
         gates = []
         for g in data.get("validation_gates", []):
-            gates.append(ValidationGate(
-                name=g["name"],
-                description=g["description"],
-                required=g["required"],
-                result=ValidationResult(g.get("result", "pending")),
-                message=g.get("message", ""),
-                checked_at=datetime.fromisoformat(g["checked_at"]) if g.get("checked_at") else None,
-                metrics=g.get("metrics", {}),
-            ))
+            gates.append(
+                ValidationGate(
+                    name=g["name"],
+                    description=g["description"],
+                    required=g["required"],
+                    result=ValidationResult(g.get("result", "pending")),
+                    message=g.get("message", ""),
+                    checked_at=(
+                        datetime.fromisoformat(g["checked_at"]) if g.get("checked_at") else None
+                    ),
+                    metrics=g.get("metrics", {}),
+                )
+            )
 
         return Experiment(
             id=data["id"],
@@ -334,7 +340,9 @@ class ResearchRegistry:
             paper_results=data.get("paper_results"),
             production_results=data.get("production_results"),
             validation_gates=gates,
-            promoted_at=datetime.fromisoformat(data["promoted_at"]) if data.get("promoted_at") else None,
+            promoted_at=(
+                datetime.fromisoformat(data["promoted_at"]) if data.get("promoted_at") else None
+            ),
         )
 
     def _save_experiment(self, experiment: Experiment):
@@ -871,8 +879,7 @@ class ResearchRegistry:
                     "required": True,
                     "passed": recon_rate >= min_recon,
                     "details": (
-                        f"reconciliation_pass_rate={recon_rate:.3f}, "
-                        f"required>={min_recon:.3f}"
+                        f"reconciliation_pass_rate={recon_rate:.3f}, " f"required>={min_recon:.3f}"
                     ),
                 }
             )
@@ -893,8 +900,7 @@ class ResearchRegistry:
                     "required": True,
                     "passed": error_rate <= max_error,
                     "details": (
-                        f"operational_error_rate={error_rate:.4f}, "
-                        f"required<={max_error:.4f}"
+                        f"operational_error_rate={error_rate:.4f}, " f"required<={max_error:.4f}"
                     ),
                 }
             )
@@ -960,9 +966,7 @@ class ResearchRegistry:
                 f"ready={bool(burn_in_scorecard.get('ready_for_signoff', False))}"
             )
             if burn_in_blockers:
-                burn_in_details = (
-                    f"{burn_in_details}; blockers={'; '.join(str(item) for item in burn_in_blockers[:3])}"
-                )
+                burn_in_details = f"{burn_in_details}; blockers={'; '.join(str(item) for item in burn_in_blockers[:3])}"
             criteria.append(
                 {
                     "name": "paper_burn_in_signoff",
@@ -1033,8 +1037,7 @@ class ResearchRegistry:
         self._save_experiment(exp)
 
         logger.info(
-            f"Promoted {experiment_id} to production. "
-            f"Force={force}, Commit={exp.git_commit}"
+            f"Promoted {experiment_id} to production. " f"Force={force}, Commit={exp.git_commit}"
         )
 
         return True
@@ -1076,10 +1079,7 @@ class ResearchRegistry:
 
     def get_production_experiments(self) -> List[Experiment]:
         """Get all experiments currently in production."""
-        return [
-            exp for exp in self.experiments.values()
-            if exp.status == ExperimentStatus.PROMOTED
-        ]
+        return [exp for exp in self.experiments.values() if exp.status == ExperimentStatus.PROMOTED]
 
     def get_experiment_summary(self, experiment_id: str) -> Dict[str, Any]:
         """
@@ -1314,6 +1314,7 @@ class ResearchRegistry:
         """Get current git commit hash."""
         try:
             import subprocess
+
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
@@ -1354,7 +1355,7 @@ def print_experiment_summary(registry: ResearchRegistry, experiment_id: str):
     print(f"Git Commit: {summary['git_commit'] or 'N/A'}")
 
     print("\n--- VALIDATION GATES ---")
-    gates = summary['validation_gates']
+    gates = summary["validation_gates"]
     print(f"Passed: {gates['passed']}/{gates['total']}")
     print(f"Failed: {gates['failed']}")
     print(f"Pending: {gates['pending']}")
@@ -1371,11 +1372,11 @@ def print_experiment_summary(registry: ResearchRegistry, experiment_id: str):
             print(f"  {status_icon}{req} {gate.name}: {gate.message or gate.description}")
 
     print("\n--- PROMOTION STATUS ---")
-    if summary['promotion_ready']:
+    if summary["promotion_ready"]:
         print("Ready for production promotion")
     else:
         print("Blocked by:")
-        for blocker in summary['blockers']:
+        for blocker in summary["blockers"]:
             print(f"  - {blocker}")
 
     print("\n" + "=" * 60)

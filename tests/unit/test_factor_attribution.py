@@ -382,11 +382,7 @@ class TestAddPortfolioObservation:
     def test_add_multiple_observations(self, attributor, sample_dates):
         """Test adding multiple portfolio observations."""
         for i, date in enumerate(sample_dates[:10]):
-            attributor.add_portfolio_observation(
-                date,
-                0.01 * i,
-                {FactorType.VALUE: 0.5 * i}
-            )
+            attributor.add_portfolio_observation(date, 0.01 * i, {FactorType.VALUE: 0.5 * i})
 
         assert len(attributor._portfolio_returns) == 10
         assert len(attributor._portfolio_exposures) == 10
@@ -518,10 +514,7 @@ class TestAttributeMethod:
 
         # Add factor returns for only some dates
         for date in sample_dates[:5]:
-            attributor_low_min_obs.add_factor_returns(
-                date,
-                {FactorType.MOMENTUM: 0.02}
-            )
+            attributor_low_min_obs.add_factor_returns(date, {FactorType.MOMENTUM: 0.02})
 
         result = attributor_low_min_obs.attribute()
 
@@ -598,9 +591,7 @@ class TestCalculateTimingReturn:
         factor_matrix = np.ones((1, len(FactorType))) * 0.01
         betas = np.ones(len(FactorType))
 
-        timing = attributor_low_min_obs._calculate_timing_return(
-            dates, factor_matrix, betas
-        )
+        timing = attributor_low_min_obs._calculate_timing_return(dates, factor_matrix, betas)
 
         assert timing == 0.0
 
@@ -614,13 +605,9 @@ class TestCalculateTimingReturn:
 
         # Add exposures that increase before gains
         for i, date in enumerate(dates):
-            attributor_low_min_obs._portfolio_exposures[date] = {
-                ft: float(i) for ft in FactorType
-            }
+            attributor_low_min_obs._portfolio_exposures[date] = {ft: float(i) for ft in FactorType}
 
-        timing = attributor_low_min_obs._calculate_timing_return(
-            dates, factor_matrix, betas
-        )
+        timing = attributor_low_min_obs._calculate_timing_return(dates, factor_matrix, betas)
 
         # With increasing exposures before increasing returns, timing should be positive
         assert timing > 0
@@ -636,9 +623,7 @@ class TestCalculateTimingReturn:
         for date in dates:
             attributor_low_min_obs._portfolio_exposures[date] = dict.fromkeys(FactorType, 1.0)
 
-        timing = attributor_low_min_obs._calculate_timing_return(
-            dates, factor_matrix, betas
-        )
+        timing = attributor_low_min_obs._calculate_timing_return(dates, factor_matrix, betas)
 
         assert np.isclose(timing, 0.0, atol=1e-10)
 
@@ -662,7 +647,7 @@ class TestCalculateFactorReturns:
         prices = np.random.uniform(50, 150, size=(len(dates), len(symbols)))
         # Add some trend
         for i in range(len(dates)):
-            prices[i, :] *= (1 + 0.001 * i)
+            prices[i, :] *= 1 + 0.001 * i
 
         return pd.DataFrame(prices, index=dates, columns=symbols)
 
@@ -703,7 +688,9 @@ class TestCalculateFactorReturns:
         for ft in FactorType:
             assert ft in factor_returns
 
-    def test_long_short_return_calculation(self, attributor, sample_price_data, sample_factor_scores):
+    def test_long_short_return_calculation(
+        self, attributor, sample_price_data, sample_factor_scores
+    ):
         """Test that long-short returns are calculated correctly."""
         factor_returns = attributor.calculate_factor_returns(
             sample_price_data, sample_factor_scores, n_quantiles=5
@@ -1110,10 +1097,7 @@ class TestEdgeCases:
         dates = [datetime(2024, 1, i) for i in range(1, 11)]
 
         for date in dates:
-            attributor_low_min_obs.add_factor_returns(
-                date,
-                dict.fromkeys(FactorType, 0.01)
-            )
+            attributor_low_min_obs.add_factor_returns(date, dict.fromkeys(FactorType, 0.01))
             attributor_low_min_obs.add_portfolio_observation(date, 0.0, {})
 
         result = attributor_low_min_obs.attribute()
@@ -1126,10 +1110,7 @@ class TestEdgeCases:
         dates = [datetime(2024, 1, i) for i in range(1, 11)]
 
         for date in dates:
-            attributor_low_min_obs.add_factor_returns(
-                date,
-                dict.fromkeys(FactorType, 0.0)
-            )
+            attributor_low_min_obs.add_factor_returns(date, dict.fromkeys(FactorType, 0.0))
             attributor_low_min_obs.add_portfolio_observation(date, 0.01, {})
 
         result = attributor_low_min_obs.attribute()
@@ -1142,8 +1123,7 @@ class TestEdgeCases:
 
         for date in dates:
             attributor_low_min_obs.add_factor_returns(
-                date,
-                dict.fromkeys(FactorType, 1.0)  # 100% daily returns
+                date, dict.fromkeys(FactorType, 1.0)  # 100% daily returns
             )
             attributor_low_min_obs.add_portfolio_observation(date, 2.0, {})  # 200% return
 
@@ -1157,10 +1137,7 @@ class TestEdgeCases:
         dates = [datetime(2024, 1, i) for i in range(1, 11)]
 
         for date in dates:
-            attributor_low_min_obs.add_factor_returns(
-                date,
-                dict.fromkeys(FactorType, -0.05)
-            )
+            attributor_low_min_obs.add_factor_returns(date, dict.fromkeys(FactorType, -0.05))
             attributor_low_min_obs.add_portfolio_observation(date, -0.10, {})
 
         result = attributor_low_min_obs.attribute()
@@ -1174,9 +1151,7 @@ class TestEdgeCases:
         factor_matrix = np.array([[0.01] * len(FactorType)])
         betas = np.ones(len(FactorType))
 
-        timing = attributor_low_min_obs._calculate_timing_return(
-            dates, factor_matrix, betas
-        )
+        timing = attributor_low_min_obs._calculate_timing_return(dates, factor_matrix, betas)
 
         assert timing == 0.0
 
@@ -1254,10 +1229,7 @@ class TestRegressionAccuracy:
             momentum_return = np.random.uniform(-0.02, 0.02)
             portfolio_return = alpha_true + beta_momentum * momentum_return
 
-            attributor_low_min_obs.add_factor_returns(
-                date,
-                {FactorType.MOMENTUM: momentum_return}
-            )
+            attributor_low_min_obs.add_factor_returns(date, {FactorType.MOMENTUM: momentum_return})
             attributor_low_min_obs.add_portfolio_observation(date, portfolio_return, {})
 
         result = attributor_low_min_obs.attribute()

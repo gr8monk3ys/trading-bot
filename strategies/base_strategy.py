@@ -700,7 +700,9 @@ class BaseStrategy(ABC):
                 # Maps [block_threshold, boost_threshold] → [min_multiplier, 1.0]
                 range_size = self.sentiment_boost_threshold - self.sentiment_block_threshold
                 normalized = (score - self.sentiment_block_threshold) / range_size
-                multiplier = self.sentiment_min_multiplier + normalized * (1.0 - self.sentiment_min_multiplier)
+                multiplier = self.sentiment_min_multiplier + normalized * (
+                    1.0 - self.sentiment_min_multiplier
+                )
 
             # Apply confidence weighting (blend toward 1.0 for low confidence)
             final_multiplier = 1.0 + (multiplier - 1.0) * confidence
@@ -850,6 +852,7 @@ class BaseStrategy(ABC):
             else:
                 # Fallback for backwards compatibility (will fail if gateway enforcement enabled)
                 from brokers.order_builder import OrderBuilder
+
                 strategy_logger.warning(
                     f"⚠️ No OrderGateway configured - using direct broker access for {symbol}"
                 )
@@ -913,10 +916,10 @@ class BaseStrategy(ABC):
 
         try:
             # Extract symbol for logging
-            symbol = getattr(order_request, 'symbol', 'UNKNOWN')
-            if hasattr(order_request, 'build'):
+            symbol = getattr(order_request, "symbol", "UNKNOWN")
+            if hasattr(order_request, "build"):
                 built = order_request.build()
-                symbol = getattr(built, 'symbol', symbol)
+                symbol = getattr(built, "symbol", symbol)
 
             result = await order_gateway.submit_order(
                 order_request=order_request,

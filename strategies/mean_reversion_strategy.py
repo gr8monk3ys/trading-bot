@@ -726,6 +726,7 @@ class MeanReversionStrategy(BaseStrategy):
 
     async def export_state(self) -> dict:
         """Export lightweight state for restart recovery."""
+
         def _dt(v):
             return v.isoformat() if hasattr(v, "isoformat") else v
 

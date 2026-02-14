@@ -94,7 +94,9 @@ class VolatilityFactor(BaseFactor):
 
             # Calculate additional metrics
             downside_returns = returns[returns < 0]
-            downside_vol = np.std(downside_returns) * np.sqrt(252) if len(downside_returns) > 0 else 0
+            downside_vol = (
+                np.std(downside_returns) * np.sqrt(252) if len(downside_returns) > 0 else 0
+            )
 
             # Mean return for Sharpe-like metric
             mean_return = np.mean(returns) * 252  # Annualized
@@ -281,7 +283,7 @@ class BetaFactor(BaseFactor):
                 "beta": beta,
                 "alpha": alpha,
                 "correlation": correlation,
-                "r_squared": correlation ** 2,
+                "r_squared": correlation**2,
                 "stock_vol": np.std(stock_returns) * np.sqrt(252),
                 "benchmark_vol": np.std(bench_returns) * np.sqrt(252),
             }

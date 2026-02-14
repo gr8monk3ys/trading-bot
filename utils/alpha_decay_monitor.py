@@ -315,9 +315,7 @@ class AlphaDecayMonitor:
 
         return alert
 
-    def _check_decay(
-        self, strategy_name: str, metrics: DecayMetrics
-    ) -> Optional[DecayAlert]:
+    def _check_decay(self, strategy_name: str, metrics: DecayMetrics) -> Optional[DecayAlert]:
         """Check for alpha decay and generate alert if needed."""
         cumulative_trades = self._cumulative_trades.get(strategy_name, 0)
 
@@ -457,9 +455,9 @@ class AlphaDecayMonitor:
             "history_length": len(history),
             "sharpe_ratio_trend": sharpe_trend,
             "trend_interpretation": (
-                "IMPROVING" if sharpe_trend > 0.01 else
-                "STABLE" if sharpe_trend > -0.01 else
-                "DECLINING"
+                "IMPROVING"
+                if sharpe_trend > 0.01
+                else "STABLE" if sharpe_trend > -0.01 else "DECLINING"
             ),
             "average_sharpe_ratio": np.mean(sharpe_ratios),
             "min_sharpe_ratio": min(sharpe_ratios),
@@ -533,13 +531,10 @@ class AlphaDecayMonitor:
         try:
             state = {
                 "baselines": self._baselines,
-                "last_validation": {
-                    k: v.isoformat() for k, v in self._last_validation.items()
-                },
+                "last_validation": {k: v.isoformat() for k, v in self._last_validation.items()},
                 "cumulative_trades": self._cumulative_trades,
                 "metrics_history": {
-                    k: [m.to_dict() for m in v]
-                    for k, v in self._metrics_history.items()
+                    k: [m.to_dict() for m in v] for k, v in self._metrics_history.items()
                 },
             }
 
@@ -561,8 +556,7 @@ class AlphaDecayMonitor:
 
             self._baselines = state.get("baselines", {})
             self._last_validation = {
-                k: datetime.fromisoformat(v)
-                for k, v in state.get("last_validation", {}).items()
+                k: datetime.fromisoformat(v) for k, v in state.get("last_validation", {}).items()
             }
             self._cumulative_trades = state.get("cumulative_trades", {})
 
@@ -572,9 +566,7 @@ class AlphaDecayMonitor:
                     maxlen=self.history_months * 4,
                 )
 
-            logger.info(
-                f"Loaded alpha decay state: {len(self._baselines)} strategies"
-            )
+            logger.info(f"Loaded alpha decay state: {len(self._baselines)} strategies")
 
         except Exception as e:
             logger.error(f"Failed to load alpha decay state: {e}")
@@ -590,6 +582,7 @@ def create_notifier_callback(notifier) -> Callable[[DecayAlert], None]:
     Returns:
         Callback function for AlphaDecayMonitor
     """
+
     def callback(alert: DecayAlert):
         level_emoji = {
             AlertLevel.WARNING: "⚠️",

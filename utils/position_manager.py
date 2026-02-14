@@ -124,9 +124,7 @@ class PositionManager:
                     return None
 
                 # Expired - allow new reservation
-                logger.info(
-                    f"Expired reservation for {symbol} from {existing.strategy_name}"
-                )
+                logger.info(f"Expired reservation for {symbol} from {existing.strategy_name}")
 
             # Check for existing ownership by different strategy
             if symbol in self._ownership:
@@ -148,9 +146,7 @@ class PositionManager:
             )
             self._reservations[symbol] = reservation
 
-            logger.debug(
-                f"Reserved {symbol} for {strategy_name}: {side} {intended_qty} shares"
-            )
+            logger.debug(f"Reserved {symbol} for {strategy_name}: {side} {intended_qty} shares")
             return reservation
 
     async def confirm_order_submitted(
@@ -485,7 +481,9 @@ class PositionManager:
         except Exception as e:
             logger.error(f"Error syncing with broker: {e}")
 
-    def sync_positions(self, broker_positions: Dict[str, float], default_strategy: str = "reconciled"):
+    def sync_positions(
+        self, broker_positions: Dict[str, float], default_strategy: str = "reconciled"
+    ):
         """
         Sync internal ownership directly from broker position quantities.
 
@@ -548,7 +546,9 @@ class PositionManager:
                             existing.qty = new_qty
                         else:
                             del self._ownership[symbol]
-                            self._strategy_positions.get(existing.strategy_name, set()).discard(symbol)
+                            self._strategy_positions.get(existing.strategy_name, set()).discard(
+                                symbol
+                            )
                     else:
                         self._ownership[symbol] = PositionOwnership(
                             symbol=symbol,
@@ -578,7 +578,9 @@ class PositionManager:
                             existing.qty = new_qty
                         else:
                             del self._ownership[symbol]
-                            self._strategy_positions.get(existing.strategy_name, set()).discard(symbol)
+                            self._strategy_positions.get(existing.strategy_name, set()).discard(
+                                symbol
+                            )
                     else:
                         self._ownership[symbol] = PositionOwnership(
                             symbol=symbol,

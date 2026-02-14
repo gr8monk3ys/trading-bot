@@ -156,6 +156,7 @@ async def scan_for_opportunities(
 
             if broker is None:
                 from brokers.alpaca_broker import AlpacaBroker
+
                 broker = AlpacaBroker(paper=True)
 
             factor_portfolio = FactorPortfolio(broker=broker)
@@ -338,12 +339,12 @@ async def run_live_trading(broker, symbols: List[str]) -> None:
     SupportResistanceAnalyzer(swing_lookback=5, min_touches=2)
 
     # NEW: Position scaler
-    PositionScaler(
-        default_tranches=3, scale_out_levels=[0.05, 0.10, 0.20]  # 5%, 10%, 20%
-    )
+    PositionScaler(default_tranches=3, scale_out_levels=[0.05, 0.10, 0.20])  # 5%, 10%, 20%
 
     # NEW: Correlation manager
-    correlation_mgr = CorrelationManager(max_sector_concentration=0.40, sector_correlation_penalty=0.60)
+    correlation_mgr = CorrelationManager(
+        max_sector_concentration=0.40, sector_correlation_penalty=0.60
+    )
 
     # Check trading hours
     hours_status = hours_filter.get_trading_status()

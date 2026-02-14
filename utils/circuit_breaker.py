@@ -58,6 +58,7 @@ class TradingHaltedException(Exception):
         self.loss_pct = loss_pct
         self.event_name = event_name
 
+
 # Lazy import for economic calendar
 EconomicEventCalendar = None
 
@@ -495,8 +496,8 @@ class CircuitBreaker:
             # Calculate losses using TRUE peak (not recoverable peak)
             daily_loss = (self.starting_equity - current_equity) / self.starting_equity
             drawdown_from_true_peak = (
-                (self._true_peak_equity - current_equity) / self._true_peak_equity
-            )
+                self._true_peak_equity - current_equity
+            ) / self._true_peak_equity
 
             # Check thresholds
             is_halted = False

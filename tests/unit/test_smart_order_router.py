@@ -446,14 +446,10 @@ class TestCreateSmartRouter:
 
     def test_create_with_specific_venues(self):
         """Test creating router with specific venues."""
-        router = create_smart_router(
-            venues=[Venue.NYSE, Venue.NASDAQ, Venue.IEX]
-        )
+        router = create_smart_router(venues=[Venue.NYSE, Venue.NASDAQ, Venue.IEX])
         assert len(router.connectors) == 3
 
     def test_create_with_strategy(self):
         """Test creating router with specific strategy."""
-        router = create_smart_router(
-            strategy=RoutingStrategy.PASSIVE
-        )
+        router = create_smart_router(strategy=RoutingStrategy.PASSIVE)
         assert router.default_strategy == RoutingStrategy.PASSIVE

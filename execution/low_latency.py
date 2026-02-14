@@ -41,6 +41,7 @@ def get_monotonic_us() -> int:
 
 class LatencyBucket(Enum):
     """Latency measurement categories."""
+
     ORDER_CREATION = "order_creation"
     SERIALIZATION = "serialization"
     NETWORK_SEND = "network_send"
@@ -53,6 +54,7 @@ class LatencyBucket(Enum):
 @dataclass
 class LatencyMeasurement:
     """Single latency measurement."""
+
     bucket: LatencyBucket
     latency_us: int
     timestamp: datetime
@@ -62,6 +64,7 @@ class LatencyMeasurement:
 @dataclass
 class LatencyStats:
     """Aggregated latency statistics."""
+
     bucket: LatencyBucket
     count: int
     min_us: int
@@ -103,8 +106,7 @@ class LatencyMonitor:
 
         # Pre-allocated buffers per bucket
         self._buffers: Dict[LatencyBucket, Deque[int]] = {
-            bucket: deque(maxlen=buffer_size)
-            for bucket in LatencyBucket
+            bucket: deque(maxlen=buffer_size) for bucket in LatencyBucket
         }
 
         # Running stats (updated periodically, not per-sample)
@@ -182,6 +184,7 @@ class LatencyMonitor:
 @dataclass
 class OrderMessage:
     """Pre-formatted order message for fast sending."""
+
     message_id: int
     symbol: str
     side: str
@@ -257,19 +260,23 @@ class FastJSONSerializer(MessageSerializer):
         """Fast serialize using templates."""
         # In production, use orjson or similar
         import json
-        return json.dumps({
-            "id": message.message_id,
-            "symbol": message.symbol,
-            "side": message.side,
-            "qty": message.quantity,
-            "price": message.price,
-            "type": message.order_type,
-            "venue": message.venue,
-        }).encode()
+
+        return json.dumps(
+            {
+                "id": message.message_id,
+                "symbol": message.symbol,
+                "side": message.side,
+                "qty": message.quantity,
+                "price": message.price,
+                "type": message.order_type,
+                "venue": message.venue,
+            }
+        ).encode()
 
     def deserialize(self, data: bytes) -> Dict[str, Any]:
         """Deserialize response."""
         import json
+
         return json.loads(data)
 
 
@@ -415,6 +422,7 @@ class OrderQueue:
 @dataclass
 class ExecutionConfig:
     """Configuration for low-latency execution."""
+
     # Connection settings
     min_connections_per_venue: int = 2
     max_connections_per_venue: int = 10
@@ -572,10 +580,7 @@ class LowLatencyExecutor:
             await asyncio.sleep(0.0001)
 
             message.acked_at_us = get_monotonic_us()
-            self.latency_monitor.record(
-                LatencyBucket.TOTAL_ROUND_TRIP,
-                message.total_latency_us
-            )
+            self.latency_monitor.record(LatencyBucket.TOTAL_ROUND_TRIP, message.total_latency_us)
 
             self._orders_sent += 1
             self._orders_filled += 1
@@ -612,10 +617,7 @@ class LowLatencyExecutor:
             "orders_sent": self._orders_sent,
             "orders_filled": self._orders_filled,
             "orders_rejected": self._orders_rejected,
-            "fill_rate": (
-                self._orders_filled / self._orders_sent
-                if self._orders_sent > 0 else 0
-            ),
+            "fill_rate": (self._orders_filled / self._orders_sent if self._orders_sent > 0 else 0),
             "queue_size": self.order_queue.size,
         }
 
@@ -658,11 +660,13 @@ class LatencyOptimizer:
         # Check for issues
         for bucket, stat in stats.items():
             if stat.p99_us > 1000:  # >1ms at p99
-                analysis["recommendations"].append({
-                    "issue": f"High {bucket} latency",
-                    "p99_us": stat.p99_us,
-                    "recommendation": self._get_recommendation(bucket, stat),
-                })
+                analysis["recommendations"].append(
+                    {
+                        "issue": f"High {bucket} latency",
+                        "p99_us": stat.p99_us,
+                        "recommendation": self._get_recommendation(bucket, stat),
+                    }
+                )
 
         # Overall assessment
         total = stats.get("total_round_trip")

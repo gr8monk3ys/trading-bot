@@ -142,9 +142,7 @@ class BaseFactor(ABC):
             logger.error(f"Error calculating {self.factor_name} for {symbol}: {e}")
             return None
 
-    async def calculate_scores_batch(
-        self, symbols: List[str]
-    ) -> Dict[str, FactorScore]:
+    async def calculate_scores_batch(self, symbols: List[str]) -> Dict[str, FactorScore]:
         """
         Calculate factor scores for multiple symbols.
 
@@ -264,9 +262,7 @@ class BaseFactor(ABC):
 
         return percentile
 
-    async def get_price_data(
-        self, symbol: str, days: int = 252
-    ) -> Optional[List[Dict]]:
+    async def get_price_data(self, symbol: str, days: int = 252) -> Optional[List[Dict]]:
         """
         Fetch historical price data for a symbol.
 

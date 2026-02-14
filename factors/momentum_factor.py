@@ -111,7 +111,9 @@ class MomentumFactor(BaseFactor):
 
             # Calculate 1-month return (the skip period we're excluding)
             recent_price = closes[-1]
-            skip_start_price = closes[-1 - self.skip_days] if len(closes) > self.skip_days else closes[0]
+            skip_start_price = (
+                closes[-1 - self.skip_days] if len(closes) > self.skip_days else closes[0]
+            )
 
             if skip_start_price <= 0:
                 return (np.nan, {"error": "invalid_price"})
@@ -251,11 +253,15 @@ class RelativeStrengthFactor(BaseFactor):
         try:
             # Stock return
             stock_closes = np.array([d["close"] for d in price_data])
-            stock_return = (stock_closes[-1] - stock_closes[-self.lookback_days]) / stock_closes[-self.lookback_days]
+            stock_return = (stock_closes[-1] - stock_closes[-self.lookback_days]) / stock_closes[
+                -self.lookback_days
+            ]
 
             # Benchmark return
             bench_closes = np.array([d["close"] for d in benchmark_data])
-            bench_return = (bench_closes[-1] - bench_closes[-self.lookback_days]) / bench_closes[-self.lookback_days]
+            bench_return = (bench_closes[-1] - bench_closes[-self.lookback_days]) / bench_closes[
+                -self.lookback_days
+            ]
 
             # Relative strength = stock return - benchmark return
             relative_strength = stock_return - bench_return

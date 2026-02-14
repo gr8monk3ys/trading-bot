@@ -70,11 +70,7 @@ class RuntimeStateStore:
         self._replay_path = self.path.with_suffix(".replay.jsonl")
 
     def exists(self) -> bool:
-        return (
-            self.path.exists()
-            or self._backup_path.exists()
-            or self._replay_path.exists()
-        )
+        return self.path.exists() or self._backup_path.exists() or self._replay_path.exists()
 
     @staticmethod
     def _payload_checksum(payload: Dict[str, Any]) -> str:

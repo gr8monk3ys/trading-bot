@@ -247,6 +247,7 @@ class VolatilityRegimeDetector:
                     bars = await self.broker.get_bars("SPY", timeframe="1Day", limit=30)
                     if bars and len(bars) >= 20:
                         import numpy as np
+
                         closes = np.array([float(b.close) for b in bars])
                         returns = np.diff(np.log(closes))
                         # Annualized volatility * 100 to approximate VIX

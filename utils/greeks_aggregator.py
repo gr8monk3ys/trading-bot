@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 class GreeksViolation(Enum):
     """Types of Greeks limit violations."""
+
     DELTA_TOO_HIGH = "delta_too_high"
     GAMMA_TOO_HIGH = "gamma_too_high"
     VEGA_TOO_HIGH = "vega_too_high"
@@ -50,6 +51,7 @@ class GreeksViolation(Enum):
 @dataclass
 class PositionGreeks:
     """Greeks for a single options position."""
+
     symbol: str  # OCC symbol (e.g., AAPL230120C00150000)
     underlying: str  # Underlying symbol (e.g., AAPL)
     quantity: int  # Number of contracts (positive = long, negative = short)
@@ -91,11 +93,12 @@ class PositionGreeks:
 @dataclass
 class AggregatedGreeks:
     """Portfolio-level aggregated Greeks."""
+
     # Raw Greeks (in $ terms)
     net_delta: float = 0.0  # $ equivalent delta
     net_gamma: float = 0.0  # $ P&L per 1% move
     net_theta: float = 0.0  # $ daily decay
-    net_vega: float = 0.0   # $ per 1 vol point
+    net_vega: float = 0.0  # $ per 1 vol point
 
     # Greeks by underlying
     delta_by_underlying: Dict[str, float] = field(default_factory=dict)
@@ -105,11 +108,11 @@ class AggregatedGreeks:
     # Normalized (as % of portfolio)
     delta_pct: float = 0.0
     gamma_pct: float = 0.0  # P&L impact per 1% underlying move
-    vega_pct: float = 0.0   # P&L impact per 1 vol point
+    vega_pct: float = 0.0  # P&L impact per 1 vol point
 
     # Risk metrics
     dollar_gamma: float = 0.0  # $ P&L for 1% move in all underlyings
-    dollar_vega: float = 0.0   # $ P&L for 1 point vol change
+    dollar_vega: float = 0.0  # $ P&L for 1 point vol change
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -132,6 +135,7 @@ class AggregatedGreeks:
 @dataclass
 class GreeksLimitResult:
     """Result of Greeks limit check."""
+
     within_limits: bool
     portfolio_value: float
     greeks: AggregatedGreeks
@@ -175,7 +179,7 @@ class GreeksAggregator:
     # Default limits (conservative institutional standards)
     DEFAULT_MAX_DELTA_PCT = 0.50  # 50% of portfolio in directional exposure
     DEFAULT_MAX_GAMMA_PCT = 0.05  # 5% P&L swing per 1% underlying move
-    DEFAULT_MAX_VEGA_PCT = 0.02   # 2% P&L swing per 1 vol point
+    DEFAULT_MAX_VEGA_PCT = 0.02  # 2% P&L swing per 1 vol point
     DEFAULT_MAX_UNDERLYING_PCT = 0.30  # Max 30% Greeks from single underlying
 
     def __init__(
@@ -241,20 +245,26 @@ class GreeksAggregator:
             # Position delta in $ terms
             pos_delta_dollars = pos.position_delta * price
             net_delta += pos_delta_dollars
-            delta_by_underlying[underlying] = delta_by_underlying.get(underlying, 0) + pos_delta_dollars
+            delta_by_underlying[underlying] = (
+                delta_by_underlying.get(underlying, 0) + pos_delta_dollars
+            )
 
             # Position gamma: $ P&L per 1% move
             # Gamma P&L ≈ 0.5 * gamma * (price * 0.01)^2 * multiplier * quantity
             # Simplified: dollar gamma = gamma * price^2 * 0.01 * multiplier * quantity
             pos_gamma_dollars = pos.position_gamma * price * price * 0.01
             net_gamma += pos_gamma_dollars
-            gamma_by_underlying[underlying] = gamma_by_underlying.get(underlying, 0) + pos_gamma_dollars
+            gamma_by_underlying[underlying] = (
+                gamma_by_underlying.get(underlying, 0) + pos_gamma_dollars
+            )
 
             # Position vega: $ P&L per 1 vol point
             # Vega is typically quoted per 1% vol change, so multiply by 100 for 1 point
             pos_vega_dollars = pos.position_vega
             net_vega += pos_vega_dollars
-            vega_by_underlying[underlying] = vega_by_underlying.get(underlying, 0) + pos_vega_dollars
+            vega_by_underlying[underlying] = (
+                vega_by_underlying.get(underlying, 0) + pos_vega_dollars
+            )
 
             # Theta in $ terms (already in $ per day)
             net_theta += pos.position_theta
@@ -284,41 +294,49 @@ class GreeksAggregator:
 
         # Delta limit
         if abs(delta_pct) > self.max_delta_pct:
-            violations.append((
-                f"Net delta {delta_pct:.1%} exceeds limit {self.max_delta_pct:.1%}",
-                GreeksViolation.DELTA_TOO_HIGH,
-                abs(delta_pct),
-                self.max_delta_pct,
-            ))
+            violations.append(
+                (
+                    f"Net delta {delta_pct:.1%} exceeds limit {self.max_delta_pct:.1%}",
+                    GreeksViolation.DELTA_TOO_HIGH,
+                    abs(delta_pct),
+                    self.max_delta_pct,
+                )
+            )
 
         # Gamma limit
         if abs(gamma_pct) > self.max_gamma_pct:
-            violations.append((
-                f"Net gamma {gamma_pct:.1%} exceeds limit {self.max_gamma_pct:.1%}",
-                GreeksViolation.GAMMA_TOO_HIGH,
-                abs(gamma_pct),
-                self.max_gamma_pct,
-            ))
+            violations.append(
+                (
+                    f"Net gamma {gamma_pct:.1%} exceeds limit {self.max_gamma_pct:.1%}",
+                    GreeksViolation.GAMMA_TOO_HIGH,
+                    abs(gamma_pct),
+                    self.max_gamma_pct,
+                )
+            )
 
         # Vega limit
         if abs(vega_pct) > self.max_vega_pct:
-            violations.append((
-                f"Net vega {vega_pct:.1%} exceeds limit {self.max_vega_pct:.1%}",
-                GreeksViolation.VEGA_TOO_HIGH,
-                abs(vega_pct),
-                self.max_vega_pct,
-            ))
+            violations.append(
+                (
+                    f"Net vega {vega_pct:.1%} exceeds limit {self.max_vega_pct:.1%}",
+                    GreeksViolation.VEGA_TOO_HIGH,
+                    abs(vega_pct),
+                    self.max_vega_pct,
+                )
+            )
 
         # Concentration limits (per underlying)
         for underlying, u_delta in delta_by_underlying.items():
             u_delta_pct = abs(u_delta) / portfolio_value if portfolio_value > 0 else 0
             if u_delta_pct > self.max_underlying_pct:
-                violations.append((
-                    f"{underlying} delta {u_delta_pct:.1%} exceeds concentration limit",
-                    GreeksViolation.CONCENTRATION,
-                    u_delta_pct,
-                    self.max_underlying_pct,
-                ))
+                violations.append(
+                    (
+                        f"{underlying} delta {u_delta_pct:.1%} exceeds concentration limit",
+                        GreeksViolation.CONCENTRATION,
+                        u_delta_pct,
+                        self.max_underlying_pct,
+                    )
+                )
 
         result = GreeksLimitResult(
             within_limits=len(violations) == 0,
@@ -385,10 +403,10 @@ class GreeksAggregator:
 
         # Find where the date starts (6 digits)
         for i in range(1, min(7, len(occ_symbol))):
-            if occ_symbol[i:i+6].isdigit():
+            if occ_symbol[i : i + 6].isdigit():
                 return occ_symbol[:i]
 
-        return occ_symbol[:min(6, len(occ_symbol))]
+        return occ_symbol[: min(6, len(occ_symbol))]
 
     def _empty_result(self, portfolio_value: float) -> GreeksLimitResult:
         """Return empty result for edge cases."""
@@ -447,9 +465,7 @@ class GreeksAggregator:
                     "amount": f"~${abs(excess_gamma):,.0f} gamma reduction needed",
                     "details": "Consider selling premium to reduce long gamma or buying to reduce short gamma",
                 }
-                recommendations["summary"].append(
-                    "Reduce gamma exposure via options spreads"
-                )
+                recommendations["summary"].append("Reduce gamma exposure via options spreads")
 
             elif violation_type == GreeksViolation.VEGA_TOO_HIGH:
                 # Vega hedge with VIX products or calendar spreads
@@ -473,7 +489,8 @@ class GreeksAggregator:
 
         return {
             "history_length": len(self._history),
-            "pct_within_limits": sum(1 for r in self._history if r.within_limits) / len(self._history),
+            "pct_within_limits": sum(1 for r in self._history if r.within_limits)
+            / len(self._history),
             "avg_delta_pct": np.mean([abs(r.greeks.delta_pct) for r in self._history]),
             "avg_gamma_pct": np.mean([abs(r.greeks.gamma_pct) for r in self._history]),
             "avg_vega_pct": np.mean([abs(r.greeks.vega_pct) for r in self._history]),

@@ -39,11 +39,15 @@ class TestNotifierInit:
         assert notifier.slack_webhook_url == "https://hooks.slack.com/test"
         assert notifier.email_enabled is False
 
-    @patch.dict("os.environ", {
-        "SMTP_USER": "user@example.com",
-        "SMTP_PASSWORD": "password",
-        "EMAIL_TO": "recipient@example.com",
-    }, clear=True)
+    @patch.dict(
+        "os.environ",
+        {
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "EMAIL_TO": "recipient@example.com",
+        },
+        clear=True,
+    )
     def test_init_with_email(self):
         """Test initialization with email config."""
         from utils.notifier import Notifier
@@ -56,12 +60,16 @@ class TestNotifierInit:
         assert notifier.email_to == "recipient@example.com"
         assert notifier.slack_enabled is False
 
-    @patch.dict("os.environ", {
-        "SLACK_WEBHOOK_URL": "https://hooks.slack.com/test",
-        "SMTP_USER": "user@example.com",
-        "SMTP_PASSWORD": "password",
-        "EMAIL_TO": "recipient@example.com",
-    }, clear=True)
+    @patch.dict(
+        "os.environ",
+        {
+            "SLACK_WEBHOOK_URL": "https://hooks.slack.com/test",
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "EMAIL_TO": "recipient@example.com",
+        },
+        clear=True,
+    )
     def test_init_with_both(self):
         """Test initialization with both Slack and email."""
         from utils.notifier import Notifier
@@ -71,13 +79,17 @@ class TestNotifierInit:
         assert notifier.slack_enabled is True
         assert notifier.email_enabled is True
 
-    @patch.dict("os.environ", {
-        "SMTP_SERVER": "smtp.custom.com",
-        "SMTP_PORT": "465",
-        "SMTP_USER": "user@example.com",
-        "SMTP_PASSWORD": "password",
-        "EMAIL_TO": "recipient@example.com",
-    }, clear=True)
+    @patch.dict(
+        "os.environ",
+        {
+            "SMTP_SERVER": "smtp.custom.com",
+            "SMTP_PORT": "465",
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "EMAIL_TO": "recipient@example.com",
+        },
+        clear=True,
+    )
     def test_init_custom_smtp(self):
         """Test initialization with custom SMTP settings."""
         from utils.notifier import Notifier
@@ -99,12 +111,9 @@ class TestSendTradeNotification:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
             await notifier.send_trade_notification(
-                symbol="AAPL",
-                side="buy",
-                quantity=10,
-                price=150.00
+                symbol="AAPL", side="buy", quantity=10, price=150.00
             )
 
             mock_send.assert_called_once()
@@ -123,12 +132,9 @@ class TestSendTradeNotification:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
             await notifier.send_trade_notification(
-                symbol="MSFT",
-                side="sell",
-                quantity=5,
-                price=300.00
+                symbol="MSFT", side="sell", quantity=5, price=300.00
             )
 
             mock_send.assert_called_once()
@@ -145,13 +151,9 @@ class TestSendTradeNotification:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
             await notifier.send_trade_notification(
-                symbol="AAPL",
-                side="sell",
-                quantity=10,
-                price=160.00,
-                pnl=100.00
+                symbol="AAPL", side="sell", quantity=10, price=160.00, pnl=100.00
             )
 
             title, message = mock_send.call_args[0]
@@ -166,13 +168,9 @@ class TestSendTradeNotification:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
             await notifier.send_trade_notification(
-                symbol="AAPL",
-                side="sell",
-                quantity=10,
-                price=140.00,
-                pnl=-100.00
+                symbol="AAPL", side="sell", quantity=10, price=140.00, pnl=-100.00
             )
 
             title, message = mock_send.call_args[0]
@@ -191,14 +189,15 @@ class TestSendCircuitBreakerAlert:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
-            await notifier.send_circuit_breaker_alert(
-                daily_loss=0.035,
-                max_loss=0.03
-            )
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
+            await notifier.send_circuit_breaker_alert(daily_loss=0.035, max_loss=0.03)
 
             mock_send.assert_called_once()
-            title, message, kwargs = mock_send.call_args[0][0], mock_send.call_args[0][1], mock_send.call_args[1]
+            title, message, kwargs = (
+                mock_send.call_args[0][0],
+                mock_send.call_args[0][1],
+                mock_send.call_args[1],
+            )
             assert "CIRCUIT BREAKER" in title
             assert "🚨" in message
             assert "3.50%" in message
@@ -217,14 +216,16 @@ class TestSendDailySummary:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
-            await notifier.send_daily_summary({
-                "total_trades": 10,
-                "win_rate": 0.60,
-                "total_pnl": 1250.50,
-                "sharpe_ratio": 1.85,
-                "max_drawdown_pct": 0.08
-            })
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
+            await notifier.send_daily_summary(
+                {
+                    "total_trades": 10,
+                    "win_rate": 0.60,
+                    "total_pnl": 1250.50,
+                    "sharpe_ratio": 1.85,
+                    "max_drawdown_pct": 0.08,
+                }
+            )
 
             mock_send.assert_called_once()
             title, message = mock_send.call_args[0]
@@ -243,7 +244,7 @@ class TestSendDailySummary:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
             await notifier.send_daily_summary({})
 
             mock_send.assert_called_once()
@@ -262,7 +263,7 @@ class TestSendPositionAlert:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
             await notifier.send_position_alert(symbol="AAPL", pnl_pct=0.10)
 
             mock_send.assert_called_once()
@@ -280,7 +281,7 @@ class TestSendPositionAlert:
 
         notifier = Notifier()
 
-        with patch.object(notifier, '_send', new_callable=AsyncMock) as mock_send:
+        with patch.object(notifier, "_send", new_callable=AsyncMock) as mock_send:
             await notifier.send_position_alert(symbol="AAPL", pnl_pct=-0.05)
 
             mock_send.assert_called_once()
@@ -316,7 +317,7 @@ class TestSend:
             notifier.slack_enabled = True
             notifier.slack_webhook_url = "https://hooks.slack.com/test"
 
-            with patch.object(notifier, '_send_slack', new_callable=AsyncMock) as mock_slack:
+            with patch.object(notifier, "_send_slack", new_callable=AsyncMock) as mock_slack:
                 await notifier._send("Test Title", "Test Message")
 
                 mock_slack.assert_called_once_with("Test Title", "Test Message", False)
@@ -330,7 +331,7 @@ class TestSend:
             notifier = Notifier()
             notifier.email_enabled = True
 
-            with patch.object(notifier, '_send_email') as mock_email:
+            with patch.object(notifier, "_send_email") as mock_email:
                 await notifier._send("Test Title", "Test Message")
 
                 mock_email.assert_called_once_with("Test Title", "Test Message", False)
@@ -345,7 +346,7 @@ class TestSend:
             notifier.slack_enabled = True
             notifier.slack_webhook_url = "https://hooks.slack.com/test"
 
-            with patch.object(notifier, '_send_slack', new_callable=AsyncMock) as mock_slack:
+            with patch.object(notifier, "_send_slack", new_callable=AsyncMock) as mock_slack:
                 await notifier._send("Test Title", "Test Message", urgent=True)
 
                 mock_slack.assert_called_once_with("Test Title", "Test Message", True)
@@ -373,7 +374,9 @@ class TestSendSlack:
             mock_session = MagicMock()
             mock_session.post.return_value = mock_post_context
 
-            with patch.object(notifier, "_get_session", new_callable=AsyncMock, return_value=mock_session):
+            with patch.object(
+                notifier, "_get_session", new_callable=AsyncMock, return_value=mock_session
+            ):
                 await notifier._send_slack("Test Title", "Test Message")
 
                 mock_session.post.assert_called_once()
@@ -400,7 +403,9 @@ class TestSendSlack:
             mock_session = MagicMock()
             mock_session.post.return_value = mock_post_context
 
-            with patch.object(notifier, "_get_session", new_callable=AsyncMock, return_value=mock_session):
+            with patch.object(
+                notifier, "_get_session", new_callable=AsyncMock, return_value=mock_session
+            ):
 
                 await notifier._send_slack("Test Title", "Test Message", urgent=True)
 
@@ -456,11 +461,15 @@ class TestSendSlack:
 class TestSendEmail:
     """Test email notification sending."""
 
-    @patch.dict("os.environ", {
-        "SMTP_USER": "user@example.com",
-        "SMTP_PASSWORD": "password",
-        "EMAIL_TO": "recipient@example.com",
-    }, clear=True)
+    @patch.dict(
+        "os.environ",
+        {
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "EMAIL_TO": "recipient@example.com",
+        },
+        clear=True,
+    )
     def test_send_email_success(self):
         """Test successful email sending."""
         from utils.notifier import Notifier
@@ -478,11 +487,15 @@ class TestSendEmail:
             mock_server.login.assert_called_once_with("user@example.com", "password")
             mock_server.send_message.assert_called_once()
 
-    @patch.dict("os.environ", {
-        "SMTP_USER": "user@example.com",
-        "SMTP_PASSWORD": "password",
-        "EMAIL_TO": "recipient@example.com",
-    }, clear=True)
+    @patch.dict(
+        "os.environ",
+        {
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "EMAIL_TO": "recipient@example.com",
+        },
+        clear=True,
+    )
     def test_send_email_urgent(self):
         """Test urgent email has [URGENT] prefix."""
         from utils.notifier import Notifier
@@ -498,11 +511,15 @@ class TestSendEmail:
             call_args = mock_server.send_message.call_args[0][0]
             assert "[URGENT]" in call_args["Subject"]
 
-    @patch.dict("os.environ", {
-        "SMTP_USER": "user@example.com",
-        "SMTP_PASSWORD": "password",
-        "EMAIL_TO": "recipient@example.com",
-    }, clear=True)
+    @patch.dict(
+        "os.environ",
+        {
+            "SMTP_USER": "user@example.com",
+            "SMTP_PASSWORD": "password",
+            "EMAIL_TO": "recipient@example.com",
+        },
+        clear=True,
+    )
     def test_send_email_exception(self):
         """Test email exception handling."""
         from utils.notifier import Notifier

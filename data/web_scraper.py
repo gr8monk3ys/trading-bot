@@ -18,17 +18,13 @@ Usage:
     signal = await provider.fetch_signal("AAPL")
 """
 
-import asyncio
 import logging
-import re
-from abc import ABC
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
 from data.alt_data_types import (
     AltDataSource,
-    AlternativeSignal,
     WebScrapingSignal,
 )
 from data.alternative_data_provider import AlternativeDataProvider

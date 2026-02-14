@@ -13,13 +13,13 @@ Why tick data matters:
 - Real execution happens at tick level
 """
 
-import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, List, Dict, Any, Iterator, Callable, AsyncIterator
+from typing import Any, Callable, Dict, Iterator, List, Optional
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -375,7 +375,7 @@ class PolygonTickProvider(TickDataProvider):
         """Stream real-time trades via WebSocket."""
         import websockets
 
-        ws_url = f"wss://socket.polygon.io/stocks"
+        ws_url = "wss://socket.polygon.io/stocks"
 
         async with websockets.connect(ws_url) as ws:
             # Authenticate
@@ -409,7 +409,7 @@ class PolygonTickProvider(TickDataProvider):
         """Stream real-time quotes via WebSocket."""
         import websockets
 
-        ws_url = f"wss://socket.polygon.io/stocks"
+        ws_url = "wss://socket.polygon.io/stocks"
 
         async with websockets.connect(ws_url) as ws:
             # Authenticate
@@ -482,7 +482,7 @@ class TAQDataParser:
         """
         with open(filepath, 'r') as f:
             # Skip header
-            header = f.readline().strip().split('|')
+            f.readline()
 
             for line in f:
                 parts = line.strip().split('|')
@@ -543,7 +543,7 @@ class TAQDataParser:
         """
         with open(filepath, 'r') as f:
             # Skip header
-            header = f.readline().strip().split('|')
+            f.readline()
 
             for line in f:
                 parts = line.strip().split('|')

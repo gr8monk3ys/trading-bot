@@ -28,11 +28,7 @@ class TestWebSocketManagerInit:
 
     def test_init_with_valid_credentials(self):
         """Test initialization with valid credentials."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret",
-            feed="iex"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret", feed="iex")
 
         assert manager._api_key == "test_key"
         assert manager._secret_key == "test_secret"
@@ -42,11 +38,7 @@ class TestWebSocketManagerInit:
 
     def test_init_with_sip_feed(self):
         """Test initialization with SIP feed."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret",
-            feed="sip"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret", feed="sip")
 
         assert manager._feed == "sip"
 
@@ -69,10 +61,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_subscribe_bars_single_symbol(self):
         """Test subscribing to bars for a single symbol."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         manager.subscribe_bars(["AAPL"])
 
@@ -81,10 +70,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_subscribe_bars_multiple_symbols(self):
         """Test subscribing to bars for multiple symbols."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         manager.subscribe_bars(["AAPL", "MSFT", "GOOGL"])
 
@@ -92,10 +78,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_subscribe_bars_normalizes_case(self):
         """Test that symbol case is normalized to uppercase."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         manager.subscribe_bars(["aapl", "Msft", "GOOGL"])
 
@@ -103,10 +86,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_subscribe_bars_with_handler(self):
         """Test subscribing with a handler function."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         async def mock_handler(bar):
             pass
@@ -118,10 +98,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_subscribe_quotes(self):
         """Test subscribing to quotes."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         manager.subscribe_quotes(["AAPL", "MSFT"])
 
@@ -129,10 +106,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_subscribe_trades(self):
         """Test subscribing to trades."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         manager.subscribe_trades(["AAPL"])
 
@@ -140,10 +114,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_unsubscribe_bars(self):
         """Test unsubscribing from bars."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         manager.subscribe_bars(["AAPL", "MSFT"])
         manager.unsubscribe_bars(["AAPL"])
@@ -153,10 +124,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_unsubscribe_quotes(self):
         """Test unsubscribing from quotes."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         manager.subscribe_quotes(["AAPL", "MSFT"])
         manager.unsubscribe_quotes(["MSFT"])
@@ -165,10 +133,7 @@ class TestWebSocketManagerSubscriptions:
 
     def test_unsubscribe_removes_handlers(self):
         """Test that unsubscribing removes associated handlers."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         async def mock_handler(bar):
             pass
@@ -184,10 +149,7 @@ class TestWebSocketManagerHandlers:
 
     def test_add_global_bar_handler(self):
         """Test adding a global bar handler."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         async def global_handler(bar):
             pass
@@ -198,10 +160,7 @@ class TestWebSocketManagerHandlers:
 
     def test_add_global_quote_handler(self):
         """Test adding a global quote handler."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         async def global_handler(quote):
             pass
@@ -212,10 +171,7 @@ class TestWebSocketManagerHandlers:
 
     def test_add_global_trade_handler(self):
         """Test adding a global trade handler."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         async def global_handler(trade):
             pass
@@ -226,10 +182,7 @@ class TestWebSocketManagerHandlers:
 
     def test_multiple_handlers_per_symbol(self):
         """Test that multiple handlers can be registered for the same symbol."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         async def handler1(bar):
             pass
@@ -250,10 +203,7 @@ class TestWebSocketManagerBarHandling:
     @pytest.mark.asyncio
     async def test_handle_bar_calls_symbol_handlers(self):
         """Test that bar handler is called for symbol-specific subscriptions."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         received_bars = []
 
@@ -275,10 +225,7 @@ class TestWebSocketManagerBarHandling:
     @pytest.mark.asyncio
     async def test_handle_bar_calls_global_handlers(self):
         """Test that global handlers are called for all bars."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         received_bars = []
 
@@ -303,10 +250,7 @@ class TestWebSocketManagerBarHandling:
     @pytest.mark.asyncio
     async def test_handle_bar_updates_message_count(self):
         """Test that message count is updated on bar receipt."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         mock_bar = MagicMock()
         mock_bar.symbol = "AAPL"
@@ -320,10 +264,7 @@ class TestWebSocketManagerBarHandling:
     @pytest.mark.asyncio
     async def test_handle_bar_updates_last_message_time(self):
         """Test that last message time is updated on bar receipt."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         mock_bar = MagicMock()
         mock_bar.symbol = "AAPL"
@@ -338,10 +279,7 @@ class TestWebSocketManagerBarHandling:
     @pytest.mark.asyncio
     async def test_handle_bar_with_sync_handler(self):
         """Test that synchronous handlers also work."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         received_bars = []
 
@@ -360,10 +298,7 @@ class TestWebSocketManagerBarHandling:
     @pytest.mark.asyncio
     async def test_handle_bar_continues_on_handler_error(self):
         """Test that one handler error doesn't stop other handlers."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         received_bars = []
 
@@ -390,10 +325,7 @@ class TestWebSocketManagerStats:
 
     def test_get_subscription_info(self):
         """Test getting subscription information."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         async def handler(data):
             pass
@@ -411,10 +343,7 @@ class TestWebSocketManagerStats:
 
     def test_get_connection_stats(self):
         """Test getting connection statistics."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         stats = manager.get_connection_stats()
 
@@ -426,19 +355,13 @@ class TestWebSocketManagerStats:
 
     def test_message_count_property(self):
         """Test message count property."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         assert manager.message_count == 0
 
     def test_last_message_time_property(self):
         """Test last message time property."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         assert manager.last_message_time is None
 
@@ -448,29 +371,20 @@ class TestWebSocketManagerConnectionState:
 
     def test_is_running_initially_false(self):
         """Test that is_running is False initially."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         assert not manager.is_running
 
     def test_is_connected_initially_false(self):
         """Test that is_connected is False initially."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         assert not manager.is_connected
 
     @pytest.mark.asyncio
     async def test_start_when_already_running(self):
         """Test that start() is idempotent when already running."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         manager._running = True
 
@@ -483,10 +397,7 @@ class TestWebSocketManagerConnectionState:
     @pytest.mark.asyncio
     async def test_stop_when_not_running(self):
         """Test that stop() handles not-running state gracefully."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         # Should not raise
         await manager.stop()
@@ -500,10 +411,7 @@ class TestWebSocketManagerQuoteHandling:
     @pytest.mark.asyncio
     async def test_handle_quote_calls_handlers(self):
         """Test that quote handlers are called."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         received_quotes = []
 
@@ -528,10 +436,7 @@ class TestWebSocketManagerTradeHandling:
     @pytest.mark.asyncio
     async def test_handle_trade_calls_handlers(self):
         """Test that trade handlers are called."""
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
 
         received_trades = []
 
@@ -583,10 +488,7 @@ class TestWebSocketManagerReconnectLogic:
 
     @pytest.mark.asyncio
     async def test_run_stream_stops_after_max_reconnect_attempts(self):
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
         manager._running = True
         manager._max_reconnect_attempts = 2
         manager._base_reconnect_delay = 0
@@ -603,10 +505,7 @@ class TestWebSocketManagerReconnectLogic:
 
     @pytest.mark.asyncio
     async def test_run_stream_bounds_clean_exit_reconnects(self):
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
         manager._running = True
         manager._max_reconnect_attempts = 1
         manager._base_reconnect_delay = 0
@@ -622,10 +521,7 @@ class TestWebSocketManagerReconnectLogic:
 
     @pytest.mark.asyncio
     async def test_handle_bar_resets_reconnect_attempt_counter(self):
-        manager = WebSocketManager(
-            api_key="test_key",
-            secret_key="test_secret"
-        )
+        manager = WebSocketManager(api_key="test_key", secret_key="test_secret")
         manager._reconnect_attempts = 5
         mock_bar = MagicMock()
         mock_bar.symbol = "AAPL"

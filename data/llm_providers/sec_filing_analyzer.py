@@ -11,11 +11,11 @@ from typing import Any, Dict, Optional
 
 from data.alt_data_types import AltDataSource, AlternativeSignal
 from data.alternative_data_provider import AlternativeDataProvider
-from data.data_fetchers import SECFiling, SECEdgarFetcher
+from data.data_fetchers import SECEdgarFetcher, SECFiling
 from llm import (
     LLMClientWithFallback,
-    create_llm_client,
     SECFilingAnalysis,
+    create_llm_client,
 )
 from llm.prompts.sec_filing_prompts import (
     SEC_SYSTEM_PROMPT,
@@ -378,7 +378,7 @@ class SECFilingAnalyzer(AlternativeDataProvider):
             all_changes = []
             all_risks = []
 
-            for i, (filing, analysis) in enumerate(signals):
+            for i, (_filing, analysis) in enumerate(signals):
                 # More recent filings get higher weight
                 weight = 1.0 / (i + 1)
                 weighted_sentiment += analysis.sentiment_score * weight

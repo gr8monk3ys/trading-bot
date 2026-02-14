@@ -1,4 +1,3 @@
-
 import pytest
 
 from strategies.momentum_strategy import MomentumStrategy

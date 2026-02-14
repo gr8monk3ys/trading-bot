@@ -22,8 +22,18 @@ class OrderState(Enum):
 
 
 ALLOWED_TRANSITIONS = {
-    OrderState.SUBMITTED: {OrderState.PARTIAL, OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED},
-    OrderState.PARTIAL: {OrderState.PARTIAL, OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED},
+    OrderState.SUBMITTED: {
+        OrderState.PARTIAL,
+        OrderState.FILLED,
+        OrderState.CANCELED,
+        OrderState.REJECTED,
+    },
+    OrderState.PARTIAL: {
+        OrderState.PARTIAL,
+        OrderState.FILLED,
+        OrderState.CANCELED,
+        OrderState.REJECTED,
+    },
     OrderState.FILLED: set(),
     OrderState.CANCELED: set(),
     OrderState.REJECTED: set(),

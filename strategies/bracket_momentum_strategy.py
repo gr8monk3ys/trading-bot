@@ -385,6 +385,7 @@ class BracketMomentumStrategy(BaseStrategy):
 
     async def export_state(self) -> dict:
         """Export state for restart recovery."""
+
         def _dt(v):
             return v.isoformat() if hasattr(v, "isoformat") else v
 

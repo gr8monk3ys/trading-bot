@@ -40,10 +40,7 @@ def has_api_credentials():
 # Skip all tests in this module if no credentials
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.skipif(
-        not has_api_credentials(),
-        reason="Alpaca API credentials not available"
-    ),
+    pytest.mark.skipif(not has_api_credentials(), reason="Alpaca API credentials not available"),
 ]
 
 
@@ -262,12 +259,7 @@ class TestOrderBuilding:
         """Test building a market order."""
         from brokers.order_builder import OrderBuilder
 
-        order = (
-            OrderBuilder("AAPL", "buy", 10)
-            .market()
-            .day()
-            .build()
-        )
+        order = OrderBuilder("AAPL", "buy", 10).market().day().build()
 
         # Order is an Alpaca request object
         assert order.symbol == "AAPL"

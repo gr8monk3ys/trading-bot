@@ -107,9 +107,7 @@ async def test_limit_order(broker, symbol="AAPL", limit_price=None):
             limit_price = current_price * 0.98
 
         # Build limit order
-        (
-            OrderBuilder(symbol, "buy", 1).limit(limit_price).gtc().build()  # Good-Till-Canceled
-        )
+        (OrderBuilder(symbol, "buy", 1).limit(limit_price).gtc().build())  # Good-Till-Canceled
 
         logger.info(f"📝 Limit order created: Buy 1 share of {symbol} at ${limit_price:.2f}")
         logger.info("   Time in force: GTC (Good-Till-Canceled)")

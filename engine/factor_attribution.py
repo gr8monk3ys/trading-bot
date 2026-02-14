@@ -241,14 +241,11 @@ class FactorAttributor:
         returns = [
             (d, r)
             for d, r in self._portfolio_returns
-            if (start_date is None or d >= start_date)
-            and (end_date is None or d <= end_date)
+            if (start_date is None or d >= start_date) and (end_date is None or d <= end_date)
         ]
 
         if len(returns) < self.min_observations:
-            logger.warning(
-                f"Insufficient observations: {len(returns)} < {self.min_observations}"
-            )
+            logger.warning(f"Insufficient observations: {len(returns)} < {self.min_observations}")
             return None
 
         dates = [d for d, _ in returns]
@@ -307,9 +304,7 @@ class FactorAttributor:
 
         for i, ft in enumerate(factor_types):
             # Average exposure to this factor
-            exposures = [
-                self._portfolio_exposures.get(d, {}).get(ft, betas[i]) for d in dates
-            ]
+            exposures = [self._portfolio_exposures.get(d, {}).get(ft, betas[i]) for d in dates]
             avg_exposure = np.mean(exposures)
             avg_factor_exposures[ft] = avg_exposure
 
@@ -382,9 +377,7 @@ class FactorAttributor:
         timing_return = 0.0
 
         for i, ft in enumerate(FactorType):
-            exposures = [
-                self._portfolio_exposures.get(d, {}).get(ft, betas[i]) for d in dates
-            ]
+            exposures = [self._portfolio_exposures.get(d, {}).get(ft, betas[i]) for d in dates]
 
             # Exposure changes
             exp_changes = np.diff(exposures)
@@ -435,9 +428,7 @@ class FactorAttributor:
                 continue
 
             # Sort by factor score
-            sorted_symbols = sorted(
-                factor_z_scores.items(), key=lambda x: x[1], reverse=True
-            )
+            sorted_symbols = sorted(factor_z_scores.items(), key=lambda x: x[1], reverse=True)
 
             # Top and bottom quintile
             n_per_quantile = len(sorted_symbols) // n_quantiles
@@ -445,9 +436,7 @@ class FactorAttributor:
             bottom_symbols = [s for s, _ in sorted_symbols[-n_per_quantile:]]
 
             # Calculate returns
-            top_return = np.mean(
-                [returns.get(s, 0.0) for s in top_symbols if s in returns.index]
-            )
+            top_return = np.mean([returns.get(s, 0.0) for s in top_symbols if s in returns.index])
             bottom_return = np.mean(
                 [returns.get(s, 0.0) for s in bottom_symbols if s in returns.index]
             )
@@ -471,8 +460,7 @@ class FactorAttributor:
         factor_data = {
             d: rets
             for d, rets in self._factor_returns.items()
-            if (start_date is None or d >= start_date)
-            and (end_date is None or d <= end_date)
+            if (start_date is None or d >= start_date) and (end_date is None or d <= end_date)
         }
 
         if not factor_data:
@@ -481,9 +469,7 @@ class FactorAttributor:
         report = {}
 
         for factor_type in FactorType:
-            returns = [
-                rets.get(factor_type, 0.0) for rets in factor_data.values()
-            ]
+            returns = [rets.get(factor_type, 0.0) for rets in factor_data.values()]
 
             if not returns:
                 continue
@@ -535,13 +521,9 @@ class FactorAttributor:
         drift_results = {}
 
         for factor_type in FactorType:
-            recent_exp = [
-                self._portfolio_exposures[d].get(factor_type, 0.0)
-                for d in recent_dates
-            ]
+            recent_exp = [self._portfolio_exposures[d].get(factor_type, 0.0) for d in recent_dates]
             historical_exp = [
-                self._portfolio_exposures[d].get(factor_type, 0.0)
-                for d in historical_dates
+                self._portfolio_exposures[d].get(factor_type, 0.0) for d in historical_dates
             ]
 
             recent_mean = np.mean(recent_exp)
@@ -560,9 +542,7 @@ class FactorAttributor:
             }
 
         # Overall drift score
-        significant_drifts = sum(
-            1 for r in drift_results.values() if r["is_significant"]
-        )
+        significant_drifts = sum(1 for r in drift_results.values() if r["is_significant"])
         total_factors = len(drift_results)
 
         return {
@@ -602,9 +582,7 @@ def create_attribution_report(
 
         # Add portfolio observation
         attributor.add_portfolio_observation(
-            date,
-            portfolio_returns.loc[date],
-            {}  # Would need exposure history
+            date, portfolio_returns.loc[date], {}  # Would need exposure history
         )
 
     # Run attribution

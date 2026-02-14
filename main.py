@@ -30,9 +30,9 @@ from utils.data_quality import (
     summarize_quality_reports,
     validate_ohlcv_frame,
 )
+from utils.incident_tracker import IncidentTracker
 from utils.order_reconciliation import OrderReconciler
 from utils.reconciliation import PositionReconciler
-from utils.incident_tracker import IncidentTracker
 from utils.run_artifacts import JsonlWriter, ensure_run_directory, generate_run_id, write_json
 from utils.simple_symbol_selector import SimpleSymbolSelector
 from utils.slo_alerting import build_slo_alert_notifier
@@ -66,7 +66,9 @@ def configure_logging() -> None:
     _LOGGING_CONFIGURED = True
 
 
-async def run_walk_forward_validation(strategy_class, strategy_manager, symbols, start_date, end_date, args):
+async def run_walk_forward_validation(
+    strategy_class, strategy_manager, symbols, start_date, end_date, args
+):
     """
     Run walk-forward validation to detect overfitting.
 
@@ -113,7 +115,7 @@ async def run_walk_forward_validation(strategy_class, strategy_manager, symbols,
     # Analyze results
     avg_is_return = validation_result.get("avg_is_return", 0)
     avg_oos_return = validation_result.get("avg_oos_return", 0)
-    avg_overfit_ratio = validation_result.get("avg_overfit_ratio", float('inf'))
+    avg_overfit_ratio = validation_result.get("avg_overfit_ratio", float("inf"))
 
     # Determine if validation passes
     passed = avg_overfit_ratio <= args.overfit_threshold
@@ -217,9 +219,7 @@ async def run_backtest(args):
                     print(format_validated_backtest_report(validated_result))
 
                     if not validated_result.eligible_for_trading and not args.force:
-                        print(
-                            "Profitability gates FAILED. Use --force to proceed anyway."
-                        )
+                        print("Profitability gates FAILED. Use --force to proceed anyway.")
                         continue
 
                     results[strategy_name] = {
@@ -1166,8 +1166,7 @@ def run_research(args) -> int:
     if action == "promote":
         if args.strict and not args.force and not ready:
             print(
-                f"Strict promotion blocked for {args.experiment_id}: "
-                f"{len(blockers)} blockers"
+                f"Strict promotion blocked for {args.experiment_id}: " f"{len(blockers)} blockers"
             )
             for blocker in blockers:
                 print(f"  - {blocker}")
@@ -1358,7 +1357,9 @@ def main():
         help="Experiment ID for research actions",
     )
     parser.add_argument("--name", default=None, help="Experiment name (create action)")
-    parser.add_argument("--description", default=None, help="Experiment description (create action)")
+    parser.add_argument(
+        "--description", default=None, help="Experiment description (create action)"
+    )
     parser.add_argument("--author", default=None, help="Experiment author (create action)")
     parser.add_argument("--tags", default=None, help="Comma-separated experiment tags")
     parser.add_argument(

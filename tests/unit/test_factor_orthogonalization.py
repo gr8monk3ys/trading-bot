@@ -29,9 +29,28 @@ class TestFactorOrthogonalizer:
     @pytest.fixture
     def sample_factor_scores(self):
         """Create sample factor scores for testing."""
-        symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA",
-                   "JPM", "BAC", "GS", "JNJ", "PFE", "XOM", "CVX",
-                   "PG", "KO", "NEE", "DUK", "CAT", "BA", "VZ"]
+        symbols = [
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "META",
+            "NVDA",
+            "JPM",
+            "BAC",
+            "GS",
+            "JNJ",
+            "PFE",
+            "XOM",
+            "CVX",
+            "PG",
+            "KO",
+            "NEE",
+            "DUK",
+            "CAT",
+            "BA",
+            "VZ",
+        ]
 
         np.random.seed(42)
 
@@ -41,7 +60,9 @@ class TestFactorOrthogonalizer:
 
         return {
             "momentum": {s: float(base_scores[i] * 10 + 50) for i, s in enumerate(symbols)},
-            "relative_strength": {s: float(base_scores[i] * 8 + noise[i] * 3 + 50) for i, s in enumerate(symbols)},
+            "relative_strength": {
+                s: float(base_scores[i] * 8 + noise[i] * 3 + 50) for i, s in enumerate(symbols)
+            },
             "value": {s: float(np.random.randn() * 10 + 50) for s in symbols},
         }
 
@@ -143,8 +164,8 @@ class TestRiskParityWeighter:
 
         return {
             "momentum": list(np.random.randn(n_periods) * 0.02),  # 2% daily vol
-            "value": list(np.random.randn(n_periods) * 0.01),      # 1% daily vol
-            "quality": list(np.random.randn(n_periods) * 0.015),   # 1.5% daily vol
+            "value": list(np.random.randn(n_periods) * 0.01),  # 1% daily vol
+            "quality": list(np.random.randn(n_periods) * 0.015),  # 1.5% daily vol
         }
 
     def test_risk_parity_weights_sum_to_one(self, sample_factor_returns):
@@ -177,9 +198,9 @@ class TestRiskParityWeighter:
         # Risk parity optimization should produce more balanced risk contributions
         # than equal weights. With 3 factors, verify the concentration metric
         # is reasonable (perfect parity would have concentration near 0)
-        assert result.risk_concentration < 0.5, (
-            f"Risk concentration too high: {result.risk_concentration}"
-        )
+        assert (
+            result.risk_concentration < 0.5
+        ), f"Risk concentration too high: {result.risk_concentration}"
 
     def test_risk_concentration_is_low(self, sample_factor_returns):
         """Test that risk concentration (Herfindahl) is low."""
@@ -256,7 +277,7 @@ class TestAdaptiveFactorWeighter:
 
         ic_weights = {
             "momentum": 1.5,  # Boost momentum
-            "value": 0.5,    # Reduce value
+            "value": 0.5,  # Reduce value
             "quality": 1.0,  # Neutral
         }
 
@@ -295,17 +316,21 @@ class TestOrthogonalizedFactorsDataclass:
     def test_correlation_reduction_property(self):
         """Test correlation reduction calculation."""
         # Create mock correlations
-        corr_before = np.array([
-            [1.0, 0.8, 0.3],
-            [0.8, 1.0, 0.4],
-            [0.3, 0.4, 1.0],
-        ])
+        corr_before = np.array(
+            [
+                [1.0, 0.8, 0.3],
+                [0.8, 1.0, 0.4],
+                [0.3, 0.4, 1.0],
+            ]
+        )
 
-        corr_after = np.array([
-            [1.0, 0.1, 0.05],
-            [0.1, 1.0, 0.08],
-            [0.05, 0.08, 1.0],
-        ])
+        corr_after = np.array(
+            [
+                [1.0, 0.1, 0.05],
+                [0.1, 1.0, 0.08],
+                [0.05, 0.08, 1.0],
+            ]
+        )
 
         result = OrthogonalizedFactors(
             original_factors=["a", "b", "c"],

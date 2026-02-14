@@ -66,25 +66,31 @@ def mock_trial():
 @pytest.fixture
 def simple_objective_fn():
     """Simple objective function that returns a fixed value."""
+
     def objective(params):
         return 1.5  # Simulate a Sharpe ratio
+
     return objective
 
 
 @pytest.fixture
 def params_based_objective_fn():
     """Objective function that varies based on params."""
+
     def objective(params):
         # Higher hidden_size = higher Sharpe (simplified)
         return params.get("hidden_size", 64) / 100.0
+
     return objective
 
 
 @pytest.fixture
 def failing_objective_fn():
     """Objective function that always raises an exception."""
+
     def objective(params):
         raise ValueError("Training failed")
+
     return objective
 
 
@@ -391,9 +397,7 @@ class TestHyperparameterOptimizerSuggestParams:
 
         params = optimizer._suggest_params(mock_trial)
 
-        mock_trial.suggest_float.assert_called_once_with(
-            "learning_rate", 1e-4, 1e-2, log=True
-        )
+        mock_trial.suggest_float.assert_called_once_with("learning_rate", 1e-4, 1e-2, log=True)
         assert "learning_rate" in params
 
     def test_suggest_categorical_param(self, simple_objective_fn, mock_trial):
@@ -1083,6 +1087,7 @@ class TestOptunaImport:
             with patch.dict("sys.modules", {"optuna": None}):
                 # Remove optuna from available imports
                 import builtins
+
                 original_import = builtins.__import__
 
                 def mock_import(name, *args, **kwargs):

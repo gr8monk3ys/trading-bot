@@ -39,10 +39,7 @@ def _extract_drift_series(paper_results: Mapping[str, Any]) -> list[Dict[str, An
             series.append(
                 {
                     "date": str(
-                        row.get("date")
-                        or row.get("timestamp")
-                        or row.get("t")
-                        or "unknown"
+                        row.get("date") or row.get("timestamp") or row.get("t") or "unknown"
                     ),
                     "drift": abs(drift),
                 }
@@ -93,11 +90,7 @@ def build_shadow_drift_dashboard(
     drift = extract_paper_live_shadow_drift(paper_results)
     series = _extract_drift_series(paper_results)
     max_series_drift = max((p["drift"] for p in series), default=None)
-    avg_series_drift = (
-        sum(p["drift"] for p in series) / len(series)
-        if series
-        else None
-    )
+    avg_series_drift = sum(p["drift"] for p in series) / len(series) if series else None
 
     status = "unknown"
     if drift is not None:
@@ -158,9 +151,7 @@ def format_shadow_drift_dashboard_markdown(dashboard: Mapping[str, Any]) -> str:
     status = str(dashboard.get("status", "unknown")).upper()
     metrics = dashboard.get("metrics", {}) if isinstance(dashboard.get("metrics"), Mapping) else {}
     thresholds = (
-        dashboard.get("thresholds", {})
-        if isinstance(dashboard.get("thresholds"), Mapping)
-        else {}
+        dashboard.get("thresholds", {}) if isinstance(dashboard.get("thresholds"), Mapping) else {}
     )
     lines = [
         "# Shadow Drift Dashboard",

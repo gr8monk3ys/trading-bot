@@ -170,9 +170,7 @@ def permutation_test_strategy(
 
     results = {}
     for stat in ["mean", "sharpe", "total"]:
-        results[stat] = permutation_test_returns(
-            returns, n_permutations, stat, alpha, random_state
-        )
+        results[stat] = permutation_test_returns(returns, n_permutations, stat, alpha, random_state)
 
     return results
 
@@ -194,9 +192,7 @@ class RunsTestResult:
     interpretation: str
 
 
-def runs_test(
-    returns: np.ndarray, alpha: float = 0.05
-) -> RunsTestResult:
+def runs_test(returns: np.ndarray, alpha: float = 0.05) -> RunsTestResult:
     """
     Runs test to check if wins/losses are randomly distributed.
 
@@ -491,9 +487,7 @@ def autocorrelation_test(
             significant_lags.append(lag)
 
     # Ljung-Box test for overall autocorrelation
-    q_stat = n * (n + 2) * sum(
-        (acf**2) / (n - lag) for lag, acf in enumerate(autocorrs, 1)
-    )
+    q_stat = n * (n + 2) * sum((acf**2) / (n - lag) for lag, acf in enumerate(autocorrs, 1))
     lb_p_value = 1 - stats.chi2.cdf(q_stat, max_lag)
 
     has_autocorr = lb_p_value < alpha or len(significant_lags) > 0
@@ -556,9 +550,7 @@ class MultipleTestingResult:
     interpretation: str
 
 
-def bonferroni_correction(
-    p_values: List[float], alpha: float = 0.05
-) -> MultipleTestingResult:
+def bonferroni_correction(p_values: List[float], alpha: float = 0.05) -> MultipleTestingResult:
     """
     Apply Bonferroni correction for multiple testing.
 
@@ -651,9 +643,7 @@ def bonferroni_correction(
     )
 
 
-def benjamini_hochberg_fdr(
-    p_values: List[float], alpha: float = 0.05
-) -> MultipleTestingResult:
+def benjamini_hochberg_fdr(p_values: List[float], alpha: float = 0.05) -> MultipleTestingResult:
     """
     Apply Benjamini-Hochberg FDR correction for multiple testing.
 
@@ -785,9 +775,7 @@ class EffectSizeResult:
     magnitude: str  # 'negligible', 'small', 'medium', 'large'
 
 
-def calculate_effect_size(
-    group1: np.ndarray, group2: np.ndarray
-) -> EffectSizeResult:
+def calculate_effect_size(group1: np.ndarray, group2: np.ndarray) -> EffectSizeResult:
     """
     Calculate Cohen's d and Hedge's g effect sizes.
 
@@ -960,9 +948,7 @@ def comprehensive_statistical_validation(
         return results
 
     # 1. Permutation test
-    perm_result = permutation_test_returns(
-        returns, n_permutations, "sharpe", alpha, random_state
-    )
+    perm_result = permutation_test_returns(returns, n_permutations, "sharpe", alpha, random_state)
     results["tests"]["permutation"] = {
         "observed_sharpe": perm_result.observed_statistic,
         "p_value": perm_result.p_value,
@@ -989,9 +975,7 @@ def comprehensive_statistical_validation(
         results["passed_tests"].append("runs")
     else:
         results["failed_tests"].append("runs")
-        results["warnings"].append(
-            "Non-random trade patterns detected - investigate further"
-        )
+        results["warnings"].append("Non-random trade patterns detected - investigate further")
 
     # 3. Autocorrelation test
     acf_result = autocorrelation_test(returns, alpha=alpha)
@@ -1020,9 +1004,7 @@ def comprehensive_statistical_validation(
     }
     results["p_values"]["drawdown"] = dd_result.p_value
     # For drawdown, lower percentile is better (not failing this test)
-    results["tests"]["drawdown"]["note"] = (
-        "Drawdown test: low percentile = good risk management"
-    )
+    results["tests"]["drawdown"]["note"] = "Drawdown test: low percentile = good risk management"
 
     # 5. Multiple testing correction
     if apply_multiple_testing_correction:
@@ -1038,9 +1020,7 @@ def comprehensive_statistical_validation(
                 "n_significant_adjusted": bonf_result.n_significant_adjusted,
                 "interpretation": bonf_result.interpretation,
                 "significant_tests": [
-                    test_names[i]
-                    for i, sig in enumerate(bonf_result.significant_adjusted)
-                    if sig
+                    test_names[i] for i, sig in enumerate(bonf_result.significant_adjusted) if sig
                 ],
             }
         }
@@ -1052,13 +1032,10 @@ def comprehensive_statistical_validation(
             "n_significant_adjusted": fdr_result.n_significant_adjusted,
             "interpretation": fdr_result.interpretation,
             "significant_tests": [
-                test_names[i]
-                for i, sig in enumerate(fdr_result.significant_adjusted)
-                if sig
+                test_names[i] for i, sig in enumerate(fdr_result.significant_adjusted) if sig
             ],
             "adjusted_p_values": {
-                test_names[i]: fdr_result.adjusted_p_values[i]
-                for i in range(len(test_names))
+                test_names[i]: fdr_result.adjusted_p_values[i] for i in range(len(test_names))
             },
         }
 
@@ -1074,9 +1051,7 @@ def comprehensive_statistical_validation(
     if benchmark_returns is not None and len(benchmark_returns) >= 10:
         # Align lengths if needed
         min_len = min(len(returns), len(benchmark_returns))
-        effect_result = calculate_effect_size(
-            returns[:min_len], benchmark_returns[:min_len]
-        )
+        effect_result = calculate_effect_size(returns[:min_len], benchmark_returns[:min_len])
         results["effect_size"] = {
             "cohens_d": effect_result.cohens_d,
             "hedges_g": effect_result.hedges_g,
@@ -1113,9 +1088,7 @@ def comprehensive_statistical_validation(
         results["overall_valid"] = permutation_significant_raw
 
     if results["overall_valid"]:
-        correction_note = (
-            " (survives FDR correction)" if apply_multiple_testing_correction else ""
-        )
+        correction_note = " (survives FDR correction)" if apply_multiple_testing_correction else ""
         results["summary"] = (
             f"Strategy PASSES validation{correction_note}. "
             f"Permutation test confirms alpha is statistically significant (p={perm_result.p_value:.4f}). "

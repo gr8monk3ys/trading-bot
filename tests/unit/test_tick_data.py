@@ -204,13 +204,15 @@ class TestTickAggregator:
         trades = []
 
         for i in range(100):
-            trades.append(Trade(
-                symbol="AAPL",
-                timestamp=base_time + timedelta(seconds=i),
-                price=150.0 + (i % 10) * 0.01,
-                size=100 + (i % 5) * 10,
-                exchange=Exchange.NYSE,
-            ))
+            trades.append(
+                Trade(
+                    symbol="AAPL",
+                    timestamp=base_time + timedelta(seconds=i),
+                    price=150.0 + (i % 10) * 0.01,
+                    size=100 + (i % 5) * 10,
+                    exchange=Exchange.NYSE,
+                )
+            )
 
         return trades
 
@@ -221,14 +223,16 @@ class TestTickAggregator:
         quotes = []
 
         for i in range(100):
-            quotes.append(Quote(
-                symbol="AAPL",
-                timestamp=base_time + timedelta(seconds=i),
-                bid_price=149.95 + (i % 10) * 0.01,
-                bid_size=500,
-                ask_price=150.00 + (i % 10) * 0.01,
-                ask_size=300,
-            ))
+            quotes.append(
+                Quote(
+                    symbol="AAPL",
+                    timestamp=base_time + timedelta(seconds=i),
+                    bid_price=149.95 + (i % 10) * 0.01,
+                    bid_size=500,
+                    ask_price=150.00 + (i % 10) * 0.01,
+                    ask_size=300,
+                )
+            )
 
         return quotes
 

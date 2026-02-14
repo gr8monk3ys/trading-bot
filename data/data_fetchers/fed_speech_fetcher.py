@@ -6,16 +6,13 @@ Fetches Fed speeches and communications from:
 - Federal Reserve website scraping (fallback)
 """
 
-import asyncio
-import hashlib
-import json
 import logging
 import re
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from xml.etree import ElementTree
 
 import aiohttp

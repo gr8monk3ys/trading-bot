@@ -322,10 +322,11 @@ class TestOrderSubmissionErrors:
     @pytest.fixture
     def broker_with_mocks(self, mock_alpaca_creds):
         """Create broker with mocked clients."""
-        with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
-            "brokers.alpaca_broker.TradingClient"
-        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
-            "brokers.alpaca_broker.StockDataStream"
+        with (
+            patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds),
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
         ):
             broker = AlpacaBroker(paper=True)
             broker.trading_client = MagicMock()
@@ -338,9 +339,7 @@ class TestOrderSubmissionErrors:
         broker = broker_with_mocks
 
         # Simulate insufficient buying power error
-        broker.trading_client.submit_order.side_effect = Exception(
-            "insufficient buying power"
-        )
+        broker.trading_client.submit_order.side_effect = Exception("insufficient buying power")
 
         order = {
             "symbol": "AAPL",
@@ -358,9 +357,7 @@ class TestOrderSubmissionErrors:
         broker = broker_with_mocks
 
         # Simulate market closed error
-        broker.trading_client.submit_order.side_effect = Exception(
-            "market is closed"
-        )
+        broker.trading_client.submit_order.side_effect = Exception("market is closed")
 
         order = {
             "symbol": "AAPL",
@@ -378,9 +375,7 @@ class TestOrderSubmissionErrors:
         broker = broker_with_mocks
 
         # Simulate invalid quantity error
-        broker.trading_client.submit_order.side_effect = Exception(
-            "qty must be greater than 0"
-        )
+        broker.trading_client.submit_order.side_effect = Exception("qty must be greater than 0")
 
         order = {
             "symbol": "AAPL",
@@ -398,9 +393,7 @@ class TestOrderSubmissionErrors:
         broker = broker_with_mocks
 
         # Simulate symbol not found error
-        broker.trading_client.submit_order.side_effect = Exception(
-            "asset not found"
-        )
+        broker.trading_client.submit_order.side_effect = Exception("asset not found")
 
         order = {
             "symbol": "INVALID123",
@@ -505,10 +498,11 @@ class TestPriceCaching:
     @pytest.fixture
     def broker_with_mocks(self, mock_alpaca_creds):
         """Create broker with mocked clients."""
-        with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
-            "brokers.alpaca_broker.TradingClient"
-        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
-            "brokers.alpaca_broker.StockDataStream"
+        with (
+            patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds),
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
         ):
             broker = AlpacaBroker(paper=True)
             broker.data_client = MagicMock()
@@ -618,9 +612,7 @@ class TestPriceCaching:
         """Should return None on API error."""
         broker = broker_with_mocks
 
-        broker.data_client.get_stock_latest_trade.side_effect = Exception(
-            "API error"
-        )
+        broker.data_client.get_stock_latest_trade.side_effect = Exception("API error")
 
         price = await broker.get_last_price("AAPL")
         assert price is None
@@ -694,10 +686,11 @@ class TestConnectionErrors:
     @pytest.fixture
     def broker_with_mocks(self, mock_alpaca_creds):
         """Create broker with mocked clients."""
-        with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
-            "brokers.alpaca_broker.TradingClient"
-        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
-            "brokers.alpaca_broker.StockDataStream"
+        with (
+            patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds),
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
         ):
             broker = AlpacaBroker(paper=True)
             broker.trading_client = MagicMock()
@@ -737,7 +730,7 @@ class TestConnectionErrors:
         async def timeout_side_effect(*args, **kwargs):
             raise asyncio.TimeoutError("Request timed out")
 
-        with patch.object(broker, '_async_call_with_timeout', side_effect=timeout_side_effect):
+        with patch.object(broker, "_async_call_with_timeout", side_effect=timeout_side_effect):
             with pytest.raises(BrokerConnectionError) as exc_info:
                 await broker.get_positions()
 
@@ -748,9 +741,7 @@ class TestConnectionErrors:
         """Should return None when position not found."""
         broker = broker_with_mocks
 
-        broker.trading_client.get_position.side_effect = Exception(
-            "Position not found"
-        )
+        broker.trading_client.get_position.side_effect = Exception("Position not found")
 
         with patch("asyncio.sleep", return_value=None):
             result = await broker.get_position("AAPL")
@@ -762,9 +753,7 @@ class TestConnectionErrors:
         """Should return False when cancel fails."""
         broker = broker_with_mocks
 
-        broker.trading_client.cancel_order_by_id.side_effect = Exception(
-            "Order not found"
-        )
+        broker.trading_client.cancel_order_by_id.side_effect = Exception("Order not found")
 
         with patch("asyncio.sleep", return_value=None):
             result = await broker.cancel_order("nonexistent-order-id")
@@ -817,10 +806,11 @@ class TestCancelAllOrders:
     @pytest.fixture
     def broker_with_mocks(self, mock_alpaca_creds):
         """Create broker with mocked clients."""
-        with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
-            "brokers.alpaca_broker.TradingClient"
-        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
-            "brokers.alpaca_broker.StockDataStream"
+        with (
+            patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds),
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
         ):
             broker = AlpacaBroker(paper=True)
             broker.trading_client = MagicMock()
@@ -862,10 +852,11 @@ class TestReplaceOrder:
     @pytest.fixture
     def broker_with_mocks(self, mock_alpaca_creds):
         """Create broker with mocked clients."""
-        with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
-            "brokers.alpaca_broker.TradingClient"
-        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
-            "brokers.alpaca_broker.StockDataStream"
+        with (
+            patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds),
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
         ):
             broker = AlpacaBroker(paper=True)
             broker.trading_client = MagicMock()
@@ -880,9 +871,7 @@ class TestReplaceOrder:
         mock_order.id = "replaced-order-123"
         broker.trading_client.replace_order_by_id.return_value = mock_order
 
-        result = await broker.replace_order(
-            "original-order-id", qty=20, limit_price=155.00
-        )
+        result = await broker.replace_order("original-order-id", qty=20, limit_price=155.00)
 
         assert result.id == "replaced-order-123"
 
@@ -910,10 +899,11 @@ class TestGetOrderMethods:
     @pytest.fixture
     def broker_with_mocks(self, mock_alpaca_creds):
         """Create broker with mocked clients."""
-        with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
-            "brokers.alpaca_broker.TradingClient"
-        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
-            "brokers.alpaca_broker.StockDataStream"
+        with (
+            patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds),
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
         ):
             broker = AlpacaBroker(paper=True)
             broker.trading_client = MagicMock()
@@ -937,9 +927,7 @@ class TestGetOrderMethods:
         """Should return None when order not found."""
         broker = broker_with_mocks
 
-        broker.trading_client.get_order_by_id.side_effect = Exception(
-            "Order not found"
-        )
+        broker.trading_client.get_order_by_id.side_effect = Exception("Order not found")
 
         with patch("asyncio.sleep", return_value=None):
             result = await broker.get_order_by_id("nonexistent")
@@ -990,10 +978,11 @@ class TestBrokerInitialization:
 
     def test_handles_string_paper_mode(self, mock_alpaca_creds):
         """Should handle string 'true' for paper mode."""
-        with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
-            "brokers.alpaca_broker.TradingClient"
-        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
-            "brokers.alpaca_broker.StockDataStream"
+        with (
+            patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds),
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
         ):
             broker = AlpacaBroker(paper="true")
             assert broker.paper is True
@@ -1003,10 +992,11 @@ class TestBrokerInitialization:
 
     def test_initializes_price_cache(self, mock_alpaca_creds):
         """Should initialize empty price cache."""
-        with patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds), patch(
-            "brokers.alpaca_broker.TradingClient"
-        ), patch("brokers.alpaca_broker.StockHistoricalDataClient"), patch(
-            "brokers.alpaca_broker.StockDataStream"
+        with (
+            patch("brokers.alpaca_broker.ALPACA_CREDS", mock_alpaca_creds),
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
         ):
             broker = AlpacaBroker(paper=True)
 

@@ -373,7 +373,9 @@ if __name__ == "__main__":
             if analysis:
                 print(analyzer.get_summary(analysis))
                 print(f"\n{'='*40}")
-                print(f"📊 DECISION: {'✅ ENTER TRADE' if analysis['should_enter'] else '⏭️  SKIP'}")
+                print(
+                    f"📊 DECISION: {'✅ ENTER TRADE' if analysis['should_enter'] else '⏭️  SKIP'}"
+                )
                 if analysis["should_enter"]:
                     print(f"   Signal: {analysis['signal'].upper()}")
                     print(f"   Confidence: {analysis['confidence']:.0%}")

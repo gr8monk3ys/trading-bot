@@ -209,8 +209,7 @@ class AdaptiveStrategy(BaseStrategy):
 
             # Performance optimization: Initialize sub-strategies in parallel
             await asyncio.gather(
-                self.momentum_strategy.initialize(),
-                self.mean_reversion_strategy.initialize()
+                self.momentum_strategy.initialize(), self.mean_reversion_strategy.initialize()
             )
             logger.info("  MomentumStrategy initialized for trending markets")
             logger.info("  MeanReversionStrategy initialized for sideways markets")
@@ -354,7 +353,9 @@ class AdaptiveStrategy(BaseStrategy):
                     if self.lstm_predictor.load_model(symbol):
                         models_loaded += 1
                 if models_loaded > 0:
-                    logger.info(f"  LSTMPredictor initialized with {models_loaded} pre-trained models")
+                    logger.info(
+                        f"  LSTMPredictor initialized with {models_loaded} pre-trained models"
+                    )
                 else:
                     logger.info("  LSTMPredictor initialized (no pre-trained models found)")
             except Exception as e:
@@ -383,6 +384,7 @@ class AdaptiveStrategy(BaseStrategy):
 
                 # Register LSTM as signal source if available
                 if self.lstm_predictor:
+
                     def lstm_signal_fn(symbol: str, data: Any) -> Optional[SignalComponent]:
                         prices = data.get("prices", [])
                         if len(prices) < 60:
@@ -393,8 +395,10 @@ class AdaptiveStrategy(BaseStrategy):
                             return None
 
                         direction_map = {"up": "long", "down": "short", "neutral": "neutral"}
-                        signal_value = 1.0 if result.predicted_direction == "up" else (
-                            -1.0 if result.predicted_direction == "down" else 0.0
+                        signal_value = (
+                            1.0
+                            if result.predicted_direction == "up"
+                            else (-1.0 if result.predicted_direction == "down" else 0.0)
                         )
 
                         return SignalComponent(
@@ -528,7 +532,8 @@ class AdaptiveStrategy(BaseStrategy):
                             if (
                                 self._factor_scores_cache
                                 and self._factor_scores_timestamp
-                                and (datetime.now() - self._factor_scores_timestamp).total_seconds() < 3600
+                                and (datetime.now() - self._factor_scores_timestamp).total_seconds()
+                                < 3600
                             ):
                                 signal_dict = self.factor_model.get_signal(
                                     symbol, self._factor_scores_cache
@@ -566,7 +571,10 @@ class AdaptiveStrategy(BaseStrategy):
                 # Register Cross-Asset signals if aggregator is available
                 if self.cross_asset_aggregator:
                     try:
-                        async def cross_asset_signal_fn_async(symbol: str, data: Any) -> Optional[SignalComponent]:
+
+                        async def cross_asset_signal_fn_async(
+                            symbol: str, data: Any
+                        ) -> Optional[SignalComponent]:
                             try:
                                 signal = await self.cross_asset_aggregator.get_aggregated_signal()
                                 if signal is None:
@@ -576,8 +584,10 @@ class AdaptiveStrategy(BaseStrategy):
                                     source=SignalSource.CROSS_ASSET,
                                     signal_value=signal.composite_signal,
                                     confidence=signal.composite_confidence,
-                                    direction="long" if signal.composite_signal > 0 else (
-                                        "short" if signal.composite_signal < 0 else "neutral"
+                                    direction=(
+                                        "long"
+                                        if signal.composite_signal > 0
+                                        else ("short" if signal.composite_signal < 0 else "neutral")
                                     ),
                                     metadata={
                                         "sources": [s.value for s in signal.sources],
@@ -589,21 +599,32 @@ class AdaptiveStrategy(BaseStrategy):
                                 return None
 
                         # Wrap async function for synchronous ensemble interface
-                        def cross_asset_signal_fn(symbol: str, data: Any) -> Optional[SignalComponent]:
+                        def cross_asset_signal_fn(
+                            symbol: str, data: Any
+                        ) -> Optional[SignalComponent]:
                             try:
                                 # Use cached signal if available and fresh
                                 if (
                                     self._cross_asset_signal is not None
                                     and self._cross_asset_timestamp is not None
-                                    and (datetime.now() - self._cross_asset_timestamp).total_seconds() < 900
+                                    and (
+                                        datetime.now() - self._cross_asset_timestamp
+                                    ).total_seconds()
+                                    < 900
                                 ):
                                     signal = self._cross_asset_signal
                                     return SignalComponent(
                                         source=SignalSource.CROSS_ASSET,
                                         signal_value=signal.composite_signal,
                                         confidence=signal.composite_confidence,
-                                        direction="long" if signal.composite_signal > 0 else (
-                                            "short" if signal.composite_signal < 0 else "neutral"
+                                        direction=(
+                                            "long"
+                                            if signal.composite_signal > 0
+                                            else (
+                                                "short"
+                                                if signal.composite_signal < 0
+                                                else "neutral"
+                                            )
                                         ),
                                         metadata={
                                             "sources": [s.value for s in signal.sources],
@@ -615,7 +636,9 @@ class AdaptiveStrategy(BaseStrategy):
                                 logger.debug(f"Cross-asset signal error: {e}")
                                 return None
 
-                        self.ensemble_predictor.register_source(SignalSource.CROSS_ASSET, cross_asset_signal_fn)
+                        self.ensemble_predictor.register_source(
+                            SignalSource.CROSS_ASSET, cross_asset_signal_fn
+                        )
                         logger.info("  Registered Cross-Asset as ensemble signal source")
 
                     except Exception as e:
@@ -648,7 +671,9 @@ class AdaptiveStrategy(BaseStrategy):
                 logger.info(
                     f"Portfolio weights updated: {', '.join(f'{k}={v:.1%}' for k, v in result.weights.items())}"
                 )
-                logger.info(f"  Expected return: {result.expected_return:.2%}, Risk: {result.expected_volatility:.2%}")
+                logger.info(
+                    f"  Expected return: {result.expected_return:.2%}, Risk: {result.expected_volatility:.2%}"
+                )
             else:
                 logger.warning("Portfolio optimization returned no weights")
 
@@ -675,7 +700,9 @@ class AdaptiveStrategy(BaseStrategy):
             price_dict = {}
             for symbol in self.symbols:
                 if symbol in self.price_history and len(self.price_history[symbol]) >= 252:
-                    prices = [bar.get("close", bar.get("c", 0)) for bar in self.price_history[symbol]]
+                    prices = [
+                        bar.get("close", bar.get("c", 0)) for bar in self.price_history[symbol]
+                    ]
                     price_dict[symbol] = prices
 
             if not price_dict:
@@ -737,14 +764,12 @@ class AdaptiveStrategy(BaseStrategy):
                     market_caps_for_scoring = None
                 else:
                     # Prefer non-synthetic subsets when available.
-                    fundamental_data_for_scoring = (
-                        factor_inputs.get("fundamental_data_real")
-                        or factor_inputs.get("fundamental_data")
-                    )
-                    market_caps_for_scoring = (
-                        factor_inputs.get("market_caps_real")
-                        or factor_inputs.get("market_caps")
-                    )
+                    fundamental_data_for_scoring = factor_inputs.get(
+                        "fundamental_data_real"
+                    ) or factor_inputs.get("fundamental_data")
+                    market_caps_for_scoring = factor_inputs.get(
+                        "market_caps_real"
+                    ) or factor_inputs.get("market_caps")
             except Exception as e:
                 logger.debug(f"Factor provenance gate unavailable: {e}")
 
@@ -826,11 +851,15 @@ class AdaptiveStrategy(BaseStrategy):
             # Boost if sources agree
             if composite.agreement_pct >= 0.6:
                 enriched_confidence = min(1.0, original_confidence * 1.2)
-                logger.debug(f"{symbol}: Confidence boosted (agreement: {composite.agreement_pct:.0%})")
+                logger.debug(
+                    f"{symbol}: Confidence boosted (agreement: {composite.agreement_pct:.0%})"
+                )
             # Reduce if sources disagree
             elif composite.agreement_pct < 0.4:
                 enriched_confidence = original_confidence * 0.8
-                logger.debug(f"{symbol}: Confidence reduced (low agreement: {composite.agreement_pct:.0%})")
+                logger.debug(
+                    f"{symbol}: Confidence reduced (low agreement: {composite.agreement_pct:.0%})"
+                )
 
             # Apply position size multiplier from economic/regime
             position_multiplier = composite.position_size_multiplier
@@ -925,7 +954,9 @@ class AdaptiveStrategy(BaseStrategy):
                 # Log regime change
                 cross_asset_note = ""
                 if regime_info.get("cross_asset_override"):
-                    cross_asset_note = f" [cross-asset override: {regime_info.get('cross_asset_reason', '')}]"
+                    cross_asset_note = (
+                        f" [cross-asset override: {regime_info.get('cross_asset_reason', '')}]"
+                    )
 
                 logger.warning(
                     f"REGIME CHANGE: {old_regime.upper()} -> {new_regime_type.upper()} "
@@ -998,7 +1029,9 @@ class AdaptiveStrategy(BaseStrategy):
                             regime_info.get("position_multiplier", 1.0), 0.5
                         )
                         enhanced_info["cross_asset_override"] = True
-                        enhanced_info["cross_asset_reason"] = f"VIX high ({vix_signal.vix_spot:.1f})"
+                        enhanced_info["cross_asset_reason"] = (
+                            f"VIX high ({vix_signal.vix_spot:.1f})"
+                        )
                         logger.info(
                             f"Cross-asset: High VIX detected ({vix_signal.vix_spot:.1f}), "
                             f"overriding to VOLATILE"
@@ -1024,9 +1057,7 @@ class AdaptiveStrategy(BaseStrategy):
                     enhanced_info["position_multiplier"] = min(
                         1.3, regime_info.get("position_multiplier", 1.0) * 1.1
                     )
-                    logger.debug(
-                        "Cross-asset: VIX complacency detected, boosting BULL confidence"
-                    )
+                    logger.debug("Cross-asset: VIX complacency detected, boosting BULL confidence")
 
             # --- Yield Curve Override ---
             # Inverted curve = reduce equity exposure (recession risk)
@@ -1063,7 +1094,9 @@ class AdaptiveStrategy(BaseStrategy):
                             f"(appetite={fx_signal.risk_appetite_score:.2f}), reducing exposure 15%"
                         )
 
-                elif fx_signal.is_risk_on and fx_signal.confidence > 0.7 and original_type == "bull":
+                elif (
+                    fx_signal.is_risk_on and fx_signal.confidence > 0.7 and original_type == "bull"
+                ):
                     # Strong risk-on confirmation
                     enhanced_info["confidence"] = min(0.95, regime_info["confidence"] * 1.1)
                     logger.debug("Cross-asset: FX risk-on confirmed, boosting BULL confidence")
@@ -1296,6 +1329,7 @@ class AdaptiveStrategy(BaseStrategy):
             regime = None
             if self.current_regime:
                 from ml.ensemble_predictor import MarketRegime
+
                 regime_map = {
                     "bull": MarketRegime.BULL,
                     "bear": MarketRegime.BEAR,
@@ -1382,7 +1416,9 @@ class AdaptiveStrategy(BaseStrategy):
 
         if ml_signal is not None:
             # Blend technical and ML signals (80% technical + 20% ML)
-            technical_direction = self._action_to_direction(technical_signal.get("action", "neutral"))
+            technical_direction = self._action_to_direction(
+                technical_signal.get("action", "neutral")
+            )
             ml_direction = ml_signal["direction"]
 
             # Calculate blended direction
@@ -1398,11 +1434,17 @@ class AdaptiveStrategy(BaseStrategy):
 
             # Adjust confidence based on agreement
             original_confidence = technical_signal.get("confidence", 0.5)
-            if (technical_direction > 0 and ml_direction > 0) or (technical_direction < 0 and ml_direction < 0):
+            if (technical_direction > 0 and ml_direction > 0) or (
+                technical_direction < 0 and ml_direction < 0
+            ):
                 # Signals agree - boost confidence
                 blended_confidence = min(1.0, original_confidence * 1.15)
                 agreement = "confirming"
-            elif technical_direction != 0 and ml_direction != 0 and technical_direction * ml_direction < 0:
+            elif (
+                technical_direction != 0
+                and ml_direction != 0
+                and technical_direction * ml_direction < 0
+            ):
                 # Signals disagree - reduce confidence
                 blended_confidence = original_confidence * 0.85
                 agreement = "conflicting"
@@ -1540,7 +1582,11 @@ class AdaptiveStrategy(BaseStrategy):
         # Add cached cross-asset signal summary if available
         if self._cross_asset_signal:
             status["cross_asset_summary"] = {
-                "direction": self._cross_asset_signal.direction.value if self._cross_asset_signal.direction else "neutral",
+                "direction": (
+                    self._cross_asset_signal.direction.value
+                    if self._cross_asset_signal.direction
+                    else "neutral"
+                ),
                 "composite_signal": round(self._cross_asset_signal.composite_signal, 2),
                 "should_reduce_exposure": self._cross_asset_signal.should_reduce_exposure,
             }

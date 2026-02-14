@@ -189,9 +189,7 @@ class SLOMonitor:
                 "failures": self._alert_failures,
             },
             "incidents": (
-                self.incident_tracker.get_status_snapshot()
-                if self.incident_tracker
-                else {}
+                self.incident_tracker.get_status_snapshot() if self.incident_tracker else {}
             ),
             "thresholds": {
                 "recon_mismatch_halt_runs": self.recon_mismatch_halt_runs,

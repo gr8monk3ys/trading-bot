@@ -784,9 +784,7 @@ class TestEdgeCases:
         # Zero close price causes division by zero - this is expected behavior
         # for invalid input (a stock price can never be zero)
         with pytest.raises(ZeroDivisionError):
-            await earnings_strategy.analyze_earnings_move(
-                "AAPL", 0.0, 100.0, earnings_beat=True
-            )
+            await earnings_strategy.analyze_earnings_move("AAPL", 0.0, 100.0, earnings_beat=True)
 
     def test_strategies_pre_market_tips_not_empty(self, manager):
         """Test pre-market strategies have tips."""

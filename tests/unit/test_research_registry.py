@@ -269,7 +269,9 @@ class TestResearchRegistry:
         recon_gate = next(g for g in exp.validation_gates if g.name == "paper_reconciliation_rate")
         assert recon_gate.result == ValidationResult.PASS
         err_gate = next(g for g in exp.validation_gates if g.name == "paper_operational_error_rate")
-        exec_score_gate = next(g for g in exp.validation_gates if g.name == "paper_execution_quality_score")
+        exec_score_gate = next(
+            g for g in exp.validation_gates if g.name == "paper_execution_quality_score"
+        )
         slippage_gate = next(g for g in exp.validation_gates if g.name == "paper_avg_slippage_bps")
         fill_gate = next(g for g in exp.validation_gates if g.name == "paper_fill_rate")
         assert err_gate.result == ValidationResult.PASS
@@ -357,24 +359,33 @@ class TestResearchRegistry:
         )
 
         # Pass all gates
-        registry.record_backtest_results(exp_id, {
-            "sharpe_ratio": 1.5,
-            "max_drawdown": -0.10,
-        })
+        registry.record_backtest_results(
+            exp_id,
+            {
+                "sharpe_ratio": 1.5,
+                "max_drawdown": -0.10,
+            },
+        )
 
-        registry.record_validation_results(exp_id, {
-            "in_sample_sharpe": 2.0,
-            "out_of_sample_sharpe": 1.5,
-            "alpha_t_stat": 2.5,
-        })
+        registry.record_validation_results(
+            exp_id,
+            {
+                "in_sample_sharpe": 2.0,
+                "out_of_sample_sharpe": 1.5,
+                "alpha_t_stat": 2.5,
+            },
+        )
 
-        registry.record_paper_results(exp_id, {
-            "trading_days": 25,
-            "net_return": 0.05,
-            "execution_quality_score": 78.0,
-            "avg_actual_slippage_bps": 16.0,
-            "fill_rate": 0.96,
-        })
+        registry.record_paper_results(
+            exp_id,
+            {
+                "trading_days": 25,
+                "net_return": 0.05,
+                "execution_quality_score": 78.0,
+                "avg_actual_slippage_bps": 16.0,
+                "fill_rate": 0.96,
+            },
+        )
 
         registry.approve_manual_review(exp_id, "reviewer")
 
@@ -388,28 +399,37 @@ class TestResearchRegistry:
             author="test",
         )
 
-        registry.record_backtest_results(exp_id, {
-            "sharpe_ratio": 1.5,
-            "max_drawdown": -0.10,
-        })
-        registry.record_validation_results(exp_id, {
-            "in_sample_sharpe": 2.0,
-            "out_of_sample_sharpe": 1.5,
-            "alpha_t_stat": 2.5,
-        })
-        registry.record_paper_results(exp_id, {
-            "trading_days": 70,
-            "total_trades": 140,
-            "net_return": 0.05,
-            "max_drawdown": -0.12,
-            "reconciliation_pass_rate": 0.999,
-            "operational_error_rate": 0.006,
-            "execution_quality_score": 81.0,
-            "avg_actual_slippage_bps": 13.0,
-            "fill_rate": 0.97,
-            "paper_live_shadow_drift": 0.08,
-            "critical_slo_breaches": 0,
-        })
+        registry.record_backtest_results(
+            exp_id,
+            {
+                "sharpe_ratio": 1.5,
+                "max_drawdown": -0.10,
+            },
+        )
+        registry.record_validation_results(
+            exp_id,
+            {
+                "in_sample_sharpe": 2.0,
+                "out_of_sample_sharpe": 1.5,
+                "alpha_t_stat": 2.5,
+            },
+        )
+        registry.record_paper_results(
+            exp_id,
+            {
+                "trading_days": 70,
+                "total_trades": 140,
+                "net_return": 0.05,
+                "max_drawdown": -0.12,
+                "reconciliation_pass_rate": 0.999,
+                "operational_error_rate": 0.006,
+                "execution_quality_score": 81.0,
+                "avg_actual_slippage_bps": 13.0,
+                "fill_rate": 0.97,
+                "paper_live_shadow_drift": 0.08,
+                "critical_slo_breaches": 0,
+            },
+        )
         registry.approve_manual_review(exp_id, "reviewer")
 
         assert registry.is_promotion_ready(exp_id) is True
@@ -466,10 +486,7 @@ class TestResearchRegistry:
         checklist = registry.generate_promotion_checklist(exp_id)
 
         assert checklist["ready_for_promotion"] is False
-        assert any(
-            "paper_burn_in_signoff" in blocker
-            for blocker in checklist.get("blockers", [])
-        )
+        assert any("paper_burn_in_signoff" in blocker for blocker in checklist.get("blockers", []))
 
     def test_generate_promotion_checklist(self, registry):
         """Checklist should include required criteria and blockers."""
@@ -728,8 +745,14 @@ class TestExperimentStatus:
     def test_all_statuses(self):
         """Test that all expected statuses exist."""
         expected = [
-            "DRAFT", "BACKTEST", "VALIDATION", "PAPER_TRADING",
-            "REVIEW", "PROMOTED", "REJECTED", "DEPRECATED",
+            "DRAFT",
+            "BACKTEST",
+            "VALIDATION",
+            "PAPER_TRADING",
+            "REVIEW",
+            "PROMOTED",
+            "REJECTED",
+            "DEPRECATED",
         ]
 
         for status in expected:

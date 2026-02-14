@@ -54,6 +54,7 @@ def create_mock_signal_fn(
     should_raise: bool = False,
 ):
     """Create a mock signal function that returns a SignalComponent."""
+
     def signal_fn(symbol: str, data: Any) -> Optional[SignalComponent]:
         if should_raise:
             raise ValueError("Simulated signal failure")
@@ -66,6 +67,7 @@ def create_mock_signal_fn(
             direction=direction,
             metadata=metadata,
         )
+
     return signal_fn
 
 
@@ -83,7 +85,9 @@ def ensemble_with_sources() -> EnsemblePredictor:
     # Register LSTM source - bullish signal
     ensemble.register_source(
         SignalSource.LSTM,
-        create_mock_signal_fn(SignalSource.LSTM, signal_value=0.8, confidence=0.9, direction="long"),
+        create_mock_signal_fn(
+            SignalSource.LSTM, signal_value=0.8, confidence=0.9, direction="long"
+        ),
     )
 
     # Register DQN source - bullish signal
@@ -95,7 +99,9 @@ def ensemble_with_sources() -> EnsemblePredictor:
     # Register FACTOR source - slightly bullish
     ensemble.register_source(
         SignalSource.FACTOR,
-        create_mock_signal_fn(SignalSource.FACTOR, signal_value=0.4, confidence=0.8, direction="long"),
+        create_mock_signal_fn(
+            SignalSource.FACTOR, signal_value=0.4, confidence=0.8, direction="long"
+        ),
     )
 
     return ensemble
@@ -109,13 +115,17 @@ def ensemble_with_conflicting_signals() -> EnsemblePredictor:
     # Register LSTM source - bullish
     ensemble.register_source(
         SignalSource.LSTM,
-        create_mock_signal_fn(SignalSource.LSTM, signal_value=0.9, confidence=0.8, direction="long"),
+        create_mock_signal_fn(
+            SignalSource.LSTM, signal_value=0.9, confidence=0.8, direction="long"
+        ),
     )
 
     # Register DQN source - bearish
     ensemble.register_source(
         SignalSource.DQN,
-        create_mock_signal_fn(SignalSource.DQN, signal_value=-0.9, confidence=0.8, direction="short"),
+        create_mock_signal_fn(
+            SignalSource.DQN, signal_value=-0.9, confidence=0.8, direction="short"
+        ),
     )
 
     return ensemble
@@ -441,11 +451,15 @@ class TestGetWeights:
 
     def test_get_weights_with_bull_regime(self, ensemble_predictor):
         """Test weights in BULL regime."""
-        available = [SignalSource.LSTM, SignalSource.DQN, SignalSource.FACTOR, SignalSource.MOMENTUM]
+        available = [
+            SignalSource.LSTM,
+            SignalSource.DQN,
+            SignalSource.FACTOR,
+            SignalSource.MOMENTUM,
+        ]
 
         weights = ensemble_predictor._get_weights(
-            regime=MarketRegime.BULL,
-            available_sources=available
+            regime=MarketRegime.BULL, available_sources=available
         )
 
         # In BULL regime, momentum should get 0.20 (from DEFAULT_REGIME_WEIGHTS)
@@ -455,11 +469,15 @@ class TestGetWeights:
 
     def test_get_weights_with_bear_regime(self, ensemble_predictor):
         """Test weights in BEAR regime."""
-        available = [SignalSource.LSTM, SignalSource.DQN, SignalSource.FACTOR, SignalSource.MEAN_REVERSION]
+        available = [
+            SignalSource.LSTM,
+            SignalSource.DQN,
+            SignalSource.FACTOR,
+            SignalSource.MEAN_REVERSION,
+        ]
 
         weights = ensemble_predictor._get_weights(
-            regime=MarketRegime.BEAR,
-            available_sources=available
+            regime=MarketRegime.BEAR, available_sources=available
         )
 
         # In BEAR regime, mean reversion should get 0.25
@@ -467,11 +485,15 @@ class TestGetWeights:
 
     def test_get_weights_with_sideways_regime(self, ensemble_predictor):
         """Test weights in SIDEWAYS regime favor mean reversion."""
-        available = [SignalSource.LSTM, SignalSource.DQN, SignalSource.FACTOR, SignalSource.MEAN_REVERSION]
+        available = [
+            SignalSource.LSTM,
+            SignalSource.DQN,
+            SignalSource.FACTOR,
+            SignalSource.MEAN_REVERSION,
+        ]
 
         weights = ensemble_predictor._get_weights(
-            regime=MarketRegime.SIDEWAYS,
-            available_sources=available
+            regime=MarketRegime.SIDEWAYS, available_sources=available
         )
 
         # In SIDEWAYS, mean reversion has highest weight (0.40)
@@ -480,11 +502,15 @@ class TestGetWeights:
 
     def test_get_weights_with_volatile_regime(self, ensemble_predictor):
         """Test weights in VOLATILE regime."""
-        available = [SignalSource.LSTM, SignalSource.DQN, SignalSource.FACTOR, SignalSource.MOMENTUM]
+        available = [
+            SignalSource.LSTM,
+            SignalSource.DQN,
+            SignalSource.FACTOR,
+            SignalSource.MOMENTUM,
+        ]
 
         weights = ensemble_predictor._get_weights(
-            regime=MarketRegime.VOLATILE,
-            available_sources=available
+            regime=MarketRegime.VOLATILE, available_sources=available
         )
 
         # In VOLATILE, DQN and FACTOR have highest weights (0.30 each)
@@ -504,7 +530,13 @@ class TestGetWeights:
 
     def test_get_weights_normalizes_to_one(self, ensemble_predictor):
         """Test that weights are normalized to sum to 1."""
-        for regime in [None, MarketRegime.BULL, MarketRegime.BEAR, MarketRegime.SIDEWAYS, MarketRegime.VOLATILE]:
+        for regime in [
+            None,
+            MarketRegime.BULL,
+            MarketRegime.BEAR,
+            MarketRegime.SIDEWAYS,
+            MarketRegime.VOLATILE,
+        ]:
             available = [SignalSource.LSTM, SignalSource.DQN]
             weights = ensemble_predictor._get_weights(regime=regime, available_sources=available)
 
@@ -1231,7 +1263,11 @@ class TestCreateEnsembleFromComponents:
             predicted_direction="up", confidence=0.8, std_prediction=0.1
         )
         mock_dqn.act.return_value = (1, 0.9)
-        mock_factor.get_signal.return_value = {"action": "long", "composite_z": 1.5, "confidence": 0.7}
+        mock_factor.get_signal.return_value = {
+            "action": "long",
+            "composite_z": 1.5,
+            "confidence": 0.7,
+        }
         mock_momentum.analyze_symbol.return_value = {"action": "buy", "confidence": 0.8}
 
         ensemble = create_ensemble_from_components(
@@ -1395,16 +1431,16 @@ class TestEnsembleIntegration:
 
         # Get weights in different regimes
         bull_weights = ensemble._get_weights(
-            MarketRegime.BULL,
-            [SignalSource.LSTM, SignalSource.MEAN_REVERSION]
+            MarketRegime.BULL, [SignalSource.LSTM, SignalSource.MEAN_REVERSION]
         )
         sideways_weights = ensemble._get_weights(
-            MarketRegime.SIDEWAYS,
-            [SignalSource.LSTM, SignalSource.MEAN_REVERSION]
+            MarketRegime.SIDEWAYS, [SignalSource.LSTM, SignalSource.MEAN_REVERSION]
         )
 
         # In sideways, mean reversion should have higher weight
-        assert sideways_weights.get(SignalSource.MEAN_REVERSION, 0) > bull_weights.get(SignalSource.MEAN_REVERSION, 0)
+        assert sideways_weights.get(SignalSource.MEAN_REVERSION, 0) > bull_weights.get(
+            SignalSource.MEAN_REVERSION, 0
+        )
 
     def test_performance_tracking_updates_weights_over_time(self):
         """Test that performance tracking influences weights."""
@@ -1424,11 +1460,10 @@ class TestEnsembleIntegration:
 
         # Simulate LSTM being more accurate
         ensemble._source_accuracy[SignalSource.LSTM] = [1.0] * 10  # 100% accurate
-        ensemble._source_accuracy[SignalSource.DQN] = [0.0] * 10   # 0% accurate
+        ensemble._source_accuracy[SignalSource.DQN] = [0.0] * 10  # 0% accurate
 
         weights = ensemble._get_weights(
-            regime=None,
-            available_sources=[SignalSource.LSTM, SignalSource.DQN]
+            regime=None, available_sources=[SignalSource.LSTM, SignalSource.DQN]
         )
 
         # LSTM should have higher weight due to performance

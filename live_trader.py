@@ -36,6 +36,11 @@ from strategies.momentum_strategy import MomentumStrategy
 from strategies.risk_manager import RiskManager
 from utils.audit_log import AuditEventType, AuditLog
 from utils.circuit_breaker import CircuitBreaker
+from utils.data_quality import (
+    should_halt_trading_for_data_quality,
+    summarize_quality_reports,
+    validate_ohlcv_frame,
+)
 from utils.incident_tracker import IncidentTracker
 from utils.order_gateway import OrderGateway
 from utils.order_reconciliation import OrderReconciler
@@ -45,11 +50,6 @@ from utils.run_artifacts import JsonlWriter, ensure_run_directory, generate_run_
 from utils.runtime_state import RuntimeStateStore
 from utils.slo_alerting import build_slo_alert_notifier
 from utils.slo_monitor import SLOMonitor
-from utils.data_quality import (
-    should_halt_trading_for_data_quality,
-    summarize_quality_reports,
-    validate_ohlcv_frame,
-)
 
 # Set up logging
 LOG_DIR = Path("logs")
@@ -190,9 +190,7 @@ class LiveTrader:
                     self.order_gateway.import_runtime_state(state.gateway_state)
                 self._pending_strategy_state = state.strategy_states or {}
                 logger.info("Runtime state restored into PositionManager")
-            await self.position_manager.sync_with_broker(
-                self.broker, default_strategy="recovered"
-            )
+            await self.position_manager.sync_with_broker(self.broker, default_strategy="recovered")
 
             # Initialize reconciler
             self.reconciler = PositionReconciler(
@@ -231,8 +229,12 @@ class LiveTrader:
                 recon_mismatch_halt_runs=RISK_PARAMS.get("ORDER_RECON_MISMATCH_HALT_RUNS", 3),
                 max_data_quality_errors=RISK_PARAMS.get("DATA_QUALITY_MAX_ERRORS", 0),
                 max_stale_data_warnings=RISK_PARAMS.get("DATA_QUALITY_MAX_STALE_WARNINGS", 0),
-                shadow_drift_warning_threshold=RISK_PARAMS.get("PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12),
-                shadow_drift_critical_threshold=RISK_PARAMS.get("PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15),
+                shadow_drift_warning_threshold=RISK_PARAMS.get(
+                    "PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12
+                ),
+                shadow_drift_critical_threshold=RISK_PARAMS.get(
+                    "PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15
+                ),
             )
 
             # Initialize strategy
@@ -433,7 +435,8 @@ class LiveTrader:
                     ),
                     gateway_state=(
                         self.order_gateway.export_runtime_state()
-                        if self.order_gateway and hasattr(self.order_gateway, "export_runtime_state")
+                        if self.order_gateway
+                        and hasattr(self.order_gateway, "export_runtime_state")
                         else {}
                     ),
                     strategy_states=strategy_states,
@@ -469,8 +472,8 @@ class LiveTrader:
                 if counter % state_interval == 0 and self.position_manager:
                     strategy_states = {}
                     if self.strategy is not None:
-                        strategy_states[self.strategy_name] = await self._build_strategy_state_snapshot(
-                            self.strategy
+                        strategy_states[self.strategy_name] = (
+                            await self._build_strategy_state_snapshot(self.strategy)
                         )
                     await self.state_store.save(
                         self.position_manager,
@@ -481,17 +484,15 @@ class LiveTrader:
                         ),
                         gateway_state=(
                             self.order_gateway.export_runtime_state()
-                            if self.order_gateway and hasattr(self.order_gateway, "export_runtime_state")
+                            if self.order_gateway
+                            and hasattr(self.order_gateway, "export_runtime_state")
                             else {}
                         ),
                         strategy_states=strategy_states,
                     )
                     if self.slo_monitor:
                         self.slo_monitor.check_incident_ack_sla()
-                if (
-                    counter % reconciliation_interval == 0
-                    and self.reconciler is not None
-                ):
+                if counter % reconciliation_interval == 0 and self.reconciler is not None:
                     try:
                         await self.reconciler.reconcile()
                     except Exception as e:
@@ -500,20 +501,14 @@ class LiveTrader:
                         await self._run_data_quality_gate()
                     except Exception as e:
                         logger.error(f"Data quality gate error: {e}")
-                if (
-                    counter % 120 == 0
-                    and self.order_reconciler is not None
-                ):
+                if counter % 120 == 0 and self.order_reconciler is not None:
                     try:
                         await self.order_reconciler.reconcile()
                         if self.slo_monitor:
                             breaches = self.slo_monitor.record_order_reconciliation_health(
                                 self.order_reconciler.get_health_snapshot()
                             )
-                            if (
-                                self.order_gateway
-                                and SLOMonitor.has_critical_breach(breaches)
-                            ):
+                            if self.order_gateway and SLOMonitor.has_critical_breach(breaches):
                                 self.order_gateway.activate_kill_switch(
                                     reason="Critical order reconciliation SLO breach",
                                     source="slo_monitor",
@@ -681,7 +676,7 @@ class LiveTrader:
                         normalized[symbol] = deque(rows, maxlen=maxlen)
                     else:
                         normalized[symbol] = deque([], maxlen=maxlen)
-                setattr(strategy, "price_history", normalized)
+                strategy.price_history = normalized
 
     async def _restore_strategy_state(self, strategy, saved) -> None:
         """Restore legacy or v2 strategy checkpoints."""

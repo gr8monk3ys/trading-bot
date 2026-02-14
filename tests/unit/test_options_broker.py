@@ -36,15 +36,12 @@ from brokers.options_broker import (
 # TEST FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def options_broker():
     """Create an OptionsBroker instance for testing."""
     with patch.dict(os.environ, {"ALPACA_API_KEY": "test_key", "ALPACA_SECRET_KEY": "test_secret"}):
-        return OptionsBroker(
-            api_key="test_api_key",
-            secret_key="test_secret_key",
-            paper=True
-        )
+        return OptionsBroker(api_key="test_api_key", secret_key="test_secret_key", paper=True)
 
 
 @pytest.fixture
@@ -71,7 +68,7 @@ def sample_call_contract(sample_expiration):
         gamma=0.05,
         theta=-0.10,
         vega=0.20,
-        implied_volatility=0.30
+        implied_volatility=0.30,
     )
 
 
@@ -93,7 +90,7 @@ def sample_put_contract(sample_expiration):
         gamma=0.04,
         theta=-0.08,
         vega=0.15,
-        implied_volatility=0.28
+        implied_volatility=0.28,
     )
 
 
@@ -110,7 +107,7 @@ def sample_option_chain(sample_expiration, sample_call_contract, sample_put_cont
             option_type=OptionType.CALL,
             bid=12.00,
             ask=12.50,
-            delta=0.75
+            delta=0.75,
         ),
         sample_call_contract,
         OptionContract(
@@ -121,7 +118,7 @@ def sample_option_chain(sample_expiration, sample_call_contract, sample_put_cont
             option_type=OptionType.CALL,
             bid=2.00,
             ask=2.30,
-            delta=0.30
+            delta=0.30,
         ),
     ]
     puts = [
@@ -133,7 +130,7 @@ def sample_option_chain(sample_expiration, sample_call_contract, sample_put_cont
             option_type=OptionType.PUT,
             bid=1.50,
             ask=1.80,
-            delta=-0.20
+            delta=-0.20,
         ),
         sample_put_contract,
         OptionContract(
@@ -144,20 +141,16 @@ def sample_option_chain(sample_expiration, sample_call_contract, sample_put_cont
             option_type=OptionType.PUT,
             bid=5.00,
             ask=5.30,
-            delta=-0.45
+            delta=-0.45,
         ),
     ]
-    return OptionChain(
-        underlying="AAPL",
-        expiration=sample_expiration,
-        calls=calls,
-        puts=puts
-    )
+    return OptionChain(underlying="AAPL", expiration=sample_expiration, calls=calls, puts=puts)
 
 
 # =============================================================================
 # OCC SYMBOL TESTS
 # =============================================================================
+
 
 class TestOCCSymbolBuilding:
     """Test OCC symbol building functionality."""
@@ -168,7 +161,7 @@ class TestOCCSymbolBuilding:
             underlying="AAPL",
             expiration=date(2025, 1, 20),
             option_type=OptionType.CALL,
-            strike=150.0
+            strike=150.0,
         )
         assert symbol == "AAPL  250120C00150000"
 
@@ -178,7 +171,7 @@ class TestOCCSymbolBuilding:
             underlying="AAPL",
             expiration=date(2025, 1, 20),
             option_type=OptionType.PUT,
-            strike=140.0
+            strike=140.0,
         )
         assert symbol == "AAPL  250120P00140000"
 
@@ -188,17 +181,14 @@ class TestOCCSymbolBuilding:
             underlying="SPY",
             expiration=date(2025, 3, 21),
             option_type=OptionType.CALL,
-            strike=475.50
+            strike=475.50,
         )
         assert symbol == "SPY   250321C00475500"
 
     def test_build_occ_symbol_short_underlying(self):
         """Test that short underlying is properly padded."""
         symbol = OptionsBroker.build_occ_symbol(
-            underlying="F",
-            expiration=date(2025, 6, 20),
-            option_type=OptionType.PUT,
-            strike=12.0
+            underlying="F", expiration=date(2025, 6, 20), option_type=OptionType.PUT, strike=12.0
         )
         # F padded to 6 chars: "F     "
         assert symbol.startswith("F     ")
@@ -207,10 +197,7 @@ class TestOCCSymbolBuilding:
     def test_build_occ_symbol_low_strike(self):
         """Test building symbol with low strike price."""
         symbol = OptionsBroker.build_occ_symbol(
-            underlying="SIRI",
-            expiration=date(2025, 2, 21),
-            option_type=OptionType.CALL,
-            strike=5.0
+            underlying="SIRI", expiration=date(2025, 2, 21), option_type=OptionType.CALL, strike=5.0
         )
         assert "C00005000" in symbol
 
@@ -220,7 +207,7 @@ class TestOCCSymbolBuilding:
             underlying="AMZN",
             expiration=date(2025, 1, 17),
             option_type=OptionType.CALL,
-            strike=3500.0
+            strike=3500.0,
         )
         assert "C03500000" in symbol
 
@@ -231,7 +218,7 @@ class TestOCCSymbolBuilding:
                 underlying="",
                 expiration=date(2025, 1, 20),
                 option_type=OptionType.CALL,
-                strike=150.0
+                strike=150.0,
             )
 
     def test_build_occ_symbol_long_underlying_raises(self):
@@ -241,7 +228,7 @@ class TestOCCSymbolBuilding:
                 underlying="TOOLONG",
                 expiration=date(2025, 1, 20),
                 option_type=OptionType.CALL,
-                strike=150.0
+                strike=150.0,
             )
 
 
@@ -296,7 +283,7 @@ class TestOCCSymbolParsing:
             "underlying": "GOOGL",
             "expiration": date(2025, 6, 20),
             "option_type": OptionType.CALL,
-            "strike": 175.0
+            "strike": 175.0,
         }
 
         symbol = OptionsBroker.build_occ_symbol(**original)
@@ -336,6 +323,7 @@ class TestIsOptionSymbol:
 # OPTION CONTRACT TESTS
 # =============================================================================
 
+
 class TestOptionContract:
     """Test OptionContract dataclass."""
 
@@ -352,7 +340,7 @@ class TestOptionContract:
             expiration=date.today() + timedelta(days=30),
             strike=150.0,
             option_type=OptionType.CALL,
-            last=5.50
+            last=5.50,
         )
         assert contract.mid_price == 5.50
 
@@ -373,7 +361,7 @@ class TestOptionContract:
             underlying="TEST",
             expiration=sample_expiration,
             strike=100.0,
-            option_type=OptionType.CALL
+            option_type=OptionType.CALL,
         )
         expected_dte = (sample_expiration - date.today()).days
         assert contract.days_to_expiration == expected_dte
@@ -389,6 +377,7 @@ class TestOptionContract:
 # =============================================================================
 # OPTION CHAIN TESTS
 # =============================================================================
+
 
 class TestOptionChain:
     """Test OptionChain dataclass."""
@@ -444,34 +433,23 @@ class TestOptionChain:
 # OPTIONS BROKER INITIALIZATION TESTS
 # =============================================================================
 
+
 class TestOptionsBrokerInit:
     """Test OptionsBroker initialization."""
 
     def test_init_with_paper_true(self):
         """Test initialization with paper=True."""
-        broker = OptionsBroker(
-            api_key="test_key",
-            secret_key="test_secret",
-            paper=True
-        )
+        broker = OptionsBroker(api_key="test_key", secret_key="test_secret", paper=True)
         assert broker.paper is True
 
     def test_init_with_paper_false(self):
         """Test initialization with paper=False."""
-        broker = OptionsBroker(
-            api_key="test_key",
-            secret_key="test_secret",
-            paper=False
-        )
+        broker = OptionsBroker(api_key="test_key", secret_key="test_secret", paper=False)
         assert broker.paper is False
 
     def test_init_with_paper_string(self):
         """Test initialization with paper as string."""
-        broker = OptionsBroker(
-            api_key="test_key",
-            secret_key="test_secret",
-            paper="true"
-        )
+        broker = OptionsBroker(api_key="test_key", secret_key="test_secret", paper="true")
         assert broker.paper is True
 
     def test_lazy_client_initialization(self, options_broker):
@@ -483,6 +461,7 @@ class TestOptionsBrokerInit:
 # =============================================================================
 # ORDER SUBMISSION TESTS (MOCKED)
 # =============================================================================
+
 
 class TestOptionOrderSubmission:
     """Test option order submission with mocks."""
@@ -503,13 +482,13 @@ class TestOptionOrderSubmission:
 
         mock_client.submit_order.return_value = mock_order
 
-        with patch.object(options_broker, '_get_trading_client', return_value=mock_client):
+        with patch.object(options_broker, "_get_trading_client", return_value=mock_client):
             result = await options_broker.submit_option_order(
                 occ_symbol="AAPL  250120C00150000",
                 side="buy",
                 qty=5,
                 order_type="limit",
-                limit_price=5.50
+                limit_price=5.50,
             )
 
         assert result is not None
@@ -522,9 +501,7 @@ class TestOptionOrderSubmission:
         """Test that invalid symbol raises error."""
         with pytest.raises(InvalidContractError, match="Invalid OCC symbol"):
             await options_broker.submit_option_order(
-                occ_symbol="AAPL",  # Stock symbol, not option
-                side="buy",
-                qty=1
+                occ_symbol="AAPL", side="buy", qty=1  # Stock symbol, not option
             )
 
     @pytest.mark.asyncio
@@ -532,9 +509,7 @@ class TestOptionOrderSubmission:
         """Test that invalid side raises error."""
         with pytest.raises(ValueError, match="must be 'buy' or 'sell'"):
             await options_broker.submit_option_order(
-                occ_symbol="AAPL  250120C00150000",
-                side="hold",
-                qty=1
+                occ_symbol="AAPL  250120C00150000", side="hold", qty=1
             )
 
     @pytest.mark.asyncio
@@ -542,9 +517,7 @@ class TestOptionOrderSubmission:
         """Test that invalid quantity raises error."""
         with pytest.raises(ValueError, match="must be positive"):
             await options_broker.submit_option_order(
-                occ_symbol="AAPL  250120C00150000",
-                side="buy",
-                qty=0
+                occ_symbol="AAPL  250120C00150000", side="buy", qty=0
             )
 
     @pytest.mark.asyncio
@@ -552,16 +525,14 @@ class TestOptionOrderSubmission:
         """Test that limit order without price raises error."""
         with pytest.raises(ValueError, match="limit_price required"):
             await options_broker.submit_option_order(
-                occ_symbol="AAPL  250120C00150000",
-                side="buy",
-                qty=1,
-                order_type="limit"
+                occ_symbol="AAPL  250120C00150000", side="buy", qty=1, order_type="limit"
             )
 
 
 # =============================================================================
 # STRATEGY HELPER TESTS
 # =============================================================================
+
 
 class TestStrategyHelpers:
     """Test strategy helper methods."""
@@ -571,13 +542,13 @@ class TestStrategyHelpers:
         """Test buy_call helper."""
         mock_submit = AsyncMock(return_value={"id": "order-123"})
 
-        with patch.object(options_broker, 'submit_option_order', mock_submit):
+        with patch.object(options_broker, "submit_option_order", mock_submit):
             await options_broker.buy_call(
                 underlying="AAPL",
                 expiration=sample_expiration,
                 strike=150.0,
                 qty=1,
-                limit_price=5.50
+                limit_price=5.50,
             )
 
         mock_submit.assert_called_once()
@@ -590,13 +561,13 @@ class TestStrategyHelpers:
         """Test buy_put helper."""
         mock_submit = AsyncMock(return_value={"id": "order-123"})
 
-        with patch.object(options_broker, 'submit_option_order', mock_submit):
+        with patch.object(options_broker, "submit_option_order", mock_submit):
             await options_broker.buy_put(
                 underlying="AAPL",
                 expiration=sample_expiration,
                 strike=140.0,
                 qty=1,
-                limit_price=3.50
+                limit_price=3.50,
             )
 
         mock_submit.assert_called_once()
@@ -608,13 +579,13 @@ class TestStrategyHelpers:
         """Test sell_covered_call helper."""
         mock_submit = AsyncMock(return_value={"id": "order-123"})
 
-        with patch.object(options_broker, 'submit_option_order', mock_submit):
+        with patch.object(options_broker, "submit_option_order", mock_submit):
             await options_broker.sell_covered_call(
                 underlying="AAPL",
                 expiration=sample_expiration,
                 strike=160.0,
                 qty=1,
-                limit_price=2.00
+                limit_price=2.00,
             )
 
         mock_submit.assert_called_once()
@@ -627,13 +598,13 @@ class TestStrategyHelpers:
         """Test sell_cash_secured_put helper."""
         mock_submit = AsyncMock(return_value={"id": "order-123"})
 
-        with patch.object(options_broker, 'submit_option_order', mock_submit):
+        with patch.object(options_broker, "submit_option_order", mock_submit):
             await options_broker.sell_cash_secured_put(
                 underlying="AAPL",
                 expiration=sample_expiration,
                 strike=140.0,
                 qty=1,
-                limit_price=3.00
+                limit_price=3.00,
             )
 
         mock_submit.assert_called_once()
@@ -646,17 +617,14 @@ class TestStrategyHelpers:
 # UTILITY METHOD TESTS
 # =============================================================================
 
+
 class TestUtilityMethods:
     """Test utility methods."""
 
     def test_calculate_max_loss_long_call(self, options_broker):
         """Test max loss for long call."""
         max_loss = options_broker.calculate_max_loss(
-            option_type=OptionType.CALL,
-            side="buy",
-            strike=150.0,
-            premium=5.00,
-            qty=1
+            option_type=OptionType.CALL, side="buy", strike=150.0, premium=5.00, qty=1
         )
         # Max loss = premium * 100 * qty
         assert max_loss == 500.0
@@ -664,33 +632,21 @@ class TestUtilityMethods:
     def test_calculate_max_loss_long_put(self, options_broker):
         """Test max loss for long put."""
         max_loss = options_broker.calculate_max_loss(
-            option_type=OptionType.PUT,
-            side="buy",
-            strike=140.0,
-            premium=3.00,
-            qty=2
+            option_type=OptionType.PUT, side="buy", strike=140.0, premium=3.00, qty=2
         )
         assert max_loss == 600.0  # 3.00 * 100 * 2
 
     def test_calculate_max_loss_short_call_unlimited(self, options_broker):
         """Test max loss for short call is unlimited."""
         max_loss = options_broker.calculate_max_loss(
-            option_type=OptionType.CALL,
-            side="sell",
-            strike=150.0,
-            premium=5.00,
-            qty=1
+            option_type=OptionType.CALL, side="sell", strike=150.0, premium=5.00, qty=1
         )
-        assert max_loss == float('inf')
+        assert max_loss == float("inf")
 
     def test_calculate_max_loss_short_put(self, options_broker):
         """Test max loss for short put."""
         max_loss = options_broker.calculate_max_loss(
-            option_type=OptionType.PUT,
-            side="sell",
-            strike=140.0,
-            premium=3.00,
-            qty=1
+            option_type=OptionType.PUT, side="sell", strike=140.0, premium=3.00, qty=1
         )
         # Max loss = (strike - premium) * 100
         assert max_loss == 13700.0  # (140 - 3) * 100
@@ -698,20 +654,14 @@ class TestUtilityMethods:
     def test_calculate_breakeven_long_call(self, options_broker):
         """Test breakeven for long call."""
         breakeven = options_broker.calculate_breakeven(
-            option_type=OptionType.CALL,
-            side="buy",
-            strike=150.0,
-            premium=5.00
+            option_type=OptionType.CALL, side="buy", strike=150.0, premium=5.00
         )
         assert breakeven == 155.0
 
     def test_calculate_breakeven_long_put(self, options_broker):
         """Test breakeven for long put."""
         breakeven = options_broker.calculate_breakeven(
-            option_type=OptionType.PUT,
-            side="buy",
-            strike=140.0,
-            premium=3.00
+            option_type=OptionType.PUT, side="buy", strike=140.0, premium=3.00
         )
         assert breakeven == 137.0
 
@@ -729,16 +679,13 @@ class TestUtilityMethods:
 # CONVENIENCE FUNCTION TESTS
 # =============================================================================
 
+
 class TestConvenienceFunctions:
     """Test module-level convenience functions."""
 
     def test_calculate_contract_value(self):
         """Test contract value calculation."""
-        result = calculate_contract_value(
-            strike=150.0,
-            premium=5.00,
-            qty=2
-        )
+        result = calculate_contract_value(strike=150.0, premium=5.00, qty=2)
 
         assert result["total_premium"] == 1000.0  # 5 * 100 * 2
         assert result["notional_value"] == 30000.0  # 150 * 100 * 2
@@ -792,6 +739,7 @@ class TestConvenienceFunctions:
 # POSITION MANAGEMENT TESTS (MOCKED)
 # =============================================================================
 
+
 class TestPositionManagement:
     """Test position management with mocks."""
 
@@ -815,7 +763,7 @@ class TestPositionManagement:
 
         mock_client.get_all_positions.return_value = [mock_stock_pos, mock_option_pos]
 
-        with patch.object(options_broker, '_get_trading_client', return_value=mock_client):
+        with patch.object(options_broker, "_get_trading_client", return_value=mock_client):
             positions = await options_broker.get_option_positions()
 
         # Should only return option positions
@@ -829,7 +777,7 @@ class TestPositionManagement:
         """Test canceling an option order."""
         mock_client = MagicMock()
 
-        with patch.object(options_broker, '_get_trading_client', return_value=mock_client):
+        with patch.object(options_broker, "_get_trading_client", return_value=mock_client):
             result = await options_broker.cancel_option_order("order-123")
 
         assert result is True
@@ -839,6 +787,7 @@ class TestPositionManagement:
 # =============================================================================
 # EDGE CASES AND ERROR HANDLING
 # =============================================================================
+
 
 class TestEdgeCases:
     """Test edge cases and error handling."""
@@ -850,7 +799,7 @@ class TestEdgeCases:
             underlying=" AAPL ",
             expiration=date(2025, 1, 20),
             option_type=OptionType.CALL,
-            strike=150.0
+            strike=150.0,
         )
         assert symbol.startswith("AAPL")
 
@@ -867,7 +816,7 @@ class TestEdgeCases:
             underlying="SNDL",
             expiration=date(2025, 1, 17),
             option_type=OptionType.CALL,
-            strike=0.50
+            strike=0.50,
         )
         assert "C00000500" in symbol
 
@@ -877,7 +826,7 @@ class TestEdgeCases:
             underlying="SPY",
             expiration=date(2025, 1, 17),
             option_type=OptionType.CALL,
-            strike=475.555  # Will round to 475.56 -> 475560
+            strike=475.555,  # Will round to 475.56 -> 475560
         )
         # Should round to nearest cent
         parsed = OptionsBroker.parse_occ_symbol(symbol)

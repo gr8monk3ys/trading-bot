@@ -174,9 +174,9 @@ class TestVWAPExecutorInit:
         # Opening should have high volume
         assert executor.DEFAULT_VOLUME_PROFILE.get("09:30", 0) > 0
         # Lunch should have low volume
-        assert executor.DEFAULT_VOLUME_PROFILE.get("12:00", 0) < executor.DEFAULT_VOLUME_PROFILE.get(
-            "09:30", 0
-        )
+        assert executor.DEFAULT_VOLUME_PROFILE.get(
+            "12:00", 0
+        ) < executor.DEFAULT_VOLUME_PROFILE.get("09:30", 0)
 
 
 # ============================================================================

@@ -14,10 +14,10 @@ Key Features:
 Expected Sharpe Ratio: 0.95-1.25 (research target)
 """
 
+import asyncio
 import logging
 import warnings
 from datetime import datetime
-import asyncio
 
 import numpy as np
 
@@ -662,6 +662,7 @@ class EnsembleStrategy(BaseStrategy):
 
     async def export_state(self) -> dict:
         """Export lightweight state for restart recovery."""
+
         def _dt(v):
             return v.isoformat() if hasattr(v, "isoformat") else v
 

@@ -479,12 +479,8 @@ class TestMomentumFactor:
 
     def test_momentum_custom_lookback(self, factor_calculator, sample_price_data):
         """Test momentum calculation with custom lookback period."""
-        results_12m = factor_calculator.calculate_momentum(
-            sample_price_data, lookback_months=12
-        )
-        results_6m = factor_calculator.calculate_momentum(
-            sample_price_data, lookback_months=6
-        )
+        results_12m = factor_calculator.calculate_momentum(sample_price_data, lookback_months=12)
+        results_6m = factor_calculator.calculate_momentum(sample_price_data, lookback_months=6)
 
         # Both should produce results
         assert len(results_12m) > 0
@@ -582,7 +578,7 @@ class TestValueFactor:
         for i in range(10):
             data[f"SYM{i:03d}"] = {
                 "pe_ratio": 15.0 if i > 0 else -10.0,  # First has negative P/E
-                "pb_ratio": 2.0 if i > 0 else 0.0,     # First has zero P/B
+                "pb_ratio": 2.0 if i > 0 else 0.0,  # First has zero P/B
                 "ev_ebitda": 10.0,
             }
 
@@ -636,7 +632,7 @@ class TestQualityFactor:
         for i in range(10):
             data[f"SYM{i:03d}"] = {
                 "roe": 0.05 + i * 0.03,  # Range from 0.05 to 0.32
-                "debt_to_equity": 0.5,    # Same for all
+                "debt_to_equity": 0.5,  # Same for all
                 "earnings_variability": 0.1,  # Same for all
             }
 
@@ -726,9 +722,7 @@ class TestLowVolatilityFactor:
         results_252 = factor_calculator.calculate_low_volatility(
             sample_price_data, lookback_days=252
         )
-        results_60 = factor_calculator.calculate_low_volatility(
-            sample_price_data, lookback_days=60
-        )
+        results_60 = factor_calculator.calculate_low_volatility(sample_price_data, lookback_days=60)
 
         # Both should produce results
         assert len(results_252) > 0
@@ -783,8 +777,8 @@ class TestSizeFactor:
     def test_size_small_cap_premium_default(self, lenient_calculator):
         """Test that smaller caps get higher scores by default (small cap premium)."""
         caps = {
-            "SMALL": 1e9,    # $1B
-            "MED": 50e9,     # $50B
+            "SMALL": 1e9,  # $1B
+            "MED": 50e9,  # $50B
             "LARGE": 500e9,  # $500B
         }
         # Add more to meet min universe
@@ -843,7 +837,9 @@ class TestSizeFactor:
 class TestCompositeScoreCalculation:
     """Tests for calculate_composite method."""
 
-    def test_composite_calculation(self, factor_calculator, sample_price_data, sample_fundamental_data, sample_market_caps):
+    def test_composite_calculation(
+        self, factor_calculator, sample_price_data, sample_fundamental_data, sample_market_caps
+    ):
         """Test composite score calculation with multiple factors."""
         # Calculate individual factors
         momentum = factor_calculator.calculate_momentum(sample_price_data)
@@ -928,9 +924,7 @@ class TestCompositeScoreCalculation:
     def test_composite_quintile_assignment(self, lenient_calculator):
         """Test quintile assignment logic."""
         # Create 20 symbols with z-scores from -2 to 2
-        factor_scores = {
-            FactorType.MOMENTUM: {}
-        }
+        factor_scores = {FactorType.MOMENTUM: {}}
         for i in range(20):
             z = -2.0 + i * 0.2  # Range from -2 to 1.8
             factor_scores[FactorType.MOMENTUM][f"SYM{i:03d}"] = FactorScore(
@@ -952,9 +946,7 @@ class TestCompositeScoreCalculation:
     def test_composite_signal_generation(self, lenient_calculator):
         """Test signal generation based on quintiles."""
         # Create clear long/short/neutral candidates
-        factor_scores = {
-            FactorType.MOMENTUM: {}
-        }
+        factor_scores = {FactorType.MOMENTUM: {}}
         for i in range(20):
             z = -2.0 + i * 0.2
             factor_scores[FactorType.MOMENTUM][f"SYM{i:03d}"] = FactorScore(
@@ -1039,7 +1031,14 @@ class TestFactorModel:
         assert model.factor_weights[FactorType.MOMENTUM] == 0.5
         assert model.factor_weights[FactorType.VALUE] == 0.5
 
-    def test_score_universe(self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data, sample_market_caps):
+    def test_score_universe(
+        self,
+        factor_model,
+        sample_symbols,
+        sample_price_data,
+        sample_fundamental_data,
+        sample_market_caps,
+    ):
         """Test score_universe method with all data types."""
         results = factor_model.score_universe(
             symbols=sample_symbols,
@@ -1063,7 +1062,9 @@ class TestFactorModel:
         # Should still produce results using momentum and low_vol
         assert len(results) > 0
 
-    def test_score_universe_insufficient_data(self, factor_model, sample_symbols, insufficient_price_data):
+    def test_score_universe_insufficient_data(
+        self, factor_model, sample_symbols, insufficient_price_data
+    ):
         """Test score_universe with insufficient price data."""
         results = factor_model.score_universe(
             symbols=sample_symbols,
@@ -1074,7 +1075,9 @@ class TestFactorModel:
         # This depends on which factors can be calculated
         assert isinstance(results, dict)
 
-    def test_get_portfolios(self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data):
+    def test_get_portfolios(
+        self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data
+    ):
         """Test get_portfolios method."""
         scores = factor_model.score_universe(
             symbols=sample_symbols,
@@ -1158,7 +1161,9 @@ class TestFactorModel:
         # Confidence should be capped at 1.0
         assert high_signal["confidence"] <= 1.0
 
-    def test_get_factor_exposures(self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data):
+    def test_get_factor_exposures(
+        self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data
+    ):
         """Test get_factor_exposures method."""
         scores = factor_model.score_universe(
             symbols=sample_symbols,
@@ -1189,9 +1194,7 @@ class TestFactorModel:
                 symbol="SYM001",
                 composite_z=1.0,
                 factor_scores={
-                    FactorType.MOMENTUM: FactorScore(
-                        "SYM001", FactorType.MOMENTUM, 0.1, 2.0, 90.0
-                    ),
+                    FactorType.MOMENTUM: FactorScore("SYM001", FactorType.MOMENTUM, 0.1, 2.0, 90.0),
                 },
                 quintile=5,
                 signal="long",
@@ -1331,7 +1334,14 @@ class TestEdgeCases:
 class TestIntegration:
     """Integration tests for the full factor model workflow."""
 
-    def test_full_workflow(self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data, sample_market_caps):
+    def test_full_workflow(
+        self,
+        factor_model,
+        sample_symbols,
+        sample_price_data,
+        sample_fundamental_data,
+        sample_market_caps,
+    ):
         """Test complete workflow from data to portfolio."""
         # Score universe
         scores = factor_model.score_universe(
@@ -1364,7 +1374,9 @@ class TestIntegration:
 
         assert isinstance(exposures, dict)
 
-    def test_rebalancing_simulation(self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data):
+    def test_rebalancing_simulation(
+        self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data
+    ):
         """Test simulated rebalancing with changing data."""
         # Initial scoring
         scores1 = factor_model.score_universe(

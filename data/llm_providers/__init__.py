@@ -10,8 +10,8 @@ Provides LLM-powered analysis of various text sources:
 
 from data.llm_providers.earnings_call_analyzer import EarningsCallAnalyzer
 from data.llm_providers.fed_speech_analyzer import FedSpeechAnalyzer
-from data.llm_providers.sec_filing_analyzer import SECFilingAnalyzer
 from data.llm_providers.news_theme_extractor import NewsThemeExtractor
+from data.llm_providers.sec_filing_analyzer import SECFilingAnalyzer
 
 __all__ = [
     "EarningsCallAnalyzer",

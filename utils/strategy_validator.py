@@ -177,9 +177,7 @@ class StrategyValidator:
 
             # 2. Check statistical significance
             logger.info("Step 2: Checking statistical significance...")
-            significance = metrics_calc.calculate_significance(
-                trades, min_trades=self.min_trades
-            )
+            significance = metrics_calc.calculate_significance(trades, min_trades=self.min_trades)
             result.significance_result = significance
             result.significance_score = self._calculate_significance_score(significance)
 
@@ -283,9 +281,7 @@ class StrategyValidator:
         # Sharpe ratio
         sharpe = metrics.get("sharpe_ratio", 0)
         if sharpe < self.min_sharpe:
-            result.blockers.append(
-                f"Sharpe ratio {sharpe:.2f} below minimum {self.min_sharpe}"
-            )
+            result.blockers.append(f"Sharpe ratio {sharpe:.2f} below minimum {self.min_sharpe}")
 
         # Max drawdown
         max_dd = metrics.get("max_drawdown", 1)
@@ -304,9 +300,7 @@ class StrategyValidator:
         # Total return (must be positive)
         total_return = metrics.get("total_return", 0)
         if total_return <= 0:
-            result.blockers.append(
-                f"Strategy is not profitable: {total_return:.1%} return"
-            )
+            result.blockers.append(f"Strategy is not profitable: {total_return:.1%} return")
 
         # Profit factor
         profit_factor = metrics.get("profit_factor", 0)
@@ -384,14 +378,10 @@ class StrategyValidator:
                     result.robustness_score = 80
                 elif any(r > 0 for r in returns):
                     result.robustness_score = 60
-                    result.warnings.append(
-                        "Strategy is not profitable in all tested periods"
-                    )
+                    result.warnings.append("Strategy is not profitable in all tested periods")
                 else:
                     result.robustness_score = 30
-                    result.blockers.append(
-                        "Strategy unprofitable in all tested periods"
-                    )
+                    result.blockers.append("Strategy unprofitable in all tested periods")
             else:
                 result.robustness_score = 50
 
@@ -439,9 +429,7 @@ class StrategyValidator:
             result.recommendations.append(
                 "Strategy passed validation. Safe to proceed with paper trading."
             )
-            result.recommendations.append(
-                "Monitor paper trading for 30+ days before live trading."
-            )
+            result.recommendations.append("Monitor paper trading for 30+ days before live trading.")
         else:
             if len(result.significance_result.get("warnings", [])) > 0:
                 result.recommendations.append(

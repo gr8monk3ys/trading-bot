@@ -15,13 +15,10 @@ Usage:
     signal = await analyzer.fetch_signal("AAPL")
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-
-import numpy as np
 
 from data.alt_data_types import (
     AltDataSource,

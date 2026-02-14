@@ -524,9 +524,7 @@ class TestWashSalePurchaseBlocking:
     def test_no_block_purchase_after_window(self, tracker_with_loss_sale):
         """Test allowing purchase after wash sale window."""
         future_date = datetime.now() + timedelta(days=20)
-        should_block, reason = tracker_with_loss_sale.block_wash_sale_purchase(
-            "AAPL", future_date
-        )
+        should_block, reason = tracker_with_loss_sale.block_wash_sale_purchase("AAPL", future_date)
 
         assert should_block is False
         assert "No wash sale risk" in reason

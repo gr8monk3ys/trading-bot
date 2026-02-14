@@ -142,7 +142,7 @@ class PortfolioOptimizer:
             div_ratio = (weights @ weighted_vols) / port_vol
 
             # Effective N
-            effective_n = 1 / np.sum(weights ** 2)
+            effective_n = 1 / np.sum(weights**2)
 
             return OptimizationResult(
                 weights=dict(zip(symbols, weights, strict=False)),
@@ -218,7 +218,7 @@ class PortfolioOptimizer:
             weighted_vols = np.sqrt(np.diag(cov_matrix)) * np.sqrt(252)
             div_ratio = (weights @ weighted_vols) / port_vol if port_vol > 0 else 1
 
-            effective_n = 1 / np.sum(weights ** 2)
+            effective_n = 1 / np.sum(weights**2)
 
             return OptimizationResult(
                 weights=dict(zip(symbols, weights, strict=False)),
@@ -289,7 +289,7 @@ class PortfolioOptimizer:
             weighted_vols = vols * np.sqrt(252)
             div_ratio = (weights @ weighted_vols) / port_vol if port_vol > 0 else 1
 
-            effective_n = 1 / np.sum(weights ** 2)
+            effective_n = 1 / np.sum(weights**2)
 
             return OptimizationResult(
                 weights=dict(zip(symbols, weights, strict=False)),
@@ -329,7 +329,7 @@ class PortfolioOptimizer:
                 if bars and len(bars) > 50:
                     prices = np.array([float(b.close) for b in bars])
                     rets = np.diff(np.log(prices))
-                    returns_data[symbol] = rets[-self.lookback_days:]
+                    returns_data[symbol] = rets[-self.lookback_days :]
 
             except Exception as e:
                 logger.debug(f"Error fetching data for {symbol}: {e}")
@@ -351,9 +351,7 @@ class PortfolioOptimizer:
 
         return expected_returns, cov_matrix
 
-    def _equal_weight_fallback(
-        self, symbols: List[str], method: str
-    ) -> OptimizationResult:
+    def _equal_weight_fallback(self, symbols: List[str], method: str) -> OptimizationResult:
         """Return equal-weight portfolio as fallback."""
         n = len(symbols)
         weights = dict.fromkeys(symbols, 1.0 / n)
@@ -395,9 +393,7 @@ class PortfolioOptimizer:
         trades = []
 
         # Calculate current weights
-        current_weights = {
-            s: v / total_value for s, v in current_positions.items()
-        }
+        current_weights = {s: v / total_value for s, v in current_positions.items()}
 
         for symbol, target_weight in target_weights.items():
             current_weight = current_weights.get(symbol, 0)
@@ -408,14 +404,16 @@ class PortfolioOptimizer:
 
             trade_value = weight_diff * total_value
 
-            trades.append({
-                "symbol": symbol,
-                "side": "buy" if trade_value > 0 else "sell",
-                "value": abs(trade_value),
-                "target_weight": target_weight,
-                "current_weight": current_weight,
-                "weight_change": weight_diff,
-            })
+            trades.append(
+                {
+                    "symbol": symbol,
+                    "side": "buy" if trade_value > 0 else "sell",
+                    "value": abs(trade_value),
+                    "target_weight": target_weight,
+                    "current_weight": current_weight,
+                    "weight_change": weight_diff,
+                }
+            )
 
         # Sort by absolute value (largest trades first)
         trades.sort(key=lambda x: x["value"], reverse=True)
@@ -463,22 +461,22 @@ class AlphaMonitor:
         timestamp: Optional[datetime] = None,
     ):
         """Record a completed trade for monitoring."""
-        self._trade_history.append({
-            "strategy": strategy_name,
-            "symbol": symbol,
-            "pnl": pnl,
-            "pnl_pct": pnl_pct,
-            "signal_strength": signal_strength,
-            "timestamp": timestamp or datetime.now(),
-        })
+        self._trade_history.append(
+            {
+                "strategy": strategy_name,
+                "symbol": symbol,
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+                "signal_strength": signal_strength,
+                "timestamp": timestamp or datetime.now(),
+            }
+        )
 
         # Keep only recent trades
         if len(self._trade_history) > self.lookback_trades * 2:
-            self._trade_history = self._trade_history[-self.lookback_trades:]
+            self._trade_history = self._trade_history[-self.lookback_trades :]
 
-    def check_alpha_decay(
-        self, strategy_name: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def check_alpha_decay(self, strategy_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Check for alpha decay in strategy performance.
 
@@ -497,7 +495,7 @@ class AlphaMonitor:
             }
 
         # Calculate rolling Sharpe
-        pnls = np.array([t["pnl_pct"] for t in trades[-self.lookback_trades:]])
+        pnls = np.array([t["pnl_pct"] for t in trades[-self.lookback_trades :]])
 
         if len(pnls) < 30:
             window = len(pnls) // 2
@@ -506,7 +504,7 @@ class AlphaMonitor:
 
         rolling_sharpe = []
         for i in range(window, len(pnls)):
-            period_pnls = pnls[i-window:i]
+            period_pnls = pnls[i - window : i]
             if np.std(period_pnls) > 0:
                 sharpe = np.mean(period_pnls) / np.std(period_pnls) * np.sqrt(252)
                 rolling_sharpe.append(sharpe)
@@ -574,9 +572,7 @@ class AlphaMonitor:
             "recommendation": self._get_recommendation(alert, alert_reasons),
         }
 
-    def _get_recommendation(
-        self, alert: bool, reasons: List[str]
-    ) -> str:
+    def _get_recommendation(self, alert: bool, reasons: List[str]) -> str:
         """Get recommendation based on alpha decay analysis."""
         if not alert:
             return "Strategy performing normally. Continue monitoring."
@@ -597,7 +593,7 @@ class AlphaMonitor:
         if len(self._trade_history) < 10:
             return {"message": "Insufficient trade history"}
 
-        trades = self._trade_history[-self.lookback_trades:]
+        trades = self._trade_history[-self.lookback_trades :]
         pnls = [t["pnl"] for t in trades]
         pnl_pcts = [t["pnl_pct"] for t in trades]
 
@@ -608,7 +604,9 @@ class AlphaMonitor:
             "win_rate": sum(1 for p in pnls if p > 0) / len(pnls),
             "avg_win": np.mean([p for p in pnls if p > 0]) if any(p > 0 for p in pnls) else 0,
             "avg_loss": np.mean([p for p in pnls if p < 0]) if any(p < 0 for p in pnls) else 0,
-            "sharpe": np.mean(pnl_pcts) / np.std(pnl_pcts) * np.sqrt(252) if np.std(pnl_pcts) > 0 else 0,
+            "sharpe": (
+                np.mean(pnl_pcts) / np.std(pnl_pcts) * np.sqrt(252) if np.std(pnl_pcts) > 0 else 0
+            ),
             "max_drawdown": self._calculate_max_drawdown(pnls),
             "alpha_decay_check": self.check_alpha_decay(),
         }

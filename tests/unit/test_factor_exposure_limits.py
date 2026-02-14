@@ -9,7 +9,6 @@ Tests:
 - Correlation cluster detection
 """
 
-
 import numpy as np
 import pytest
 
@@ -52,20 +51,46 @@ class TestFactorExposureLimiter:
         """Sample factor loadings for each symbol."""
         return {
             "momentum": {
-                "AAPL": 1.2, "MSFT": 1.1, "GOOGL": 0.9, "AMZN": 1.0, "NVDA": 1.5,
-                "JPM": 0.4, "BAC": 0.3, "XOM": -0.2, "CVX": -0.1, "JNJ": 0.2,
+                "AAPL": 1.2,
+                "MSFT": 1.1,
+                "GOOGL": 0.9,
+                "AMZN": 1.0,
+                "NVDA": 1.5,
+                "JPM": 0.4,
+                "BAC": 0.3,
+                "XOM": -0.2,
+                "CVX": -0.1,
+                "JNJ": 0.2,
             },
             "value": {
-                "AAPL": -0.3, "MSFT": -0.2, "GOOGL": -0.4, "AMZN": -0.5, "NVDA": -0.6,
-                "JPM": 0.8, "BAC": 0.9, "XOM": 1.0, "CVX": 0.9, "JNJ": 0.5,
+                "AAPL": -0.3,
+                "MSFT": -0.2,
+                "GOOGL": -0.4,
+                "AMZN": -0.5,
+                "NVDA": -0.6,
+                "JPM": 0.8,
+                "BAC": 0.9,
+                "XOM": 1.0,
+                "CVX": 0.9,
+                "JNJ": 0.5,
             },
             "size": {
-                "AAPL": 1.5, "MSFT": 1.4, "GOOGL": 1.3, "AMZN": 1.2, "NVDA": 0.8,
-                "JPM": 1.0, "BAC": 0.9, "XOM": 0.8, "CVX": 0.7, "JNJ": 0.9,
+                "AAPL": 1.5,
+                "MSFT": 1.4,
+                "GOOGL": 1.3,
+                "AMZN": 1.2,
+                "NVDA": 0.8,
+                "JPM": 1.0,
+                "BAC": 0.9,
+                "XOM": 0.8,
+                "CVX": 0.7,
+                "JNJ": 0.9,
             },
         }
 
-    def test_check_exposures_returns_result(self, limiter, sample_positions, sample_factor_loadings):
+    def test_check_exposures_returns_result(
+        self, limiter, sample_positions, sample_factor_loadings
+    ):
         """Test that check_exposures returns ExposureLimitResult."""
         result = limiter.check_exposures(
             positions=sample_positions,
@@ -119,10 +144,12 @@ class TestFactorExposureLimiter:
         }
 
         # Use covariance that amplifies the exposure
-        cov = np.array([
-            [0.10, 0.05],  # High momentum variance
-            [0.05, 0.02],  # Lower value variance
-        ])
+        cov = np.array(
+            [
+                [0.10, 0.05],  # High momentum variance
+                [0.05, 0.02],  # Lower value variance
+            ]
+        )
 
         result = limiter.check_exposures(
             positions=positions,
@@ -186,14 +213,18 @@ class TestFactorExposureLimiter:
         assert result.within_limits
         assert result.total_portfolio_risk == 0
 
-    def test_exposure_with_custom_covariance(self, limiter, sample_positions, sample_factor_loadings):
+    def test_exposure_with_custom_covariance(
+        self, limiter, sample_positions, sample_factor_loadings
+    ):
         """Test with custom factor covariance matrix."""
         # 3x3 covariance for 3 factors
-        cov = np.array([
-            [0.04, 0.01, 0.005],  # momentum
-            [0.01, 0.02, 0.002],  # value
-            [0.005, 0.002, 0.03], # size
-        ])
+        cov = np.array(
+            [
+                [0.04, 0.01, 0.005],  # momentum
+                [0.01, 0.02, 0.002],  # value
+                [0.005, 0.002, 0.03],  # size
+            ]
+        )
 
         result = limiter.check_exposures(
             positions=sample_positions,

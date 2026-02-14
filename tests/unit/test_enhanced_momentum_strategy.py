@@ -313,7 +313,7 @@ class TestTradeExecution:
                 "use_kelly_criterion": False,
                 "use_multi_timeframe": False,
                 "use_volatility_regime": False,
-            }
+            },
         )
         await strategy.initialize()
 
@@ -340,7 +340,7 @@ class TestTradeExecution:
                 "use_kelly_criterion": False,
                 "use_multi_timeframe": False,
                 "use_volatility_regime": False,
-            }
+            },
         )
         await strategy.initialize()
 
@@ -366,7 +366,7 @@ class TestTradeExecution:
                 "use_kelly_criterion": False,
                 "use_multi_timeframe": False,
                 "use_volatility_regime": False,
-            }
+            },
         )
         await strategy.initialize()
 
@@ -547,7 +547,7 @@ class TestATRStops:
                 "use_kelly_criterion": False,
                 "use_multi_timeframe": False,
                 "use_volatility_regime": False,
-            }
+            },
         )
         await strategy.initialize()
 

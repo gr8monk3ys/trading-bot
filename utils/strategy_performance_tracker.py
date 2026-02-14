@@ -134,9 +134,7 @@ class StrategyPerformanceTracker:
             f"correct={was_correct}, pnl=${pnl:.2f}"
         )
 
-    def get_strategy_performance(
-        self, strategy_name: str
-    ) -> Dict[str, float]:
+    def get_strategy_performance(self, strategy_name: str) -> Dict[str, float]:
         """
         Calculate performance metrics for a strategy.
 
@@ -221,9 +219,7 @@ class StrategyPerformanceTracker:
             "confidence_correlation": 0.5,
         }
 
-    def _calculate_confidence_correlation(
-        self, outcomes: List[SignalOutcome]
-    ) -> float:
+    def _calculate_confidence_correlation(self, outcomes: List[SignalOutcome]) -> float:
         """Calculate correlation between confidence and accuracy."""
         if len(outcomes) < 10:
             return 0.5
@@ -359,9 +355,7 @@ class StrategyPerformanceTracker:
                     report["strategies"].items(),
                     key=lambda x: x[1]["hit_rate"],
                 )[0],
-                "total_trades": sum(
-                    s["trade_count"] for s in report["strategies"].values()
-                ),
+                "total_trades": sum(s["trade_count"] for s in report["strategies"].values()),
             }
 
         return report

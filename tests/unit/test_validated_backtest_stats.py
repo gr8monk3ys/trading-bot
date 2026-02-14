@@ -36,9 +36,7 @@ def test_calculate_permutation_tests_fdr(monkeypatch):
 
         return _Res()
 
-    monkeypatch.setattr(
-        "engine.validated_backtest.permutation_test_returns", _fake_perm
-    )
+    monkeypatch.setattr("engine.validated_backtest.permutation_test_returns", _fake_perm)
     monkeypatch.setattr(
         "engine.validated_backtest.BACKTEST_PARAMS",
         {"MULTIPLE_TESTING_METHOD": "fdr", "PERMUTATION_P_THRESHOLD": 0.05},

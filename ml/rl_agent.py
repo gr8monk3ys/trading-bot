@@ -18,6 +18,7 @@ Usage:
     agent.store_experience(state, action, reward, next_state, done)
     loss = agent.train_step()
 """
+
 import logging
 import os
 import random
@@ -41,6 +42,7 @@ RISK_FREE_RATE_DAILY = 0.05 / 252  # 5% annual risk-free rate, daily
 @dataclass
 class RewardConfig:
     """Configuration for institutional-grade reward calculation."""
+
     spread_bps: float = DEFAULT_SPREAD_BPS
     market_impact_coeff: float = MARKET_IMPACT_COEFF
     avg_daily_volume: float = DEFAULT_AVG_DAILY_VOLUME
@@ -53,6 +55,7 @@ class RewardConfig:
 @dataclass
 class TradingAction:
     """Trading action constants."""
+
     HOLD: int = 0
     BUY: int = 1
     SELL: int = 2
@@ -66,6 +69,7 @@ class TradingAction:
 @dataclass
 class Experience:
     """Single experience tuple for replay buffer."""
+
     state: np.ndarray
     action: int
     reward: float
@@ -115,12 +119,7 @@ class DQNNetwork:
         hidden_sizes: List of hidden layer sizes
     """
 
-    def __init__(
-        self,
-        state_size: int,
-        action_size: int = 3,
-        hidden_sizes: List[int] = None
-    ):
+    def __init__(self, state_size: int, action_size: int = 3, hidden_sizes: List[int] = None):
         if hidden_sizes is None:
             hidden_sizes = [128, 64]
 
@@ -130,11 +129,7 @@ class DQNNetwork:
         prev_size = state_size
 
         for hidden_size in hidden_sizes:
-            layers.extend([
-                nn.Linear(prev_size, hidden_size),
-                nn.ReLU(),
-                nn.Dropout(0.2)
-            ])
+            layers.extend([nn.Linear(prev_size, hidden_size), nn.ReLU(), nn.Dropout(0.2)])
             prev_size = hidden_size
 
         layers.append(nn.Linear(prev_size, action_size))
@@ -206,7 +201,7 @@ class DQNAgent:
         buffer_size: int = 10000,
         target_update_freq: int = 100,
         use_gpu: bool = False,
-        model_dir: str = "models"
+        model_dir: str = "models",
     ):
         if hidden_sizes is None:
             hidden_sizes = [128, 64]
@@ -230,14 +225,10 @@ class DQNAgent:
         self.device = get_torch_device(use_gpu)
 
         # Policy network (online network)
-        self.policy_net = DQNNetwork(
-            state_size, action_size, hidden_sizes
-        ).model.to(self.device)
+        self.policy_net = DQNNetwork(state_size, action_size, hidden_sizes).model.to(self.device)
 
         # Target network (for stable Q-value estimates)
-        self.target_net = DQNNetwork(
-            state_size, action_size, hidden_sizes
-        ).model.to(self.device)
+        self.target_net = DQNNetwork(state_size, action_size, hidden_sizes).model.to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.requires_grad_(False)  # Target network is never trained directly
 
@@ -271,7 +262,7 @@ class DQNAgent:
         position: float,
         account_equity: float,
         indicators: Dict[str, float] = None,
-        unrealized_pnl: float = 0.0
+        unrealized_pnl: float = 0.0,
     ) -> np.ndarray:
         """
         Build state vector from market data.
@@ -293,8 +284,7 @@ class DQNAgent:
         """
         if len(prices) < 10:
             self.logger.warning(
-                f"Insufficient price data ({len(prices)} bars), "
-                "returning zero state"
+                f"Insufficient price data ({len(prices)} bars), " "returning zero state"
             )
             return np.zeros(self.state_size, dtype=np.float32)
 
@@ -309,8 +299,10 @@ class DQNAgent:
 
         # Price features (normalized returns) - 5 features
         returns = np.diff(closes) / np.where(closes[:-1] != 0, closes[:-1], 1)
-        recent_returns = returns[-5:] if len(returns) >= 5 else np.pad(
-            returns, (5 - len(returns), 0), constant_values=0
+        recent_returns = (
+            returns[-5:]
+            if len(returns) >= 5
+            else np.pad(returns, (5 - len(returns), 0), constant_values=0)
         )
 
         # Volume features (relative to average) - 5 features
@@ -341,14 +333,14 @@ class DQNAgent:
 
         # Build state vector
         state = [
-            *recent_returns,          # Recent returns (5)
-            *vol_ratio,               # Volume ratios (5)
-            volatility,               # Volatility (1)
-            trend,                    # Trend (1)
-            price_range,              # Price range position (1)
-            momentum,                 # Momentum (1)
-            position,                 # Current position (1)
-            unrealized_pnl,           # Unrealized P&L (1)
+            *recent_returns,  # Recent returns (5)
+            *vol_ratio,  # Volume ratios (5)
+            volatility,  # Volatility (1)
+            trend,  # Trend (1)
+            price_range,  # Price range position (1)
+            momentum,  # Momentum (1)
+            position,  # Current position (1)
+            unrealized_pnl,  # Unrealized P&L (1)
         ]
 
         # Add technical indicators if available
@@ -372,7 +364,7 @@ class DQNAgent:
             state.append(np.clip(atr_pct, 0, 0.5))
 
         # Pad or truncate to state_size
-        state = state[:self.state_size]
+        state = state[: self.state_size]
         while len(state) < self.state_size:
             state.append(0.0)
 
@@ -574,7 +566,7 @@ class DQNAgent:
             drawdown_pct = 0.0
 
         # Penalty scales with drawdown squared (more severe for larger drawdowns)
-        penalty = cfg.drawdown_penalty_coeff * (drawdown_pct ** 2)
+        penalty = cfg.drawdown_penalty_coeff * (drawdown_pct**2)
 
         # Cap the penalty
         penalty = min(penalty, cfg.max_drawdown_penalty)
@@ -713,7 +705,7 @@ class DQNAgent:
         price_change_pct: float,
         position: float,
         transaction_cost: float = 0.001,
-        holding_cost: float = 0.0001
+        holding_cost: float = 0.0001,
     ) -> float:
         """
         Simple reward calculation (legacy API for backwards compatibility).
@@ -739,12 +731,7 @@ class DQNAgent:
         )
 
     def store_experience(
-        self,
-        state: np.ndarray,
-        action: int,
-        reward: float,
-        next_state: np.ndarray,
-        done: bool
+        self, state: np.ndarray, action: int, reward: float, next_state: np.ndarray, done: bool
     ) -> None:
         """
         Store experience in replay buffer.
@@ -805,21 +792,11 @@ class DQNAgent:
         batch = self.replay_buffer.sample(self.batch_size)
 
         # Convert to tensors
-        states = torch.FloatTensor(
-            np.array([e.state for e in batch])
-        ).to(self.device)
-        actions = torch.LongTensor(
-            [e.action for e in batch]
-        ).to(self.device)
-        rewards = torch.FloatTensor(
-            [e.reward for e in batch]
-        ).to(self.device)
-        next_states = torch.FloatTensor(
-            np.array([e.next_state for e in batch])
-        ).to(self.device)
-        dones = torch.FloatTensor(
-            [1.0 if e.done else 0.0 for e in batch]
-        ).to(self.device)
+        states = torch.FloatTensor(np.array([e.state for e in batch])).to(self.device)
+        actions = torch.LongTensor([e.action for e in batch]).to(self.device)
+        rewards = torch.FloatTensor([e.reward for e in batch]).to(self.device)
+        next_states = torch.FloatTensor(np.array([e.next_state for e in batch])).to(self.device)
+        dones = torch.FloatTensor([1.0 if e.done else 0.0 for e in batch]).to(self.device)
 
         # Current Q-values: Q(s, a)
         current_q = self.policy_net(states).gather(1, actions.unsqueeze(1))
@@ -847,10 +824,7 @@ class DQNAgent:
             self.logger.debug(f"Updated target network at step {self.steps}")
 
         # Decay epsilon
-        self.epsilon = max(
-            self.epsilon_end,
-            self.epsilon * self.epsilon_decay
-        )
+        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
 
         return loss.item()
 
@@ -870,9 +844,8 @@ class DQNAgent:
         # Calculate episode return for reporting
         if self.episode_start_equity > 0:
             episode_return = (
-                (self.current_equity - self.episode_start_equity)
-                / self.episode_start_equity
-            )
+                self.current_equity - self.episode_start_equity
+            ) / self.episode_start_equity
         else:
             episode_return = 0.0
 
@@ -885,10 +858,7 @@ class DQNAgent:
         self.episode_rewards.append(episode_reward)
         self.total_reward = 0.0
 
-        avg_reward = (
-            np.mean(list(self.episode_rewards)[-100:])
-            if self.episode_rewards else 0.0
-        )
+        avg_reward = np.mean(list(self.episode_rewards)[-100:]) if self.episode_rewards else 0.0
 
         stats = {
             "episode": self.episodes,
@@ -899,7 +869,7 @@ class DQNAgent:
             "avg_reward_100": avg_reward,
             "epsilon": self.epsilon,
             "steps": self.steps,
-            "buffer_size": len(self.replay_buffer)
+            "buffer_size": len(self.replay_buffer),
         }
 
         # Reset equity tracking for next episode
@@ -946,12 +916,12 @@ class DQNAgent:
             "peak_equity": self.peak_equity,
             "current_drawdown": (
                 (self.peak_equity - self.current_equity) / self.peak_equity
-                if self.peak_equity > 0 else 0.0
+                if self.peak_equity > 0
+                else 0.0
             ),
             "avg_reward_100": (
-                np.mean(list(self.episode_rewards)[-100:])
-                if self.episode_rewards else 0.0
-            )
+                np.mean(list(self.episode_rewards)[-100:]) if self.episode_rewards else 0.0
+            ),
         }
 
     def save(self, filename: str = "dqn_agent.pt") -> str:
@@ -969,18 +939,21 @@ class DQNAgent:
         torch, _, _, _ = import_torch()
 
         path = os.path.join(self.model_dir, filename)
-        torch.save({
-            "policy_net": self.policy_net.state_dict(),
-            "target_net": self.target_net.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
-            "epsilon": self.epsilon,
-            "steps": self.steps,
-            "episodes": self.episodes,
-            "episode_rewards": self.episode_rewards,
-            "state_size": self.state_size,
-            "action_size": self.action_size,
-            "hidden_sizes": self.hidden_sizes,
-        }, path)
+        torch.save(
+            {
+                "policy_net": self.policy_net.state_dict(),
+                "target_net": self.target_net.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "epsilon": self.epsilon,
+                "steps": self.steps,
+                "episodes": self.episodes,
+                "episode_rewards": self.episode_rewards,
+                "state_size": self.state_size,
+                "action_size": self.action_size,
+                "hidden_sizes": self.hidden_sizes,
+            },
+            path,
+        )
 
         self.logger.info(f"Agent saved to {path}")
         return path
@@ -1029,8 +1002,7 @@ class DQNAgent:
             self.episode_rewards = deque(loaded_rewards, maxlen=1000)
 
             self.logger.info(
-                f"Agent loaded from {path} "
-                f"(episodes={self.episodes}, steps={self.steps})"
+                f"Agent loaded from {path} " f"(episodes={self.episodes}, steps={self.steps})"
             )
             return True
 
@@ -1083,9 +1055,7 @@ class DoubleDQNAgent(DQNAgent):
             # Select best action using policy network
             next_actions = self.policy_net(next_states).argmax(1)
             # Assess using target network
-            next_q = self.target_net(next_states).gather(
-                1, next_actions.unsqueeze(1)
-            ).squeeze()
+            next_q = self.target_net(next_states).gather(1, next_actions.unsqueeze(1)).squeeze()
             target_q = rewards + (1 - dones) * self.gamma * next_q
 
         return target_q

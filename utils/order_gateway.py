@@ -108,7 +108,7 @@ class OrderGateway:
         # This prevents any code from bypassing safety checks by calling
         # broker.submit_order_advanced() directly
         self._gateway_token = None
-        if enforce_gateway and hasattr(broker, 'enable_gateway_requirement'):
+        if enforce_gateway and hasattr(broker, "enable_gateway_requirement"):
             self._gateway_token = broker.enable_gateway_requirement()
             logger.info(
                 "🔒 OrderGateway initialized with mandatory routing - "
@@ -151,13 +151,9 @@ class OrderGateway:
         # Extract order details
         try:
             symbol = getattr(order_request, "symbol", None)
-            qty = getattr(order_request, "qty", None) or getattr(
-                order_request, "quantity", None
-            )
+            qty = getattr(order_request, "qty", None) or getattr(order_request, "quantity", None)
             side = getattr(order_request, "side", "buy")
-            client_order_id = str(
-                getattr(order_request, "client_order_id", "") or ""
-            ).strip()
+            client_order_id = str(getattr(order_request, "client_order_id", "") or "").strip()
             if hasattr(side, "value"):
                 side = side.value
         except Exception as e:
@@ -231,23 +227,30 @@ class OrderGateway:
             except TradingHaltedException as e:
                 # ATOMIC REJECTION: Circuit breaker raised exception
                 return self._reject_order(
-                    symbol, side, qty,
-                    f"Circuit breaker: {e.reason} ({e.loss_pct:.2%})"
-                    if e.loss_pct else f"Circuit breaker: {e.reason}",
+                    symbol,
+                    side,
+                    qty,
+                    (
+                        f"Circuit breaker: {e.reason} ({e.loss_pct:.2%})"
+                        if e.loss_pct
+                        else f"Circuit breaker: {e.reason}"
+                    ),
                     strategy_name=strategy_name,
                 )
             except Exception as e:
                 logger.error(f"Circuit breaker check failed: {e}")
                 # Fail-safe: reject order if circuit breaker check fails
                 return self._reject_order(
-                    symbol, side, qty, f"Circuit breaker check error: {e}", strategy_name=strategy_name
+                    symbol,
+                    side,
+                    qty,
+                    f"Circuit breaker check error: {e}",
+                    strategy_name=strategy_name,
                 )
 
         # 3. Position conflict check
         if self.position_manager and not is_exit_order:
-            is_available = await self.position_manager.is_position_available(
-                symbol, strategy_name
-            )
+            is_available = await self.position_manager.is_position_available(symbol, strategy_name)
             if not is_available:
                 return self._reject_order(
                     symbol,
@@ -317,9 +320,7 @@ class OrderGateway:
             if result is None:
                 # Order submission failed
                 if self.position_manager:
-                    await self.position_manager.release_reservation(
-                        symbol, strategy_name
-                    )
+                    await self.position_manager.release_reservation(symbol, strategy_name)
                 return self._reject_order(
                     symbol, side, qty, "Broker rejected order", strategy_name=strategy_name
                 )
@@ -365,9 +366,11 @@ class OrderGateway:
                     symbol=symbol,
                     side=side,
                     quantity=qty,
-                    price=float(result.filled_avg_price)
-                    if hasattr(result, "filled_avg_price")
-                    else None,
+                    price=(
+                        float(result.filled_avg_price)
+                        if hasattr(result, "filled_avg_price")
+                        else None
+                    ),
                     strategy_name=strategy_name,
                 )
 
@@ -377,9 +380,9 @@ class OrderGateway:
                 symbol=symbol,
                 side=side,
                 quantity=qty,
-                filled_price=float(result.filled_avg_price)
-                if hasattr(result, "filled_avg_price")
-                else None,
+                filled_price=(
+                    float(result.filled_avg_price) if hasattr(result, "filled_avg_price") else None
+                ),
             )
 
         except Exception as e:
@@ -468,15 +471,11 @@ class OrderGateway:
 
             if not position:
                 logger.warning(f"EXIT REJECTED: No position found for {symbol}")
-                return self._reject_order(
-                    symbol, side, quantity, "No position to exit"
-                )
+                return self._reject_order(symbol, side, quantity, "No position to exit")
 
             actual_qty = abs(float(position.qty))
             if quantity > actual_qty * 1.01:  # 1% tolerance for fractional shares
-                logger.warning(
-                    f"EXIT ADJUSTED: Requested {quantity} but only have {actual_qty}"
-                )
+                logger.warning(f"EXIT ADJUSTED: Requested {quantity} but only have {actual_qty}")
                 quantity = actual_qty
 
         except Exception as e:
@@ -533,10 +532,9 @@ class OrderGateway:
                 order_request = order_request.build()
 
             # Use internal method with gateway token if available
-            if self._gateway_token and hasattr(self.broker, '_internal_submit_order'):
+            if self._gateway_token and hasattr(self.broker, "_internal_submit_order"):
                 result = await self.broker._internal_submit_order(
-                    order_request,
-                    gateway_token=self._gateway_token
+                    order_request, gateway_token=self._gateway_token
                 )
             else:
                 # Fallback for brokers without gateway enforcement (e.g., BacktestBroker)
@@ -741,9 +739,7 @@ class OrderGateway:
 
         # Track rejection reasons
         reason_key = reason.split(":")[0]  # Get base reason
-        self._rejection_reasons[reason_key] = (
-            self._rejection_reasons.get(reason_key, 0) + 1
-        )
+        self._rejection_reasons[reason_key] = self._rejection_reasons.get(reason_key, 0) + 1
 
         logger.warning(f"ORDER REJECTED: {side.upper()} {quantity} {symbol} - {reason}")
         if self.audit_log:

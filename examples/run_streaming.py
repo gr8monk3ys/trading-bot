@@ -42,8 +42,7 @@ from config import SYMBOLS
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -59,7 +58,9 @@ class StreamingDemo:
     4. Integrate with trading strategies
     """
 
-    def __init__(self, symbols: list, subscribe_quotes: bool = False, subscribe_trades: bool = False):
+    def __init__(
+        self, symbols: list, subscribe_quotes: bool = False, subscribe_trades: bool = False
+    ):
         """
         Initialize the streaming demo.
 
@@ -177,7 +178,9 @@ class StreamingDemo:
         logger.info("Subscribe to bars: True")
         logger.info(f"Subscribe to quotes: {self.subscribe_quotes}")
         logger.info(f"Subscribe to trades: {self.subscribe_trades}")
-        logger.info(f"Duration: {duration} seconds" if duration else "Duration: Until interrupted (Ctrl+C)")
+        logger.info(
+            f"Duration: {duration} seconds" if duration else "Duration: Until interrupted (Ctrl+C)"
+        )
         logger.info("=" * 60)
 
         try:
@@ -198,7 +201,7 @@ class StreamingDemo:
                 symbols=self.symbols,
                 subscribe_bars=True,
                 subscribe_quotes=self.subscribe_quotes,
-                subscribe_trades=self.subscribe_trades
+                subscribe_trades=self.subscribe_trades,
             )
 
             if not connected:
@@ -274,30 +277,20 @@ class StreamingDemo:
 
 async def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Real-time streaming demo for Alpaca Trading Bot"
-    )
+    parser = argparse.ArgumentParser(description="Real-time streaming demo for Alpaca Trading Bot")
     parser.add_argument(
         "--symbols",
         type=str,
         default=None,
-        help="Comma-separated list of symbols (default: from config)"
+        help="Comma-separated list of symbols (default: from config)",
     )
-    parser.add_argument(
-        "--quotes",
-        action="store_true",
-        help="Subscribe to real-time quote data"
-    )
-    parser.add_argument(
-        "--trades",
-        action="store_true",
-        help="Subscribe to real-time trade data"
-    )
+    parser.add_argument("--quotes", action="store_true", help="Subscribe to real-time quote data")
+    parser.add_argument("--trades", action="store_true", help="Subscribe to real-time trade data")
     parser.add_argument(
         "--duration",
         type=int,
         default=None,
-        help="Duration to run in seconds (default: until Ctrl+C)"
+        help="Duration to run in seconds (default: until Ctrl+C)",
     )
 
     args = parser.parse_args()
@@ -310,9 +303,7 @@ async def main():
 
     # Create and run demo
     demo = StreamingDemo(
-        symbols=symbols,
-        subscribe_quotes=args.quotes,
-        subscribe_trades=args.trades
+        symbols=symbols, subscribe_quotes=args.quotes, subscribe_trades=args.trades
     )
 
     # Handle Ctrl+C gracefully

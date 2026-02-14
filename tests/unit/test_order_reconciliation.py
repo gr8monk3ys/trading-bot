@@ -88,9 +88,7 @@ async def test_open_order_partial_fill_updates_state_to_partial():
 @pytest.mark.asyncio
 async def test_terminal_internal_state_with_open_broker_order_emits_mismatch():
     broker = MagicMock()
-    broker.get_orders = AsyncMock(
-        return_value=[_make_order("ord-4", status="new", filled_qty="0")]
-    )
+    broker.get_orders = AsyncMock(return_value=[_make_order("ord-4", status="new", filled_qty="0")])
     audit_log = MagicMock()
 
     tracker = OrderLifecycleTracker()
@@ -107,9 +105,7 @@ async def test_terminal_internal_state_with_open_broker_order_emits_mismatch():
 @pytest.mark.asyncio
 async def test_status_regression_is_reported_as_transition_blocked():
     broker = MagicMock()
-    broker.get_orders = AsyncMock(
-        return_value=[_make_order("ord-5", status="new", filled_qty="0")]
-    )
+    broker.get_orders = AsyncMock(return_value=[_make_order("ord-5", status="new", filled_qty="0")])
     audit_log = MagicMock()
 
     tracker = OrderLifecycleTracker()
@@ -126,9 +122,7 @@ async def test_status_regression_is_reported_as_transition_blocked():
 @pytest.mark.asyncio
 async def test_recommends_halt_after_consecutive_mismatch_runs():
     broker = MagicMock()
-    broker.get_orders = AsyncMock(
-        return_value=[_make_order("ord-6", status="new", filled_qty="0")]
-    )
+    broker.get_orders = AsyncMock(return_value=[_make_order("ord-6", status="new", filled_qty="0")])
     audit_log = MagicMock()
 
     tracker = OrderLifecycleTracker()

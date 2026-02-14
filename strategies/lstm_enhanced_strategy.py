@@ -153,9 +153,7 @@ class LSTMEnhancedStrategy(MomentumStrategy):
         self._lstm_initialized = True
 
         ready_count = sum(1 for ready in self._lstm_ready.values() if ready)
-        logger.info(
-            f"LSTM initialization complete: {ready_count}/{len(self.symbols)} models ready"
-        )
+        logger.info(f"LSTM initialization complete: {ready_count}/{len(self.symbols)} models ready")
 
     async def _initialize_lstm_for_symbol(self, symbol: str) -> bool:
         """
@@ -228,9 +226,7 @@ class LSTMEnhancedStrategy(MomentumStrategy):
             self._lstm_ready[symbol] = False
             return False
 
-    async def _fetch_historical_data(
-        self, symbol: str, min_bars: int
-    ) -> Optional[List[dict]]:
+    async def _fetch_historical_data(self, symbol: str, min_bars: int) -> Optional[List[dict]]:
         """
         Fetch historical OHLCV data from broker.
 
@@ -293,13 +289,15 @@ class LSTMEnhancedStrategy(MomentumStrategy):
             # Approximate OHLC from close prices
             # This is not ideal but works for basic testing
             prev_close = price_list[i - 1] if i > 0 else close
-            ohlcv.append({
-                "open": prev_close,
-                "high": max(close, prev_close) * 1.001,  # Small buffer
-                "low": min(close, prev_close) * 0.999,
-                "close": close,
-                "volume": 1000000,  # Placeholder volume
-            })
+            ohlcv.append(
+                {
+                    "open": prev_close,
+                    "high": max(close, prev_close) * 1.001,  # Small buffer
+                    "low": min(close, prev_close) * 0.999,
+                    "close": close,
+                    "volume": 1000000,  # Placeholder volume
+                }
+            )
         return ohlcv
 
     async def analyze_symbol(self, symbol: str) -> str:
@@ -392,21 +390,21 @@ class LSTMEnhancedStrategy(MomentumStrategy):
 
             df = self.current_data[symbol]
             if len(df) < self.lstm.sequence_length:
-                logger.debug(
-                    f"Insufficient data for LSTM: {len(df)} < {self.lstm.sequence_length}"
-                )
+                logger.debug(f"Insufficient data for LSTM: {len(df)} < {self.lstm.sequence_length}")
                 return None
 
             # Convert DataFrame to OHLCV list
             recent_bars = []
             for _, row in df.tail(self.lstm.sequence_length).iterrows():
-                recent_bars.append({
-                    "open": float(row.get("open", row.get("close", 0))),
-                    "high": float(row.get("high", row.get("close", 0))),
-                    "low": float(row.get("low", row.get("close", 0))),
-                    "close": float(row["close"]),
-                    "volume": float(row.get("volume", 1000000)),
-                })
+                recent_bars.append(
+                    {
+                        "open": float(row.get("open", row.get("close", 0))),
+                        "high": float(row.get("high", row.get("close", 0))),
+                        "low": float(row.get("low", row.get("close", 0))),
+                        "close": float(row["close"]),
+                        "volume": float(row.get("volume", 1000000)),
+                    }
+                )
 
             # Get prediction
             prediction = self.lstm.predict(symbol, recent_bars)
@@ -420,9 +418,7 @@ class LSTMEnhancedStrategy(MomentumStrategy):
             logger.error(f"Error getting LSTM prediction for {symbol}: {e}")
             return None
 
-    def _check_confirmation(
-        self, momentum_signal: str, prediction: PredictionResult
-    ) -> bool:
+    def _check_confirmation(self, momentum_signal: str, prediction: PredictionResult) -> bool:
         """
         Check if LSTM prediction confirms momentum signal.
 

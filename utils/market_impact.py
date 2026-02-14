@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 
 class MarketCondition(Enum):
     """Market microstructure conditions affecting impact."""
+
     NORMAL = "normal"
     HIGH_VOLATILITY = "high_volatility"  # VIX > 25
     LOW_LIQUIDITY = "low_liquidity"  # Volume < 50% of average
@@ -118,9 +119,9 @@ class AlmgrenChrissModel:
     # Large cap (>$10B market cap)
     LARGE_CAP_PARAMS = {
         "gamma": 0.314,  # Permanent impact coefficient
-        "eta": 0.142,    # Temporary impact coefficient
+        "eta": 0.142,  # Temporary impact coefficient
         "alpha": 0.891,  # Permanent impact exponent
-        "beta": 0.600,   # Temporary impact exponent
+        "beta": 0.600,  # Temporary impact exponent
         "spread_bps": 3.0,  # Typical spread for large caps
     }
 
@@ -144,7 +145,7 @@ class AlmgrenChrissModel:
 
     # Time-of-day adjustments (market microstructure)
     TIME_ADJUSTMENTS = {
-        MarketCondition.MARKET_OPEN: 1.5,   # 50% higher impact at open
+        MarketCondition.MARKET_OPEN: 1.5,  # 50% higher impact at open
         MarketCondition.MARKET_CLOSE: 1.3,  # 30% higher at close
         MarketCondition.HIGH_VOLATILITY: 1.4,
         MarketCondition.LOW_LIQUIDITY: 2.0,  # Double impact in low liquidity
@@ -221,20 +222,20 @@ class AlmgrenChrissModel:
         # Permanent impact: γ * σ * (v/V)^α
         # Represents information revealed by trading
         permanent_impact = (
-            params["gamma"] *
-            daily_vol *
-            (participation ** params["alpha"]) *
-            10000  # Convert to basis points
+            params["gamma"]
+            * daily_vol
+            * (participation ** params["alpha"])
+            * 10000  # Convert to basis points
         )
 
         # Temporary impact: η * σ * (v/(V*T))^β
         # Represents liquidity demand premium
         execution_rate = participation / execution_fraction
         temporary_impact = (
-            params["eta"] *
-            daily_vol *
-            (execution_rate ** params["beta"]) *
-            10000  # Convert to basis points
+            params["eta"]
+            * daily_vol
+            * (execution_rate ** params["beta"])
+            * 10000  # Convert to basis points
         )
 
         # Spread cost
@@ -249,11 +250,7 @@ class AlmgrenChrissModel:
         total_impact_bps = permanent_impact + temporary_impact + spread_bps / 2
 
         # Apply floors and caps
-        total_impact_bps = np.clip(
-            total_impact_bps,
-            self.min_impact_bps,
-            self.max_impact_bps
-        )
+        total_impact_bps = np.clip(total_impact_bps, self.min_impact_bps, self.max_impact_bps)
 
         # Calculate dollar amounts
         permanent_usd = order_value * permanent_impact / 10000
@@ -376,16 +373,16 @@ class VolumeCurveModel:
     # Typical US equity intraday volume profile (cumulative %)
     # Indexed by 30-minute intervals from 9:30
     VOLUME_PROFILE = {
-        0: 0.12,   # 9:30-10:00
-        1: 0.08,   # 10:00-10:30
-        2: 0.06,   # 10:30-11:00
-        3: 0.06,   # 11:00-11:30
-        4: 0.05,   # 11:30-12:00
-        5: 0.05,   # 12:00-12:30
-        6: 0.05,   # 12:30-13:00
-        7: 0.05,   # 13:00-13:30
-        8: 0.06,   # 13:30-14:00
-        9: 0.07,   # 14:00-14:30
+        0: 0.12,  # 9:30-10:00
+        1: 0.08,  # 10:00-10:30
+        2: 0.06,  # 10:30-11:00
+        3: 0.06,  # 11:00-11:30
+        4: 0.05,  # 11:30-12:00
+        5: 0.05,  # 12:00-12:30
+        6: 0.05,  # 12:30-13:00
+        7: 0.05,  # 13:00-13:30
+        8: 0.06,  # 13:30-14:00
+        9: 0.07,  # 14:00-14:30
         10: 0.08,  # 14:30-15:00
         11: 0.10,  # 15:00-15:30
         12: 0.17,  # 15:30-16:00

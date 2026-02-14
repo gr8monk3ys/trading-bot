@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 class OrthogonalizationMethod(Enum):
     """Methods for factor orthogonalization."""
+
     PCA = "pca"  # Principal Component Analysis
     GRAM_SCHMIDT = "gram_schmidt"  # Sequential orthogonalization
     SYMMETRIC = "symmetric"  # Symmetric orthogonalization (preserves scale)
@@ -90,7 +91,7 @@ class RiskParityWeights:
         if total == 0:
             return 0.0
         normalized = [c / total for c in contribs]
-        return sum(c ** 2 for c in normalized) - (1.0 / len(contribs))
+        return sum(c**2 for c in normalized) - (1.0 / len(contribs))
 
 
 class FactorOrthogonalizer:
@@ -209,8 +210,7 @@ class FactorOrthogonalizer:
         for j, factor_name in enumerate(self.factor_names):
             ortho_name = f"{factor_name}_ortho"
             ortho_scores[ortho_name] = {
-                valid_symbols[i]: float(orthogonal[i, j])
-                for i in range(len(valid_symbols))
+                valid_symbols[i]: float(orthogonal[i, j]) for i in range(len(valid_symbols))
             }
 
         result = OrthogonalizedFactors(
@@ -231,9 +231,7 @@ class FactorOrthogonalizer:
 
         return result
 
-    def _pca_orthogonalize(
-        self, matrix: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, List[float]]:
+    def _pca_orthogonalize(self, matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray, List[float]]:
         """
         PCA orthogonalization.
 
@@ -283,9 +281,8 @@ class FactorOrthogonalizer:
             # Subtract projections onto previous orthogonal factors
             for k in range(j):
                 if np.linalg.norm(orthogonal[:, k]) > 0:
-                    proj_coef = (
-                        np.dot(orthogonal[:, j], orthogonal[:, k]) /
-                        np.dot(orthogonal[:, k], orthogonal[:, k])
+                    proj_coef = np.dot(orthogonal[:, j], orthogonal[:, k]) / np.dot(
+                        orthogonal[:, k], orthogonal[:, k]
                     )
                     orthogonal[:, j] -= proj_coef * orthogonal[:, k]
                     transform[k, j] = -proj_coef
@@ -467,20 +464,11 @@ class RiskParityWeighter:
         risk_contrib = weights * marginal_contrib
 
         # Build result
-        weight_dict = {
-            self.factor_names[i]: float(weights[i])
-            for i in range(n_factors)
-        }
+        weight_dict = {self.factor_names[i]: float(weights[i]) for i in range(n_factors)}
 
-        risk_dict = {
-            self.factor_names[i]: float(risk_contrib[i])
-            for i in range(n_factors)
-        }
+        risk_dict = {self.factor_names[i]: float(risk_contrib[i]) for i in range(n_factors)}
 
-        vol_dict = {
-            self.factor_names[i]: float(vols[i])
-            for i in range(n_factors)
-        }
+        vol_dict = {self.factor_names[i]: float(vols[i]) for i in range(n_factors)}
 
         rp_result = RiskParityWeights(
             factor_weights=weight_dict,
@@ -576,7 +564,9 @@ class AdaptiveFactorWeighter:
 
                 # Blend: (1 - blend) * risk_parity + blend * ic_adjusted
                 ic_adjusted = rp_weight * ic_mult
-                blended = (1 - self.IC_BLEND_WEIGHT) * rp_weight + self.IC_BLEND_WEIGHT * ic_adjusted
+                blended = (
+                    1 - self.IC_BLEND_WEIGHT
+                ) * rp_weight + self.IC_BLEND_WEIGHT * ic_adjusted
                 final_weights[factor] = blended
 
             # Renormalize

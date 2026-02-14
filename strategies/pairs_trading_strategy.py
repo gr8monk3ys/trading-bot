@@ -757,6 +757,7 @@ class PairsTradingStrategy(BaseStrategy):
 
     async def export_state(self) -> dict:
         """Export pair positions for restart recovery."""
+
         def _dt(v):
             return v.isoformat() if hasattr(v, "isoformat") else v
 

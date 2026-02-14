@@ -50,12 +50,14 @@ def sample_bars():
         high = price + abs(np.random.randn())
         low = price - abs(np.random.randn())
         close = price + change
-        bars.append({
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": 1000000,
-        })
+        bars.append(
+            {
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": 1000000,
+            }
+        )
         price = close
 
     return bars
@@ -71,12 +73,14 @@ def trending_up_bars():
         high = price + 1.5
         low = price - 0.5
         close = price + 1.0  # Consistent uptrend
-        bars.append({
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": 1000000,
-        })
+        bars.append(
+            {
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": 1000000,
+            }
+        )
         price = close
 
     return bars
@@ -92,12 +96,14 @@ def trending_down_bars():
         high = price + 0.5
         low = price - 1.5
         close = price - 1.0  # Consistent downtrend
-        bars.append({
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": 1000000,
-        })
+        bars.append(
+            {
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": 1000000,
+            }
+        )
         price = close
 
     return bars
@@ -120,12 +126,14 @@ def oscillating_bars():
 
         high = price + 0.5
         low = price - 0.5
-        bars.append({
-            "high": high,
-            "low": low,
-            "close": price,
-            "volume": 1000000,
-        })
+        bars.append(
+            {
+                "high": high,
+                "low": low,
+                "close": price,
+                "volume": 1000000,
+            }
+        )
 
     return bars
 
@@ -185,8 +193,29 @@ class TestFindSwingHighs:
     def test_find_swing_highs_multiple(self, analyzer):
         """Test finding multiple swing highs."""
         # Two swing highs at positions 5 and 15
-        highs = [100, 102, 104, 106, 108, 110, 108, 106, 104, 102,
-                 104, 106, 108, 110, 112, 115, 112, 110, 108, 106, 100]
+        highs = [
+            100,
+            102,
+            104,
+            106,
+            108,
+            110,
+            108,
+            106,
+            104,
+            102,
+            104,
+            106,
+            108,
+            110,
+            112,
+            115,
+            112,
+            110,
+            108,
+            106,
+            100,
+        ]
         swing_highs = analyzer.find_swing_highs(highs)
 
         assert len(swing_highs) == 2
@@ -232,8 +261,29 @@ class TestFindSwingLows:
 
     def test_find_swing_lows_multiple(self, analyzer):
         """Test finding multiple swing lows."""
-        lows = [100, 98, 96, 94, 92, 90, 92, 94, 96, 98,
-                96, 94, 92, 90, 88, 85, 88, 90, 92, 94, 100]
+        lows = [
+            100,
+            98,
+            96,
+            94,
+            92,
+            90,
+            92,
+            94,
+            96,
+            98,
+            96,
+            94,
+            92,
+            90,
+            88,
+            85,
+            88,
+            90,
+            92,
+            94,
+            100,
+        ]
         swing_lows = analyzer.find_swing_lows(lows)
 
         assert len(swing_lows) == 2
@@ -462,10 +512,17 @@ class TestFindLevels:
         levels = analyzer.find_levels(sample_bars)
 
         expected_keys = {
-            "current_price", "nearest_resistance", "nearest_support",
-            "resistance_levels", "support_levels", "pivot_points",
-            "recent_high", "recent_low", "resistance_distance_pct",
-            "support_distance_pct", "risk_reward"
+            "current_price",
+            "nearest_resistance",
+            "nearest_support",
+            "resistance_levels",
+            "support_levels",
+            "pivot_points",
+            "recent_high",
+            "recent_low",
+            "resistance_distance_pct",
+            "support_distance_pct",
+            "risk_reward",
         }
         assert set(levels.keys()) == expected_keys
 
@@ -962,10 +1019,7 @@ class TestIntegration:
 
     def test_missing_volume_data(self, analyzer):
         """Test handling of bars without volume data."""
-        bars = [
-            {"high": 100 + i, "low": 99 + i, "close": 99.5 + i}
-            for i in range(30)
-        ]
+        bars = [{"high": 100 + i, "low": 99 + i, "close": 99.5 + i} for i in range(30)]
 
         # Should work without volume data
         levels = analyzer.find_levels(bars)
@@ -983,7 +1037,12 @@ class TestEdgeCases:
     def test_very_low_price_stock(self, analyzer):
         """Test with penny stock prices."""
         bars = [
-            {"high": 0.5 + i * 0.01, "low": 0.4 + i * 0.01, "close": 0.45 + i * 0.01, "volume": 1000}
+            {
+                "high": 0.5 + i * 0.01,
+                "low": 0.4 + i * 0.01,
+                "close": 0.45 + i * 0.01,
+                "volume": 1000,
+            }
             for i in range(30)
         ]
 
@@ -1006,10 +1065,7 @@ class TestEdgeCases:
 
     def test_identical_prices(self, analyzer):
         """Test with all identical prices."""
-        bars = [
-            {"high": 100, "low": 100, "close": 100, "volume": 1000}
-            for _ in range(30)
-        ]
+        bars = [{"high": 100, "low": 100, "close": 100, "volume": 1000} for _ in range(30)]
 
         levels = analyzer.find_levels(bars, current_price=100)
         # Should not crash, may use fallbacks
@@ -1023,7 +1079,7 @@ class TestEdgeCases:
                 "high": 100 + np.random.uniform(0, 50),
                 "low": 100 - np.random.uniform(0, 50),
                 "close": 100 + np.random.uniform(-25, 25),
-                "volume": 1000
+                "volume": 1000,
             }
             for _ in range(30)
         ]
@@ -1035,8 +1091,7 @@ class TestEdgeCases:
         """Test with lookback larger than data."""
         analyzer = SupportResistanceAnalyzer(swing_lookback=50)
         bars = [
-            {"high": 100 + i, "low": 99 + i, "close": 99.5 + i, "volume": 1000}
-            for i in range(30)
+            {"high": 100 + i, "low": 99 + i, "close": 99.5 + i, "volume": 1000} for i in range(30)
         ]
 
         # With lookback=50 and 30 bars, no swings can be found

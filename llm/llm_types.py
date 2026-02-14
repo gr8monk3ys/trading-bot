@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 class LLMProvider(Enum):
     """Supported LLM providers."""
+
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
 
@@ -251,7 +252,7 @@ class NewsThemeAnalysis(LLMAnalysisResult):
 # Cost per million tokens (as of 2024)
 LLM_COSTS = {
     "gpt-4o": {
-        "input": 2.50,   # $2.50 per 1M input tokens
+        "input": 2.50,  # $2.50 per 1M input tokens
         "output": 10.00,  # $10.00 per 1M output tokens
     },
     "gpt-4-turbo": {

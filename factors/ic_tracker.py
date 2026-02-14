@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ICDataPoint:
     """Single IC observation."""
+
     date: datetime
     factor_name: str
     ic: float  # Spearman rank correlation
@@ -53,6 +54,7 @@ class ICDataPoint:
 @dataclass
 class FactorICMetrics:
     """Aggregated IC metrics for a single factor."""
+
     factor_name: str
     mean_ic: float
     std_ic: float
@@ -70,6 +72,7 @@ class FactorICMetrics:
 @dataclass
 class ICReport:
     """Comprehensive IC report for all factors."""
+
     report_date: datetime
     forward_days: int
     total_observations: int
@@ -90,10 +93,10 @@ class ICTracker:
     """
 
     # IC thresholds
-    IC_SIGNIFICANT = 0.03      # Minimum meaningful IC
-    IC_STRONG = 0.07          # Strong predictive power
-    IC_IR_GOOD = 0.5          # Good information ratio
-    DECAY_THRESHOLD = 0.5     # IC decay warning threshold
+    IC_SIGNIFICANT = 0.03  # Minimum meaningful IC
+    IC_STRONG = 0.07  # Strong predictive power
+    IC_IR_GOOD = 0.5  # Good information ratio
+    DECAY_THRESHOLD = 0.5  # IC decay warning threshold
 
     def __init__(
         self,
@@ -146,7 +149,7 @@ class ICTracker:
             date: Date of the scores
             factor_scores: {factor_name: {symbol: score}}
         """
-        date_key = date.date() if hasattr(date, 'date') else date
+        date_key = date.date() if hasattr(date, "date") else date
 
         for factor_name, symbol_scores in factor_scores.items():
             for symbol, score in symbol_scores.items():
@@ -156,9 +159,7 @@ class ICTracker:
             self._score_dates.append(date_key)
             self._score_dates.sort()
 
-        logger.debug(
-            f"Recorded scores for {len(factor_scores)} factors on {date_key}"
-        )
+        logger.debug(f"Recorded scores for {len(factor_scores)} factors on {date_key}")
 
     def record_returns(
         self,
@@ -172,7 +173,7 @@ class ICTracker:
             date: Date of the returns
             symbol_returns: {symbol: return}
         """
-        date_key = date.date() if hasattr(date, 'date') else date
+        date_key = date.date() if hasattr(date, "date") else date
 
         for symbol, ret in symbol_returns.items():
             self._returns[date_key][symbol] = ret
@@ -184,9 +185,7 @@ class ICTracker:
         # Try to calculate IC for dates that now have forward returns
         self._calculate_pending_ic()
 
-        logger.debug(
-            f"Recorded returns for {len(symbol_returns)} symbols on {date_key}"
-        )
+        logger.debug(f"Recorded returns for {len(symbol_returns)} symbols on {date_key}")
 
     def _calculate_pending_ic(self):
         """Calculate IC for score dates that now have matching return dates."""
@@ -262,8 +261,9 @@ class ICTracker:
 
             # Keep only rolling_window observations
             if len(self._ic_history[factor_name]) > self.rolling_window * 2:
-                self._ic_history[factor_name] = \
-                    self._ic_history[factor_name][-self.rolling_window:]
+                self._ic_history[factor_name] = self._ic_history[factor_name][
+                    -self.rolling_window :
+                ]
 
         except Exception as e:
             logger.debug(f"Error calculating IC for {factor_name}: {e}")
@@ -284,7 +284,7 @@ class ICTracker:
             return None
 
         # Use most recent rolling_window observations
-        recent = history[-self.rolling_window:]
+        recent = history[-self.rolling_window :]
         ic_values = [dp.ic for dp in recent]
 
         # Calculate metrics
@@ -306,8 +306,12 @@ class ICTracker:
         recent_ic = np.mean(recent_5)
 
         # Is factor decaying?
-        historical_ic = np.mean(ic_values[:len(ic_values)//2]) if len(ic_values) >= 10 else mean_ic
-        is_decaying = recent_ic < historical_ic * self.DECAY_THRESHOLD if historical_ic > 0 else False
+        historical_ic = (
+            np.mean(ic_values[: len(ic_values) // 2]) if len(ic_values) >= 10 else mean_ic
+        )
+        is_decaying = (
+            recent_ic < historical_ic * self.DECAY_THRESHOLD if historical_ic > 0 else False
+        )
 
         # Is IC significant?
         is_significant = p_value < 0.05 and abs(mean_ic) > self.IC_SIGNIFICANT
@@ -364,23 +368,21 @@ class ICTracker:
             )
 
         # Find best and worst factors
-        sorted_factors = sorted(
-            factor_metrics.items(),
-            key=lambda x: x[1].mean_ic,
-            reverse=True
-        )
+        sorted_factors = sorted(factor_metrics.items(), key=lambda x: x[1].mean_ic, reverse=True)
 
         best_factor = sorted_factors[0][0] if sorted_factors else None
         worst_factor = sorted_factors[-1][0] if sorted_factors else None
 
         # Factors to adjust
         factors_to_reduce = [
-            f for f, m in factor_metrics.items()
+            f
+            for f, m in factor_metrics.items()
             if m.is_decaying or m.mean_ic < 0 or not m.is_significant
         ]
 
         factors_to_increase = [
-            f for f, m in factor_metrics.items()
+            f
+            for f, m in factor_metrics.items()
             if m.mean_ic > self.IC_STRONG and not m.is_decaying and m.ic_ir > self.IC_IR_GOOD
         ]
 
@@ -433,7 +435,7 @@ class ICTracker:
 
         result = []
         for i in range(window, len(history) + 1):
-            window_data = history[i-window:i]
+            window_data = history[i - window : i]
             rolling_ic = np.mean([dp.ic for dp in window_data])
             result.append((window_data[-1].date, rolling_ic))
 
@@ -462,11 +464,7 @@ def format_ic_report(report: ICReport) -> str:
         "-" * 70,
     ]
 
-    for name, m in sorted(
-        report.factor_metrics.items(),
-        key=lambda x: x[1].mean_ic,
-        reverse=True
-    ):
+    for name, m in sorted(report.factor_metrics.items(), key=lambda x: x[1].mean_ic, reverse=True):
         status = []
         if m.is_decaying:
             status.append("DECAY")
@@ -560,9 +558,7 @@ class FactorWeightOptimizer:
         # Normalize weights to sum to 1
         total = sum(self.current_weights.values())
         if total > 0:
-            self.current_weights = {
-                k: v / total for k, v in self.current_weights.items()
-            }
+            self.current_weights = {k: v / total for k, v in self.current_weights.items()}
 
         logger.info(
             f"Updated factor weights based on IC: "

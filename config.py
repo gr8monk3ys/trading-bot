@@ -148,10 +148,7 @@ def _validate_config():
             f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_WARNING']}"
         )
 
-    if (
-        RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"]
-        > RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"]
-    ):
+    if RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] > RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"]:
         errors.append(
             "PAPER_LIVE_SHADOW_DRIFT_WARNING must be <= PAPER_LIVE_SHADOW_DRIFT_MAX, got "
             f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_WARNING']} > "
@@ -273,6 +270,7 @@ def require_alpaca_credentials(context: str = "trading") -> dict[str, str | bool
         f"{context}."
     )
 
+
 # Trading symbols - Default list (used if dynamic selection is disabled)
 SYMBOLS = [
     "AAPL",  # Apple
@@ -285,20 +283,20 @@ SYMBOLS = [
 # Cryptocurrency pairs - Supported for 24/7 trading
 # These can be used in addition to or instead of stock symbols
 CRYPTO_SYMBOLS = [
-    "BTC/USD",   # Bitcoin
-    "ETH/USD",   # Ethereum
-    "SOL/USD",   # Solana
+    "BTC/USD",  # Bitcoin
+    "ETH/USD",  # Ethereum
+    "SOL/USD",  # Solana
     "AVAX/USD",  # Avalanche
     "DOGE/USD",  # Dogecoin
     "SHIB/USD",  # Shiba Inu
-    "LTC/USD",   # Litecoin
-    "BCH/USD",   # Bitcoin Cash
+    "LTC/USD",  # Litecoin
+    "BCH/USD",  # Bitcoin Cash
     "LINK/USD",  # Chainlink
-    "UNI/USD",   # Uniswap
+    "UNI/USD",  # Uniswap
     "AAVE/USD",  # Aave
-    "DOT/USD",   # Polkadot
-    "MATIC/USD", # Polygon
-    "XLM/USD",   # Stellar
+    "DOT/USD",  # Polkadot
+    "MATIC/USD",  # Polygon
+    "XLM/USD",  # Stellar
     "ATOM/USD",  # Cosmos
 ]
 
@@ -402,25 +400,19 @@ RISK_PARAMS = {
     "DATA_QUALITY_MAX_STALE_WARNINGS": 0,  # Maximum stale data warnings before halting new entries
     "DATA_QUALITY_STALE_AFTER_DAYS": 3,  # Data freshness threshold for live/paper quality gates
     # Factor-data provenance gates (prevents synthetic fundamentals from driving paper/live decisions)
-    "FACTOR_DATA_MAX_SYNTHETIC_RATIO": _parse_float_env(
-        "FACTOR_DATA_MAX_SYNTHETIC_RATIO", 0.0
-    ),
+    "FACTOR_DATA_MAX_SYNTHETIC_RATIO": _parse_float_env("FACTOR_DATA_MAX_SYNTHETIC_RATIO", 0.0),
     "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO": _parse_float_env(
         "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO", 1.0
     ),
-    "FACTOR_DATA_MIN_COVERAGE_RATIO": _parse_float_env(
-        "FACTOR_DATA_MIN_COVERAGE_RATIO", 1.0
-    ),
+    "FACTOR_DATA_MIN_COVERAGE_RATIO": _parse_float_env("FACTOR_DATA_MIN_COVERAGE_RATIO", 1.0),
     "SLO_PAGING_ENABLED": _parse_bool_env("SLO_PAGING_ENABLED", default=False),
     "SLO_PAGING_WEBHOOK_URL": os.environ.get("SLO_PAGING_WEBHOOK_URL", "").strip(),
-    "SLO_PAGING_MIN_SEVERITY": str(
-        os.environ.get("SLO_PAGING_MIN_SEVERITY", "critical")
-    ).strip().lower(),
+    "SLO_PAGING_MIN_SEVERITY": str(os.environ.get("SLO_PAGING_MIN_SEVERITY", "critical"))
+    .strip()
+    .lower(),
     "SLO_PAGING_TIMEOUT_SECONDS": _parse_int_env("SLO_PAGING_TIMEOUT_SECONDS", 3),
     "INCIDENT_ACK_SLA_MINUTES": _parse_int_env("INCIDENT_ACK_SLA_MINUTES", 15),
-    "PAPER_LIVE_SHADOW_DRIFT_WARNING": _parse_float_env(
-        "PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12
-    ),
+    "PAPER_LIVE_SHADOW_DRIFT_WARNING": _parse_float_env("PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12),
     "PAPER_LIVE_SHADOW_DRIFT_MAX": _parse_float_env("PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15),
 }
 
@@ -458,34 +450,27 @@ SENTIMENT_PARAMS = {
 OPTIONS_PARAMS = {
     # Enable/disable options trading (requires Alpaca options approval)
     "ENABLED": True,  # Enabled for tail hedging
-
     # Expiration preferences
     "DEFAULT_EXPIRATION_DAYS": 30,  # Default days to expiration for new positions
     "MIN_DAYS_TO_EXPIRATION": 7,  # Minimum DTE (avoid last-week decay issues)
     "MAX_DAYS_TO_EXPIRATION": 45,  # Maximum DTE (balance theta decay vs premium)
-
     # Position limits
     "MAX_CONTRACTS": 10,  # Maximum contracts per position
     "MAX_TOTAL_CONTRACTS": 50,  # Maximum total option contracts across all positions
     "MAX_NOTIONAL_EXPOSURE": 50000,  # Maximum notional value at risk
-
     # Delta targeting for income strategies
     "COVERED_CALL_DELTA_TARGET": 0.30,  # Target delta for covered calls (0.30 = ~30% ITM prob)
     "CASH_SECURED_PUT_DELTA_TARGET": -0.30,  # Target delta for CSPs
-
     # Risk management
     "MAX_LOSS_PER_TRADE": 500,  # Maximum loss per option trade
     "CLOSE_AT_PROFIT_PCT": 50,  # Close position at 50% of max profit
     "CLOSE_AT_LOSS_PCT": 200,  # Close position at 200% loss (2x premium paid)
-
     # Spread requirements (for bid-ask spread quality)
     "MAX_SPREAD_PCT": 10.0,  # Maximum bid-ask spread as % of mid price
     "MIN_OPEN_INTEREST": 100,  # Minimum open interest for liquidity
-
     # Strategy preferences
     "PREFER_LIMIT_ORDERS": True,  # Always use limit orders (recommended for options)
     "DEFAULT_ORDER_TYPE": "limit",  # Default order type
-
     # =========================================================================
     # TAIL HEDGING PARAMETERS
     # Buy protective puts in low-volatility regimes to protect against crashes

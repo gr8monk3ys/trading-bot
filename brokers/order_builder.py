@@ -72,9 +72,7 @@ class OrderBuilder:
 
     # CRYPTO_PAIRS is now imported from utils.crypto_utils for consistency
 
-    def __init__(
-        self, symbol: str, side: Literal["buy", "sell"], qty: Optional[float] = None
-    ):
+    def __init__(self, symbol: str, side: Literal["buy", "sell"], qty: Optional[float] = None):
         """
         Initialize order builder.
 
@@ -100,8 +98,10 @@ class OrderBuilder:
         else:
             # Validate stock symbol format
             # Allow 1-10 chars: letters, numbers, dots, hyphens (valid for ETFs like BRK.B, SPY1)
-            if not re.match(r'^[A-Z0-9.\-]{1,10}$', symbol):
-                raise ValueError(f"Invalid symbol format: {symbol}. Must be 1-10 alphanumeric characters, dots, or hyphens.")
+            if not re.match(r"^[A-Z0-9.\-]{1,10}$", symbol):
+                raise ValueError(
+                    f"Invalid symbol format: {symbol}. Must be 1-10 alphanumeric characters, dots, or hyphens."
+                )
             self.symbol = symbol
 
         # P1 FIX: Validate side
@@ -120,7 +120,9 @@ class OrderBuilder:
             if self.qty <= 0:
                 raise ValueError(f"Quantity must be positive, got: {self.qty}")
             if self.qty > self.MAX_QUANTITY:
-                raise ValueError(f"Quantity {self.qty} exceeds maximum allowed ({self.MAX_QUANTITY})")
+                raise ValueError(
+                    f"Quantity {self.qty} exceeds maximum allowed ({self.MAX_QUANTITY})"
+                )
 
         # Notional (dollar amount) parameter - mutually exclusive with qty
         self._notional: Optional[float] = None
@@ -556,9 +558,7 @@ class OrderBuilder:
 
             # Notional orders cannot use extended hours
             if self._extended_hours:
-                raise ValueError(
-                    "Notional orders cannot be used with extended hours trading"
-                )
+                raise ValueError("Notional orders cannot be used with extended hours trading")
 
         # Extended hours validation
         if self._extended_hours:
@@ -737,9 +737,7 @@ def crypto_market_order(symbol: str, side: str, qty: float = None, notional: flo
     return builder.market().build()
 
 
-def crypto_limit_order(
-    symbol: str, side: str, qty: float, limit_price: float
-) -> Any:
+def crypto_limit_order(symbol: str, side: str, qty: float, limit_price: float) -> Any:
     """
     Quick crypto limit order creation.
 

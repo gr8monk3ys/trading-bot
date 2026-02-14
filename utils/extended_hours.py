@@ -60,11 +60,12 @@ class TradingSession(Enum):
     Sessions represent different market hours with varying liquidity,
     volatility, and trading rules.
     """
-    CLOSED = "closed"              # Market fully closed (weekend, holidays)
-    PRE_MARKET = "pre_market"      # 4:00 AM - 9:30 AM ET
-    REGULAR = "regular"            # 9:30 AM - 4:00 PM ET
-    AFTER_HOURS = "after_hours"    # 4:00 PM - 8:00 PM ET
-    OVERNIGHT = "overnight"        # 8:00 PM - 4:00 AM ET (Blue Ocean ATS)
+
+    CLOSED = "closed"  # Market fully closed (weekend, holidays)
+    PRE_MARKET = "pre_market"  # 4:00 AM - 9:30 AM ET
+    REGULAR = "regular"  # 9:30 AM - 4:00 PM ET
+    AFTER_HOURS = "after_hours"  # 4:00 PM - 8:00 PM ET
+    OVERNIGHT = "overnight"  # 8:00 PM - 4:00 AM ET (Blue Ocean ATS)
 
 
 class ExtendedHoursManager:
@@ -809,7 +810,9 @@ def format_session_info(info: Dict) -> str:
 
     if info.get("is_overnight"):
         output.append("\nOVERNIGHT TRADING (Blue Ocean ATS)")
-        output.append(f"Liquidity: {info.get('liquidity', 'Very Low')} | Volatility: {info.get('volatility', 'Low-Medium')}")
+        output.append(
+            f"Liquidity: {info.get('liquidity', 'Very Low')} | Volatility: {info.get('volatility', 'Low-Medium')}"
+        )
         output.append(f"Position Size: {info.get('position_size_adj', '30% of regular')}")
         output.append(f"Strategy: {info.get('recommended_strategy', 'Low-risk positioning')}")
         if "notes" in info:

@@ -201,12 +201,7 @@ class AlpacaBroker:
     ORDER_API_TIMEOUT = 15.0
 
     async def _async_call_with_timeout(
-        self,
-        func,
-        *args,
-        timeout: float = None,
-        operation_name: str = "API call",
-        **kwargs
+        self, func, *args, timeout: float = None, operation_name: str = "API call", **kwargs
     ):
         """
         Execute a sync function in a thread pool with timeout protection.
@@ -232,10 +227,7 @@ class AlpacaBroker:
             timeout = self.DEFAULT_API_TIMEOUT
 
         try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(func, *args, **kwargs),
-                timeout=timeout
-            )
+            return await asyncio.wait_for(asyncio.to_thread(func, *args, **kwargs), timeout=timeout)
         except asyncio.TimeoutError:
             logger.error(
                 f"TIMEOUT: {operation_name} exceeded {timeout}s limit. "
@@ -315,6 +307,7 @@ class AlpacaBroker:
             # INSTITUTIONAL SAFETY: Partial fill tracking
             # Tracks order fills and handles unfilled quantities
             from utils.partial_fill_tracker import PartialFillPolicy, PartialFillTracker
+
             self._partial_fill_tracker = PartialFillTracker(
                 policy=PartialFillPolicy.ALERT_ONLY,  # Default to alerting
             )
@@ -458,7 +451,9 @@ class AlpacaBroker:
 
             # Extract fill info for tracking
             filled_qty = float(order.get("filled_qty", 0))
-            filled_avg_price = float(order.get("filled_avg_price", 0)) if order.get("filled_avg_price") else 0.0
+            filled_avg_price = (
+                float(order.get("filled_avg_price", 0)) if order.get("filled_avg_price") else 0.0
+            )
             symbol = order.get("symbol", "")
             side = order.get("side", "")
             meta = self._order_metadata.get(str(order_id), {})
@@ -506,7 +501,9 @@ class AlpacaBroker:
                         await subscriber.on_trade_update(data)
 
             elif event_type == "partial_fill":
-                logger.info(f"Order {order_id} partially filled: {filled_qty} @ ${filled_avg_price:.2f}")
+                logger.info(
+                    f"Order {order_id} partially filled: {filled_qty} @ ${filled_avg_price:.2f}"
+                )
 
                 # INSTITUTIONAL: Record partial fill in tracker
                 event = await self._partial_fill_tracker.record_fill(
@@ -800,6 +797,7 @@ class AlpacaBroker:
             policy: One of 'alert_only', 'auto_resubmit', 'cancel_remainder', 'track_only'
         """
         from utils.partial_fill_tracker import PartialFillPolicy
+
         self._partial_fill_tracker.set_policy(PartialFillPolicy(policy))
 
     def register_partial_fill_callback(self, callback) -> None:
@@ -845,11 +843,13 @@ class AlpacaBroker:
             account = await self._async_call_with_timeout(
                 self.trading_client.get_account,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name="get_account"
+                operation_name="get_account",
             )
             return account
         except asyncio.TimeoutError:
-            raise BrokerConnectionError("Account fetch timed out - broker may be unreachable") from None
+            raise BrokerConnectionError(
+                "Account fetch timed out - broker may be unreachable"
+            ) from None
         except Exception as e:
             logger.error(f"Error getting account info: {e}", exc_info=DEBUG_MODE)
             raise
@@ -861,7 +861,7 @@ class AlpacaBroker:
             clock = await self._async_call_with_timeout(
                 self.trading_client.get_clock,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name="get_market_status"
+                operation_name="get_market_status",
             )
             return {
                 "is_open": clock.is_open,
@@ -885,11 +885,13 @@ class AlpacaBroker:
             positions = await self._async_call_with_timeout(
                 self.trading_client.get_all_positions,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name="get_positions"
+                operation_name="get_positions",
             )
             return positions
         except asyncio.TimeoutError:
-            raise BrokerConnectionError("Position fetch timed out - broker may be unreachable") from None
+            raise BrokerConnectionError(
+                "Position fetch timed out - broker may be unreachable"
+            ) from None
         except Exception as e:
             logger.error(f"Error getting positions: {e}", exc_info=DEBUG_MODE)
             raise
@@ -905,7 +907,7 @@ class AlpacaBroker:
                 self.trading_client.get_position,
                 symbol,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name=f"get_position({symbol})"
+                operation_name=f"get_position({symbol})",
             )
             return position
         except ValueError as e:
@@ -970,7 +972,7 @@ class AlpacaBroker:
                 self.trading_client.get_asset,
                 symbol,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name=f"get_asset({symbol})"
+                operation_name=f"get_asset({symbol})",
             )
 
             return {
@@ -1014,9 +1016,8 @@ class AlpacaBroker:
         try:
             asset = await self.get_asset(symbol)
             if asset:
-                return (
-                    asset.get("overnight_tradeable", False) and
-                    not asset.get("overnight_halted", True)
+                return asset.get("overnight_tradeable", False) and not asset.get(
+                    "overnight_halted", True
                 )
             return False
         except Exception as e:
@@ -1031,9 +1032,7 @@ class AlpacaBroker:
     # Maximum participation rate (never trade > 10% of ADV)
     MAX_PARTICIPATION_RATE = 0.10
 
-    async def _calculate_market_impact(
-        self, symbol: str, qty: float, side: str
-    ) -> Dict:
+    async def _calculate_market_impact(self, symbol: str, qty: float, side: str) -> Dict:
         """
         Calculate expected slippage using Almgren-Chriss market impact model.
 
@@ -1070,12 +1069,12 @@ class AlpacaBroker:
                 }
 
             # Calculate average daily volume
-            volumes = [float(b.volume) for b in bars if hasattr(b, 'volume')]
+            volumes = [float(b.volume) for b in bars if hasattr(b, "volume")]
             avg_daily_volume = np.mean(volumes) if volumes else 1000000.0
             avg_daily_volume = max(avg_daily_volume, 100000.0)  # Floor at 100K
 
             # Calculate volatility (annualized)
-            closes = [float(b.close) for b in bars if hasattr(b, 'close')]
+            closes = [float(b.close) for b in bars if hasattr(b, "close")]
             if len(closes) >= 2:
                 returns = np.diff(np.log(closes))
                 volatility = np.std(returns) * np.sqrt(252)
@@ -1086,7 +1085,7 @@ class AlpacaBroker:
             participation_rate = qty / avg_daily_volume
 
             # Almgren-Chriss coefficients
-            c_temp = 0.6   # Temporary impact coefficient
+            c_temp = 0.6  # Temporary impact coefficient
             d_perm = 0.15  # Permanent impact coefficient
 
             # Calculate impacts
@@ -1187,13 +1186,15 @@ class AlpacaBroker:
                 self.trading_client.submit_order,
                 order_request,
                 timeout=self.ORDER_API_TIMEOUT,
-                operation_name=f"submit_order({order['symbol']})"
+                operation_name=f"submit_order({order['symbol']})",
             )
             logger.info(f"Order submitted: {result.id} for {result.symbol} ({result.qty} shares)")
             return result
 
         except asyncio.TimeoutError:
-            raise OrderError(f"Order submission timed out for {order['symbol']} - check order status manually") from None
+            raise OrderError(
+                f"Order submission timed out for {order['symbol']} - check order status manually"
+            ) from None
         except Exception as e:
             logger.error(f"Error submitting order: {e}", exc_info=DEBUG_MODE)
             raise
@@ -1215,11 +1216,10 @@ class AlpacaBroker:
             # Now all orders MUST go through OrderGateway
         """
         import secrets
+
         self._gateway_caller_token = secrets.token_hex(16)
         self._gateway_required = True
-        logger.info(
-            "🔒 GATEWAY ENFORCEMENT ENABLED: All orders must route through OrderGateway"
-        )
+        logger.info("🔒 GATEWAY ENFORCEMENT ENABLED: All orders must route through OrderGateway")
         return self._gateway_caller_token
 
     def disable_gateway_requirement(self):
@@ -1230,9 +1230,7 @@ class AlpacaBroker:
         """
         self._gateway_required = False
         self._gateway_caller_token = None
-        logger.warning(
-            "⚠️ GATEWAY ENFORCEMENT DISABLED - Direct order submission allowed"
-        )
+        logger.warning("⚠️ GATEWAY ENFORCEMENT DISABLED - Direct order submission allowed")
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def submit_order_advanced(self, order_request, check_impact: bool = True):
@@ -1276,7 +1274,9 @@ class AlpacaBroker:
                 try:
                     symbol = order_request.symbol
                     qty = float(order_request.qty) if order_request.qty else 0
-                    side = str(order_request.side).lower() if hasattr(order_request, 'side') else 'buy'
+                    side = (
+                        str(order_request.side).lower() if hasattr(order_request, "side") else "buy"
+                    )
 
                     if qty > 0:
                         impact_info = await self._calculate_market_impact(symbol, qty, side)
@@ -1304,11 +1304,11 @@ class AlpacaBroker:
                 self.trading_client.submit_order,
                 order_request,
                 timeout=self.ORDER_API_TIMEOUT,
-                operation_name=f"submit_order_advanced({order_request.symbol})"
+                operation_name=f"submit_order_advanced({order_request.symbol})",
             )
 
             # Build size info for logging (qty or notional)
-            if hasattr(result, 'notional') and result.notional is not None:
+            if hasattr(result, "notional") and result.notional is not None:
                 size_info = f"${float(result.notional):.2f} notional"
             else:
                 size_info = f"{result.qty} shares"
@@ -1321,7 +1321,7 @@ class AlpacaBroker:
             # INSTITUTIONAL: Track order for partial fill monitoring
             if result.qty:
                 qty = float(result.qty)
-                side = str(result.side).lower() if hasattr(result, 'side') else 'buy'
+                side = str(result.side).lower() if hasattr(result, "side") else "buy"
                 self._partial_fill_tracker.track_order(
                     order_id=str(result.id),
                     symbol=result.symbol,
@@ -1332,13 +1332,17 @@ class AlpacaBroker:
             return result
 
         except asyncio.TimeoutError:
-            raise OrderError("Advanced order submission timed out - check order status manually") from None
+            raise OrderError(
+                "Advanced order submission timed out - check order status manually"
+            ) from None
         except Exception as e:
             logger.error(f"Error submitting advanced order: {e}", exc_info=DEBUG_MODE)
             raise
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
-    async def _internal_submit_order(self, order_request, gateway_token: str, check_impact: bool = True):
+    async def _internal_submit_order(
+        self, order_request, gateway_token: str, check_impact: bool = True
+    ):
         """
         Internal order submission method for authorized callers (OrderGateway only).
 
@@ -1377,7 +1381,9 @@ class AlpacaBroker:
                 try:
                     symbol = order_request.symbol
                     qty = float(order_request.qty) if order_request.qty else 0
-                    side = str(order_request.side).lower() if hasattr(order_request, 'side') else 'buy'
+                    side = (
+                        str(order_request.side).lower() if hasattr(order_request, "side") else "buy"
+                    )
 
                     if qty > 0:
                         impact_info = await self._calculate_market_impact(symbol, qty, side)
@@ -1405,11 +1411,11 @@ class AlpacaBroker:
                 self.trading_client.submit_order,
                 order_request,
                 timeout=self.ORDER_API_TIMEOUT,
-                operation_name=f"_internal_submit_order({order_request.symbol})"
+                operation_name=f"_internal_submit_order({order_request.symbol})",
             )
 
             # Build size info for logging
-            if hasattr(result, 'notional') and result.notional is not None:
+            if hasattr(result, "notional") and result.notional is not None:
                 size_info = f"${float(result.notional):.2f} notional"
             else:
                 size_info = f"{result.qty} shares"
@@ -1422,7 +1428,7 @@ class AlpacaBroker:
             # INSTITUTIONAL: Track order for partial fill monitoring
             if result.qty:
                 qty = float(result.qty)
-                side = str(result.side).lower() if hasattr(result, 'side') else 'buy'
+                side = str(result.side).lower() if hasattr(result, "side") else "buy"
                 self._partial_fill_tracker.track_order(
                     order_id=str(result.id),
                     symbol=result.symbol,
@@ -1457,7 +1463,7 @@ class AlpacaBroker:
                 self.trading_client.cancel_order_by_id,
                 order_id,
                 timeout=self.ORDER_API_TIMEOUT,
-                operation_name=f"cancel_order({order_id})"
+                operation_name=f"cancel_order({order_id})",
             )
             logger.info(f"Canceled order: {order_id}")
             return True
@@ -1476,7 +1482,7 @@ class AlpacaBroker:
             result = await self._async_call_with_timeout(
                 self.trading_client.cancel_orders,
                 timeout=self.ORDER_API_TIMEOUT,
-                operation_name="cancel_all_orders"
+                operation_name="cancel_all_orders",
             )
             logger.info("Canceled all open orders")
             return result
@@ -1597,11 +1603,13 @@ class AlpacaBroker:
                 self.trading_client.get_orders,
                 request_params,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name="get_orders"
+                operation_name="get_orders",
             )
             return orders
         except asyncio.TimeoutError:
-            raise BrokerConnectionError("Get orders timed out - broker may be unreachable") from None
+            raise BrokerConnectionError(
+                "Get orders timed out - broker may be unreachable"
+            ) from None
         except Exception as e:
             logger.error(f"Error getting orders: {e}", exc_info=DEBUG_MODE)
             raise
@@ -1627,7 +1635,7 @@ class AlpacaBroker:
                 self.data_client.get_stock_latest_trade,
                 request_params,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name=f"get_last_price({symbol})"
+                operation_name=f"get_last_price({symbol})",
             )
 
             if symbol in response:
@@ -1668,7 +1676,7 @@ class AlpacaBroker:
                 self.data_client.get_stock_latest_trade,
                 request_params,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name=f"get_last_prices({len(validated_symbols)} symbols)"
+                operation_name=f"get_last_prices({len(validated_symbols)} symbols)",
             )
 
             result = {}
@@ -1729,7 +1737,7 @@ class AlpacaBroker:
                 self.data_client.get_stock_bars,
                 request_params,
                 timeout=self.DATA_API_TIMEOUT,
-                operation_name=f"get_bars({symbol})"
+                operation_name=f"get_bars({symbol})",
             )
 
             if symbol in bars.data:
@@ -1793,31 +1801,32 @@ class AlpacaBroker:
                 self._news_client.get_news,
                 request,
                 timeout=self.DATA_API_TIMEOUT,
-                operation_name=f"get_news({symbols})"
+                operation_name=f"get_news({symbols})",
             )
 
             # Convert to list of dicts for easier consumption
             articles = []
             for item in news_response.news:
-                articles.append({
-                    "id": str(item.id),
-                    "headline": item.headline or "",
-                    "summary": item.summary or "",
-                    "author": item.author or "",
-                    "source": item.source or "",
-                    "url": item.url or "",
-                    "symbols": list(item.symbols) if item.symbols else [],
-                    "created_at": item.created_at,
-                    "updated_at": item.updated_at,
-                })
+                articles.append(
+                    {
+                        "id": str(item.id),
+                        "headline": item.headline or "",
+                        "summary": item.summary or "",
+                        "author": item.author or "",
+                        "source": item.source or "",
+                        "url": item.url or "",
+                        "symbols": list(item.symbols) if item.symbols else [],
+                        "created_at": item.created_at,
+                        "updated_at": item.updated_at,
+                    }
+                )
 
             logger.debug(f"Fetched {len(articles)} news articles for {symbols}")
             return articles
 
         except ImportError as e:
             logger.error(
-                f"News API import error: {e}. "
-                "Ensure alpaca-py is installed with news support."
+                f"News API import error: {e}. " "Ensure alpaca-py is installed with news support."
             )
             return []
         except ValueError as e:
@@ -1892,22 +1901,24 @@ class AlpacaBroker:
                 client.get_crypto_bars,
                 request,
                 timeout=self.DATA_API_TIMEOUT,
-                operation_name=f"get_crypto_bars({symbol})"
+                operation_name=f"get_crypto_bars({symbol})",
             )
 
             result = []
             if symbol in bars:
                 for bar in bars[symbol]:
-                    result.append({
-                        "timestamp": bar.timestamp,
-                        "open": float(bar.open),
-                        "high": float(bar.high),
-                        "low": float(bar.low),
-                        "close": float(bar.close),
-                        "volume": float(bar.volume),
-                        "vwap": float(bar.vwap) if bar.vwap else None,
-                        "trade_count": int(bar.trade_count) if bar.trade_count else None,
-                    })
+                    result.append(
+                        {
+                            "timestamp": bar.timestamp,
+                            "open": float(bar.open),
+                            "high": float(bar.high),
+                            "low": float(bar.low),
+                            "close": float(bar.close),
+                            "volume": float(bar.volume),
+                            "vwap": float(bar.vwap) if bar.vwap else None,
+                            "trade_count": int(bar.trade_count) if bar.trade_count else None,
+                        }
+                    )
 
             logger.debug(f"Fetched {len(result)} crypto bars for {symbol}")
             return result
@@ -1940,7 +1951,7 @@ class AlpacaBroker:
                 client.get_crypto_latest_quote,
                 request,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name=f"get_crypto_quote({symbol})"
+                operation_name=f"get_crypto_quote({symbol})",
             )
 
             if symbol in quote:
@@ -1994,7 +2005,7 @@ class AlpacaBroker:
                 client.get_crypto_latest_trade,
                 request,
                 timeout=self.DEFAULT_API_TIMEOUT,
-                operation_name=f"get_crypto_last_price({symbol})"
+                operation_name=f"get_crypto_last_price({symbol})",
             )
 
             if symbol in trade:
@@ -2109,7 +2120,7 @@ class AlpacaBroker:
                 self.trading_client.submit_order,
                 request,
                 timeout=self.ORDER_API_TIMEOUT,
-                operation_name=f"submit_crypto_order({symbol})"
+                operation_name=f"submit_crypto_order({symbol})",
             )
 
             result = {
@@ -2176,17 +2187,19 @@ class AlpacaBroker:
             for pos in positions:
                 # Check if the position symbol is a crypto pair
                 if self.is_crypto(pos.symbol):
-                    crypto_positions.append({
-                        "symbol": pos.symbol,
-                        "qty": float(pos.qty),
-                        "market_value": float(pos.market_value),
-                        "cost_basis": float(pos.cost_basis),
-                        "unrealized_pl": float(pos.unrealized_pl),
-                        "unrealized_plpc": float(pos.unrealized_plpc),
-                        "current_price": float(pos.current_price),
-                        "avg_entry_price": float(pos.avg_entry_price),
-                        "side": pos.side,
-                    })
+                    crypto_positions.append(
+                        {
+                            "symbol": pos.symbol,
+                            "qty": float(pos.qty),
+                            "market_value": float(pos.market_value),
+                            "cost_basis": float(pos.cost_basis),
+                            "unrealized_pl": float(pos.unrealized_pl),
+                            "unrealized_plpc": float(pos.unrealized_plpc),
+                            "current_price": float(pos.current_price),
+                            "avg_entry_price": float(pos.avg_entry_price),
+                            "side": pos.side,
+                        }
+                    )
 
             return crypto_positions
 
@@ -2239,9 +2252,7 @@ class AlpacaBroker:
         _api_secret = ALPACA_CREDS["API_SECRET"]
 
         self._websocket_manager = WebSocketManager(
-            api_key=_api_key,
-            secret_key=_api_secret,
-            feed=feed
+            api_key=_api_key, secret_key=_api_secret, feed=feed
         )
 
         logger.info(f"WebSocket manager initialized with feed={feed}")
@@ -2251,7 +2262,7 @@ class AlpacaBroker:
         symbols: list,
         subscribe_bars: bool = True,
         subscribe_quotes: bool = False,
-        subscribe_trades: bool = False
+        subscribe_trades: bool = False,
     ) -> bool:
         """
         Start streaming real-time data for specified symbols.
@@ -2275,7 +2286,7 @@ class AlpacaBroker:
                 subscribe_quotes=True
             )
         """
-        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+        if not hasattr(self, "_websocket_manager") or self._websocket_manager is None:
             # Auto-initialize if not done
             self.setup_websocket()
 
@@ -2308,7 +2319,7 @@ class AlpacaBroker:
 
         Gracefully shuts down the WebSocket connection and cleans up resources.
         """
-        if hasattr(self, '_websocket_manager') and self._websocket_manager:
+        if hasattr(self, "_websocket_manager") and self._websocket_manager:
             await self._websocket_manager.stop()
             logger.info("Streaming stopped")
         else:
@@ -2331,7 +2342,7 @@ class AlpacaBroker:
 
             broker.register_bar_handler(on_bar, ["AAPL", "MSFT"])
         """
-        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+        if not hasattr(self, "_websocket_manager") or self._websocket_manager is None:
             self.setup_websocket()
 
         if symbols:
@@ -2358,7 +2369,7 @@ class AlpacaBroker:
 
             broker.register_quote_handler(on_quote, ["AAPL"])
         """
-        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+        if not hasattr(self, "_websocket_manager") or self._websocket_manager is None:
             self.setup_websocket()
 
         if symbols:
@@ -2384,7 +2395,7 @@ class AlpacaBroker:
 
             broker.register_trade_handler(on_trade)
         """
-        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+        if not hasattr(self, "_websocket_manager") or self._websocket_manager is None:
             self.setup_websocket()
 
         if symbols:
@@ -2406,19 +2417,19 @@ class AlpacaBroker:
             print(f"Connected: {status['is_connected']}")
             print(f"Messages received: {status['message_count']}")
         """
-        if not hasattr(self, '_websocket_manager') or self._websocket_manager is None:
+        if not hasattr(self, "_websocket_manager") or self._websocket_manager is None:
             return {
                 "initialized": False,
                 "is_running": False,
                 "is_connected": False,
                 "subscriptions": {},
-                "message_count": 0
+                "message_count": 0,
             }
 
         return {
             "initialized": True,
             **self._websocket_manager.get_connection_stats(),
-            "subscriptions": self._websocket_manager.get_subscription_info()
+            "subscriptions": self._websocket_manager.get_subscription_info(),
         }
 
     # =========================================================================
@@ -2488,7 +2499,7 @@ class AlpacaBroker:
                 self.trading_client.get_portfolio_history,
                 request,
                 timeout=self.DATA_API_TIMEOUT,
-                operation_name="get_portfolio_history"
+                operation_name="get_portfolio_history",
             )
 
             # Convert to serializable dict
@@ -2506,8 +2517,7 @@ class AlpacaBroker:
 
         except ImportError as e:
             logger.error(
-                f"Portfolio History API import error: {e}. "
-                "Ensure alpaca-py is up to date."
+                f"Portfolio History API import error: {e}. " "Ensure alpaca-py is up to date."
             )
             return None
         except Exception as e:
@@ -2667,9 +2677,7 @@ class AlpacaBroker:
 
         return max_dd * 100  # Return as percentage
 
-    async def get_intraday_equity(
-        self, timeframe: str = "1H"
-    ) -> Optional[dict]:
+    async def get_intraday_equity(self, timeframe: str = "1H") -> Optional[dict]:
         """
         Get intraday equity data for today.
 

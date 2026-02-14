@@ -255,9 +255,7 @@ class NewsSentimentAnalyzer:
                     )
                 )
 
-            self.logger.debug(
-                f"Fetched {len(articles)} news articles for {symbols}"
-            )
+            self.logger.debug(f"Fetched {len(articles)} news articles for {symbols}")
             return articles
 
         except ImportError as e:
@@ -282,9 +280,7 @@ class NewsSentimentAnalyzer:
 
         finbert = self._get_finbert()
         if finbert is None:
-            self.logger.warning(
-                "FinBERT not available, returning neutral sentiment"
-            )
+            self.logger.warning("FinBERT not available, returning neutral sentiment")
             return [{"label": "neutral", "score": 0.5} for _ in texts]
 
         try:
@@ -296,9 +292,7 @@ class NewsSentimentAnalyzer:
             self.logger.error(f"Error in sentiment analysis: {e}")
             return [{"label": "neutral", "score": 0.5} for _ in texts]
 
-    def _aggregate_sentiment(
-        self, sentiments: List[Dict]
-    ) -> Tuple[str, float, float]:
+    def _aggregate_sentiment(self, sentiments: List[Dict]) -> Tuple[str, float, float]:
         """
         Aggregate individual sentiment scores into overall sentiment.
 
@@ -438,10 +432,7 @@ class NewsSentimentAnalyzer:
         Returns:
             Dict mapping symbol to SentimentResult
         """
-        tasks = [
-            self.get_symbol_sentiment(symbol, lookback_hours)
-            for symbol in symbols
-        ]
+        tasks = [self.get_symbol_sentiment(symbol, lookback_hours) for symbol in symbols]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

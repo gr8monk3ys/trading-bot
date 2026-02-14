@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 
 class AttributionComponent(Enum):
     """Components of return attribution."""
+
     TOTAL = "total"
     ALPHA = "alpha"  # Unexplained by any factor
     BETA = "beta"  # Market exposure
@@ -69,18 +70,41 @@ class AttributionComponent(Enum):
 
 # Sector classification (simplified GICS)
 SECTOR_MAPPING = {
-    "AAPL": "Technology", "MSFT": "Technology", "GOOGL": "Technology",
-    "AMZN": "Consumer Discretionary", "TSLA": "Consumer Discretionary",
-    "NVDA": "Technology", "META": "Technology", "AMD": "Technology",
-    "JPM": "Financials", "BAC": "Financials", "GS": "Financials",
-    "JNJ": "Healthcare", "UNH": "Healthcare", "PFE": "Healthcare",
-    "XOM": "Energy", "CVX": "Energy", "COP": "Energy",
-    "PG": "Consumer Staples", "KO": "Consumer Staples", "PEP": "Consumer Staples",
-    "NEE": "Utilities", "DUK": "Utilities", "SO": "Utilities",
-    "CAT": "Industrials", "BA": "Industrials", "HON": "Industrials",
-    "AMT": "Real Estate", "PLD": "Real Estate", "CCI": "Real Estate",
-    "LIN": "Materials", "APD": "Materials", "ECL": "Materials",
-    "VZ": "Communication Services", "T": "Communication Services", "CMCSA": "Communication Services",
+    "AAPL": "Technology",
+    "MSFT": "Technology",
+    "GOOGL": "Technology",
+    "AMZN": "Consumer Discretionary",
+    "TSLA": "Consumer Discretionary",
+    "NVDA": "Technology",
+    "META": "Technology",
+    "AMD": "Technology",
+    "JPM": "Financials",
+    "BAC": "Financials",
+    "GS": "Financials",
+    "JNJ": "Healthcare",
+    "UNH": "Healthcare",
+    "PFE": "Healthcare",
+    "XOM": "Energy",
+    "CVX": "Energy",
+    "COP": "Energy",
+    "PG": "Consumer Staples",
+    "KO": "Consumer Staples",
+    "PEP": "Consumer Staples",
+    "NEE": "Utilities",
+    "DUK": "Utilities",
+    "SO": "Utilities",
+    "CAT": "Industrials",
+    "BA": "Industrials",
+    "HON": "Industrials",
+    "AMT": "Real Estate",
+    "PLD": "Real Estate",
+    "CCI": "Real Estate",
+    "LIN": "Materials",
+    "APD": "Materials",
+    "ECL": "Materials",
+    "VZ": "Communication Services",
+    "T": "Communication Services",
+    "CMCSA": "Communication Services",
 }
 
 
@@ -413,10 +437,13 @@ class PnLAttributor:
 
         # Aggregate benchmark return
         benchmark_returns = [
-            r for d, r in self._benchmark_returns
+            r
+            for d, r in self._benchmark_returns
             if (not start_date or d >= start_date) and (not end_date or d <= end_date)
         ]
-        benchmark_return = np.prod([1 + r for r in benchmark_returns]) - 1 if benchmark_returns else 0
+        benchmark_return = (
+            np.prod([1 + r for r in benchmark_returns]) - 1 if benchmark_returns else 0
+        )
 
         # Aggregate component contributions (sum of daily contributions)
         beta_contribution = sum(a.beta_contribution for a in attributions)
@@ -440,7 +467,9 @@ class PnLAttributor:
 
         # Tracking error and information ratio
         active_returns = [a.total_return - a.beta_contribution / avg_beta for a in attributions]
-        tracking_error = float(np.std(active_returns) * np.sqrt(252)) if len(active_returns) > 1 else 0
+        tracking_error = (
+            float(np.std(active_returns) * np.sqrt(252)) if len(active_returns) > 1 else 0
+        )
         information_ratio = alpha / tracking_error if tracking_error > 0 else 0
 
         # Sector breakdown
@@ -605,7 +634,9 @@ class PnLAttributor:
                         # Brinson allocation effect
                         # (portfolio_weight - benchmark_weight) * (sector_return - benchmark_return)
                         benchmark_weight = 1.0 / len(self.sector_etfs)  # Simplified: equal weight
-                        allocation_effect = (weight - benchmark_weight) * (sector_return - benchmark_return)
+                        allocation_effect = (weight - benchmark_weight) * (
+                            sector_return - benchmark_return
+                        )
                         contribution += allocation_effect
 
                 except Exception as e:
@@ -649,9 +680,7 @@ class PnLAttributor:
         explained_variance = 1 - abs(actual_return - predicted) / max(abs(actual_return), 0.0001)
         return float(np.clip(explained_variance, 0, 1))
 
-    def _aggregate_sector_returns(
-        self, attributions: List[DailyAttribution]
-    ) -> Dict[str, float]:
+    def _aggregate_sector_returns(self, attributions: List[DailyAttribution]) -> Dict[str, float]:
         """Aggregate sector returns from attributions."""
         sector_contribs = {}
 
@@ -663,9 +692,7 @@ class PnLAttributor:
 
         return {sector: sum(contribs) for sector, contribs in sector_contribs.items()}
 
-    def _aggregate_sector_weights(
-        self, attributions: List[DailyAttribution]
-    ) -> Dict[str, float]:
+    def _aggregate_sector_weights(self, attributions: List[DailyAttribution]) -> Dict[str, float]:
         """Average sector weights over period."""
         if not attributions:
             return {}

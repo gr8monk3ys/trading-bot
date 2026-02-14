@@ -51,8 +51,7 @@ def import_torch():
             logger.debug("PyTorch imported successfully")
         except ImportError as e:
             raise ImportError(
-                "PyTorch is required for ML features. "
-                "Install with: pip install torch"
+                "PyTorch is required for ML features. " "Install with: pip install torch"
             ) from e
     return _torch, _nn, _optim, _F
 

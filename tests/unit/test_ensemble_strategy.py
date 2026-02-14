@@ -52,14 +52,16 @@ def sample_price_history():
         high = p * (1 + abs(np.random.normal(0, 0.01)))
         low = p * (1 - abs(np.random.normal(0, 0.01)))
         open_price = p * (1 + np.random.normal(0, 0.005))
-        history.append({
-            "timestamp": datetime.now(),
-            "open": open_price,
-            "high": max(high, open_price, p),
-            "low": min(low, open_price, p),
-            "close": p,
-            "volume": 1000000 + np.random.randint(-100000, 100000),
-        })
+        history.append(
+            {
+                "timestamp": datetime.now(),
+                "open": open_price,
+                "high": max(high, open_price, p),
+                "low": min(low, open_price, p),
+                "close": p,
+                "volume": 1000000 + np.random.randint(-100000, 100000),
+            }
+        )
     return history
 
 
@@ -239,10 +241,7 @@ class TestEnsembleStrategyInit:
     @pytest.mark.asyncio
     async def test_initializes_with_defaults(self, mock_broker):
         """Test that strategy initializes with default parameters."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -262,10 +261,7 @@ class TestEnsembleStrategyInit:
     @pytest.mark.asyncio
     async def test_shows_deprecation_warning(self, mock_broker):
         """Test that deprecation warning is shown during initialization."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with pytest.warns(UserWarning, match="experimental"):
             await strategy.initialize()
@@ -274,10 +270,7 @@ class TestEnsembleStrategyInit:
     async def test_initializes_tracking_structures(self, mock_broker):
         """Test that all tracking structures are initialized."""
         symbols = ["AAPL", "MSFT", "GOOGL"]
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": symbols}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": symbols})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -298,10 +291,7 @@ class TestEnsembleStrategyInit:
     @pytest.mark.asyncio
     async def test_initializes_risk_manager(self, mock_broker):
         """Test that risk manager is initialized."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -322,10 +312,7 @@ class TestEnsembleStrategyInit:
             "regime_weight_boost": 2.0,
             "max_correlation": 0.5,
         }
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters=custom_params
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters=custom_params)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -352,10 +339,7 @@ class TestMarketRegimeDetection:
     @pytest.mark.asyncio
     async def test_detects_trending_regime(self, mock_broker, trending_indicators):
         """Test detection of trending market regime."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -370,10 +354,7 @@ class TestMarketRegimeDetection:
     @pytest.mark.asyncio
     async def test_detects_ranging_regime(self, mock_broker, ranging_indicators):
         """Test detection of ranging market regime."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -393,7 +374,7 @@ class TestMarketRegimeDetection:
             parameters={
                 "symbols": ["AAPL"],
                 "atr_volatility_threshold": 0.02,  # 2%
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -421,7 +402,7 @@ class TestMarketRegimeDetection:
                 "symbols": ["AAPL"],
                 "adx_trending_threshold": 25,
                 "adx_ranging_threshold": 20,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -450,14 +431,9 @@ class TestSubStrategySignals:
     """Test individual sub-strategy signal generation."""
 
     @pytest.mark.asyncio
-    async def test_mean_reversion_buy_signal(
-        self, mock_broker, mean_reversion_buy_indicators
-    ):
+    async def test_mean_reversion_buy_signal(self, mock_broker, mean_reversion_buy_indicators):
         """Test mean reversion generates buy signal when oversold."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -475,10 +451,7 @@ class TestSubStrategySignals:
     @pytest.mark.asyncio
     async def test_momentum_buy_signal(self, mock_broker, momentum_buy_indicators):
         """Test momentum strategy generates buy signal in uptrend."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -494,14 +467,9 @@ class TestSubStrategySignals:
         assert signals["momentum"]["best_regime"] == "trending"
 
     @pytest.mark.asyncio
-    async def test_trend_following_buy_signal(
-        self, mock_broker, trend_following_buy_indicators
-    ):
+    async def test_trend_following_buy_signal(self, mock_broker, trend_following_buy_indicators):
         """Test trend following generates buy signal in strong uptrend."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -521,10 +489,7 @@ class TestSubStrategySignals:
         self, mock_broker, ranging_indicators
     ):
         """Test sub-strategies return neutral when no clear signals."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -556,7 +521,7 @@ class TestSignalCombination:
             parameters={
                 "symbols": ["AAPL"],
                 "min_agreement_pct": 0.60,  # 60% agreement needed
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -584,7 +549,7 @@ class TestSignalCombination:
             parameters={
                 "symbols": ["AAPL"],
                 "min_agreement_pct": 0.80,  # 80% agreement needed (high bar)
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -613,7 +578,7 @@ class TestSignalCombination:
                 "symbols": ["AAPL"],
                 "min_agreement_pct": 0.50,
                 "regime_weight_boost": 2.0,  # 2x boost for matching regime
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -638,10 +603,7 @@ class TestSignalCombination:
     @pytest.mark.asyncio
     async def test_returns_neutral_when_no_signals(self, mock_broker):
         """Test that neutral is returned when no sub-strategy signals exist."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -664,7 +626,7 @@ class TestSignalCombination:
                 "symbols": ["AAPL"],
                 "min_agreement_pct": 0.50,
                 "regime_weight_boost": 1.0,  # No boost to simplify calculation
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -699,10 +661,7 @@ class TestSignalExecution:
     @pytest.mark.asyncio
     async def test_executes_buy_signal_when_no_position(self, mock_broker):
         """Test that buy signal is executed when no existing position."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -736,7 +695,7 @@ class TestSignalExecution:
             parameters={
                 "symbols": ["AAPL"],
                 "max_positions": 5,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -757,10 +716,7 @@ class TestSignalExecution:
         existing_position.qty = "10"
         mock_broker.get_positions.return_value = [existing_position]
 
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -789,10 +745,7 @@ class TestTrailingStop:
         existing_position.qty = "10"
         mock_broker.get_positions.return_value = [existing_position]
 
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -821,7 +774,7 @@ class TestTrailingStop:
             parameters={
                 "symbols": ["AAPL"],
                 "trailing_stop": 0.015,  # 1.5% trailing stop
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -854,10 +807,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_default_parameters_are_valid(self, mock_broker):
         """Test that default_parameters returns valid configuration."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         params = strategy.default_parameters()
 
@@ -872,10 +822,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_adx_thresholds_are_valid(self, mock_broker):
         """Test that ADX thresholds are properly ordered."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         params = strategy.default_parameters()
 
@@ -885,10 +832,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_sub_strategy_parameters_exist(self, mock_broker):
         """Test that all sub-strategy parameters are defined."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         params = strategy.default_parameters()
 
@@ -921,10 +865,7 @@ class TestAnalyzeSymbol:
     @pytest.mark.asyncio
     async def test_returns_current_ensemble_signal(self, mock_broker):
         """Test that analyze_symbol returns the ensemble signal."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -938,10 +879,7 @@ class TestAnalyzeSymbol:
     @pytest.mark.asyncio
     async def test_returns_neutral_for_unknown_symbol(self, mock_broker):
         """Test that analyze_symbol returns neutral for unknown symbols."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -951,14 +889,9 @@ class TestAnalyzeSymbol:
         assert result == "neutral"
 
     @pytest.mark.asyncio
-    async def test_integrates_sub_strategy_signals(
-        self, mock_broker, sample_price_history
-    ):
+    async def test_integrates_sub_strategy_signals(self, mock_broker, sample_price_history):
         """Test full integration from price history to combined signal."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -989,10 +922,7 @@ class TestOnBar:
     @pytest.mark.asyncio
     async def test_updates_price_history(self, mock_broker):
         """Test that on_bar correctly updates price history."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -1009,7 +939,7 @@ class TestOnBar:
             low_price=99.5,
             close_price=101.0,
             volume=1500000,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
         assert len(strategy.price_history["AAPL"]) == 1
@@ -1024,10 +954,7 @@ class TestOnBar:
     @pytest.mark.asyncio
     async def test_ignores_unknown_symbols(self, mock_broker):
         """Test that on_bar ignores symbols not in watchlist."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -1041,7 +968,7 @@ class TestOnBar:
             low_price=99.0,
             close_price=100.5,
             volume=1000000,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
         # Should not have added history for unknown symbol
@@ -1051,10 +978,7 @@ class TestOnBar:
     @pytest.mark.asyncio
     async def test_limits_history_size(self, mock_broker):
         """Test that price history is capped at maximum size (200 bars)."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -1072,7 +996,7 @@ class TestOnBar:
                 low_price=99.0 + i * 0.1,
                 close_price=100.5 + i * 0.1,
                 volume=1000000,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
 
         # Should be capped at 200
@@ -1093,10 +1017,7 @@ class TestGetOrders:
     @pytest.mark.asyncio
     async def test_generates_buy_orders_for_buy_signal(self, mock_broker):
         """Test that get_orders generates buy order for buy signal without position."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -1120,10 +1041,7 @@ class TestGetOrders:
     @pytest.mark.asyncio
     async def test_generates_sell_orders_with_position(self, mock_broker):
         """Test that get_orders generates sell order when holding position."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -1144,10 +1062,7 @@ class TestGetOrders:
     @pytest.mark.asyncio
     async def test_no_orders_for_neutral_signal(self, mock_broker):
         """Test that get_orders returns empty list for neutral signals."""
-        strategy = EnsembleStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = EnsembleStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")

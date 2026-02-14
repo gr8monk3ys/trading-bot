@@ -39,8 +39,7 @@ requires_sklearn = pytest.mark.skipif(not HAS_SKLEARN, reason="scikit-learn not 
 
 # Skip marker for tests requiring both PyTorch and scikit-learn
 requires_ml_deps = pytest.mark.skipif(
-    not HAS_TORCH or not HAS_SKLEARN,
-    reason="PyTorch and/or scikit-learn not installed"
+    not HAS_TORCH or not HAS_SKLEARN, reason="PyTorch and/or scikit-learn not installed"
 )
 
 
@@ -308,8 +307,7 @@ class TestLSTMPredictorTraining:
         """Test training with insufficient data."""
         # Too few bars for training
         short_prices = [
-            {"open": 100, "high": 101, "low": 99, "close": 100.5, "volume": 1000}
-            for _ in range(20)
+            {"open": 100, "high": 101, "low": 99, "close": 100.5, "volume": 1000} for _ in range(20)
         ]
 
         metrics = predictor.train(symbol="AAPL", prices=short_prices, epochs=5)
@@ -319,9 +317,7 @@ class TestLSTMPredictorTraining:
 
     def test_train_saves_model(self, predictor, training_prices):
         """Test that training saves the model to disk."""
-        metrics = predictor.train(
-            symbol="AAPL", prices=training_prices, epochs=3, batch_size=16
-        )
+        metrics = predictor.train(symbol="AAPL", prices=training_prices, epochs=3, batch_size=16)
 
         assert os.path.exists(metrics.model_path)
 

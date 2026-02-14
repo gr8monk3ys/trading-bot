@@ -140,7 +140,9 @@ class HyperparameterOptimizer:
         self.model_type = model_type
         self.objective_fn = objective_fn
         self.direction = direction
-        self.study_name = study_name or f"{model_type}_opt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.study_name = (
+            study_name or f"{model_type}_opt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
         self.storage_path = storage_path
         self.n_startup_trials = n_startup_trials
         self.n_warmup_steps = n_warmup_steps
@@ -178,17 +180,13 @@ class HyperparameterOptimizer:
                 )
             elif hp.param_type == "float":
                 if hp.log:
-                    params[hp.name] = trial.suggest_float(
-                        hp.name, hp.low, hp.high, log=True
-                    )
+                    params[hp.name] = trial.suggest_float(hp.name, hp.low, hp.high, log=True)
                 else:
                     params[hp.name] = trial.suggest_float(hp.name, hp.low, hp.high)
             elif hp.param_type == "categorical":
                 params[hp.name] = trial.suggest_categorical(hp.name, hp.choices)
             elif hp.param_type == "loguniform":
-                params[hp.name] = trial.suggest_float(
-                    hp.name, hp.low, hp.high, log=True
-                )
+                params[hp.name] = trial.suggest_float(hp.name, hp.low, hp.high, log=True)
 
         return params
 
@@ -248,9 +246,7 @@ class HyperparameterOptimizer:
         start_time = datetime.now()
 
         # Create sampler with startup trials
-        sampler = optuna.samplers.TPESampler(
-            n_startup_trials=self.n_startup_trials, seed=42
-        )
+        sampler = optuna.samplers.TPESampler(n_startup_trials=self.n_startup_trials, seed=42)
 
         # Create pruner for early stopping
         pruner = optuna.pruners.MedianPruner(
@@ -258,9 +254,7 @@ class HyperparameterOptimizer:
         )
 
         # Create or load study
-        storage = (
-            f"sqlite:///{self.storage_path}" if self.storage_path else None
-        )
+        storage = f"sqlite:///{self.storage_path}" if self.storage_path else None
 
         self._study = optuna.create_study(
             study_name=self.study_name,
@@ -661,9 +655,7 @@ class NestedCVOptimizer:
             study_name=f"{self.model_type}_nested_outer{fold_idx}",
         )
 
-        result = optimizer.optimize(
-            n_trials=self.n_inner_trials, show_progress=False
-        )
+        result = optimizer.optimize(n_trials=self.n_inner_trials, show_progress=False)
 
         return result.best_params, result.best_value
 
@@ -713,12 +705,18 @@ class NestedCVOptimizer:
             cv = std_val / abs(mean_val) if mean_val != 0 else 0.0
 
             stability[param] = {
-                "mean": float(mean_val) if isinstance(fold_params[0].get(param), (int, float)) else None,
-                "std": float(std_val) if isinstance(fold_params[0].get(param), (int, float)) else None,
+                "mean": (
+                    float(mean_val) if isinstance(fold_params[0].get(param), (int, float)) else None
+                ),
+                "std": (
+                    float(std_val) if isinstance(fold_params[0].get(param), (int, float)) else None
+                ),
                 "cv": float(cv),
             }
 
-            if cv > self.stability_threshold and isinstance(fold_params[0].get(param), (int, float)):
+            if cv > self.stability_threshold and isinstance(
+                fold_params[0].get(param), (int, float)
+            ):
                 unstable.append(param)
 
         return stability, unstable
@@ -769,6 +767,7 @@ class NestedCVOptimizer:
             else:
                 # Categorical parameter - use mode
                 from collections import Counter
+
                 counter = Counter(values)
                 recommended[param] = counter.most_common(1)[0][0]
 
@@ -814,9 +813,7 @@ class NestedCVOptimizer:
             logger.info(f"  Inner optimization ({self.n_inner_trials} trials)...")
             best_params, inner_val = self._optimize_inner(train_data, outer_fold)
 
-            logger.info(
-                f"  Best inner params: {best_params} (inner val: {inner_val:.4f})"
-            )
+            logger.info(f"  Best inner params: {best_params} (inner val: {inner_val:.4f})")
 
             # Outer evaluation: train with best params on full training fold,
             # evaluate on held-out test fold
@@ -840,9 +837,7 @@ class NestedCVOptimizer:
         stability, unstable = self._analyze_parameter_stability(fold_params)
 
         if unstable:
-            logger.warning(
-                f"Unstable parameters (CV > {self.stability_threshold}): {unstable}"
-            )
+            logger.warning(f"Unstable parameters (CV > {self.stability_threshold}): {unstable}")
 
         # Recommend final parameters
         recommended = self._recommend_parameters(fold_params, stability)

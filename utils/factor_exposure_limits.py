@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 class FactorExposureViolation(Enum):
     """Types of factor exposure violations."""
+
     SINGLE_FACTOR_TOO_HIGH = "single_factor_too_high"
     CONCENTRATION_TOO_HIGH = "concentration_too_high"
     CORRELATION_CLUSTER = "correlation_cluster"
@@ -45,6 +46,7 @@ class FactorExposureViolation(Enum):
 @dataclass
 class FactorExposure:
     """Factor exposure for a single factor."""
+
     factor_name: str
     raw_exposure: float  # Sum of position weights * factor loadings
     risk_contribution: float  # Contribution to portfolio variance
@@ -58,6 +60,7 @@ class FactorExposure:
 @dataclass
 class ExposureLimitResult:
     """Result of factor exposure limit check."""
+
     within_limits: bool
     total_portfolio_risk: float  # Portfolio volatility
     factor_exposures: Dict[str, FactorExposure]
@@ -82,8 +85,7 @@ class ExposureLimitResult:
                 for k, v in self.factor_exposures.items()
             },
             "violations": [
-                {"factor": f, "type": t.value, "value": v}
-                for f, t, v in self.violations
+                {"factor": f, "type": t.value, "value": v} for f, t, v in self.violations
             ],
             "concentration_hhi": self.concentration_hhi,
             "suggested_adjustments": self.suggested_adjustments,
@@ -177,10 +179,7 @@ class FactorExposureLimiter:
         portfolio_exposures = {}
         for factor in factors:
             loadings = factor_loadings.get(factor, {})
-            exposure = sum(
-                weights.get(symbol, 0) * loadings.get(symbol, 0)
-                for symbol in weights
-            )
+            exposure = sum(weights.get(symbol, 0) * loadings.get(symbol, 0) for symbol in weights)
             portfolio_exposures[factor] = exposure
 
         # Build factor covariance matrix
@@ -191,12 +190,14 @@ class FactorExposureLimiter:
                 factor_volatilities.get(f, default_vol) if factor_volatilities else default_vol
                 for f in factors
             ]
-            factor_covariance = np.diag([v ** 2 for v in vols])
+            factor_covariance = np.diag([v**2 for v in vols])
 
         # Ensure covariance matrix is valid
         factor_covariance = np.atleast_2d(factor_covariance)
         if factor_covariance.shape[0] != n_factors:
-            logger.warning(f"Covariance matrix size mismatch: {factor_covariance.shape} vs {n_factors} factors")
+            logger.warning(
+                f"Covariance matrix size mismatch: {factor_covariance.shape} vs {n_factors} factors"
+            )
             factor_covariance = np.eye(n_factors) * 0.04  # 20% vol assumption
 
         # Calculate portfolio variance from factors
@@ -220,7 +221,9 @@ class FactorExposureLimiter:
             risk_pct = risk_contrib / portfolio_variance if portfolio_variance > 0 else 0
 
             # Marginal risk contribution
-            marginal_risk = factor_risk_contribution[i] / portfolio_risk if portfolio_risk > 0 else 0
+            marginal_risk = (
+                factor_risk_contribution[i] / portfolio_risk if portfolio_risk > 0 else 0
+            )
 
             within_limit = abs(risk_pct) <= self.max_factor_risk_pct
 
@@ -235,11 +238,13 @@ class FactorExposureLimiter:
             )
 
             if not within_limit:
-                violations.append((
-                    factor,
-                    FactorExposureViolation.SINGLE_FACTOR_TOO_HIGH,
-                    abs(risk_pct),
-                ))
+                violations.append(
+                    (
+                        factor,
+                        FactorExposureViolation.SINGLE_FACTOR_TOO_HIGH,
+                        abs(risk_pct),
+                    )
+                )
 
         # Calculate concentration (Herfindahl index)
         risk_pcts = [abs(fe.risk_pct) for fe in factor_exposures.values()]
@@ -247,16 +252,18 @@ class FactorExposureLimiter:
 
         if total_abs_risk > 0:
             normalized_pcts = [r / total_abs_risk for r in risk_pcts]
-            concentration_hhi = sum(p ** 2 for p in normalized_pcts)
+            concentration_hhi = sum(p**2 for p in normalized_pcts)
         else:
             concentration_hhi = 1.0  # Fully concentrated (no factors)
 
         if concentration_hhi > self.max_concentration_hhi:
-            violations.append((
-                "portfolio",
-                FactorExposureViolation.CONCENTRATION_TOO_HIGH,
-                concentration_hhi,
-            ))
+            violations.append(
+                (
+                    "portfolio",
+                    FactorExposureViolation.CONCENTRATION_TOO_HIGH,
+                    concentration_hhi,
+                )
+            )
 
         # Check for correlated factor clusters
         self._check_correlation_clusters(
@@ -313,11 +320,13 @@ class FactorExposureLimiter:
                     # Both factors must have significant exposure
                     if exp_i > 0.05 and exp_j > 0.05:
                         exp_i + exp_j
-                        violations.append((
-                            f"{factors[i]}+{factors[j]}",
-                            FactorExposureViolation.CORRELATION_CLUSTER,
-                            abs(corr_matrix[i, j]),
-                        ))
+                        violations.append(
+                            (
+                                f"{factors[i]}+{factors[j]}",
+                                FactorExposureViolation.CORRELATION_CLUSTER,
+                                abs(corr_matrix[i, j]),
+                            )
+                        )
 
     def _suggest_adjustments(
         self,
@@ -335,7 +344,8 @@ class FactorExposureLimiter:
 
         # Find factors that need reduction
         factors_to_reduce = [
-            (f, v) for f, vtype, v in violations
+            (f, v)
+            for f, vtype, v in violations
             if vtype == FactorExposureViolation.SINGLE_FACTOR_TOO_HIGH
         ]
 
@@ -418,17 +428,14 @@ class FactorExposureLimiter:
                 violation_counts[key] = violation_counts.get(key, 0) + 1
 
         # Most common violations
-        sorted_violations = sorted(
-            violation_counts.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )[:5]
+        sorted_violations = sorted(violation_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
         return {
             "latest": latest.to_dict(),
             "history_length": len(self._exposure_history),
             "avg_portfolio_risk": np.mean([r.total_portfolio_risk for r in self._exposure_history]),
-            "pct_within_limits": sum(1 for r in self._exposure_history if r.within_limits) / len(self._exposure_history),
+            "pct_within_limits": sum(1 for r in self._exposure_history if r.within_limits)
+            / len(self._exposure_history),
             "avg_concentration_hhi": np.mean([r.concentration_hhi for r in self._exposure_history]),
             "most_common_violations": sorted_violations,
         }
@@ -547,9 +554,7 @@ def print_exposure_report(result: ExposureLimitResult):
 
     # Sort by absolute risk contribution
     sorted_factors = sorted(
-        result.factor_exposures.items(),
-        key=lambda x: abs(x[1].risk_pct),
-        reverse=True
+        result.factor_exposures.items(), key=lambda x: abs(x[1].risk_pct), reverse=True
     )
 
     for factor, exposure in sorted_factors:

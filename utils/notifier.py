@@ -109,7 +109,9 @@ class Notifier:
             logger.info("Telegram notifications enabled")
         if self.email_enabled:
             logger.info("Email notifications enabled")
-        if not any([self.slack_enabled, self.discord_enabled, self.telegram_enabled, self.email_enabled]):
+        if not any(
+            [self.slack_enabled, self.discord_enabled, self.telegram_enabled, self.email_enabled]
+        ):
             logger.info("Notifications disabled (console only)")
 
     async def _get_session(self) -> aiohttp.ClientSession:
@@ -306,22 +308,18 @@ class Notifier:
                 "description": message.replace("**", ""),  # Discord handles bold differently
                 "color": color,
                 "timestamp": datetime.utcnow().isoformat(),
-                "footer": {"text": "Trading Bot Notification"}
+                "footer": {"text": "Trading Bot Notification"},
             }
 
             # Add urgency indicator
             if urgent:
                 embed["title"] = f"URGENT: {title}"
 
-            payload = {
-                "embeds": [embed]
-            }
+            payload = {"embeds": [embed]}
 
             session = await self._get_session()
             async with session.post(
-                self.discord_webhook_url,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
+                self.discord_webhook_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 if response.status == 204:
                     logger.debug("Discord notification sent successfully")
@@ -368,14 +366,12 @@ class Notifier:
                 "chat_id": self.telegram_chat_id,
                 "text": formatted_message,
                 "parse_mode": "HTML",
-                "disable_web_page_preview": True
+                "disable_web_page_preview": True,
             }
 
             session = await self._get_session()
             async with session.post(
-                url,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 result = await response.json()
                 if result.get("ok"):
@@ -419,9 +415,7 @@ class Notifier:
 
             session = await self._get_session()
             async with session.post(
-                self.discord_webhook_url,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
+                self.discord_webhook_url, json=payload, timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 if response.status == 204:
                     self.discord_rate_limiter.record_call()
@@ -458,14 +452,12 @@ class Notifier:
                 "chat_id": self.telegram_chat_id,
                 "text": message,
                 "parse_mode": parse_mode,
-                "disable_web_page_preview": True
+                "disable_web_page_preview": True,
             }
 
             session = await self._get_session()
             async with session.post(
-                url,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
+                url, json=payload, timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 result = await response.json()
                 if result.get("ok"):
@@ -478,14 +470,7 @@ class Notifier:
             logger.error(f"Telegram send failed: {e}")
             return False
 
-    async def notify_trade(
-        self,
-        symbol: str,
-        side: str,
-        qty: float,
-        price: float,
-        strategy: str
-    ):
+    async def notify_trade(self, symbol: str, side: str, qty: float, price: float, strategy: str):
         """
         Send trade notification to all configured channels with rich formatting.
 
@@ -518,10 +503,10 @@ class Notifier:
                     {"name": "Quantity", "value": str(qty), "inline": True},
                     {"name": "Price", "value": f"${price:.2f}", "inline": True},
                     {"name": "Total", "value": f"${total_value:,.2f}", "inline": True},
-                    {"name": "Strategy", "value": strategy, "inline": True}
+                    {"name": "Strategy", "value": strategy, "inline": True},
                 ],
                 "timestamp": datetime.utcnow().isoformat(),
-                "footer": {"text": "Trading Bot"}
+                "footer": {"text": "Trading Bot"},
             }
             tasks.append(self.send_discord(f"Trade: {action} {symbol}", embed))
 
@@ -558,9 +543,9 @@ class Notifier:
             level: Severity level ('info', 'warning', 'error')
         """
         level_colors = {
-            "info": 0x3498DB,     # Blue
-            "warning": 0xF39C12,   # Orange
-            "error": 0xE74C3C      # Red
+            "info": 0x3498DB,  # Blue
+            "warning": 0xF39C12,  # Orange
+            "error": 0xE74C3C,  # Red
         }
         color = level_colors.get(level, 0x95A5A6)
         urgent = level == "error"
@@ -573,13 +558,15 @@ class Notifier:
                 "title": title,
                 "description": message,
                 "color": color,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
             tasks.append(self.send_discord(f"Alert: {title}", embed))
 
         # Telegram
         if self.telegram_enabled:
-            level_emoji = {"info": "INFO", "warning": "WARNING", "error": "ERROR"}.get(level, "ALERT")
+            level_emoji = {"info": "INFO", "warning": "WARNING", "error": "ERROR"}.get(
+                level, "ALERT"
+            )
             tg_message = f"<b>{level_emoji}: {title}</b>\n\n{message}"
             tasks.append(self.send_telegram(tg_message))
 
@@ -595,11 +582,7 @@ class Notifier:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def notify_daily_summary_formatted(
-        self,
-        pnl: float,
-        pnl_pct: float,
-        trades: int,
-        win_rate: float
+        self, pnl: float, pnl_pct: float, trades: int, win_rate: float
     ):
         """
         Send formatted daily performance summary to all channels.
@@ -624,10 +607,10 @@ class Notifier:
                     {"name": "P&L", "value": f"${pnl:,.2f}", "inline": True},
                     {"name": "Return", "value": f"{pnl_pct:+.2f}%", "inline": True},
                     {"name": "Trades", "value": str(trades), "inline": True},
-                    {"name": "Win Rate", "value": f"{win_rate:.1f}%", "inline": True}
+                    {"name": "Win Rate", "value": f"{win_rate:.1f}%", "inline": True},
                 ],
                 "timestamp": datetime.utcnow().isoformat(),
-                "footer": {"text": f"Date: {datetime.now().strftime('%Y-%m-%d')}"}
+                "footer": {"text": f"Date: {datetime.now().strftime('%Y-%m-%d')}"},
             }
             tasks.append(self.send_discord("Daily Summary", embed))
 

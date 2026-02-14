@@ -269,9 +269,7 @@ class StressTester:
             "position_impacts": position_impacts,
         }
 
-    async def run_stress_test(
-        self, positions: Dict[str, float]
-    ) -> Dict[str, Dict[str, Any]]:
+    async def run_stress_test(self, positions: Dict[str, float]) -> Dict[str, Dict[str, Any]]:
         """
         Run all stress scenarios against portfolio.
 
@@ -367,9 +365,7 @@ class StressTester:
             "position_impacts": pnl_result["position_impacts"],
         }
 
-    def get_worst_case_scenario(
-        self, results: Dict[str, Dict[str, Any]]
-    ) -> Optional[str]:
+    def get_worst_case_scenario(self, results: Dict[str, Dict[str, Any]]) -> Optional[str]:
         """
         Get the worst-case scenario from stress test results.
 
@@ -483,9 +479,7 @@ async def run_stress_test_cli(broker=None):
     print(f"Passed: {report['passed']} | Failed: {report['failed']}")
     print(f"Pass Rate: {report['pass_rate']:.0%}")
     print(f"\nAverage Loss Across Scenarios: {report['average_loss']:.1%}")
-    print(
-        f"Worst Case: {report['worst_case']['scenario']} ({report['worst_case']['pnl_pct']:.1%})"
-    )
+    print(f"Worst Case: {report['worst_case']['scenario']} ({report['worst_case']['pnl_pct']:.1%})")
     print(f"\nRecommendation: {report['recommendation']}")
 
 

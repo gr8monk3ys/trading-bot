@@ -287,13 +287,11 @@ class TestAdaptiveStrategyInitialize:
         """Test that initialize creates momentum and mean_reversion sub-strategies."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             # Configure mocks
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -319,12 +317,10 @@ class TestAdaptiveStrategyInitialize:
         """Test that momentum is the default active strategy after initialization."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -345,12 +341,10 @@ class TestAdaptiveStrategyInitialize:
         """Test that parameters are correctly set after initialization."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -373,12 +367,10 @@ class TestAdaptiveStrategyInitialize:
         """Test that tracking dictionaries are initialized."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -407,9 +399,7 @@ class TestAdaptiveStrategyInitialize:
         """Test that initialize returns False when an exception occurs."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum:
+        with patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum:
             MockMomentum.side_effect = Exception("Initialization failed")
 
             strategy = AdaptiveStrategy(broker=mock_broker, symbols=TEST_SYMBOLS)
@@ -422,19 +412,15 @@ class TestRegimeDetectionIntegration:
     """Test regime detection and strategy switching."""
 
     @pytest.mark.asyncio
-    async def test_switches_to_momentum_in_bull_market(
-        self, mock_broker, mock_regime_info_bull
-    ):
+    async def test_switches_to_momentum_in_bull_market(self, mock_broker, mock_regime_info_bull):
         """Test that strategy switches to momentum in bull market."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.enable_short_selling = True
@@ -461,19 +447,15 @@ class TestRegimeDetectionIntegration:
             assert mock_momentum.enable_short_selling is False
 
     @pytest.mark.asyncio
-    async def test_switches_to_momentum_in_bear_market(
-        self, mock_broker, mock_regime_info_bear
-    ):
+    async def test_switches_to_momentum_in_bear_market(self, mock_broker, mock_regime_info_bear):
         """Test that strategy switches to momentum with shorts enabled in bear market."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.enable_short_selling = False
@@ -506,13 +488,11 @@ class TestRegimeDetectionIntegration:
         """Test that strategy switches to mean reversion in sideways market."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             MockMomentum.return_value = mock_momentum
@@ -542,13 +522,11 @@ class TestRegimeDetectionIntegration:
         """Test that position size is reduced in volatile market."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.position_size = DEFAULT_POSITION_SIZE
@@ -580,13 +558,11 @@ class TestRegimeDetectionIntegration:
         """Test that strategy does not switch when confidence is below threshold."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             MockMomentum.return_value = mock_momentum
@@ -617,13 +593,11 @@ class TestRegimeDetectionIntegration:
         """Test that regime switches are tracked."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.enable_short_selling = True
@@ -655,12 +629,10 @@ class TestSignalRouting:
         """Test that analyze_symbol delegates to the active strategy."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -682,9 +654,7 @@ class TestSignalRouting:
             assert result.get("action") == "buy" or "action" in result
 
     @pytest.mark.asyncio
-    async def test_analyze_symbol_returns_neutral_when_no_active_strategy(
-        self, mock_broker
-    ):
+    async def test_analyze_symbol_returns_neutral_when_no_active_strategy(self, mock_broker):
         """Test that analyze_symbol returns neutral when no active strategy."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
@@ -703,12 +673,10 @@ class TestSignalRouting:
         """Test that execute_trade delegates to the active strategy."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -731,12 +699,10 @@ class TestSignalRouting:
         """Test that generate_signals delegates to the active strategy."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -762,12 +728,10 @@ class TestSignalRouting:
         """Test that get_orders delegates to the active strategy."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_orders = [{"symbol": "AAPL", "side": "buy", "qty": 10}]
             mock_momentum = AsyncMock()
@@ -807,13 +771,11 @@ class TestOnBar:
         """Test that on_bar updates current price."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.on_bar = AsyncMock()
@@ -833,9 +795,7 @@ class TestOnBar:
             await strategy.initialize()
 
             timestamp = datetime.now()
-            await strategy.on_bar(
-                SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp
-            )
+            await strategy.on_bar(SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp)
 
             assert strategy.current_prices[SINGLE_SYMBOL] == 101.0
 
@@ -844,13 +804,11 @@ class TestOnBar:
         """Test that on_bar updates price history."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.on_bar = AsyncMock()
@@ -870,27 +828,21 @@ class TestOnBar:
             await strategy.initialize()
 
             timestamp = datetime.now()
-            await strategy.on_bar(
-                SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp
-            )
+            await strategy.on_bar(SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp)
 
             assert len(strategy.price_history[SINGLE_SYMBOL]) == 1
             assert strategy.price_history[SINGLE_SYMBOL][0]["close"] == 101.0
 
     @pytest.mark.asyncio
-    async def test_on_bar_routes_to_active_strategy(
-        self, mock_broker, mock_regime_info_bull
-    ):
+    async def test_on_bar_routes_to_active_strategy(self, mock_broker, mock_regime_info_bull):
         """Test that on_bar routes to the active strategy."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.on_bar = AsyncMock()
@@ -910,28 +862,22 @@ class TestOnBar:
             await strategy.initialize()
 
             timestamp = datetime.now()
-            await strategy.on_bar(
-                SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp
-            )
+            await strategy.on_bar(SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp)
 
             mock_momentum.on_bar.assert_called_once_with(
                 SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp
             )
 
     @pytest.mark.asyncio
-    async def test_on_bar_ignores_unknown_symbols(
-        self, mock_broker, mock_regime_info_bull
-    ):
+    async def test_on_bar_ignores_unknown_symbols(self, mock_broker, mock_regime_info_bull):
         """Test that on_bar ignores symbols not in strategy's symbol list."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.on_bar = AsyncMock()
@@ -956,19 +902,15 @@ class TestOnBar:
             mock_momentum.on_bar.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_on_bar_limits_price_history_to_100(
-        self, mock_broker, mock_regime_info_bull
-    ):
+    async def test_on_bar_limits_price_history_to_100(self, mock_broker, mock_regime_info_bull):
         """Test that price history is limited to 100 entries."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.on_bar = AsyncMock()
@@ -1006,12 +948,10 @@ class TestGetStatus:
         """Test that get_status returns all expected keys."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -1039,12 +979,10 @@ class TestGetStatus:
         """Test that get_status returns correct values."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -1071,12 +1009,10 @@ class TestGetStatus:
         """Test that get_status filters out neutral signals."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -1103,19 +1039,15 @@ class TestGetRegimeInfo:
     """Test regime info retrieval."""
 
     @pytest.mark.asyncio
-    async def test_get_regime_info_delegates_to_detector(
-        self, mock_broker, mock_regime_info_bull
-    ):
+    async def test_get_regime_info_delegates_to_detector(self, mock_broker, mock_regime_info_bull):
         """Test that get_regime_info delegates to the regime detector."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             MockMomentum.return_value = mock_momentum
@@ -1170,13 +1102,11 @@ class TestEdgeCases:
         """Test that _update_regime handles exceptions gracefully."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             MockMomentum.return_value = mock_momentum
@@ -1203,13 +1133,11 @@ class TestEdgeCases:
         """Test that on_bar handles exceptions gracefully."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.on_bar = AsyncMock(side_effect=Exception("Processing error"))
@@ -1228,21 +1156,17 @@ class TestEdgeCases:
 
             timestamp = datetime.now()
             # Should not raise
-            await strategy.on_bar(
-                SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp
-            )
+            await strategy.on_bar(SINGLE_SYMBOL, 100.0, 102.0, 99.0, 101.0, 1000000, timestamp)
 
     @pytest.mark.asyncio
     async def test_empty_symbols_list(self, mock_broker):
         """Test initialization with empty symbols list."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector"),
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
@@ -1281,13 +1205,11 @@ class TestParametrizedRegimeSwitching:
         """Test that correct strategy is selected for each regime."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.enable_short_selling = True
@@ -1342,13 +1264,11 @@ class TestParametrizedRegimeSwitching:
         """Test that correct position multiplier is applied for each regime."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
-        with patch(
-            "strategies.adaptive_strategy.MomentumStrategy"
-        ) as MockMomentum, patch(
-            "strategies.adaptive_strategy.MeanReversionStrategy"
-        ) as MockMeanReversion, patch(
-            "strategies.adaptive_strategy.MarketRegimeDetector"
-        ) as MockRegime:
+        with (
+            patch("strategies.adaptive_strategy.MomentumStrategy") as MockMomentum,
+            patch("strategies.adaptive_strategy.MeanReversionStrategy") as MockMeanReversion,
+            patch("strategies.adaptive_strategy.MarketRegimeDetector") as MockRegime,
+        ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
             mock_momentum.position_size = DEFAULT_POSITION_SIZE
@@ -1472,5 +1392,8 @@ class TestAdaptiveStrategyFactorScoreUpdate:
         await strategy.update_factor_scores()
 
         _args, kwargs = strategy.factor_model.score_universe.call_args
-        assert kwargs["fundamental_data"] == {"AAPL": {"pe_ratio": 10.0}, "MSFT": {"pe_ratio": 12.0}}
+        assert kwargs["fundamental_data"] == {
+            "AAPL": {"pe_ratio": 10.0},
+            "MSFT": {"pe_ratio": 12.0},
+        }
         assert kwargs["market_caps"] == {"AAPL": 1e12, "MSFT": 2e12}

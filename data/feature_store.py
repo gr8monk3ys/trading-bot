@@ -21,20 +21,18 @@ import pickle
 import sqlite3
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 from enum import Enum
-from pathlib import Path
 from typing import (
-    Optional,
-    List,
-    Dict,
     Any,
-    Union,
     Callable,
+    Dict,
+    List,
+    Optional,
     Set,
-    Tuple,
     TypeVar,
 )
+
 import numpy as np
 import pandas as pd
 
@@ -1032,7 +1030,6 @@ def print_feature_report(
     end_date: date,
 ) -> None:
     """Print feature analysis report."""
-    import asyncio
 
     async def _get_data():
         return await store.get_feature_history(

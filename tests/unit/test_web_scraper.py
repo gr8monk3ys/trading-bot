@@ -2,7 +2,6 @@
 Unit tests for web scraper alternative data providers.
 """
 
-
 import pytest
 
 from data.alt_data_types import AltDataSource

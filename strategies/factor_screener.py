@@ -112,10 +112,7 @@ class FactorScreener:
         results = await self._screen_universe(universe, min_liquidity_adv)
 
         # Filter exclusions and sort by score
-        filtered = [
-            r for r in results
-            if r.symbol not in exclude_symbols and r.passes_liquidity
-        ]
+        filtered = [r for r in results if r.symbol not in exclude_symbols and r.passes_liquidity]
 
         # Already sorted by score in _screen_universe
         top_symbols = [r.symbol for r in filtered[:top_n]]
@@ -125,7 +122,7 @@ class FactorScreener:
             f"(liquidity filter: ${min_liquidity_adv:,.0f})"
         )
 
-        for i, result in enumerate(filtered[:min(10, top_n)], 1):
+        for i, result in enumerate(filtered[: min(10, top_n)], 1):
             logger.debug(
                 f"  {i}. {result.symbol}: {result.composite_score:.1f} "
                 f"(rank {result.rank}/{len(results)})"

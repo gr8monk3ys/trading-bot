@@ -36,7 +36,7 @@ class TestTradeDataclass:
             fees=10.0,
             holding_period_seconds=14400,
             is_winner=True,
-            tags='{"reason": "trend_follow"}'
+            tags='{"reason": "trend_follow"}',
         )
 
         assert trade.trade_id == "trade_001"
@@ -78,7 +78,7 @@ class TestPerformanceMetricsDataclass:
             largest_loss=-300.0,
             avg_holding_period_hours=4.5,
             total_fees=200.0,
-            trading_days=30
+            trading_days=30,
         )
 
         assert metrics.total_return == 5000.0
@@ -130,9 +130,7 @@ class TestInitDatabase:
             cursor = conn.cursor()
 
             # Check trades table exists
-            cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='trades'"
-            )
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trades'")
             assert cursor.fetchone() is not None
 
             # Check equity_curve table exists
@@ -176,7 +174,7 @@ class TestLogTrade:
                 fees=10.0,
                 holding_period_seconds=14400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
 
             tracker.log_trade(trade)
@@ -209,7 +207,7 @@ class TestLogTrade:
                 fees=10.0,
                 holding_period_seconds=14400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
 
             tracker.log_trade(trade)
@@ -248,7 +246,7 @@ class TestLogTrade:
                     fees=10.0,
                     holding_period_seconds=14400,
                     is_winner=i % 2 == 0,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -283,7 +281,7 @@ class TestLoadTrades:
                 fees=10.0,
                 holding_period_seconds=14400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker1.log_trade(trade)
 
@@ -394,7 +392,7 @@ class TestCalculateMetrics:
                 fees=10.0,
                 holding_period_seconds=14400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade)
 
@@ -430,7 +428,7 @@ class TestCalculateMetrics:
                 fees=10.0,
                 holding_period_seconds=86400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade1)
 
@@ -450,7 +448,7 @@ class TestCalculateMetrics:
                 fees=10.0,
                 holding_period_seconds=86400,
                 is_winner=False,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade2)
 
@@ -491,7 +489,7 @@ class TestCalculateMetrics:
                     fees=0,
                     holding_period_seconds=14400,
                     is_winner=True,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -511,7 +509,7 @@ class TestCalculateMetrics:
                 fees=0,
                 holding_period_seconds=14400,
                 is_winner=False,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade)
 
@@ -546,7 +544,7 @@ class TestCalculateMetrics:
                     fees=0,
                     holding_period_seconds=14400,
                     is_winner=pnl_pct > 0,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -581,7 +579,7 @@ class TestCalculateMetrics:
                     fees=0,
                     holding_period_seconds=14400,
                     is_winner=pnl_pct > 0,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -614,7 +612,7 @@ class TestCalculateMetrics:
                     fees=0,
                     holding_period_seconds=14400,
                     is_winner=True,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -651,7 +649,7 @@ class TestCalculateEquityCurve:
                 fees=10.0,
                 holding_period_seconds=14400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade1)
 
@@ -670,7 +668,7 @@ class TestCalculateEquityCurve:
                 fees=10.0,
                 holding_period_seconds=14400,
                 is_winner=False,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade2)
 
@@ -787,7 +785,7 @@ class TestGetPerformanceReport:
                 fees=20.0,
                 holding_period_seconds=86400 * 9 + 14400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade)
 
@@ -824,7 +822,7 @@ class TestGetPerformanceReport:
                 fees=10.0,
                 holding_period_seconds=86400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade)
 
@@ -860,7 +858,7 @@ class TestAnnualizedReturn:
                 fees=0,
                 holding_period_seconds=86400 * 31,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade)
 
@@ -892,7 +890,7 @@ class TestAnnualizedReturn:
                 fees=0,
                 holding_period_seconds=14400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade)
 
@@ -928,7 +926,7 @@ class TestHoldingPeriod:
                 fees=0,
                 holding_period_seconds=14400,  # 4 hours
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade1)
 
@@ -947,7 +945,7 @@ class TestHoldingPeriod:
                 fees=0,
                 holding_period_seconds=28800,  # 8 hours
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade2)
 
@@ -991,7 +989,7 @@ class TestCalmarRatio:
                     fees=0,
                     holding_period_seconds=86400,
                     is_winner=pnl > 0,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -1026,7 +1024,7 @@ class TestCalmarRatio:
                     fees=0,
                     holding_period_seconds=86400,
                     is_winner=True,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -1068,7 +1066,7 @@ class TestRecoveryFactor:
                     fees=0,
                     holding_period_seconds=86400,
                     is_winner=pnl > 0,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -1101,7 +1099,7 @@ class TestRecoveryFactor:
                     fees=0,
                     holding_period_seconds=86400,
                     is_winner=True,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -1136,7 +1134,7 @@ class TestEdgeCases:
                 fees=0,
                 holding_period_seconds=14400,
                 is_winner=True,
-                tags=""
+                tags="",
             )
             tracker.log_trade(trade)
 
@@ -1169,7 +1167,7 @@ class TestEdgeCases:
                     fees=10.0,
                     holding_period_seconds=14400,
                     is_winner=False,
-                    tags=""
+                    tags="",
                 )
                 tracker.log_trade(trade)
 
@@ -1203,7 +1201,7 @@ class TestEdgeCases:
                 fees=0,
                 holding_period_seconds=14400,
                 is_winner=True,
-                tags=""  # Empty string instead of None
+                tags="",  # Empty string instead of None
             )
             tracker.log_trade(trade)
 

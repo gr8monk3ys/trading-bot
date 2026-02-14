@@ -385,7 +385,7 @@ class TestAdaptiveVWAP:
             total_quantity=10000,
             algo_type="vwap",
             start_time=datetime(2024, 1, 15, 9, 30),  # Market open
-            end_time=datetime(2024, 1, 15, 16, 0),   # Market close
+            end_time=datetime(2024, 1, 15, 16, 0),  # Market close
         )
 
     @pytest.fixture
@@ -479,17 +479,19 @@ class TestAlgorithmicExecutor:
     async def test_submit_order(self, executor):
         """Test submitting an order."""
         # Mock market data
-        executor.market_data_fn = AsyncMock(return_value=MarketSnapshot(
-            symbol="AAPL",
-            timestamp=datetime.now(),
-            bid=150.00,
-            ask=150.05,
-            mid=150.025,
-            spread_bps=3.33,
-            volume_today=5000000,
-            volatility=0.02,
-            adv=10000000,
-        ))
+        executor.market_data_fn = AsyncMock(
+            return_value=MarketSnapshot(
+                symbol="AAPL",
+                timestamp=datetime.now(),
+                bid=150.00,
+                ask=150.05,
+                mid=150.025,
+                spread_bps=3.33,
+                volume_today=5000000,
+                volatility=0.02,
+                adv=10000000,
+            )
+        )
 
         order = await executor.submit_order(
             symbol="AAPL",

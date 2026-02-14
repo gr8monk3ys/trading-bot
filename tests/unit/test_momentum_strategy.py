@@ -1003,9 +1003,15 @@ class TestOnBar:
         strategy.last_signal_time = {"AAPL": None, "MSFT": None}
         strategy.current_prices = {}
         # Use deque with maxlen to match production code (auto-trims on append)
-        max_history = max(strategy.slow_ma, strategy.rsi_period,
-                          strategy.macd_slow + strategy.macd_signal,
-                          strategy.adx_period) + 10
+        max_history = (
+            max(
+                strategy.slow_ma,
+                strategy.rsi_period,
+                strategy.macd_slow + strategy.macd_signal,
+                strategy.adx_period,
+            )
+            + 10
+        )
         strategy.max_history = max_history
         strategy.price_history = {
             "AAPL": deque(maxlen=max_history),

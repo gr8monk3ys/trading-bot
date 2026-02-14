@@ -40,6 +40,7 @@ def rotator_etf(mock_broker):
 @pytest.fixture
 def mock_bars():
     """Create mock bars with OHLCV data."""
+
     def create_bars(prices, volumes=None):
         bars = []
         for i, price in enumerate(prices):
@@ -51,6 +52,7 @@ def mock_bars():
             bar.volume = volumes[i] if volumes else 1000000
             bars.append(bar)
         return bars
+
     return create_bars
 
 
@@ -281,7 +283,9 @@ class TestGetSectorAllocations:
         assert pytest.approx(total, abs=0.01) == 0.5
 
     @pytest.mark.asyncio
-    async def test_blends_toward_equal_weight_on_low_confidence(self, rotator, mock_broker, mock_bars):
+    async def test_blends_toward_equal_weight_on_low_confidence(
+        self, rotator, mock_broker, mock_bars
+    ):
         """Test allocations blend toward equal weight when confidence is low."""
         # Force low confidence by returning insufficient data
         mock_broker.get_bars.return_value = mock_bars([100] * 10)

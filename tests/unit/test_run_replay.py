@@ -147,7 +147,9 @@ def test_format_replay_report_includes_key_fields():
     text = format_replay_report(
         summary={"run_id": "r1", "strategy": "S1", "final_equity": 100500, "total_return": 0.005},
         decisions=[{"date": "2024-01-01", "symbol": "AAPL", "action": "buy"}],
-        trades=[{"date": "2024-01-01", "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100.5}],
+        trades=[
+            {"date": "2024-01-01", "symbol": "AAPL", "side": "buy", "quantity": 1, "price": 100.5}
+        ],
         order_reconciliation=[{"status": "ok", "consecutive_mismatch_runs": 0}],
         position_reconciliation=[{"positions_match": True, "mismatch_count": 0}],
         slo_events=[{"severity": "warning", "name": "x", "message": "y"}],

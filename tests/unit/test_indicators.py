@@ -155,9 +155,7 @@ class TestTechnicalIndicatorsInit:
     def test_init_with_timestamps(self, indicators_with_timestamps):
         """Test initialization with timestamps."""
         assert indicators_with_timestamps.timestamps is not None
-        assert len(indicators_with_timestamps.timestamps) == len(
-            indicators_with_timestamps.close
-        )
+        assert len(indicators_with_timestamps.timestamps) == len(indicators_with_timestamps.close)
 
 
 # ============================================================================
@@ -784,8 +782,16 @@ class TestAllTrendIndicators:
         """Test dictionary has expected keys."""
         result = indicators.all_trend_indicators()
         expected_keys = {
-            "sma_20", "sma_50", "sma_200", "ema_20", "ema_50",
-            "macd", "adx", "plus_di", "minus_di", "parabolic_sar"
+            "sma_20",
+            "sma_50",
+            "sma_200",
+            "ema_20",
+            "ema_50",
+            "macd",
+            "adx",
+            "plus_di",
+            "minus_di",
+            "parabolic_sar",
         }
         assert set(result.keys()) == expected_keys
 
@@ -830,8 +836,15 @@ class TestAnalyzeTrend:
             low=long_sample_ohlcv["low"],
         )
         expected_keys = {
-            "direction", "strength", "adx", "plus_di", "minus_di",
-            "sma_50", "sma_200", "price_vs_sma_50", "price_vs_sma_200"
+            "direction",
+            "strength",
+            "adx",
+            "plus_di",
+            "minus_di",
+            "sma_50",
+            "sma_200",
+            "price_vs_sma_50",
+            "price_vs_sma_200",
         }
         assert set(result.keys()) == expected_keys
 
@@ -915,8 +928,13 @@ class TestAnalyzeVolatility:
             low=sample_ohlcv["low"],
         )
         expected_keys = {
-            "state", "atr", "bb_upper", "bb_middle", "bb_lower",
-            "bb_width_pct", "price_position"
+            "state",
+            "atr",
+            "bb_upper",
+            "bb_middle",
+            "bb_lower",
+            "bb_width_pct",
+            "price_position",
         }
         assert set(result.keys()) == expected_keys
 

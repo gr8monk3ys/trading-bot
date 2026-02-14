@@ -45,13 +45,7 @@ class WebSocketManager:
         is_running: Whether the WebSocket is currently connected and running
     """
 
-    def __init__(
-        self,
-        api_key: str,
-        secret_key: str,
-        feed: str = "iex",
-        raw_data: bool = False
-    ):
+    def __init__(self, api_key: str, secret_key: str, feed: str = "iex", raw_data: bool = False):
         """
         Initialize WebSocket manager.
 
@@ -131,7 +125,7 @@ class WebSocketManager:
             api_key=self._api_key,
             secret_key=self._secret_key,
             feed=self._feed,
-            raw_data=self._raw_data
+            raw_data=self._raw_data,
         )
 
     # =========================================================================
@@ -193,11 +187,7 @@ class WebSocketManager:
     # Subscription Methods
     # =========================================================================
 
-    def subscribe_bars(
-        self,
-        symbols: List[str],
-        handler: Optional[Callable] = None
-    ) -> None:
+    def subscribe_bars(self, symbols: List[str], handler: Optional[Callable] = None) -> None:
         """
         Subscribe to real-time bar data for specified symbols.
 
@@ -215,11 +205,7 @@ class WebSocketManager:
         """
         self._subscribe(symbols, handler, self._bar_handlers, self._subscribed_bars, "bar")
 
-    def subscribe_quotes(
-        self,
-        symbols: List[str],
-        handler: Optional[Callable] = None
-    ) -> None:
+    def subscribe_quotes(self, symbols: List[str], handler: Optional[Callable] = None) -> None:
         """
         Subscribe to real-time quote data for specified symbols.
 
@@ -237,11 +223,7 @@ class WebSocketManager:
         """
         self._subscribe(symbols, handler, self._quote_handlers, self._subscribed_quotes, "quote")
 
-    def subscribe_trades(
-        self,
-        symbols: List[str],
-        handler: Optional[Callable] = None
-    ) -> None:
+    def subscribe_trades(self, symbols: List[str], handler: Optional[Callable] = None) -> None:
         """
         Subscribe to real-time trade data for specified symbols.
 
@@ -364,9 +346,7 @@ class WebSocketManager:
         Args:
             bar: Bar data from Alpaca stream
         """
-        await self._dispatch_to_handlers(
-            bar, self._bar_handlers, self._global_bar_handlers, "bar"
-        )
+        await self._dispatch_to_handlers(bar, self._bar_handlers, self._global_bar_handlers, "bar")
 
     async def _handle_quote(self, quote: Quote) -> None:
         """
@@ -475,22 +455,13 @@ class WebSocketManager:
 
                 # Register internal handlers
                 if self._subscribed_bars:
-                    self._stream.subscribe_bars(
-                        self._handle_bar,
-                        *self._subscribed_bars
-                    )
+                    self._stream.subscribe_bars(self._handle_bar, *self._subscribed_bars)
 
                 if self._subscribed_quotes:
-                    self._stream.subscribe_quotes(
-                        self._handle_quote,
-                        *self._subscribed_quotes
-                    )
+                    self._stream.subscribe_quotes(self._handle_quote, *self._subscribed_quotes)
 
                 if self._subscribed_trades:
-                    self._stream.subscribe_trades(
-                        self._handle_trade,
-                        *self._subscribed_trades
-                    )
+                    self._stream.subscribe_trades(self._handle_trade, *self._subscribed_trades)
 
                 logger.info(
                     f"Connecting to Alpaca stream (feed={self._feed}, "
@@ -529,7 +500,7 @@ class WebSocketManager:
 
                 delay = min(
                     self._base_reconnect_delay * (2 ** (self._reconnect_attempts - 1)),
-                    self._max_reconnect_delay
+                    self._max_reconnect_delay,
                 )
                 logger.warning(
                     "WebSocket stream exited unexpectedly. "
@@ -557,7 +528,7 @@ class WebSocketManager:
                 # Calculate backoff delay
                 delay = min(
                     self._base_reconnect_delay * (2 ** (self._reconnect_attempts - 1)),
-                    self._max_reconnect_delay
+                    self._max_reconnect_delay,
                 )
 
                 logger.warning(
@@ -652,8 +623,4 @@ def create_websocket_manager_from_config() -> WebSocketManager:
 
     # Use IEX feed for free tier (most common)
     # Change to "sip" if you have a paid subscription
-    return WebSocketManager(
-        api_key=api_key,
-        secret_key=api_secret,
-        feed="iex"
-    )
+    return WebSocketManager(api_key=api_key, secret_key=api_secret, feed="iex")

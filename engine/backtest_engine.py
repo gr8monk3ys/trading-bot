@@ -217,7 +217,9 @@ class BacktestEngine:
 
         try:
             signal = await strategy.analyze_symbol(symbol)
-            event["signal"] = signal if isinstance(signal, (dict, list, str, int, float, bool)) else str(signal)
+            event["signal"] = (
+                signal if isinstance(signal, (dict, list, str, int, float, bool)) else str(signal)
+            )
             if signal:
                 # Handle both string and dict signal formats
                 if isinstance(signal, str):
@@ -281,9 +283,7 @@ class BacktestEngine:
         run_id = run_id or generate_run_id("backtest")
         run_dir = ensure_run_directory(artifacts_dir, run_id) if persist_artifacts else None
         decision_log_writer = (
-            JsonlWriter(run_dir / "decision_events.jsonl")
-            if run_dir is not None
-            else None
+            JsonlWriter(run_dir / "decision_events.jsonl") if run_dir is not None else None
         )
         trades_log_writer = JsonlWriter(run_dir / "trades.jsonl") if run_dir is not None else None
         decision_event_count = 0
@@ -611,9 +611,7 @@ class BacktestEngine:
             else None
         )
         gap_events_raw = (
-            backtest_broker.get_gap_events()
-            if hasattr(backtest_broker, "get_gap_events")
-            else []
+            backtest_broker.get_gap_events() if hasattr(backtest_broker, "get_gap_events") else []
         )
         gap_events = gap_events_raw if isinstance(gap_events_raw, list) else []
 
@@ -655,7 +653,9 @@ class BacktestEngine:
                     }
                 )
 
-        order_records = backtest_broker.get_orders() if hasattr(backtest_broker, "get_orders") else []
+        order_records = (
+            backtest_broker.get_orders() if hasattr(backtest_broker, "get_orders") else []
+        )
         for order in order_records:
             if trades_log_writer:
                 trades_log_writer.write(
@@ -704,45 +704,60 @@ class BacktestEngine:
             },
             "gap_events": [
                 {
-                    "symbol": e.get("symbol")
-                    if isinstance(e, dict)
-                    else getattr(e, "symbol", None),
+                    "symbol": (
+                        e.get("symbol") if isinstance(e, dict) else getattr(e, "symbol", None)
+                    ),
                     "date": (
-                        e.get("date").isoformat() if isinstance(e, dict) and hasattr(e.get("date"), "isoformat")
+                        e.get("date").isoformat()
+                        if isinstance(e, dict) and hasattr(e.get("date"), "isoformat")
                         else (
                             e.get("date")
                             if isinstance(e, dict)
                             else (
-                                getattr(e, "date").isoformat()
+                                e.date.isoformat()
                                 if hasattr(getattr(e, "date", None), "isoformat")
                                 else str(getattr(e, "date", ""))
                             )
                         )
                     ),
-                    "prev_close": e.get("prev_close")
-                    if isinstance(e, dict)
-                    else getattr(e, "prev_close", None),
-                    "open_price": e.get("open_price")
-                    if isinstance(e, dict)
-                    else getattr(e, "open_price", None),
-                    "gap_pct": e.get("gap_pct")
-                    if isinstance(e, dict)
-                    else getattr(e, "gap_pct", None),
-                    "position_side": e.get("position_side")
-                    if isinstance(e, dict)
-                    else getattr(e, "position_side", None),
-                    "position_qty": e.get("position_qty")
-                    if isinstance(e, dict)
-                    else getattr(e, "position_qty", None),
-                    "stop_price": e.get("stop_price")
-                    if isinstance(e, dict)
-                    else getattr(e, "stop_price", None),
-                    "stop_triggered": e.get("stop_triggered")
-                    if isinstance(e, dict)
-                    else getattr(e, "stop_triggered", None),
-                    "slippage_from_stop": e.get("slippage_from_stop")
-                    if isinstance(e, dict)
-                    else getattr(e, "slippage_from_stop", None),
+                    "prev_close": (
+                        e.get("prev_close")
+                        if isinstance(e, dict)
+                        else getattr(e, "prev_close", None)
+                    ),
+                    "open_price": (
+                        e.get("open_price")
+                        if isinstance(e, dict)
+                        else getattr(e, "open_price", None)
+                    ),
+                    "gap_pct": (
+                        e.get("gap_pct") if isinstance(e, dict) else getattr(e, "gap_pct", None)
+                    ),
+                    "position_side": (
+                        e.get("position_side")
+                        if isinstance(e, dict)
+                        else getattr(e, "position_side", None)
+                    ),
+                    "position_qty": (
+                        e.get("position_qty")
+                        if isinstance(e, dict)
+                        else getattr(e, "position_qty", None)
+                    ),
+                    "stop_price": (
+                        e.get("stop_price")
+                        if isinstance(e, dict)
+                        else getattr(e, "stop_price", None)
+                    ),
+                    "stop_triggered": (
+                        e.get("stop_triggered")
+                        if isinstance(e, dict)
+                        else getattr(e, "stop_triggered", None)
+                    ),
+                    "slippage_from_stop": (
+                        e.get("slippage_from_stop")
+                        if isinstance(e, dict)
+                        else getattr(e, "slippage_from_stop", None)
+                    ),
                 }
                 for e in gap_events
             ],
@@ -944,7 +959,11 @@ class BacktestEngine:
 
         for fold_idx in range(n_folds):
             fold_start_idx = fold_idx * fold_size
-            fold_end_idx = min(fold_start_idx + fold_size, total_days) if fold_idx < n_folds - 1 else total_days
+            fold_end_idx = (
+                min(fold_start_idx + fold_size, total_days)
+                if fold_idx < n_folds - 1
+                else total_days
+            )
 
             # Split fold into train and test
             fold_days = trading_days[fold_start_idx:fold_end_idx]
@@ -1102,7 +1121,9 @@ class BacktestEngine:
             "overfit_threshold": 0.5,  # OOS < 50% of IS = overfit
         }
 
-    def _calculate_sharpe_from_equity(self, equity_curve: List[float], risk_free_rate: float = 0.0) -> float:
+    def _calculate_sharpe_from_equity(
+        self, equity_curve: List[float], risk_free_rate: float = 0.0
+    ) -> float:
         """
         Calculate Sharpe ratio from an equity curve.
 

@@ -15,7 +15,9 @@ from unittest.mock import patch
 class MockAsset:
     """Mock Alpaca asset object."""
 
-    def __init__(self, symbol: str, tradable: bool = True, fractionable: bool = True, marginable: bool = True):
+    def __init__(
+        self, symbol: str, tradable: bool = True, fractionable: bool = True, marginable: bool = True
+    ):
         self.symbol = symbol
         self.tradable = tradable
         self.fractionable = fractionable
@@ -56,11 +58,7 @@ class TestSimpleSymbolSelectorInit:
         """Test initialization with API credentials."""
         from utils.simple_symbol_selector import SimpleSymbolSelector
 
-        selector = SimpleSymbolSelector(
-            api_key="test_key",
-            secret_key="test_secret",
-            paper=True
-        )
+        selector = SimpleSymbolSelector(api_key="test_key", secret_key="test_secret", paper=True)
 
         mock_trading_client.assert_called_once_with("test_key", "test_secret", paper=True)
         mock_data_client.assert_called_once_with("test_key", "test_secret")
@@ -75,11 +73,7 @@ class TestSimpleSymbolSelectorInit:
         """Test initialization with live trading (paper=False)."""
         from utils.simple_symbol_selector import SimpleSymbolSelector
 
-        SimpleSymbolSelector(
-            api_key="live_key",
-            secret_key="live_secret",
-            paper=False
-        )
+        SimpleSymbolSelector(api_key="live_key", secret_key="live_secret", paper=False)
 
         mock_trading_client.assert_called_once_with("live_key", "live_secret", paper=False)
 
@@ -211,9 +205,7 @@ class TestFilterByCriteria:
             MockBar(170.0, 180.0, 165.0, 175.0, 2_000_000),
             MockBar(175.0, 185.0, 170.0, 180.0, 2_500_000),
         ]
-        mock_data_client.return_value.get_stock_bars.return_value = MockBarsResponse({
-            "AAPL": bars
-        })
+        mock_data_client.return_value.get_stock_bars.return_value = MockBarsResponse({"AAPL": bars})
 
         selector = SimpleSymbolSelector("key", "secret")
         result = selector.filter_by_criteria(["AAPL"])
@@ -269,9 +261,9 @@ class TestFilterByCriteria:
             MockBar(50.0, 52.0, 48.0, 51.0, 100_000),  # Only 100k volume
             MockBar(51.0, 53.0, 49.0, 52.0, 150_000),
         ]
-        mock_data_client.return_value.get_stock_bars.return_value = MockBarsResponse({
-            "LOWVOL": bars
-        })
+        mock_data_client.return_value.get_stock_bars.return_value = MockBarsResponse(
+            {"LOWVOL": bars}
+        )
 
         selector = SimpleSymbolSelector("key", "secret")
         result = selector.filter_by_criteria(["LOWVOL"])
@@ -376,14 +368,12 @@ class TestSelectTopSymbols:
             MockBar(165.0, 180.0, 160.0, 170.0, 5_000_000),
             MockBar(170.0, 185.0, 165.0, 180.0, 6_000_000),
         ]
-        mock_data_client.return_value.get_stock_bars.return_value = MockBarsResponse({
-            "AAPL": bars
-        })
+        mock_data_client.return_value.get_stock_bars.return_value = MockBarsResponse({"AAPL": bars})
 
         selector = SimpleSymbolSelector("key", "secret")
 
         # Patch get_most_active_stocks to return a small list for testing
-        with patch.object(selector, 'get_most_active_stocks', return_value=["AAPL"]):
+        with patch.object(selector, "get_most_active_stocks", return_value=["AAPL"]):
             result = selector.select_top_symbols(top_n=5)
 
         assert "AAPL" in result
@@ -402,8 +392,8 @@ class TestSelectTopSymbols:
             {"symbol": "LOW", "price": 100, "avg_volume": 2e6, "momentum_5d": 0.5, "score": 0.5},
         ]
 
-        with patch.object(selector, 'get_most_active_stocks', return_value=["HIGH", "LOW"]):
-            with patch.object(selector, 'filter_by_criteria', return_value=mock_filtered):
+        with patch.object(selector, "get_most_active_stocks", return_value=["HIGH", "LOW"]):
+            with patch.object(selector, "filter_by_criteria", return_value=mock_filtered):
                 result = selector.select_top_symbols(top_n=10, min_score=1.0)
 
         assert "HIGH" in result
@@ -419,12 +409,20 @@ class TestSelectTopSymbols:
 
         # Mock many filtered results
         mock_filtered = [
-            {"symbol": f"SYM{i}", "price": 100, "avg_volume": 2e6, "momentum_5d": 10-i, "score": 10-i}
+            {
+                "symbol": f"SYM{i}",
+                "price": 100,
+                "avg_volume": 2e6,
+                "momentum_5d": 10 - i,
+                "score": 10 - i,
+            }
             for i in range(20)
         ]
 
-        with patch.object(selector, 'get_most_active_stocks', return_value=[f"SYM{i}" for i in range(20)]):
-            with patch.object(selector, 'filter_by_criteria', return_value=mock_filtered):
+        with patch.object(
+            selector, "get_most_active_stocks", return_value=[f"SYM{i}" for i in range(20)]
+        ):
+            with patch.object(selector, "filter_by_criteria", return_value=mock_filtered):
                 result = selector.select_top_symbols(top_n=5)
 
         assert len(result) == 5
@@ -437,8 +435,8 @@ class TestSelectTopSymbols:
 
         selector = SimpleSymbolSelector("key", "secret")
 
-        with patch.object(selector, 'get_most_active_stocks', return_value=["AAPL"]):
-            with patch.object(selector, 'filter_by_criteria', return_value=[]):
+        with patch.object(selector, "get_most_active_stocks", return_value=["AAPL"]):
+            with patch.object(selector, "filter_by_criteria", return_value=[]):
                 result = selector.select_top_symbols(top_n=10)
 
         assert result == []

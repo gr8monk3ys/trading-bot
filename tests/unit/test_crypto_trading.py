@@ -69,8 +69,16 @@ class TestOrderBuilderCryptoDetection:
         from brokers.order_builder import OrderBuilder
 
         pairs = [
-            "BTC/USD", "ETH/USD", "SOL/USD", "AVAX/USD", "DOGE/USD",
-            "SHIB/USD", "LTC/USD", "BCH/USD", "LINK/USD", "UNI/USD",
+            "BTC/USD",
+            "ETH/USD",
+            "SOL/USD",
+            "AVAX/USD",
+            "DOGE/USD",
+            "SHIB/USD",
+            "LTC/USD",
+            "BCH/USD",
+            "LINK/USD",
+            "UNI/USD",
         ]
 
         for pair in pairs:
@@ -226,10 +234,13 @@ class TestAlpacaBrokerCryptoSymbols:
     @pytest.fixture
     def mock_broker(self):
         """Create a mock broker for testing."""
-        with patch("brokers.alpaca_broker.TradingClient"), \
-             patch("brokers.alpaca_broker.StockHistoricalDataClient"), \
-             patch("brokers.alpaca_broker.StockDataStream"):
+        with (
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
+        ):
             from brokers.alpaca_broker import AlpacaBroker
+
             return AlpacaBroker(paper=True)
 
     def test_is_crypto_with_slash(self, mock_broker):
@@ -278,11 +289,14 @@ class TestAlpacaBrokerCryptoData:
     @pytest.fixture
     def mock_broker_with_crypto(self):
         """Create a mock broker with crypto client mocked."""
-        with patch("brokers.alpaca_broker.TradingClient"), \
-             patch("brokers.alpaca_broker.StockHistoricalDataClient"), \
-             patch("brokers.alpaca_broker.StockDataStream"), \
-             patch("brokers.alpaca_broker.CryptoHistoricalDataClient") as mock_crypto:
+        with (
+            patch("brokers.alpaca_broker.TradingClient"),
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
+            patch("brokers.alpaca_broker.CryptoHistoricalDataClient") as mock_crypto,
+        ):
             from brokers.alpaca_broker import AlpacaBroker
+
             broker = AlpacaBroker(paper=True)
             broker._mock_crypto_client = mock_crypto
             return broker
@@ -310,6 +324,7 @@ class TestAlpacaBrokerCryptoData:
 
         # Pre-populate cache
         from datetime import datetime
+
         broker._price_cache["crypto:BTC/USD"] = (45000.00, datetime.now())
 
         # Should return cached value without API call
@@ -332,10 +347,13 @@ class TestAlpacaBrokerCryptoOrders:
     @pytest.fixture
     def mock_broker_for_orders(self):
         """Create a mock broker for order testing."""
-        with patch("brokers.alpaca_broker.TradingClient") as mock_trading, \
-             patch("brokers.alpaca_broker.StockHistoricalDataClient"), \
-             patch("brokers.alpaca_broker.StockDataStream"):
+        with (
+            patch("brokers.alpaca_broker.TradingClient") as mock_trading,
+            patch("brokers.alpaca_broker.StockHistoricalDataClient"),
+            patch("brokers.alpaca_broker.StockDataStream"),
+        ):
             from brokers.alpaca_broker import AlpacaBroker
+
             broker = AlpacaBroker(paper=True)
             broker._mock_trading = mock_trading
             return broker
@@ -357,11 +375,7 @@ class TestAlpacaBrokerCryptoOrders:
         mock_order.created_at = datetime.now()
 
         with patch("asyncio.to_thread", return_value=mock_order):
-            result = await broker.submit_crypto_order(
-                symbol="BTC/USD",
-                side="buy",
-                qty=0.5
-            )
+            result = await broker.submit_crypto_order(symbol="BTC/USD", side="buy", qty=0.5)
 
             assert result["id"] == "order123"
             assert result["symbol"] == "BTC/USD"
@@ -385,9 +399,7 @@ class TestAlpacaBrokerCryptoOrders:
 
         with patch("asyncio.to_thread", return_value=mock_order):
             result = await broker.submit_crypto_order(
-                symbol="ETH/USD",
-                side="buy",
-                notional=1000.00
+                symbol="ETH/USD", side="buy", notional=1000.00
             )
 
             assert result["notional"] == "1000.00"
@@ -410,11 +422,7 @@ class TestAlpacaBrokerCryptoOrders:
 
         with patch("asyncio.to_thread", return_value=mock_order):
             result = await broker.submit_crypto_order(
-                symbol="BTC/USD",
-                side="buy",
-                qty=0.5,
-                order_type="limit",
-                limit_price=40000.00
+                symbol="BTC/USD", side="buy", qty=0.5, order_type="limit", limit_price=40000.00
             )
 
             assert result["type"] == "limit"
@@ -425,22 +433,18 @@ class TestAlpacaBrokerCryptoOrders:
         broker = mock_broker_for_orders
 
         with pytest.raises(ValueError, match="Either qty or notional"):
-            await broker.submit_crypto_order(
-                symbol="BTC/USD",
-                side="buy"
-            )
+            await broker.submit_crypto_order(symbol="BTC/USD", side="buy")
 
     @pytest.mark.asyncio
-    async def test_submit_crypto_order_validation_both_qty_and_notional(self, mock_broker_for_orders):
+    async def test_submit_crypto_order_validation_both_qty_and_notional(
+        self, mock_broker_for_orders
+    ):
         """submit_crypto_order() rejects both qty and notional."""
         broker = mock_broker_for_orders
 
         with pytest.raises(ValueError, match="either qty or notional"):
             await broker.submit_crypto_order(
-                symbol="BTC/USD",
-                side="buy",
-                qty=0.5,
-                notional=1000.00
+                symbol="BTC/USD", side="buy", qty=0.5, notional=1000.00
             )
 
     @pytest.mark.asyncio
@@ -450,10 +454,7 @@ class TestAlpacaBrokerCryptoOrders:
 
         with pytest.raises(ValueError, match="limit_price required"):
             await broker.submit_crypto_order(
-                symbol="BTC/USD",
-                side="buy",
-                qty=0.5,
-                order_type="limit"
+                symbol="BTC/USD", side="buy", qty=0.5, order_type="limit"
             )
 
     @pytest.mark.asyncio
@@ -473,11 +474,7 @@ class TestAlpacaBrokerCryptoOrders:
 
         with patch("asyncio.to_thread", return_value=mock_order):
             # Use BTCUSD format (without slash)
-            result = await broker.submit_crypto_order(
-                symbol="BTCUSD",
-                side="buy",
-                qty=0.5
-            )
+            result = await broker.submit_crypto_order(symbol="BTCUSD", side="buy", qty=0.5)
 
             # Should be normalized to BTC/USD
             assert result["symbol"] == "BTC/USD"

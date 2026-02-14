@@ -36,8 +36,7 @@ from strategies.base_strategy import BaseStrategy
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -154,7 +153,7 @@ class StreamingMomentumStrategy(BaseStrategy):
         prices = self.realtime_prices.get(symbol, [])
         if len(prices) < self.sma_period:
             return None
-        return sum(prices[-self.sma_period:]) / self.sma_period
+        return sum(prices[-self.sma_period :]) / self.sma_period
 
     async def analyze_symbol(self, symbol: str) -> dict:
         """
@@ -181,7 +180,7 @@ class StreamingMomentumStrategy(BaseStrategy):
                 "action": signal or "hold",
                 "price": current_price,
                 "sma": self._calculate_sma(symbol),
-                "source": "realtime"
+                "source": "realtime",
             }
 
         return {"action": "hold", "reason": "insufficient_data", "source": "polling"}
@@ -210,14 +209,12 @@ class StreamingMomentumStrategy(BaseStrategy):
             "bars_received": self.bars_received,
             "signals_generated": self.signals_generated,
             "symbols_tracking": len(self.realtime_prices),
-            "last_signals": dict(self.last_signals)
+            "last_signals": dict(self.last_signals),
         }
 
 
 async def run_streaming_strategy(
-    symbols: List[str],
-    duration: int = None,
-    subscribe_quotes: bool = False
+    symbols: List[str], duration: int = None, subscribe_quotes: bool = False
 ) -> None:
     """
     Run a strategy with real-time WebSocket streaming.
@@ -244,7 +241,7 @@ async def run_streaming_strategy(
             "symbols": symbols,
             "sma_period": 20,
             "momentum_threshold": 0.015,  # 1.5% momentum threshold
-        }
+        },
     )
 
     await strategy.initialize()
@@ -274,9 +271,7 @@ async def run_streaming_strategy(
     try:
         # Start streaming
         connected = await broker.start_streaming(
-            symbols=symbols,
-            subscribe_bars=True,
-            subscribe_quotes=subscribe_quotes
+            symbols=symbols, subscribe_bars=True, subscribe_quotes=subscribe_quotes
         )
 
         if not connected:
@@ -323,9 +318,9 @@ async def run_streaming_strategy(
         logger.info(f"Signals generated: {stats['signals_generated']}")
         logger.info(f"Symbols tracked: {stats['symbols_tracking']}")
 
-        if stats['last_signals']:
+        if stats["last_signals"]:
             logger.info("\nLast signals by symbol:")
-            for sym, sig in sorted(stats['last_signals'].items()):
+            for sym, sig in sorted(stats["last_signals"].items()):
                 logger.info(f"  {sym}: {sig.upper()}")
 
         # Show price history summary
@@ -342,22 +337,12 @@ async def main():
         description="Run a trading strategy with real-time WebSocket streaming"
     )
     parser.add_argument(
-        "--symbols",
-        type=str,
-        default=None,
-        help="Comma-separated symbols (default: from config)"
+        "--symbols", type=str, default=None, help="Comma-separated symbols (default: from config)"
     )
     parser.add_argument(
-        "--duration",
-        type=int,
-        default=None,
-        help="Duration in seconds (default: until Ctrl+C)"
+        "--duration", type=int, default=None, help="Duration in seconds (default: until Ctrl+C)"
     )
-    parser.add_argument(
-        "--quotes",
-        action="store_true",
-        help="Also subscribe to quote data"
-    )
+    parser.add_argument("--quotes", action="store_true", help="Also subscribe to quote data")
 
     args = parser.parse_args()
 
@@ -368,9 +353,7 @@ async def main():
         symbols = SYMBOLS[:3]  # Use first 3 default symbols
 
     await run_streaming_strategy(
-        symbols=symbols,
-        duration=args.duration,
-        subscribe_quotes=args.quotes
+        symbols=symbols, duration=args.duration, subscribe_quotes=args.quotes
     )
 
 

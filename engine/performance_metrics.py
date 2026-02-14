@@ -80,9 +80,7 @@ def apply_bonferroni_correction(
     return results
 
 
-def apply_fdr_correction(
-    p_values: List[float], alpha: float = 0.05
-) -> List[SignificanceResult]:
+def apply_fdr_correction(p_values: List[float], alpha: float = 0.05) -> List[SignificanceResult]:
     """
     Apply Benjamini-Hochberg False Discovery Rate (FDR) correction.
 
@@ -212,9 +210,7 @@ class EffectSizeResult:
     confidence_interval: Tuple[float, float]
 
 
-def calculate_cohens_d(
-    returns: np.ndarray, population_mean: float = 0.0
-) -> float:
+def calculate_cohens_d(returns: np.ndarray, population_mean: float = 0.0) -> float:
     """
     Calculate Cohen's d effect size for returns vs a benchmark (default 0).
 
@@ -251,9 +247,7 @@ def calculate_cohens_d(
     return (mean_return - population_mean) / std_return
 
 
-def calculate_hedges_g(
-    returns: np.ndarray, population_mean: float = 0.0
-) -> float:
+def calculate_hedges_g(returns: np.ndarray, population_mean: float = 0.0) -> float:
     """
     Calculate Hedge's g (bias-corrected Cohen's d).
 
@@ -757,11 +751,7 @@ class PerformanceMetrics:
 
         # Determine significance
         alpha = 1 - confidence_level
-        is_significant = (
-            len(trades) >= min_trades
-            and result["p_value"] < alpha
-            and mean_return > 0
-        )
+        is_significant = len(trades) >= min_trades and result["p_value"] < alpha and mean_return > 0
         result["is_significant"] = is_significant
 
         # Generate warnings
@@ -1060,9 +1050,7 @@ class PerformanceMetrics:
         # Determine statistical significance (after correction)
         alpha = 1 - confidence_level
         result["is_significant"] = (
-            len(trades) >= min_trades
-            and result["adjusted_p_value"] < alpha
-            and mean_return > 0
+            len(trades) >= min_trades and result["adjusted_p_value"] < alpha and mean_return > 0
         )
 
         # Determine practical significance (effect size >= small)
@@ -1155,9 +1143,13 @@ class PerformanceMetrics:
             individual_results[name]["n_strategies_tested"] = n_strategies
 
         # Summary
-        n_significant_raw = sum(1 for r in individual_results.values() if r.get("is_significant", False))
+        n_significant_raw = sum(
+            1 for r in individual_results.values() if r.get("is_significant", False)
+        )
         n_significant_corrected = sum(
-            1 for r in individual_results.values() if r.get("is_significant_after_correction", False)
+            1
+            for r in individual_results.values()
+            if r.get("is_significant_after_correction", False)
         )
 
         return {

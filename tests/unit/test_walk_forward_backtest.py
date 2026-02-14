@@ -28,6 +28,7 @@ def engine():
 @pytest.fixture
 def mock_strategy_class():
     """Create a mock strategy class."""
+
     class MockStrategy:
         def __init__(self, broker, parameters):
             self.broker = broker
@@ -120,6 +121,7 @@ class TestWalkForwardBacktest:
     @pytest.mark.asyncio
     async def test_walk_forward_basic_structure(self, engine, mock_strategy_class):
         """Test that walk-forward returns expected structure."""
+
         # Mock run_backtest to return simple results
         async def mock_run_backtest(*args, **kwargs):
             return {
@@ -127,7 +129,7 @@ class TestWalkForwardBacktest:
                 "total_trades": 5,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -156,7 +158,7 @@ class TestWalkForwardBacktest:
                 "total_trades": 1,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -188,7 +190,7 @@ class TestWalkForwardBacktest:
                 "total_trades": 5,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -206,6 +208,7 @@ class TestWalkForwardBacktest:
     @pytest.mark.asyncio
     async def test_walk_forward_no_overfit(self, engine, mock_strategy_class):
         """Test no overfitting when OOS ~ IS."""
+
         async def mock_run_backtest(*args, **kwargs):
             # Both IS and OOS have similar performance
             equity = [100000, 101000, 102000, 103000]
@@ -214,7 +217,7 @@ class TestWalkForwardBacktest:
                 "total_trades": 5,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -229,13 +232,14 @@ class TestWalkForwardBacktest:
     @pytest.mark.asyncio
     async def test_walk_forward_embargo_days(self, engine, mock_strategy_class):
         """Test that embargo days are applied."""
+
         async def mock_run_backtest(*args, **kwargs):
             return {
                 "equity_curve": [100000, 101000],
                 "total_trades": 1,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -250,13 +254,14 @@ class TestWalkForwardBacktest:
     @pytest.mark.asyncio
     async def test_walk_forward_train_pct(self, engine, mock_strategy_class):
         """Test that train percentage is respected."""
+
         async def mock_run_backtest(*args, **kwargs):
             return {
                 "equity_curve": [100000, 101000],
                 "total_trades": 1,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -271,13 +276,14 @@ class TestWalkForwardBacktest:
     @pytest.mark.asyncio
     async def test_walk_forward_fold_details(self, engine, mock_strategy_class):
         """Test that fold results contain expected details."""
+
         async def mock_run_backtest(*args, **kwargs):
             return {
                 "equity_curve": [100000, 101000, 102000],
                 "total_trades": 3,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -313,7 +319,7 @@ class TestWalkForwardBacktest:
                 "total_trades": 1,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -343,7 +349,7 @@ class TestWalkForwardBacktest:
                 "total_trades": 5,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -371,13 +377,14 @@ class TestWalkForwardEdgeCases:
     @pytest.mark.asyncio
     async def test_short_date_range(self, engine, mock_strategy_class):
         """Test with very short date range."""
+
         async def mock_run_backtest(*args, **kwargs):
             return {
                 "equity_curve": [100000, 101000],
                 "total_trades": 1,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -392,13 +399,14 @@ class TestWalkForwardEdgeCases:
     @pytest.mark.asyncio
     async def test_single_fold(self, engine, mock_strategy_class):
         """Test with single fold."""
+
         async def mock_run_backtest(*args, **kwargs):
             return {
                 "equity_curve": [100000, 101000, 102000],
                 "total_trades": 2,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],
@@ -412,6 +420,7 @@ class TestWalkForwardEdgeCases:
     @pytest.mark.asyncio
     async def test_zero_is_sharpe(self, engine, mock_strategy_class):
         """Test handling when IS Sharpe is zero."""
+
         async def mock_run_backtest(*args, **kwargs):
             # Flat equity = 0 Sharpe
             return {
@@ -419,7 +428,7 @@ class TestWalkForwardEdgeCases:
                 "total_trades": 0,
             }
 
-        with patch.object(engine, 'run_backtest', side_effect=mock_run_backtest):
+        with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
             result = await engine.run_walk_forward_backtest(
                 strategy_class=mock_strategy_class,
                 symbols=["AAPL"],

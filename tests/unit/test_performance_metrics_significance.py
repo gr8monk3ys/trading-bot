@@ -28,9 +28,7 @@ def test_calculate_significance_positive_returns(monkeypatch):
     def _fake_ttest(_returns, _mu):
         return 2.0, 0.01
 
-    monkeypatch.setattr(
-        "engine.performance_metrics.stats.ttest_1samp", _fake_ttest
-    )
+    monkeypatch.setattr("engine.performance_metrics.stats.ttest_1samp", _fake_ttest)
 
     metrics = PerformanceMetrics()
     rng = np.random.default_rng(42)

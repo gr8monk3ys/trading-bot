@@ -21,9 +21,7 @@ class TestSignalAggregatorIntegration:
     def mock_broker(self):
         """Create mock broker."""
         broker = AsyncMock()
-        broker.get_account = AsyncMock(
-            return_value=MagicMock(equity=100000, buying_power=200000)
-        )
+        broker.get_account = AsyncMock(return_value=MagicMock(equity=100000, buying_power=200000))
         broker.get_bars = AsyncMock(return_value=[])
         broker.get_positions = AsyncMock(return_value=[])
         return broker
@@ -203,9 +201,7 @@ class TestPortfolioOptimizer:
             return bar
 
         # Return price data
-        broker.get_bars = AsyncMock(
-            return_value=[create_bar(100 + i * 0.5) for i in range(100)]
-        )
+        broker.get_bars = AsyncMock(return_value=[create_bar(100 + i * 0.5) for i in range(100)])
         return broker
 
     @pytest.fixture
@@ -228,9 +224,7 @@ class TestPortfolioOptimizer:
         """Test risk parity optimization."""
         symbols = ["AAPL", "MSFT", "GOOGL"]
 
-        result = await portfolio_optimizer.optimize_risk_parity(
-            symbols=symbols, max_weight=0.5
-        )
+        result = await portfolio_optimizer.optimize_risk_parity(symbols=symbols, max_weight=0.5)
 
         # Should return OptimizationResult with weights
         assert hasattr(result, "weights")
@@ -241,9 +235,7 @@ class TestPortfolioOptimizer:
         """Test mean-variance optimization."""
         symbols = ["AAPL", "MSFT"]
 
-        result = await portfolio_optimizer.optimize_mean_variance(
-            symbols=symbols, max_weight=0.5
-        )
+        result = await portfolio_optimizer.optimize_mean_variance(symbols=symbols, max_weight=0.5)
 
         assert hasattr(result, "weights")
         assert hasattr(result, "sharpe_ratio")
@@ -309,9 +301,7 @@ class TestEnsembleVotingStrategy:
     def mock_broker(self):
         """Create mock broker."""
         broker = AsyncMock()
-        broker.get_account = AsyncMock(
-            return_value=MagicMock(equity=100000)
-        )
+        broker.get_account = AsyncMock(return_value=MagicMock(equity=100000))
         broker.get_bars = AsyncMock(return_value=[])
         return broker
 

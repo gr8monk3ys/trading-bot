@@ -40,16 +40,18 @@ logger = logging.getLogger(__name__)
 
 class BreachLevel(Enum):
     """Risk breach severity levels."""
-    NONE = "none"          # Within normal limits
-    WARNING = "warning"    # Approaching limit (80% of threshold)
+
+    NONE = "none"  # Within normal limits
+    WARNING = "warning"  # Approaching limit (80% of threshold)
     ELEVATED = "elevated"  # At threshold (100%)
     CRITICAL = "critical"  # Significantly over (150%+)
-    HALT = "halt"          # Severe breach requiring trading halt (200%+)
+    HALT = "halt"  # Severe breach requiring trading halt (200%+)
 
 
 @dataclass
 class IntradayVaRSnapshot:
     """Point-in-time VaR measurement."""
+
     timestamp: datetime
     portfolio_var: float  # Portfolio-level VaR
     symbol_vars: Dict[str, float]  # Per-symbol VaR
@@ -62,6 +64,7 @@ class IntradayVaRSnapshot:
 @dataclass
 class IntradayRiskReport:
     """Summary of intraday risk metrics."""
+
     date: datetime
     snapshots: List[IntradayVaRSnapshot] = field(default_factory=list)
     max_var_pct: float = 0.0
@@ -82,13 +85,13 @@ class IntradayVaRMonitor:
     """
 
     # Default thresholds (as fraction of portfolio)
-    DEFAULT_VAR_WARNING = 0.02    # 2% - Warning level
+    DEFAULT_VAR_WARNING = 0.02  # 2% - Warning level
     DEFAULT_VAR_CRITICAL = 0.03  # 3% - Critical level
-    DEFAULT_VAR_HALT = 0.05      # 5% - Halt trading level
+    DEFAULT_VAR_HALT = 0.05  # 5% - Halt trading level
 
     # Intraday VaR calculation parameters
-    DEFAULT_LOOKBACK_BARS = 60   # Use last 60 bars (1hr at 1min bars)
-    DEFAULT_CONFIDENCE = 0.95    # 95% confidence VaR
+    DEFAULT_LOOKBACK_BARS = 60  # Use last 60 bars (1hr at 1min bars)
+    DEFAULT_CONFIDENCE = 0.95  # 95% confidence VaR
 
     def __init__(
         self,
@@ -180,9 +183,7 @@ class IntradayVaRMonitor:
             f"update every {update_interval}s"
         )
 
-        self._task = asyncio.create_task(
-            self._monitoring_loop(update_interval)
-        )
+        self._task = asyncio.create_task(self._monitoring_loop(update_interval))
 
     async def stop_monitoring(self):
         """Stop the monitoring loop."""
@@ -234,8 +235,9 @@ class IntradayVaRMonitor:
                     self._intraday_prices[symbol].append(price)
                     # Keep only lookback period
                     if len(self._intraday_prices[symbol]) > self.lookback_bars:
-                        self._intraday_prices[symbol] = \
-                            self._intraday_prices[symbol][-self.lookback_bars:]
+                        self._intraday_prices[symbol] = self._intraday_prices[symbol][
+                            -self.lookback_bars :
+                        ]
 
             # Get position values
             positions = await self.broker.get_positions()
@@ -385,8 +387,7 @@ class IntradayVaRMonitor:
         # Auto-halt on severe breach
         if snapshot.breach_level == BreachLevel.HALT:
             logger.critical(
-                f"CRITICAL VaR BREACH: {snapshot.var_pct:.2%} - "
-                f"Triggering trading halt!"
+                f"CRITICAL VaR BREACH: {snapshot.var_pct:.2%} - " f"Triggering trading halt!"
             )
             if self.circuit_breaker:
                 await self._trigger_halt(snapshot)
@@ -395,14 +396,13 @@ class IntradayVaRMonitor:
         """Trigger trading halt via circuit breaker."""
         try:
             reason = (
-                f"Intraday VaR breach: {snapshot.var_pct:.2%} "
-                f"(threshold: {self.var_halt:.2%})"
+                f"Intraday VaR breach: {snapshot.var_pct:.2%} " f"(threshold: {self.var_halt:.2%})"
             )
 
             # If circuit breaker has check_and_halt method
-            if hasattr(self.circuit_breaker, 'check_and_halt'):
+            if hasattr(self.circuit_breaker, "check_and_halt"):
                 await self.circuit_breaker.check_and_halt()
-            elif hasattr(self.circuit_breaker, 'trigger'):
+            elif hasattr(self.circuit_breaker, "trigger"):
                 await self.circuit_breaker.trigger(reason)
 
             logger.critical(f"Trading HALTED: {reason}")

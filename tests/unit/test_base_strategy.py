@@ -177,9 +177,7 @@ class TestInitialize:
     async def test_initialize_with_broker_initializes_circuit_breaker(self):
         """Initialize with broker should set up circuit breaker."""
         mock_broker = AsyncMock()
-        mock_broker.get_account = AsyncMock(
-            return_value=MagicMock(equity="100000", cash="50000")
-        )
+        mock_broker.get_account = AsyncMock(return_value=MagicMock(equity="100000", cash="50000"))
         strategy = ConcreteStrategy(broker=mock_broker)
 
         await strategy.initialize()
@@ -218,18 +216,14 @@ class TestPositionSizeEnforcement:
     async def test_enforce_position_size_limit_allows_under_limit(self):
         """Should allow position sizes under the limit."""
         mock_broker = AsyncMock()
-        mock_broker.get_account.return_value = MagicMock(
-            equity="100000", cash="50000"
-        )
+        mock_broker.get_account.return_value = MagicMock(equity="100000", cash="50000")
         mock_broker.get_positions.return_value = []
 
         strategy = ConcreteStrategy(broker=mock_broker)
         await strategy.initialize()
 
         # Request size under max_position_size (5% of 100k = 5000)
-        capped_value, capped_qty = await strategy.enforce_position_size_limit(
-            "AAPL", 3000, 150.0
-        )
+        capped_value, capped_qty = await strategy.enforce_position_size_limit("AAPL", 3000, 150.0)
 
         assert capped_value == 3000
         assert capped_qty == 20.0  # 3000 / 150
@@ -238,18 +232,14 @@ class TestPositionSizeEnforcement:
     async def test_enforce_position_size_limit_caps_over_limit(self):
         """Should cap position sizes over the limit."""
         mock_broker = AsyncMock()
-        mock_broker.get_account.return_value = MagicMock(
-            equity="100000", cash="50000"
-        )
+        mock_broker.get_account.return_value = MagicMock(equity="100000", cash="50000")
         mock_broker.get_positions.return_value = []
 
         strategy = ConcreteStrategy(broker=mock_broker)
         await strategy.initialize()
 
         # Request size over max_position_size (5% of 100k = 5000)
-        capped_value, capped_qty = await strategy.enforce_position_size_limit(
-            "AAPL", 10000, 150.0
-        )
+        capped_value, capped_qty = await strategy.enforce_position_size_limit("AAPL", 10000, 150.0)
 
         assert capped_value == 5000  # Capped at 5%
         assert abs(capped_qty - 33.33) < 0.1  # 5000 / 150
@@ -260,9 +250,7 @@ class TestPositionSizeEnforcement:
         mock_broker = AsyncMock()
         strategy = ConcreteStrategy(broker=mock_broker)
 
-        capped_value, capped_qty = await strategy.enforce_position_size_limit(
-            "AAPL", 5000, 0
-        )
+        capped_value, capped_qty = await strategy.enforce_position_size_limit("AAPL", 5000, 0)
 
         assert capped_value == 0
         assert capped_qty == 0
@@ -282,14 +270,11 @@ class TestKellyPositionSizing:
         mock_broker = AsyncMock()
         mock_broker.get_account.return_value = MagicMock(equity="100000")
 
-        strategy = ConcreteStrategy(
-            broker=mock_broker,
-            parameters={"use_kelly_criterion": True}
-        )
+        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_kelly_criterion": True})
         await strategy.initialize()
 
-        position_value, position_fraction, quantity = (
-            await strategy.calculate_kelly_position_size("AAPL", 150.0)
+        position_value, position_fraction, quantity = await strategy.calculate_kelly_position_size(
+            "AAPL", 150.0
         )
 
         assert position_value >= 0
@@ -305,8 +290,8 @@ class TestKellyPositionSizing:
         strategy = ConcreteStrategy(broker=mock_broker)
         await strategy.initialize()
 
-        position_value, position_fraction, quantity = (
-            await strategy.calculate_kelly_position_size("AAPL", 150.0)
+        position_value, position_fraction, quantity = await strategy.calculate_kelly_position_size(
+            "AAPL", 150.0
         )
 
         # Should use position_size parameter (default 0.1)
@@ -352,9 +337,7 @@ class TestTradeTracking:
         await strategy.initialize()
 
         # Should not raise - returns early when Kelly is None
-        strategy.record_completed_trade(
-            "AAPL", 155.0, datetime.now(), 10, "long"
-        )
+        strategy.record_completed_trade("AAPL", 155.0, datetime.now(), 10, "long")
 
     @pytest.mark.asyncio
     async def test_record_completed_trade_without_entry_tracking(self):
@@ -363,9 +346,7 @@ class TestTradeTracking:
         await strategy.initialize()
 
         # Should not raise - logs warning and returns
-        strategy.record_completed_trade(
-            "AAPL", 155.0, datetime.now(), 10, "long"
-        )
+        strategy.record_completed_trade("AAPL", 155.0, datetime.now(), 10, "long")
 
     @pytest.mark.asyncio
     async def test_record_completed_trade_long_win(self):
@@ -374,9 +355,7 @@ class TestTradeTracking:
         await strategy.initialize()
 
         strategy.track_position_entry("AAPL", 150.0)
-        strategy.record_completed_trade(
-            "AAPL", 155.0, datetime.now(), 10, "long"
-        )
+        strategy.record_completed_trade("AAPL", 155.0, datetime.now(), 10, "long")
 
         # Entry should be cleared
         assert "AAPL" not in strategy.closed_positions
@@ -388,9 +367,7 @@ class TestTradeTracking:
         await strategy.initialize()
 
         strategy.track_position_entry("TSLA", 300.0)
-        strategy.record_completed_trade(
-            "TSLA", 280.0, datetime.now(), 10, "short"
-        )
+        strategy.record_completed_trade("TSLA", 280.0, datetime.now(), 10, "short")
 
         assert "TSLA" not in strategy.closed_positions
 
@@ -409,9 +386,7 @@ class TestVolatilityAdjustments:
         strategy = ConcreteStrategy()
         await strategy.initialize()
 
-        adj_pos, adj_stop, regime = await strategy.apply_volatility_adjustments(
-            0.10, 0.03
-        )
+        adj_pos, adj_stop, regime = await strategy.apply_volatility_adjustments(0.10, 0.03)
 
         assert adj_pos == 0.10
         assert adj_stop == 0.03
@@ -423,15 +398,10 @@ class TestVolatilityAdjustments:
         mock_broker = AsyncMock()
         mock_broker.get_latest_quote.return_value = MagicMock(ask_price=15.0)
 
-        strategy = ConcreteStrategy(
-            broker=mock_broker,
-            parameters={"use_volatility_regime": True}
-        )
+        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_volatility_regime": True})
         await strategy.initialize()
 
-        adj_pos, adj_stop, regime = await strategy.apply_volatility_adjustments(
-            0.10, 0.03
-        )
+        adj_pos, adj_stop, regime = await strategy.apply_volatility_adjustments(0.10, 0.03)
 
         assert isinstance(adj_pos, (int, float))
         assert isinstance(adj_stop, (int, float))
@@ -449,9 +419,7 @@ class TestVolatilityAdjustments:
             side_effect=Exception("VIX unavailable")
         )
 
-        adj_pos, adj_stop, regime = await strategy.apply_volatility_adjustments(
-            0.10, 0.03
-        )
+        adj_pos, adj_stop, regime = await strategy.apply_volatility_adjustments(0.10, 0.03)
 
         # Should return base values on error
         assert adj_pos == 0.10
@@ -488,9 +456,7 @@ class TestStreakAdjustments:
         strategy = ConcreteStrategy(parameters={"use_streak_sizing": True})
 
         # Force error by patching the streak_sizer method
-        strategy.streak_sizer.adjust_for_streak = Mock(
-            side_effect=Exception("Test error")
-        )
+        strategy.streak_sizer.adjust_for_streak = Mock(side_effect=Exception("Test error"))
 
         adjusted = strategy.apply_streak_adjustments(0.10)
 
@@ -520,19 +486,14 @@ class TestMultiTimeframeSignal:
     async def test_returns_signal_when_confirmed(self):
         """Should return signal when MTF confirms."""
         mock_broker = AsyncMock()
-        strategy = ConcreteStrategy(
-            broker=mock_broker,
-            parameters={"use_multi_timeframe": True}
-        )
+        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_multi_timeframe": True})
         await strategy.initialize()
 
         # Set up mock MTF analyzer
         strategy.multi_timeframe = MagicMock()
-        strategy.multi_timeframe.analyze = AsyncMock(return_value={
-            "should_enter": True,
-            "signal": "buy",
-            "confidence": 0.85
-        })
+        strategy.multi_timeframe.analyze = AsyncMock(
+            return_value={"should_enter": True, "signal": "buy", "confidence": 0.85}
+        )
 
         result = await strategy.check_multi_timeframe_signal("AAPL")
 
@@ -542,19 +503,14 @@ class TestMultiTimeframeSignal:
     async def test_returns_none_when_rejected(self):
         """Should return None when MTF rejects signal."""
         mock_broker = AsyncMock()
-        strategy = ConcreteStrategy(
-            broker=mock_broker,
-            parameters={"use_multi_timeframe": True}
-        )
+        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_multi_timeframe": True})
         await strategy.initialize()
 
         # Set up mock MTF analyzer
         strategy.multi_timeframe = MagicMock()
-        strategy.multi_timeframe.analyze = AsyncMock(return_value={
-            "should_enter": False,
-            "signal": "neutral",
-            "confidence": 0.45
-        })
+        strategy.multi_timeframe.analyze = AsyncMock(
+            return_value={"should_enter": False, "signal": "neutral", "confidence": 0.45}
+        )
 
         result = await strategy.check_multi_timeframe_signal("AAPL")
 
@@ -564,10 +520,7 @@ class TestMultiTimeframeSignal:
     async def test_returns_none_on_analysis_failure(self):
         """Should return None when MTF analysis fails."""
         mock_broker = AsyncMock()
-        strategy = ConcreteStrategy(
-            broker=mock_broker,
-            parameters={"use_multi_timeframe": True}
-        )
+        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_multi_timeframe": True})
         await strategy.initialize()
 
         # Set up mock MTF analyzer that returns None
@@ -582,17 +535,12 @@ class TestMultiTimeframeSignal:
     async def test_returns_none_on_error(self):
         """Should return None on error."""
         mock_broker = AsyncMock()
-        strategy = ConcreteStrategy(
-            broker=mock_broker,
-            parameters={"use_multi_timeframe": True}
-        )
+        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_multi_timeframe": True})
         await strategy.initialize()
 
         # Set up mock MTF analyzer that raises
         strategy.multi_timeframe = MagicMock()
-        strategy.multi_timeframe.analyze = AsyncMock(
-            side_effect=Exception("Test error")
-        )
+        strategy.multi_timeframe.analyze = AsyncMock(side_effect=Exception("Test error"))
 
         result = await strategy.check_multi_timeframe_signal("AAPL")
 
@@ -611,9 +559,7 @@ class TestPositionHelpers:
     async def test_is_short_position_true(self):
         """Should return True for short position."""
         mock_broker = AsyncMock()
-        mock_broker.get_positions.return_value = [
-            MagicMock(symbol="AAPL", qty="-10")
-        ]
+        mock_broker.get_positions.return_value = [MagicMock(symbol="AAPL", qty="-10")]
         strategy = ConcreteStrategy(broker=mock_broker)
 
         result = await strategy.is_short_position("AAPL")
@@ -624,9 +570,7 @@ class TestPositionHelpers:
     async def test_is_short_position_false_for_long(self):
         """Should return False for long position."""
         mock_broker = AsyncMock()
-        mock_broker.get_positions.return_value = [
-            MagicMock(symbol="AAPL", qty="10")
-        ]
+        mock_broker.get_positions.return_value = [MagicMock(symbol="AAPL", qty="10")]
         strategy = ConcreteStrategy(broker=mock_broker)
 
         result = await strategy.is_short_position("AAPL")
@@ -667,7 +611,7 @@ class TestPositionHelpers:
                 unrealized_plpc="0.05",
                 avg_entry_price="145.00",
                 current_price="155.00",
-                market_value="1550.00"
+                market_value="1550.00",
             )
         ]
         strategy = ConcreteStrategy(broker=mock_broker)
@@ -713,12 +657,7 @@ class TestCreateOrder:
         """Should create market order request."""
         strategy = ConcreteStrategy()
 
-        order = strategy.create_order(
-            symbol="AAPL",
-            quantity=10,
-            side="buy",
-            type="market"
-        )
+        order = strategy.create_order(symbol="AAPL", quantity=10, side="buy", type="market")
 
         assert order is not None
         assert order["symbol"] == "AAPL"
@@ -731,11 +670,7 @@ class TestCreateOrder:
         strategy = ConcreteStrategy()
 
         order = strategy.create_order(
-            symbol="AAPL",
-            quantity=10,
-            side="buy",
-            type="limit",
-            limit_price=150.0
+            symbol="AAPL", quantity=10, side="buy", type="limit", limit_price=150.0
         )
 
         assert order is not None
@@ -746,11 +681,7 @@ class TestCreateOrder:
         strategy = ConcreteStrategy()
 
         order = strategy.create_order(
-            symbol="AAPL",
-            quantity=10,
-            side="sell",
-            type="stop",
-            stop_price=145.0
+            symbol="AAPL", quantity=10, side="sell", type="stop", stop_price=145.0
         )
 
         assert order is not None

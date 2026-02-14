@@ -48,9 +48,7 @@ def test_validation_gates_pass_with_mocked_permutation(monkeypatch):
     def _mock_perm(*_args, **_kwargs):
         return DummyPermResult(p_value=0.001)
 
-    monkeypatch.setattr(
-        "engine.validated_backtest.permutation_test_returns", _mock_perm
-    )
+    monkeypatch.setattr("engine.validated_backtest.permutation_test_returns", _mock_perm)
 
     runner = ValidatedBacktestRunner(broker=None)
     result = _base_result(
@@ -70,9 +68,7 @@ def test_validation_gates_blocks_when_no_walk_forward(monkeypatch):
     def _mock_perm(*_args, **_kwargs):
         return DummyPermResult(p_value=0.001)
 
-    monkeypatch.setattr(
-        "engine.validated_backtest.permutation_test_returns", _mock_perm
-    )
+    monkeypatch.setattr("engine.validated_backtest.permutation_test_returns", _mock_perm)
 
     runner = ValidatedBacktestRunner(broker=None)
     result = _base_result(walk_forward_validated=False)
@@ -88,9 +84,7 @@ def test_validation_gates_fail_for_core_thresholds(monkeypatch):
     def _mock_perm(*_args, **_kwargs):
         return DummyPermResult(p_value=0.001)
 
-    monkeypatch.setattr(
-        "engine.validated_backtest.permutation_test_returns", _mock_perm
-    )
+    monkeypatch.setattr("engine.validated_backtest.permutation_test_returns", _mock_perm)
 
     runner = ValidatedBacktestRunner(broker=None)
     result = _base_result(

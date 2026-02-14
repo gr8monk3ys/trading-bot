@@ -65,6 +65,7 @@ def print_summary(results: Dict[str, bool]):
 # VALIDATION FUNCTIONS
 # ============================================================================
 
+
 def validate_core_types() -> Dict[str, bool]:
     """Validate core alternative data types."""
     results = {}
@@ -79,6 +80,7 @@ def validate_core_types() -> Dict[str, bool]:
             SignalStrength,
             SocialSentimentSignal,
         )
+
         results["Import alt_data_types"] = True
 
         # Test AltDataSource enum
@@ -549,7 +551,11 @@ async def validate_end_to_end() -> Dict[str, bool]:
             # Use pre-fetched aggregated signal
             if symbol in signals:
                 agg = signals[symbol]
-                direction = "long" if agg.composite_signal > 0.1 else "short" if agg.composite_signal < -0.1 else "neutral"
+                direction = (
+                    "long"
+                    if agg.composite_signal > 0.1
+                    else "short" if agg.composite_signal < -0.1 else "neutral"
+                )
                 return SignalComponent(
                     source=SignalSource.ALTERNATIVE_DATA,
                     signal_value=agg.composite_signal,
@@ -591,6 +597,7 @@ async def validate_end_to_end() -> Dict[str, bool]:
 # ============================================================================
 # MAIN VALIDATION
 # ============================================================================
+
 
 async def main():
     """Run all validations."""

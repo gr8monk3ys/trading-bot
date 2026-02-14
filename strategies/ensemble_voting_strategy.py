@@ -227,7 +227,11 @@ class EnsembleVotingStrategy(BaseStrategy):
             try:
                 regime_result = await self.regime_detector.detect_regime()
                 if isinstance(regime_result, tuple):
-                    regime = regime_result[0].value if hasattr(regime_result[0], 'value') else str(regime_result[0])
+                    regime = (
+                        regime_result[0].value
+                        if hasattr(regime_result[0], "value")
+                        else str(regime_result[0])
+                    )
                 else:
                     regime = str(regime_result)
             except Exception as e:
@@ -287,9 +291,7 @@ class EnsembleVotingStrategy(BaseStrategy):
 
         return result
 
-    async def _collect_signals(
-        self, symbol: str
-    ) -> Dict[str, Dict[str, Any]]:
+    async def _collect_signals(self, symbol: str) -> Dict[str, Dict[str, Any]]:
         """Collect signals from all sub-strategies concurrently."""
         signals = {}
 
@@ -317,9 +319,7 @@ class EnsembleVotingStrategy(BaseStrategy):
 
         return signals
 
-    def _calculate_weighted_vote(
-        self, signals: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _calculate_weighted_vote(self, signals: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         """
         Calculate weighted vote from collected signals.
 
@@ -368,7 +368,7 @@ class EnsembleVotingStrategy(BaseStrategy):
             return None
 
         # Check sentiment filter if enabled
-        if hasattr(self, 'sentiment_analyzer') and self.sentiment_analyzer:
+        if hasattr(self, "sentiment_analyzer") and self.sentiment_analyzer:
             direction = "long" if signal["action"] == "buy" else "short"
             if not await self.check_sentiment_filter(symbol, direction):
                 return None
@@ -396,7 +396,7 @@ class EnsembleVotingStrategy(BaseStrategy):
             )
 
             # Apply sentiment adjustment if available
-            if hasattr(self, 'get_sentiment_adjusted_size'):
+            if hasattr(self, "get_sentiment_adjusted_size"):
                 adj_size = await self.get_sentiment_adjusted_size(symbol, adj_size)
 
             # Recalculate quantity with adjusted size

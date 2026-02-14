@@ -67,6 +67,7 @@ def backtester_custom(backtest_mock_broker, mock_strategy):
 @pytest.fixture
 def mock_bars():
     """Create mock bars with OHLCV data."""
+
     def create_bars(prices, dates=None):
         bars = []
         for i, price in enumerate(prices):
@@ -82,6 +83,7 @@ def mock_bars():
                 bar.timestamp = datetime(2024, 1, 1) + timedelta(days=i)
             bars.append(bar)
         return bars
+
     return create_bars
 
 
@@ -124,7 +126,7 @@ class TestTradeDataclass:
 
         trade.calculate_costs(
             slippage_pct=0.01,  # 1%
-            spread_pct=0.005,   # 0.5%
+            spread_pct=0.005,  # 0.5%
             commission_per_share=0.01,
         )
 
@@ -286,13 +288,16 @@ class TestRealisticBacktesterInit:
 
     def test_loads_defaults_from_config(self, backtest_mock_broker, mock_strategy):
         """Test loads defaults from config."""
-        with patch('utils.realistic_backtest.BACKTEST_PARAMS', {
-            'SLIPPAGE_PCT': 0.003,
-            'BID_ASK_SPREAD': 0.0015,
-            'COMMISSION_PER_SHARE': 0.005,
-            'EXECUTION_DELAY_BARS': 1,
-            'USE_SLIPPAGE': True,
-        }):
+        with patch(
+            "utils.realistic_backtest.BACKTEST_PARAMS",
+            {
+                "SLIPPAGE_PCT": 0.003,
+                "BID_ASK_SPREAD": 0.0015,
+                "COMMISSION_PER_SHARE": 0.005,
+                "EXECUTION_DELAY_BARS": 1,
+                "USE_SLIPPAGE": True,
+            },
+        ):
             backtester = RealisticBacktester(backtest_mock_broker, mock_strategy)
             assert backtester.slippage_pct == 0.003
             assert backtester.spread_pct == 0.0015
@@ -526,8 +531,7 @@ class TestCalculateResults:
 
         # Add equity history manually
         backtester.equity_history = [
-            (datetime(2024, 1, i+1), 100000 + i * 100)
-            for i in range(30)
+            (datetime(2024, 1, i + 1), 100000 + i * 100) for i in range(30)
         ]
 
         results = BacktestResults(
@@ -658,6 +662,7 @@ class TestBacktesterIntegration:
         """Test full backtest workflow."""
         # Setup strategy signals
         signal_sequence = iter(["buy", "sell", "buy", "sell", "neutral"])
+
         def get_signal(symbol, *args, **kwargs):
             try:
                 mock_strategy.signals[symbol] = next(signal_sequence)

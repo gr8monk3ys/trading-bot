@@ -48,9 +48,7 @@ class TestVixTermStructureProvider:
 
     async def test_initialization_success(self, provider):
         """Test successful initialization with mock."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = create_mock_ticker_data(18.5)
 
             result = await provider.initialize()
@@ -59,9 +57,7 @@ class TestVixTermStructureProvider:
 
     async def test_initialization_failure(self, provider):
         """Test initialization failure when data unavailable."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = None
 
             result = await provider.initialize()
@@ -69,9 +65,7 @@ class TestVixTermStructureProvider:
 
     async def test_fetch_signal_contango(self, provider):
         """Test fetching signal in contango condition."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             # VIX spot: 15, VIX 3M: 18 (contango)
             async def side_effect(symbol, *args, **kwargs):
                 if symbol == "^VIX":
@@ -94,9 +88,7 @@ class TestVixTermStructureProvider:
 
     async def test_fetch_signal_backwardation(self, provider):
         """Test fetching signal in backwardation condition."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             # VIX spot: 30, VIX 3M: 25 (backwardation)
             async def side_effect(symbol, *args, **kwargs):
                 if symbol == "^VIX":
@@ -118,9 +110,8 @@ class TestVixTermStructureProvider:
 
     async def test_fetch_signal_vix3m_fallback(self, provider):
         """Test fallback when VIX3M is unavailable."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
+
             async def side_effect(symbol, *args, **kwargs):
                 if symbol == "^VIX":
                     return create_mock_ticker_data(20.0)
@@ -138,9 +129,7 @@ class TestVixTermStructureProvider:
 
     async def test_confidence_varies_with_vix_level(self, provider):
         """Test confidence is higher when VIX is elevated."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             provider._initialized = True
 
             # Low VIX
@@ -164,9 +153,7 @@ class TestYieldCurveProvider:
 
     async def test_initialization_success(self, provider):
         """Test successful initialization."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = create_mock_ticker_data(95.0)
 
             result = await provider.initialize()
@@ -174,9 +161,7 @@ class TestYieldCurveProvider:
 
     async def test_fetch_signal_steep_curve(self, provider):
         """Test fetching signal with steep yield curve."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             # TLT high vs SHY = steep curve (long rates higher)
             async def side_effect(symbol, *args, **kwargs):
                 if symbol == "TLT":
@@ -201,9 +186,7 @@ class TestYieldCurveProvider:
 
     async def test_fetch_signal_inverted_curve(self, provider):
         """Test fetching signal with inverted yield curve."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             # TLT low vs SHY = inverted (short rates higher)
             async def side_effect(symbol, *args, **kwargs):
                 if symbol == "TLT":
@@ -225,9 +208,8 @@ class TestYieldCurveProvider:
 
     async def test_steepening_detection(self, provider):
         """Test detection of curve steepening."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
+
             async def side_effect(symbol, *args, **kwargs):
                 if symbol == "TLT":
                     return create_mock_ticker_data(100.0, 0.03, 0.05)  # Rising faster
@@ -257,9 +239,7 @@ class TestFxCorrelationProvider:
 
     async def test_initialization_success(self, provider):
         """Test successful initialization."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = create_mock_ticker_data(104.0)
 
             result = await provider.initialize()
@@ -267,9 +247,8 @@ class TestFxCorrelationProvider:
 
     async def test_fetch_signal_risk_on(self, provider):
         """Test risk-on signal (USD weak, AUD/JPY strong)."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
+
             async def side_effect(symbol, *args, **kwargs):
                 if symbol == "DX-Y.NYB":
                     # USD weakening (negative z-score)
@@ -303,9 +282,8 @@ class TestFxCorrelationProvider:
 
     async def test_fetch_signal_risk_off(self, provider):
         """Test risk-off signal (USD strong, AUD/JPY weak)."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
+
             async def side_effect(symbol, *args, **kwargs):
                 if symbol == "DX-Y.NYB":
                     # USD strengthening (positive z-score)
@@ -338,9 +316,7 @@ class TestFxCorrelationProvider:
 
     async def test_fallback_to_uup(self, provider):
         """Test fallback to UUP when DXY unavailable."""
-        with patch.object(
-            provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fetch:
+        with patch.object(provider, "_fetch_ticker_data", new_callable=AsyncMock) as mock_fetch:
             call_count = 0
 
             async def side_effect(symbol, *args, **kwargs):
@@ -371,12 +347,16 @@ class TestCrossAssetAggregator:
 
     async def test_initialization(self, aggregator):
         """Test aggregator initialization."""
-        with patch.object(
-            VixTermStructureProvider, "initialize", new_callable=AsyncMock, return_value=True
-        ), patch.object(
-            YieldCurveProvider, "initialize", new_callable=AsyncMock, return_value=True
-        ), patch.object(
-            FxCorrelationProvider, "initialize", new_callable=AsyncMock, return_value=True
+        with (
+            patch.object(
+                VixTermStructureProvider, "initialize", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                YieldCurveProvider, "initialize", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                FxCorrelationProvider, "initialize", new_callable=AsyncMock, return_value=True
+            ),
         ):
             result = await aggregator.initialize()
             assert result is True
@@ -384,12 +364,16 @@ class TestCrossAssetAggregator:
 
     async def test_partial_initialization(self, aggregator):
         """Test aggregator works with partial provider initialization."""
-        with patch.object(
-            VixTermStructureProvider, "initialize", new_callable=AsyncMock, return_value=True
-        ), patch.object(
-            YieldCurveProvider, "initialize", new_callable=AsyncMock, return_value=False
-        ), patch.object(
-            FxCorrelationProvider, "initialize", new_callable=AsyncMock, return_value=False
+        with (
+            patch.object(
+                VixTermStructureProvider, "initialize", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                YieldCurveProvider, "initialize", new_callable=AsyncMock, return_value=False
+            ),
+            patch.object(
+                FxCorrelationProvider, "initialize", new_callable=AsyncMock, return_value=False
+            ),
         ):
             result = await aggregator.initialize()
             # Should still initialize if at least one provider works
@@ -423,18 +407,34 @@ class TestCrossAssetAggregator:
             risk_appetite_score=0.4,
         )
 
-        with patch.object(
-            aggregator._vix_provider, "initialize", new_callable=AsyncMock, return_value=True
-        ), patch.object(
-            aggregator._yield_provider, "initialize", new_callable=AsyncMock, return_value=True
-        ), patch.object(
-            aggregator._fx_provider, "initialize", new_callable=AsyncMock, return_value=True
-        ), patch.object(
-            aggregator._vix_provider, "fetch_signal", new_callable=AsyncMock, return_value=mock_vix
-        ), patch.object(
-            aggregator._yield_provider, "fetch_signal", new_callable=AsyncMock, return_value=mock_yield
-        ), patch.object(
-            aggregator._fx_provider, "fetch_signal", new_callable=AsyncMock, return_value=mock_fx
+        with (
+            patch.object(
+                aggregator._vix_provider, "initialize", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                aggregator._yield_provider, "initialize", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                aggregator._fx_provider, "initialize", new_callable=AsyncMock, return_value=True
+            ),
+            patch.object(
+                aggregator._vix_provider,
+                "fetch_signal",
+                new_callable=AsyncMock,
+                return_value=mock_vix,
+            ),
+            patch.object(
+                aggregator._yield_provider,
+                "fetch_signal",
+                new_callable=AsyncMock,
+                return_value=mock_yield,
+            ),
+            patch.object(
+                aggregator._fx_provider,
+                "fetch_signal",
+                new_callable=AsyncMock,
+                return_value=mock_fx,
+            ),
         ):
             aggregator._vix_provider._initialized = True
             aggregator._yield_provider._initialized = True
@@ -483,13 +483,17 @@ class TestCrossAssetIntegration:
         aggregator = CrossAssetAggregator()
 
         # Mock all providers
-        with patch.object(
-            aggregator._vix_provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_vix, patch.object(
-            aggregator._yield_provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_yield, patch.object(
-            aggregator._fx_provider, "_fetch_ticker_data", new_callable=AsyncMock
-        ) as mock_fx:
+        with (
+            patch.object(
+                aggregator._vix_provider, "_fetch_ticker_data", new_callable=AsyncMock
+            ) as mock_vix,
+            patch.object(
+                aggregator._yield_provider, "_fetch_ticker_data", new_callable=AsyncMock
+            ) as mock_yield,
+            patch.object(
+                aggregator._fx_provider, "_fetch_ticker_data", new_callable=AsyncMock
+            ) as mock_fx,
+        ):
             # Set up mock data
             mock_vix.return_value = create_mock_ticker_data(15.0)
             mock_yield.return_value = create_mock_ticker_data(95.0)
@@ -510,12 +514,25 @@ class TestCrossAssetIntegration:
         yield_prov = YieldCurveProvider()
         fx = FxCorrelationProvider()
 
-        with patch.object(
-            vix, "_fetch_ticker_data", new_callable=AsyncMock, return_value=create_mock_ticker_data(18.0)
-        ), patch.object(
-            yield_prov, "_fetch_ticker_data", new_callable=AsyncMock, return_value=create_mock_ticker_data(95.0)
-        ), patch.object(
-            fx, "_fetch_ticker_data", new_callable=AsyncMock, return_value=create_mock_ticker_data(104.0)
+        with (
+            patch.object(
+                vix,
+                "_fetch_ticker_data",
+                new_callable=AsyncMock,
+                return_value=create_mock_ticker_data(18.0),
+            ),
+            patch.object(
+                yield_prov,
+                "_fetch_ticker_data",
+                new_callable=AsyncMock,
+                return_value=create_mock_ticker_data(95.0),
+            ),
+            patch.object(
+                fx,
+                "_fetch_ticker_data",
+                new_callable=AsyncMock,
+                return_value=create_mock_ticker_data(104.0),
+            ),
         ):
             await vix.initialize()
             await yield_prov.initialize()

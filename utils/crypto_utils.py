@@ -9,10 +9,26 @@ from typing import List, Optional
 
 # Supported cryptocurrency pairs (Alpaca format with forward slash)
 CRYPTO_PAIRS: List[str] = [
-    "BTC/USD", "ETH/USD", "SOL/USD", "AVAX/USD", "DOGE/USD",
-    "SHIB/USD", "LTC/USD", "BCH/USD", "LINK/USD", "UNI/USD",
-    "AAVE/USD", "DOT/USD", "MATIC/USD", "XLM/USD", "ATOM/USD",
-    "SUSHI/USD", "YFI/USD", "MKR/USD", "CRV/USD", "BAT/USD",
+    "BTC/USD",
+    "ETH/USD",
+    "SOL/USD",
+    "AVAX/USD",
+    "DOGE/USD",
+    "SHIB/USD",
+    "LTC/USD",
+    "BCH/USD",
+    "LINK/USD",
+    "UNI/USD",
+    "AAVE/USD",
+    "DOT/USD",
+    "MATIC/USD",
+    "XLM/USD",
+    "ATOM/USD",
+    "SUSHI/USD",
+    "YFI/USD",
+    "MKR/USD",
+    "CRV/USD",
+    "BAT/USD",
 ]
 
 # Base crypto symbols (without /USD) - derived from CRYPTO_PAIRS

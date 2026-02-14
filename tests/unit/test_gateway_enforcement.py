@@ -20,16 +20,19 @@ class TestGatewayBypassError:
     def test_exception_exists(self):
         """GatewayBypassError should be importable."""
         from brokers.alpaca_broker import GatewayBypassError
+
         assert GatewayBypassError is not None
 
     def test_exception_is_broker_error(self):
         """GatewayBypassError should inherit from BrokerError."""
         from brokers.alpaca_broker import BrokerError, GatewayBypassError
+
         assert issubclass(GatewayBypassError, BrokerError)
 
     def test_exception_message(self):
         """GatewayBypassError should have informative message."""
         from brokers.alpaca_broker import GatewayBypassError
+
         error = GatewayBypassError("Test message")
         assert "Test message" in str(error)
 
@@ -167,11 +170,13 @@ class TestInternalSubmitOrder:
         broker = MagicMock()
         broker._gateway_required = True
         broker._gateway_caller_token = valid_token
-        broker._calculate_market_impact = AsyncMock(return_value={
-            "participation_rate": 0.001,
-            "expected_slippage_pct": 0.001,
-            "safe_to_trade": True,
-        })
+        broker._calculate_market_impact = AsyncMock(
+            return_value={
+                "participation_rate": 0.001,
+                "expected_slippage_pct": 0.001,
+                "safe_to_trade": True,
+            }
+        )
         broker.ORDER_API_TIMEOUT = 15.0
         broker.MAX_PARTICIPATION_RATE = 0.05
 
@@ -205,9 +210,7 @@ class TestOrderGatewayIntegration:
         broker = MagicMock()
         broker._gateway_required = False
         broker._gateway_caller_token = None
-        broker.enable_gateway_requirement = MagicMock(
-            return_value="test_token_1234567890123456"
-        )
+        broker.enable_gateway_requirement = MagicMock(return_value="test_token_1234567890123456")
         broker.get_positions = AsyncMock(return_value=[])
         return broker
 
@@ -248,20 +251,24 @@ class TestBaseStrategyGatewayUsage:
         from utils.order_gateway import OrderResult
 
         gateway = MagicMock()
-        gateway.submit_order = AsyncMock(return_value=OrderResult(
-            success=True,
-            order_id="order123",
-            symbol="AAPL",
-            side="buy",
-            quantity=100,
-        ))
-        gateway.submit_exit_order = AsyncMock(return_value=OrderResult(
-            success=True,
-            order_id="exit123",
-            symbol="AAPL",
-            side="sell",
-            quantity=100,
-        ))
+        gateway.submit_order = AsyncMock(
+            return_value=OrderResult(
+                success=True,
+                order_id="order123",
+                symbol="AAPL",
+                side="buy",
+                quantity=100,
+            )
+        )
+        gateway.submit_exit_order = AsyncMock(
+            return_value=OrderResult(
+                success=True,
+                order_id="exit123",
+                symbol="AAPL",
+                side="sell",
+                quantity=100,
+            )
+        )
         return gateway
 
     def test_strategy_accepts_order_gateway(self, mock_broker, mock_gateway):
@@ -273,6 +280,7 @@ class TestBaseStrategyGatewayUsage:
         class TestStrategy(BaseStrategy):
             async def analyze_symbol(self, symbol):
                 return {"action": "hold"}
+
             async def execute_trade(self, symbol, signal):
                 pass
 
@@ -290,6 +298,7 @@ class TestBaseStrategyGatewayUsage:
         class TestStrategy(BaseStrategy):
             async def analyze_symbol(self, symbol):
                 return {"action": "hold"}
+
             async def execute_trade(self, symbol, signal):
                 pass
 
@@ -313,6 +322,7 @@ class TestBaseStrategyGatewayUsage:
         class TestStrategy(BaseStrategy):
             async def analyze_symbol(self, symbol):
                 return {"action": "hold"}
+
             async def execute_trade(self, symbol, signal):
                 pass
 
@@ -363,23 +373,25 @@ class TestFullGatewayEnforcementFlow:
             await AlpacaBroker.submit_order_advanced(broker, mock_order)
 
         # Step 3: Gateway with token should work
-        broker._async_call_with_timeout = AsyncMock(return_value=MagicMock(
-            id="order123",
-            symbol="AAPL",
-            qty=100,
-            type="market",
-            order_class="simple",
-            notional=None,
-        ))
-        broker._calculate_market_impact = AsyncMock(return_value={
-            "participation_rate": 0.001,
-            "expected_slippage_pct": 0.001,
-            "safe_to_trade": True,
-        })
+        broker._async_call_with_timeout = AsyncMock(
+            return_value=MagicMock(
+                id="order123",
+                symbol="AAPL",
+                qty=100,
+                type="market",
+                order_class="simple",
+                notional=None,
+            )
+        )
+        broker._calculate_market_impact = AsyncMock(
+            return_value={
+                "participation_rate": 0.001,
+                "expected_slippage_pct": 0.001,
+                "safe_to_trade": True,
+            }
+        )
         broker.ORDER_API_TIMEOUT = 15.0
         broker.MAX_PARTICIPATION_RATE = 0.05
 
-        result = await AlpacaBroker._internal_submit_order(
-            broker, mock_order, gateway_token=token
-        )
+        result = await AlpacaBroker._internal_submit_order(broker, mock_order, gateway_token=token)
         assert result.id == "order123"

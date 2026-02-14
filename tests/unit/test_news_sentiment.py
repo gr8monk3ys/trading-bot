@@ -245,9 +245,7 @@ class TestSentimentAggregation:
 
     def test_aggregate_positive_sentiment(self, analyzer, mock_finbert_positive):
         """Test aggregating predominantly positive sentiment."""
-        sentiment, confidence, score = analyzer._aggregate_sentiment(
-            mock_finbert_positive
-        )
+        sentiment, confidence, score = analyzer._aggregate_sentiment(mock_finbert_positive)
 
         assert sentiment == "positive"
         assert score > 0.2  # Above positive threshold
@@ -255,9 +253,7 @@ class TestSentimentAggregation:
 
     def test_aggregate_negative_sentiment(self, analyzer, mock_finbert_negative):
         """Test aggregating predominantly negative sentiment."""
-        sentiment, confidence, score = analyzer._aggregate_sentiment(
-            mock_finbert_negative
-        )
+        sentiment, confidence, score = analyzer._aggregate_sentiment(mock_finbert_negative)
 
         assert sentiment == "negative"
         assert score < -0.2  # Below negative threshold
@@ -265,9 +261,7 @@ class TestSentimentAggregation:
 
     def test_aggregate_neutral_sentiment(self, analyzer, mock_finbert_mixed):
         """Test aggregating mixed sentiment resulting in neutral."""
-        sentiment, confidence, score = analyzer._aggregate_sentiment(
-            mock_finbert_mixed
-        )
+        sentiment, confidence, score = analyzer._aggregate_sentiment(mock_finbert_mixed)
 
         # Mixed sentiment should average out to near neutral
         assert sentiment in ["neutral", "positive", "negative"]
@@ -351,8 +345,12 @@ class TestNewsFetching:
         # Mock both the news client and the import
         mock_news_request = MagicMock()
         with patch.object(analyzer, "_get_news_client", return_value=mock_client):
-            with patch.dict("sys.modules", {"alpaca.data.requests": MagicMock(NewsRequest=mock_news_request)}):
-                with patch("utils.news_sentiment.asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread:
+            with patch.dict(
+                "sys.modules", {"alpaca.data.requests": MagicMock(NewsRequest=mock_news_request)}
+            ):
+                with patch(
+                    "utils.news_sentiment.asyncio.to_thread", new_callable=AsyncMock
+                ) as mock_to_thread:
                     mock_to_thread.return_value = mock_response
 
                     articles = await analyzer.get_news(["AAPL"])
@@ -371,8 +369,12 @@ class TestNewsFetching:
 
         mock_news_request = MagicMock()
         with patch.object(analyzer, "_get_news_client", return_value=mock_client):
-            with patch.dict("sys.modules", {"alpaca.data.requests": MagicMock(NewsRequest=mock_news_request)}):
-                with patch("utils.news_sentiment.asyncio.to_thread", new_callable=AsyncMock) as mock_to_thread:
+            with patch.dict(
+                "sys.modules", {"alpaca.data.requests": MagicMock(NewsRequest=mock_news_request)}
+            ):
+                with patch(
+                    "utils.news_sentiment.asyncio.to_thread", new_callable=AsyncMock
+                ) as mock_to_thread:
                     mock_to_thread.return_value = mock_response
 
                     articles = await analyzer.get_news(["UNKNOWN"])
@@ -496,6 +498,7 @@ class TestBulkSentiment:
     @pytest.mark.asyncio
     async def test_get_bulk_sentiment_with_error(self, analyzer):
         """Test bulk sentiment handles errors for individual symbols."""
+
         async def mock_sentiment(symbol, *args, **kwargs):
             if symbol == "ERROR":
                 raise ValueError("Test error")
@@ -509,9 +512,7 @@ class TestBulkSentiment:
                 timestamp=datetime.now(),
             )
 
-        with patch.object(
-            analyzer, "get_symbol_sentiment", side_effect=mock_sentiment
-        ):
+        with patch.object(analyzer, "get_symbol_sentiment", side_effect=mock_sentiment):
             results = await analyzer.get_bulk_sentiment(["AAPL", "ERROR", "MSFT"])
 
             assert len(results) == 3

@@ -52,13 +52,15 @@ def generate_synthetic_prices(n_bars: int = 500, base_price: float = 100.0) -> l
         low_price = min(open_price, close_price) * (1 - abs(np.random.randn() * 0.002))
         volume = 1000000 + np.random.randint(-100000, 100000)
 
-        prices.append({
-            "open": open_price,
-            "high": high_price,
-            "low": low_price,
-            "close": close_price,
-            "volume": volume,
-        })
+        prices.append(
+            {
+                "open": open_price,
+                "high": high_price,
+                "low": low_price,
+                "close": close_price,
+                "volume": volume,
+            }
+        )
 
     return prices
 
@@ -73,10 +75,11 @@ def main():
     # Check if PyTorch is available
     try:
         import torch
+
         print(f"\nPyTorch version: {torch.__version__}")
         if torch.cuda.is_available():
             print(f"CUDA available: {torch.cuda.get_device_name(0)}")
-        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             print("MPS (Apple Silicon) available")
         else:
             print("Using CPU (no GPU acceleration)")
@@ -100,17 +103,19 @@ def main():
     print("Step 1: Generating synthetic price data...")
     prices = generate_synthetic_prices(n_bars=500)
     print(f"  Generated {len(prices)} bars of OHLCV data")
-    print(f"  Price range: ${min(p['close'] for p in prices):.2f} - ${max(p['close'] for p in prices):.2f}")
+    print(
+        f"  Price range: ${min(p['close'] for p in prices):.2f} - ${max(p['close'] for p in prices):.2f}"
+    )
 
     # Create predictor
     print("\n" + "-" * 60)
     print("Step 2: Creating LSTM predictor...")
     predictor = LSTMPredictor(
-        sequence_length=ML_PARAMS['SEQUENCE_LENGTH'],
-        prediction_horizon=ML_PARAMS['PREDICTION_HORIZON'],
-        hidden_size=ML_PARAMS['HIDDEN_SIZE'],
-        num_layers=ML_PARAMS['NUM_LAYERS'],
-        use_gpu=ML_PARAMS['USE_GPU'],
+        sequence_length=ML_PARAMS["SEQUENCE_LENGTH"],
+        prediction_horizon=ML_PARAMS["PREDICTION_HORIZON"],
+        hidden_size=ML_PARAMS["HIDDEN_SIZE"],
+        num_layers=ML_PARAMS["NUM_LAYERS"],
+        use_gpu=ML_PARAMS["USE_GPU"],
         model_dir="models",
     )
     print(f"  Device: {predictor.device}")
@@ -121,10 +126,10 @@ def main():
     metrics = predictor.train(
         symbol="SYNTHETIC",
         prices=prices,
-        epochs=ML_PARAMS['EPOCHS'],
-        batch_size=ML_PARAMS['BATCH_SIZE'],
-        learning_rate=ML_PARAMS['LEARNING_RATE'],
-        early_stopping_patience=ML_PARAMS['EARLY_STOPPING_PATIENCE'],
+        epochs=ML_PARAMS["EPOCHS"],
+        batch_size=ML_PARAMS["BATCH_SIZE"],
+        learning_rate=ML_PARAMS["LEARNING_RATE"],
+        early_stopping_patience=ML_PARAMS["EARLY_STOPPING_PATIENCE"],
     )
 
     print("\nTraining Results:")
@@ -158,7 +163,7 @@ def main():
         print("\n" + "-" * 60)
         print("Step 5: Trading decision...")
 
-        min_confidence = ML_PARAMS['MIN_CONFIDENCE']
+        min_confidence = ML_PARAMS["MIN_CONFIDENCE"]
 
         if result.confidence >= min_confidence:
             if result.predicted_direction == "up":
@@ -182,11 +187,11 @@ def main():
 
     # Load model in new predictor
     new_predictor = LSTMPredictor(
-        sequence_length=ML_PARAMS['SEQUENCE_LENGTH'],
-        prediction_horizon=ML_PARAMS['PREDICTION_HORIZON'],
-        hidden_size=ML_PARAMS['HIDDEN_SIZE'],
-        num_layers=ML_PARAMS['NUM_LAYERS'],
-        use_gpu=ML_PARAMS['USE_GPU'],
+        sequence_length=ML_PARAMS["SEQUENCE_LENGTH"],
+        prediction_horizon=ML_PARAMS["PREDICTION_HORIZON"],
+        hidden_size=ML_PARAMS["HIDDEN_SIZE"],
+        num_layers=ML_PARAMS["NUM_LAYERS"],
+        use_gpu=ML_PARAMS["USE_GPU"],
         model_dir="models",
     )
     loaded = new_predictor.load_model("SYNTHETIC")

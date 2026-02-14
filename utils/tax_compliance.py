@@ -392,9 +392,7 @@ class WashSaleTracker:
 
         # Check for recent purchases (before intended sale)
         recent_purchases = [
-            lot
-            for lot in lots
-            if window_start <= lot.purchase_date <= intended_sale_date
+            lot for lot in lots if window_start <= lot.purchase_date <= intended_sale_date
         ]
 
         # Check if sale would be at a loss
@@ -512,8 +510,7 @@ class WashSaleTracker:
             return self._summarize_lots(symbol, lots)
 
         return {
-            symbol: self._summarize_lots(symbol, lots)
-            for symbol, lots in self._tax_lots.items()
+            symbol: self._summarize_lots(symbol, lots) for symbol, lots in self._tax_lots.items()
         }
 
     def _summarize_lots(self, symbol: str, lots: List[TaxLot]) -> Dict[str, Any]:
@@ -576,9 +573,7 @@ class WashSaleTracker:
 
                 if potential_loss > min_loss_threshold:
                     # Check wash sale risk
-                    wash_risk = self.check_wash_sale_risk(
-                        symbol, datetime.now(), current_price
-                    )
+                    wash_risk = self.check_wash_sale_risk(symbol, datetime.now(), current_price)
 
                     opportunities.append(
                         {

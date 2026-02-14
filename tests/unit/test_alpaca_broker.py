@@ -14,7 +14,6 @@ Tests cover:
 - WebSocket handlers
 """
 
-
 # Test credentials are provided by the session-scoped _patch_broker_credentials
 # fixture in tests/unit/conftest.py (patches brokers.alpaca_broker.ALPACA_CREDS).
 from datetime import datetime, timedelta

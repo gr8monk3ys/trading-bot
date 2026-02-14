@@ -159,6 +159,7 @@ class FactorPortfolio:
                 from factors.factor_orthogonalization import (
                     RiskParityWeighter as RPW,
                 )
+
                 FactorOrthogonalizer = FO
                 RiskParityWeighter = RPW
                 AdaptiveFactorWeighter = AFW
@@ -172,7 +173,9 @@ class FactorPortfolio:
         # Initialize price-based factors
         self.factors: Dict[str, BaseFactor] = {
             "Momentum_12M_skip1M": MomentumFactor(broker, lookback_months=12, skip_months=1),
-            "RelativeStrength_vs_SPY": RelativeStrengthFactor(broker, benchmark="SPY", lookback_days=63),
+            "RelativeStrength_vs_SPY": RelativeStrengthFactor(
+                broker, benchmark="SPY", lookback_days=63
+            ),
             "Volatility_252D": VolatilityFactor(broker, lookback_days=252),
             "Beta_vs_SPY": BetaFactor(broker, benchmark="SPY", lookback_days=252),
         }
@@ -212,7 +215,9 @@ class FactorPortfolio:
             self.factors["Reversal"] = ReversalFactor(broker)
             self.factors["SectorRelativeMomentum"] = SectorRelativeMomentumFactor(broker)
 
-            logger.info("Advanced alpha factors (EarningsSurprise, Reversal, SectorRelativeMomentum) initialized")
+            logger.info(
+                "Advanced alpha factors (EarningsSurprise, Reversal, SectorRelativeMomentum) initialized"
+            )
         except ImportError as e:
             logger.warning(f"Could not load advanced alpha factors: {e}")
 
@@ -237,10 +242,7 @@ class FactorPortfolio:
         else:
             if include_fundamentals:
                 # Use full multi-factor weights, but only for factors we have
-                self.weights = {
-                    k: v for k, v in self.DEFAULT_WEIGHTS.items()
-                    if k in self.factors
-                }
+                self.weights = {k: v for k, v in self.DEFAULT_WEIGHTS.items() if k in self.factors}
             else:
                 # Use price-only weights
                 self.weights = self.PRICE_ONLY_WEIGHTS.copy()
@@ -256,9 +258,7 @@ class FactorPortfolio:
         )
         logger.info(f"Factor weights: {', '.join(f'{k}={v:.1%}' for k, v in self.weights.items())}")
 
-    async def get_factor_scores(
-        self, symbols: List[str]
-    ) -> Dict[str, Dict[str, FactorScore]]:
+    async def get_factor_scores(self, symbols: List[str]) -> Dict[str, Dict[str, FactorScore]]:
         """
         Calculate all factor scores for given symbols.
 
@@ -274,18 +274,14 @@ class FactorPortfolio:
             try:
                 scores = await factor.calculate_scores_batch(symbols)
                 results[factor_name] = scores
-                logger.debug(
-                    f"{factor_name}: calculated for {len(scores)}/{len(symbols)} symbols"
-                )
+                logger.debug(f"{factor_name}: calculated for {len(scores)}/{len(symbols)} symbols")
             except Exception as e:
                 logger.error(f"Error calculating {factor_name}: {e}")
                 results[factor_name] = {}
 
         return results
 
-    async def get_composite_rankings(
-        self, symbols: List[str]
-    ) -> Dict[str, CompositeScore]:
+    async def get_composite_rankings(self, symbols: List[str]) -> Dict[str, CompositeScore]:
         """
         Get composite factor rankings for symbols.
 
@@ -300,10 +296,7 @@ class FactorPortfolio:
 
         # Store for orthogonalization/risk parity
         self._last_factor_scores = {
-            factor_name: {
-                symbol: score.normalized_score
-                for symbol, score in scores.items()
-            }
+            factor_name: {symbol: score.normalized_score for symbol, score in scores.items()}
             for factor_name, scores in all_scores.items()
         }
 
@@ -460,10 +453,7 @@ class FactorPortfolio:
         try:
             # Convert to normalized score dict
             score_dict = {
-                factor_name: {
-                    symbol: score.normalized_score
-                    for symbol, score in scores.items()
-                }
+                factor_name: {symbol: score.normalized_score for symbol, score in scores.items()}
                 for factor_name, scores in all_scores.items()
             }
 
@@ -522,8 +512,9 @@ class FactorPortfolio:
 
             # Keep last 252 days (1 year)
             if len(self._factor_returns_history[factor_name]) > 252:
-                self._factor_returns_history[factor_name] = \
-                    self._factor_returns_history[factor_name][-252:]
+                self._factor_returns_history[factor_name] = self._factor_returns_history[
+                    factor_name
+                ][-252:]
 
         logger.debug(f"Updated factor returns for {len(factor_returns)} factors")
 
@@ -568,9 +559,7 @@ class FactorPortfolio:
 
         return top_stocks
 
-    async def get_factor_report(
-        self, symbols: List[str]
-    ) -> Dict[str, Any]:
+    async def get_factor_report(self, symbols: List[str]) -> Dict[str, Any]:
         """
         Get comprehensive factor analysis report.
 

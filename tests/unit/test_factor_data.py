@@ -168,10 +168,19 @@ class TestFundamentalData:
         d = sample_fundamental_data.to_dict()
 
         expected_keys = [
-            "pe_ratio", "pb_ratio", "ps_ratio", "ev_ebitda",
-            "roe", "roa", "roic", "debt_to_equity",
-            "current_ratio", "earnings_variability",
-            "market_cap", "sector", "industry",
+            "pe_ratio",
+            "pb_ratio",
+            "ps_ratio",
+            "ev_ebitda",
+            "roe",
+            "roa",
+            "roic",
+            "debt_to_equity",
+            "current_ratio",
+            "earnings_variability",
+            "market_cap",
+            "sector",
+            "industry",
         ]
 
         for key in expected_keys:
@@ -248,10 +257,13 @@ class TestFactorDataProviderInitialization:
 
     def test_initialize_reads_env_vars(self, temp_cache_dir):
         """Test that initialization reads environment variables."""
-        with patch.dict(os.environ, {
-            "ALPACA_API_KEY": "env_key",
-            "ALPACA_SECRET_KEY": "env_secret",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "ALPACA_API_KEY": "env_key",
+                "ALPACA_SECRET_KEY": "env_secret",
+            },
+        ):
             provider = FactorDataProvider(cache_dir=temp_cache_dir)
 
             assert provider.alpaca_api_key == "env_key"
@@ -722,10 +734,12 @@ class TestBuildFactorInputs:
     async def test_build_factor_inputs_returns_dict(self, provider):
         """Test that build_factor_inputs returns a dictionary."""
         symbols = ["AAPL", "MSFT"]
-        price_data = pd.DataFrame({
-            "AAPL": [150.0, 151.0, 152.0],
-            "MSFT": [350.0, 352.0, 354.0],
-        })
+        price_data = pd.DataFrame(
+            {
+                "AAPL": [150.0, 151.0, 152.0],
+                "MSFT": [350.0, 352.0, 354.0],
+            }
+        )
 
         result = await provider.build_factor_inputs(symbols, price_data)
 
@@ -735,10 +749,12 @@ class TestBuildFactorInputs:
     async def test_build_factor_inputs_structure(self, provider):
         """Test that build_factor_inputs has correct structure."""
         symbols = ["AAPL", "MSFT"]
-        price_data = pd.DataFrame({
-            "AAPL": [150.0, 151.0, 152.0],
-            "MSFT": [350.0, 352.0, 354.0],
-        })
+        price_data = pd.DataFrame(
+            {
+                "AAPL": [150.0, 151.0, 152.0],
+                "MSFT": [350.0, 352.0, 354.0],
+            }
+        )
 
         result = await provider.build_factor_inputs(symbols, price_data)
 
@@ -764,10 +780,12 @@ class TestBuildFactorInputs:
     async def test_build_factor_inputs_market_caps(self, provider):
         """Test that market_caps is populated."""
         symbols = ["AAPL", "MSFT"]
-        price_data = pd.DataFrame({
-            "AAPL": [150.0],
-            "MSFT": [350.0],
-        })
+        price_data = pd.DataFrame(
+            {
+                "AAPL": [150.0],
+                "MSFT": [350.0],
+            }
+        )
 
         result = await provider.build_factor_inputs(symbols, price_data)
 
@@ -778,10 +796,12 @@ class TestBuildFactorInputs:
     async def test_build_factor_inputs_sectors(self, provider):
         """Test that sectors are populated."""
         symbols = ["AAPL", "JPM"]
-        price_data = pd.DataFrame({
-            "AAPL": [150.0],
-            "JPM": [180.0],
-        })
+        price_data = pd.DataFrame(
+            {
+                "AAPL": [150.0],
+                "JPM": [180.0],
+            }
+        )
 
         result = await provider.build_factor_inputs(symbols, price_data)
 
@@ -961,8 +981,15 @@ class TestCreateSampleFundamentalsCSV:
         df = pd.read_csv(csv_path)
 
         expected_columns = [
-            "symbol", "date", "pe_ratio", "pb_ratio", "ps_ratio",
-            "roe", "roa", "market_cap", "sector",
+            "symbol",
+            "date",
+            "pe_ratio",
+            "pb_ratio",
+            "ps_ratio",
+            "roe",
+            "roa",
+            "market_cap",
+            "sector",
         ]
 
         for col in expected_columns:
@@ -1041,11 +1068,13 @@ class TestIntegration:
         """Test full workflow with synthetic data."""
         symbols = ["AAPL", "MSFT", "JPM"]
         as_of_date = datetime(2024, 6, 15)
-        price_data = pd.DataFrame({
-            "AAPL": [150.0, 151.0, 152.0],
-            "MSFT": [350.0, 352.0, 354.0],
-            "JPM": [180.0, 182.0, 184.0],
-        })
+        price_data = pd.DataFrame(
+            {
+                "AAPL": [150.0, 151.0, 152.0],
+                "MSFT": [350.0, 352.0, 354.0],
+                "JPM": [180.0, 182.0, 184.0],
+            }
+        )
 
         # Fetch batch data
         batch_data = await provider.get_batch_fundamental_data(symbols, as_of_date)
@@ -1064,10 +1093,12 @@ class TestIntegration:
         """Test full workflow with CSV data source."""
         symbols = ["AAPL", "MSFT"]
         as_of_date = datetime(2024, 2, 15)
-        pd.DataFrame({
-            "AAPL": [150.0, 151.0, 152.0],
-            "MSFT": [350.0, 352.0, 354.0],
-        })
+        pd.DataFrame(
+            {
+                "AAPL": [150.0, 151.0, 152.0],
+                "MSFT": [350.0, 352.0, 354.0],
+            }
+        )
 
         # Fetch batch data (should use CSV)
         batch_data = await provider.get_batch_fundamental_data(symbols, as_of_date)

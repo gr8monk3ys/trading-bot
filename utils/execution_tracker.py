@@ -190,7 +190,7 @@ class ExecutionTracker:
             self._records.append(record)
             # Trim if needed
             if len(self._records) > self.max_memory_records:
-                self._records = self._records[-self.max_memory_records:]
+                self._records = self._records[-self.max_memory_records :]
 
         # Log significant deviations
         if abs(slippage_delta) > 0.005:  # > 50 bps deviation
@@ -211,22 +211,24 @@ class ExecutionTracker:
     async def _save_to_database(self, record: ExecutionRecord):
         """Save execution record to database."""
         try:
-            await self.database.insert_execution({
-                "id": record.id,
-                "symbol": record.symbol,
-                "side": record.side,
-                "quantity": record.quantity,
-                "expected_price": record.expected_price,
-                "actual_price": record.actual_price,
-                "expected_slippage": record.expected_slippage,
-                "actual_slippage": record.actual_slippage,
-                "slippage_delta": record.slippage_delta,
-                "timestamp": record.timestamp.isoformat(),
-                "order_type": record.order_type,
-                "execution_algo": record.execution_algo,
-                "venue": record.venue,
-                "metadata": record.metadata,
-            })
+            await self.database.insert_execution(
+                {
+                    "id": record.id,
+                    "symbol": record.symbol,
+                    "side": record.side,
+                    "quantity": record.quantity,
+                    "expected_price": record.expected_price,
+                    "actual_price": record.actual_price,
+                    "expected_slippage": record.expected_slippage,
+                    "actual_slippage": record.actual_slippage,
+                    "slippage_delta": record.slippage_delta,
+                    "timestamp": record.timestamp.isoformat(),
+                    "order_type": record.order_type,
+                    "execution_algo": record.execution_algo,
+                    "venue": record.venue,
+                    "metadata": record.metadata,
+                }
+            )
         except Exception as e:
             logger.error(f"Failed to save execution to database: {e}")
             # Fallback to memory
@@ -240,9 +242,7 @@ class ExecutionTracker:
         """Get execution records with optional filters."""
         if self.database:
             try:
-                records = await self.database.get_executions(
-                    days=days, symbol=symbol
-                )
+                records = await self.database.get_executions(days=days, symbol=symbol)
                 return [
                     ExecutionRecord(
                         id=r.get("id", ""),
@@ -254,8 +254,11 @@ class ExecutionTracker:
                         expected_slippage=r["expected_slippage"],
                         actual_slippage=r["actual_slippage"],
                         slippage_delta=r["slippage_delta"],
-                        timestamp=datetime.fromisoformat(r["timestamp"])
-                        if isinstance(r["timestamp"], str) else r["timestamp"],
+                        timestamp=(
+                            datetime.fromisoformat(r["timestamp"])
+                            if isinstance(r["timestamp"], str)
+                            else r["timestamp"]
+                        ),
                         order_type=r.get("order_type", "market"),
                         execution_algo=r.get("execution_algo", "direct"),
                         venue=r.get("venue", "alpaca"),
@@ -401,11 +404,7 @@ class ExecutionTracker:
         consistency_score = max(0, 100 - std_delta * 20000)
         worst_case_score = max(0, 100 - max(slippage_deltas) * 5000)
 
-        execution_score = (
-            0.4 * delta_score +
-            0.3 * consistency_score +
-            0.3 * worst_case_score
-        )
+        execution_score = 0.4 * delta_score + 0.3 * consistency_score + 0.3 * worst_case_score
 
         return ExecutionReport(
             period_start=min(r.timestamp for r in records),
@@ -526,17 +525,18 @@ class ExecutionTracker:
 
         summaries = []
         for date, day_records in sorted(by_date.items()):
-            summaries.append({
-                "date": date,
-                "executions": len(day_records),
-                "volume": sum(r.quantity for r in day_records),
-                "avg_slippage": np.mean([r.actual_slippage for r in day_records]),
-                "avg_delta": np.mean([r.slippage_delta for r in day_records]),
-                "total_cost": sum(
-                    r.actual_slippage * r.quantity * r.expected_price
-                    for r in day_records
-                ),
-            })
+            summaries.append(
+                {
+                    "date": date,
+                    "executions": len(day_records),
+                    "volume": sum(r.quantity for r in day_records),
+                    "avg_slippage": np.mean([r.actual_slippage for r in day_records]),
+                    "avg_delta": np.mean([r.slippage_delta for r in day_records]),
+                    "total_cost": sum(
+                        r.actual_slippage * r.quantity * r.expected_price for r in day_records
+                    ),
+                }
+            )
 
         return summaries
 

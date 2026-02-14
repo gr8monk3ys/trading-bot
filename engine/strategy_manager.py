@@ -167,9 +167,11 @@ class StrategyManager:
             position_manager=self.position_manager,
             active_strategies=self.strategy_status,
             allocations=self.strategy_allocations,
-            lifecycle=self.order_gateway.lifecycle_tracker.export_state()
-            if self.order_gateway and self.order_gateway.lifecycle_tracker
-            else {},
+            lifecycle=(
+                self.order_gateway.lifecycle_tracker.export_state()
+                if self.order_gateway and self.order_gateway.lifecycle_tracker
+                else {}
+            ),
             gateway_state=(
                 self.order_gateway.export_runtime_state()
                 if self.order_gateway and hasattr(self.order_gateway, "export_runtime_state")
@@ -360,7 +362,7 @@ class StrategyManager:
                         normalized[symbol] = deque(rows, maxlen=maxlen)
                     else:
                         normalized[symbol] = deque([], maxlen=maxlen)
-                setattr(strategy, "price_history", normalized)
+                strategy.price_history = normalized
 
         breaker_state = internal_state.get("circuit_breaker_state")
         circuit_breaker = getattr(strategy, "circuit_breaker", None)

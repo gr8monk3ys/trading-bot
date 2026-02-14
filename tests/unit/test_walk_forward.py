@@ -226,9 +226,7 @@ class TestValidation:
             return {"total_return": 0.05, "sharpe_ratio": 1.0, "num_trades": 10, "win_rate": 0.5}
 
         validator.n_splits = 3  # Reduce for faster test
-        await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # Each fold runs 2 backtests (IS and OOS)
         assert call_count >= 6
@@ -241,9 +239,7 @@ class TestValidation:
             return {"total_return": 0.10, "sharpe_ratio": 1.2, "num_trades": 15, "win_rate": 0.55}
 
         validator.n_splits = 2
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         assert "passes_validation" in result
         assert "n_folds" in result
@@ -261,14 +257,22 @@ class TestValidation:
             call_num[0] += 1
             # IS has great returns, OOS has poor returns
             if call_num[0] % 2 == 1:  # IS backtest
-                return {"total_return": 0.50, "sharpe_ratio": 2.0, "num_trades": 30, "win_rate": 0.7}
+                return {
+                    "total_return": 0.50,
+                    "sharpe_ratio": 2.0,
+                    "num_trades": 30,
+                    "win_rate": 0.7,
+                }
             else:  # OOS backtest
-                return {"total_return": -0.05, "sharpe_ratio": -0.5, "num_trades": 10, "win_rate": 0.3}
+                return {
+                    "total_return": -0.05,
+                    "sharpe_ratio": -0.5,
+                    "num_trades": 10,
+                    "win_rate": 0.3,
+                }
 
         validator.n_splits = 2
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         assert not result["passes_validation"]
         assert result["oos_avg_return"] < 0
@@ -276,6 +280,7 @@ class TestValidation:
     @pytest.mark.asyncio
     async def test_validate_empty_splits_raises_error(self, validator):
         """Test that validate raises error if no valid splits."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             return {}
 
@@ -283,10 +288,10 @@ class TestValidation:
         validator.n_splits = 100
         validator.min_train_days = 100
 
-        with pytest.raises(ValueError, match="Could not create valid train/test splits|Date range too short"):
-            await validator.validate(
-                mock_backtest, ["AAPL"], "2024-01-01", "2024-03-01"
-            )
+        with pytest.raises(
+            ValueError, match="Could not create valid train/test splits|Date range too short"
+        ):
+            await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-03-01")
 
     @pytest.mark.asyncio
     async def test_validate_passes_kwargs_to_backtest(self, validator):
@@ -490,14 +495,13 @@ class TestOverfittingCalculation:
     @pytest.mark.asyncio
     async def test_both_positive_returns(self, validator):
         """Test overfitting calculation when both returns are positive."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             # Simulate based on call order
             return {"total_return": 0.20, "sharpe_ratio": 1.5, "num_trades": 20, "win_rate": 0.6}
 
         validator.n_splits = 1
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # When IS = OOS, ratio should be 1.0
         assert result["avg_overfit_ratio"] == pytest.approx(1.0)
@@ -510,14 +514,22 @@ class TestOverfittingCalculation:
         async def mock_backtest(symbols, start, end, **kwargs):
             call_num[0] += 1
             if call_num[0] % 2 == 1:  # IS
-                return {"total_return": 0.15, "sharpe_ratio": 1.2, "num_trades": 20, "win_rate": 0.55}
+                return {
+                    "total_return": 0.15,
+                    "sharpe_ratio": 1.2,
+                    "num_trades": 20,
+                    "win_rate": 0.55,
+                }
             else:  # OOS
-                return {"total_return": -0.05, "sharpe_ratio": -0.5, "num_trades": 10, "win_rate": 0.4}
+                return {
+                    "total_return": -0.05,
+                    "sharpe_ratio": -0.5,
+                    "num_trades": 10,
+                    "win_rate": 0.4,
+                }
 
         validator.n_splits = 1
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # Should indicate severe overfitting
         assert result["avg_overfit_ratio"] > validator.overfitting_threshold
@@ -525,13 +537,12 @@ class TestOverfittingCalculation:
     @pytest.mark.asyncio
     async def test_both_negative_returns(self, validator):
         """Test overfitting calculation when both returns are negative."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             return {"total_return": -0.05, "sharpe_ratio": -0.5, "num_trades": 10, "win_rate": 0.4}
 
         validator.n_splits = 1
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # Both negative = neutral (ratio 1.0)
         assert result["avg_overfit_ratio"] == pytest.approx(1.0)
@@ -548,13 +559,12 @@ class TestValidationCriteria:
     @pytest.mark.asyncio
     async def test_passes_all_criteria(self, validator):
         """Test validation passes when all criteria met."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             return {"total_return": 0.08, "sharpe_ratio": 1.0, "num_trades": 15, "win_rate": 0.55}
 
         validator.n_splits = 2
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         assert result["passes_validation"]
 
@@ -566,14 +576,22 @@ class TestValidationCriteria:
         async def mock_backtest(symbols, start, end, **kwargs):
             call_num[0] += 1
             if call_num[0] % 2 == 1:  # IS
-                return {"total_return": 0.10, "sharpe_ratio": 1.0, "num_trades": 20, "win_rate": 0.5}
+                return {
+                    "total_return": 0.10,
+                    "sharpe_ratio": 1.0,
+                    "num_trades": 20,
+                    "win_rate": 0.5,
+                }
             else:  # OOS
-                return {"total_return": -0.10, "sharpe_ratio": -0.8, "num_trades": 10, "win_rate": 0.35}
+                return {
+                    "total_return": -0.10,
+                    "sharpe_ratio": -0.8,
+                    "num_trades": 10,
+                    "win_rate": 0.35,
+                }
 
         validator.n_splits = 2
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         assert not result["passes_validation"]
         assert result["oos_avg_return"] < 0
@@ -586,14 +604,22 @@ class TestValidationCriteria:
         async def mock_backtest(symbols, start, end, **kwargs):
             call_num[0] += 1
             if call_num[0] % 2 == 1:  # IS
-                return {"total_return": 0.50, "sharpe_ratio": 2.5, "num_trades": 30, "win_rate": 0.7}
+                return {
+                    "total_return": 0.50,
+                    "sharpe_ratio": 2.5,
+                    "num_trades": 30,
+                    "win_rate": 0.7,
+                }
             else:  # OOS - much worse
-                return {"total_return": 0.02, "sharpe_ratio": 0.3, "num_trades": 10, "win_rate": 0.45}
+                return {
+                    "total_return": 0.02,
+                    "sharpe_ratio": 0.3,
+                    "num_trades": 10,
+                    "win_rate": 0.45,
+                }
 
         validator.n_splits = 2
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # High IS return vs low OOS return should indicate overfitting
         assert result["avg_overfit_ratio"] > 2.0
@@ -607,17 +633,30 @@ class TestValidationCriteria:
             call_num[0] += 1
             fold = (call_num[0] - 1) // 2
             if call_num[0] % 2 == 1:  # IS
-                return {"total_return": 0.10, "sharpe_ratio": 1.0, "num_trades": 20, "win_rate": 0.5}
+                return {
+                    "total_return": 0.10,
+                    "sharpe_ratio": 1.0,
+                    "num_trades": 20,
+                    "win_rate": 0.5,
+                }
             else:  # OOS - alternates positive/negative
                 if fold == 0:
-                    return {"total_return": -0.10, "sharpe_ratio": -0.8, "num_trades": 10, "win_rate": 0.3}
+                    return {
+                        "total_return": -0.10,
+                        "sharpe_ratio": -0.8,
+                        "num_trades": 10,
+                        "win_rate": 0.3,
+                    }
                 else:
-                    return {"total_return": -0.05, "sharpe_ratio": -0.5, "num_trades": 8, "win_rate": 0.35}
+                    return {
+                        "total_return": -0.05,
+                        "sharpe_ratio": -0.5,
+                        "num_trades": 8,
+                        "win_rate": 0.35,
+                    }
 
         validator.n_splits = 2
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # All OOS returns are negative = 0% consistency
         assert result["oos_consistency"] == 0.0
@@ -635,39 +674,36 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_single_fold(self, validator):
         """Test validation with single fold."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             return {"total_return": 0.10, "sharpe_ratio": 1.2, "num_trades": 15, "win_rate": 0.55}
 
         validator.n_splits = 1
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         assert result["n_folds"] == 1
 
     @pytest.mark.asyncio
     async def test_zero_trades(self, validator):
         """Test handling zero trades."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             return {"total_return": 0.0, "sharpe_ratio": 0.0, "num_trades": 0, "win_rate": 0.0}
 
         validator.n_splits = 1
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         assert result["oos_total_trades"] == 0
 
     @pytest.mark.asyncio
     async def test_missing_backtest_fields(self, validator):
         """Test handling backtest results with missing fields."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             return {}  # Empty results
 
         validator.n_splits = 1
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # Should use default values (0) for missing fields
         assert result["oos_avg_return"] == 0
@@ -783,7 +819,10 @@ class TestDegradationSignificance:
 
         # Interpretation should mention key elements
         assert "p=" in result.interpretation
-        assert "Mean degradation" in result.interpretation or "degradation" in result.interpretation.lower()
+        assert (
+            "Mean degradation" in result.interpretation
+            or "degradation" in result.interpretation.lower()
+        )
 
 
 class TestSharpeConfidenceInterval:
@@ -828,13 +867,12 @@ class TestWalkForwardWithStatistics:
     @pytest.mark.asyncio
     async def test_returns_degradation_test_results(self, validator):
         """Test that validation returns degradation test results."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             return {"total_return": 0.08, "sharpe_ratio": 1.0, "num_trades": 15, "win_rate": 0.55}
 
         validator.n_splits = 5
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         assert "degradation_test" in result
         assert "wilcoxon_p_value" in result["degradation_test"]
@@ -844,13 +882,12 @@ class TestWalkForwardWithStatistics:
     @pytest.mark.asyncio
     async def test_returns_sharpe_ci(self, validator):
         """Test that validation returns Sharpe confidence interval."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             return {"total_return": 0.08, "sharpe_ratio": 1.0, "num_trades": 15, "win_rate": 0.55}
 
         validator.n_splits = 5
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         assert "oos_sharpe_ci" in result
         ci_lower, ci_upper = result["oos_sharpe_ci"]
@@ -859,14 +896,13 @@ class TestWalkForwardWithStatistics:
     @pytest.mark.asyncio
     async def test_passes_with_small_effect_size(self, validator):
         """Test that validation passes with insignificant degradation."""
+
         async def mock_backtest(symbols, start, end, **kwargs):
             # Same returns for IS and OOS
             return {"total_return": 0.06, "sharpe_ratio": 0.9, "num_trades": 12, "win_rate": 0.52}
 
         validator.n_splits = 5
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # Should pass because no significant degradation
         assert result["passes_validation"] is True
@@ -880,14 +916,22 @@ class TestWalkForwardWithStatistics:
         async def mock_backtest(symbols, start, end, **kwargs):
             call_num[0] += 1
             if call_num[0] % 2 == 1:  # IS - great returns
-                return {"total_return": 0.40, "sharpe_ratio": 2.5, "num_trades": 25, "win_rate": 0.70}
+                return {
+                    "total_return": 0.40,
+                    "sharpe_ratio": 2.5,
+                    "num_trades": 25,
+                    "win_rate": 0.70,
+                }
             else:  # OOS - poor returns
-                return {"total_return": 0.02, "sharpe_ratio": 0.2, "num_trades": 8, "win_rate": 0.45}
+                return {
+                    "total_return": 0.02,
+                    "sharpe_ratio": 0.2,
+                    "num_trades": 8,
+                    "win_rate": 0.45,
+                }
 
         validator.n_splits = 5
-        result = await validator.validate(
-            mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31"
-        )
+        result = await validator.validate(mock_backtest, ["AAPL"], "2024-01-01", "2024-12-31")
 
         # Should fail due to significant degradation (use == for numpy bool)
         assert result["degradation_test"]["degradation_significant"]

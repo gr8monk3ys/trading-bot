@@ -157,9 +157,7 @@ def check_degradation_significance(
     # Wilcoxon signed-rank test
     # alternative='greater' tests if IS > OOS (degradation exists)
     try:
-        stat, p_value = stats.wilcoxon(
-            is_arr, oos_arr, alternative="greater", zero_method="wilcox"
-        )
+        stat, p_value = stats.wilcoxon(is_arr, oos_arr, alternative="greater", zero_method="wilcox")
     except ValueError:
         # Can happen if too few non-zero differences
         stat, p_value = 0.0, 1.0
@@ -566,7 +564,9 @@ class WalkForwardValidator:
 
         print("\nOut-of-Sample Performance (Testing):")
         print(f"  Average Return:    {avg_oos_return:+.2%}")
-        print(f"  Average Sharpe:    {avg_oos_sharpe:.2f} (95% CI: [{oos_sharpe_ci_lower:.2f}, {oos_sharpe_ci_upper:.2f}])")
+        print(
+            f"  Average Sharpe:    {avg_oos_sharpe:.2f} (95% CI: [{oos_sharpe_ci_lower:.2f}, {oos_sharpe_ci_upper:.2f}])"
+        )
         print(f"  Total Trades:      {total_oos_trades}")
         print(f"  Consistency:       {consistency:.0%} of folds profitable")
 
@@ -578,10 +578,16 @@ class WalkForwardValidator:
         print("\n🔬 STATISTICAL SIGNIFICANCE TEST (Wilcoxon):")
         print(f"  Test Statistic:     {degradation_test.wilcoxon_statistic:.2f}")
         print(f"  P-value:            {degradation_test.wilcoxon_p_value:.4f}")
-        print(f"  Significant:        {'YES' if degradation_test.degradation_significant else 'NO'}")
-        print(f"  Effect Size:        {degradation_test.effect_size:.3f} ({degradation_test.effect_magnitude})")
+        print(
+            f"  Significant:        {'YES' if degradation_test.degradation_significant else 'NO'}"
+        )
+        print(
+            f"  Effect Size:        {degradation_test.effect_size:.3f} ({degradation_test.effect_magnitude})"
+        )
         print(f"  Mean Degradation:   {degradation_test.mean_degradation:.2%}")
-        print(f"  95% CI:             [{degradation_test.degradation_ci_lower:.2%}, {degradation_test.degradation_ci_upper:.2%}]")
+        print(
+            f"  95% CI:             [{degradation_test.degradation_ci_lower:.2%}, {degradation_test.degradation_ci_upper:.2%}]"
+        )
 
         print("\n" + "=" * 80)
         if passes_validation:
@@ -593,7 +599,10 @@ class WalkForwardValidator:
             print("❌ VALIDATION FAILED")
             if avg_oos_return <= 0:
                 print("   - Out-of-sample returns are negative")
-            if degradation_test.degradation_significant and degradation_test.effect_magnitude not in ["negligible", "small"]:
+            if (
+                degradation_test.degradation_significant
+                and degradation_test.effect_magnitude not in ["negligible", "small"]
+            ):
                 print(
                     f"   - STATISTICALLY SIGNIFICANT overfitting detected "
                     f"(p={degradation_test.wilcoxon_p_value:.4f}, effect={degradation_test.effect_magnitude})"
@@ -630,7 +639,10 @@ class WalkForwardValidator:
                 "wilcoxon_p_value": degradation_test.wilcoxon_p_value,
                 "degradation_significant": degradation_test.degradation_significant,
                 "mean_degradation": degradation_test.mean_degradation,
-                "degradation_ci": (degradation_test.degradation_ci_lower, degradation_test.degradation_ci_upper),
+                "degradation_ci": (
+                    degradation_test.degradation_ci_lower,
+                    degradation_test.degradation_ci_upper,
+                ),
                 "effect_size": degradation_test.effect_size,
                 "effect_magnitude": degradation_test.effect_magnitude,
                 "interpretation": degradation_test.interpretation,

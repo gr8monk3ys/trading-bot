@@ -16,7 +16,6 @@ Usage:
 """
 
 import asyncio
-import hashlib
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta

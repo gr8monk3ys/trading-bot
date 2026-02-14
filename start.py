@@ -3,14 +3,18 @@
 Startup script for Railway deployment.
 Runs the trading bot and web dashboard concurrently.
 """
+
 import logging
 import os
 import signal
 import subprocess
 import sys
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger("startup")
+
 
 def main():
     port = os.environ.get("PORT", "8000")
@@ -50,7 +54,16 @@ def main():
             logger.error(f"Dashboard exited with code {dashboard_status}")
             # Restart dashboard
             dashboard_proc = subprocess.Popen(
-                [sys.executable, "-m", "uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", port],
+                [
+                    sys.executable,
+                    "-m",
+                    "uvicorn",
+                    "web.app:app",
+                    "--host",
+                    "0.0.0.0",
+                    "--port",
+                    port,
+                ],
                 stdout=sys.stdout,
                 stderr=sys.stderr,
             )
@@ -65,7 +78,9 @@ def main():
             )
 
         import time
+
         time.sleep(5)
+
 
 if __name__ == "__main__":
     main()

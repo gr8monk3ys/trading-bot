@@ -467,7 +467,9 @@ class RiskManager:
                 return 1.0
 
             if np.any(~np.isfinite(prices1)) or np.any(~np.isfinite(prices2)):
-                logger.warning(f"Non-finite prices in correlation calculation: {symbol1}, {symbol2}")
+                logger.warning(
+                    f"Non-finite prices in correlation calculation: {symbol1}, {symbol2}"
+                )
                 return 1.0
 
             with np.errstate(divide="ignore", invalid="ignore"):
@@ -919,9 +921,7 @@ class RiskManager:
         Returns:
             Dict with margin status and recommendations
         """
-        margin_analysis = self.calculate_margin_requirement(
-            positions, broker_margin_requirement
-        )
+        margin_analysis = self.calculate_margin_requirement(positions, broker_margin_requirement)
 
         total_position_value = margin_analysis["total_position_value"]
         required_margin = margin_analysis["required_margin"]

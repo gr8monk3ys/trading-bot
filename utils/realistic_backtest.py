@@ -308,6 +308,7 @@ class RealisticBacktester:
                 from utils.market_impact import (
                     MarketImpactResult as MIR,
                 )
+
                 AlmgrenChrissModel = ACM
                 MarketImpactResult = MIR
                 self.impact_model = AlmgrenChrissModel()
@@ -669,6 +670,7 @@ class RealisticBacktester:
         try:
             # Fetch recent bars
             from datetime import timedelta
+
             end_date = datetime.now()
             start_date = end_date - timedelta(days=30)
 
@@ -694,6 +696,7 @@ class RealisticBacktester:
         """Estimate annualized volatility."""
         try:
             from datetime import timedelta
+
             end_date = datetime.now()
             start_date = end_date - timedelta(days=60)
 

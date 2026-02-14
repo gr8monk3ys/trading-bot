@@ -2,6 +2,7 @@
 """
 Backtest all strategies to compare performance
 """
+
 import asyncio
 
 from brokers.alpaca_broker import AlpacaBroker

@@ -232,14 +232,35 @@ async def verify_factor_models():
         # Create sample price data
         np.random.seed(42)
         dates = pd.date_range(end=datetime.now(), periods=300, freq="D")
-        symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-                   "JPM", "V", "JNJ", "UNH", "PG", "HD", "MA", "BAC",
-                   "XOM", "CVX", "PFE", "ABBV", "KO", "PEP", "WMT", "COST"]
+        symbols = [
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "META",
+            "NVDA",
+            "TSLA",
+            "JPM",
+            "V",
+            "JNJ",
+            "UNH",
+            "PG",
+            "HD",
+            "MA",
+            "BAC",
+            "XOM",
+            "CVX",
+            "PFE",
+            "ABBV",
+            "KO",
+            "PEP",
+            "WMT",
+            "COST",
+        ]
 
         price_data = pd.DataFrame(
-            {s: 100 * np.cumprod(1 + np.random.normal(0.0005, 0.02, 300))
-             for s in symbols},
-            index=dates
+            {s: 100 * np.cumprod(1 + np.random.normal(0.0005, 0.02, 300)) for s in symbols},
+            index=dates,
         )
 
         # Calculate momentum factor
@@ -370,7 +391,9 @@ async def verify_ml_infrastructure():
 
         LSTMPredictor()
         logger.info("  LSTM predictor with MC Dropout available")
-        logger.info(f"  MCDropoutResult fields: {[f.name for f in MCDropoutResult.__dataclass_fields__.values()]}")
+        logger.info(
+            f"  MCDropoutResult fields: {[f.name for f in MCDropoutResult.__dataclass_fields__.values()]}"
+        )
 
         results["passed"].append("MC Dropout confidence")
     except Exception as e:
@@ -381,9 +404,7 @@ async def verify_ml_infrastructure():
     try:
         from ml.feature_importance import FeatureImportanceAnalyzer
 
-        FeatureImportanceAnalyzer(
-            feature_names=["open", "high", "low", "close", "volume"]
-        )
+        FeatureImportanceAnalyzer(feature_names=["open", "high", "low", "close", "volume"])
         logger.info("  Feature importance analyzer available")
 
         results["passed"].append("Feature importance")

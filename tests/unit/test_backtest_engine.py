@@ -66,11 +66,41 @@ def mock_strategy():
 def sample_trades():
     """Create sample trades for P&L calculation testing."""
     return [
-        {"symbol": "AAPL", "side": "buy", "quantity": 10, "price": 150.0, "timestamp": datetime(2024, 1, 5)},
-        {"symbol": "AAPL", "side": "buy", "quantity": 10, "price": 155.0, "timestamp": datetime(2024, 1, 10)},
-        {"symbol": "AAPL", "side": "sell", "quantity": 15, "price": 160.0, "timestamp": datetime(2024, 1, 15)},
-        {"symbol": "MSFT", "side": "buy", "quantity": 5, "price": 300.0, "timestamp": datetime(2024, 1, 5)},
-        {"symbol": "MSFT", "side": "sell", "quantity": 5, "price": 280.0, "timestamp": datetime(2024, 1, 20)},
+        {
+            "symbol": "AAPL",
+            "side": "buy",
+            "quantity": 10,
+            "price": 150.0,
+            "timestamp": datetime(2024, 1, 5),
+        },
+        {
+            "symbol": "AAPL",
+            "side": "buy",
+            "quantity": 10,
+            "price": 155.0,
+            "timestamp": datetime(2024, 1, 10),
+        },
+        {
+            "symbol": "AAPL",
+            "side": "sell",
+            "quantity": 15,
+            "price": 160.0,
+            "timestamp": datetime(2024, 1, 15),
+        },
+        {
+            "symbol": "MSFT",
+            "side": "buy",
+            "quantity": 5,
+            "price": 300.0,
+            "timestamp": datetime(2024, 1, 5),
+        },
+        {
+            "symbol": "MSFT",
+            "side": "sell",
+            "quantity": 5,
+            "price": 280.0,
+            "timestamp": datetime(2024, 1, 20),
+        },
     ]
 
 
@@ -414,7 +444,15 @@ class TestTradePnLCalculation:
     def test_preserves_timestamp(self, engine):
         """Test that timestamp is preserved in trade records."""
         timestamp = datetime(2024, 1, 5)
-        trades = [{"symbol": "AAPL", "side": "buy", "quantity": 10, "price": 150.0, "timestamp": timestamp}]
+        trades = [
+            {
+                "symbol": "AAPL",
+                "side": "buy",
+                "quantity": 10,
+                "price": 150.0,
+                "timestamp": timestamp,
+            }
+        ]
 
         trade_records = engine._calculate_trade_pnl(trades)
 

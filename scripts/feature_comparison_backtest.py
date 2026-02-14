@@ -240,8 +240,7 @@ async def run_comparison(
     print("\n" + "=" * 100)
     print("NEXT STEPS")
     print("=" * 100)
-    print(
-        """
+    print("""
 1. If improvements found:
    - Update strategies/momentum_strategy.py default_parameters()
    - Enable the recommended features
@@ -252,8 +251,7 @@ async def run_comparison(
    - Consider testing with different symbols or date ranges
 
 3. Monitor paper trading with new configuration for 7+ days
-"""
-    )
+""")
 
     return results
 
@@ -267,8 +265,7 @@ if __name__ == "__main__":
     # Parse command line arguments
     if len(sys.argv) > 1:
         if sys.argv[1] == "--help":
-            print(
-                """
+            print("""
 Feature Comparison Backtest
 
 Usage:
@@ -278,8 +275,7 @@ Examples:
     python scripts/feature_comparison_backtest.py
     python scripts/feature_comparison_backtest.py --symbols AAPL,MSFT,GOOGL
     python scripts/feature_comparison_backtest.py --start 2024-01-01 --end 2024-06-01
-            """
-            )
+            """)
             sys.exit(0)
 
         i = 1

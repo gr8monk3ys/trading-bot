@@ -104,10 +104,7 @@ class TestExtendedHoursStrategyInit:
     @pytest.mark.asyncio
     async def test_initializes_with_defaults(self, mock_broker):
         """Test that strategy initializes with default parameters."""
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -128,10 +125,7 @@ class TestExtendedHoursStrategyInit:
     @pytest.mark.asyncio
     async def test_shows_deprecation_warning(self, mock_broker):
         """Test that deprecation warning is shown during initialization."""
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with pytest.warns(UserWarning, match="experimental"):
             await strategy.initialize()
@@ -149,10 +143,7 @@ class TestExtendedHoursStrategyInit:
             "max_spread_pct": 0.003,
         }
 
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters=custom_params
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters=custom_params)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -168,10 +159,7 @@ class TestExtendedHoursStrategyInit:
     @pytest.mark.asyncio
     async def test_initializes_extended_hours_manager(self, mock_broker):
         """Test that ExtendedHoursManager is initialized."""
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -183,8 +171,7 @@ class TestExtendedHoursStrategyInit:
     async def test_initializes_tracking_structures(self, mock_broker):
         """Test that tracking structures are properly initialized."""
         strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL", "MSFT"]}
+            broker=mock_broker, parameters={"symbols": ["AAPL", "MSFT"]}
         )
 
         with warnings.catch_warnings():
@@ -208,10 +195,7 @@ class TestSessionDetection:
     @pytest.mark.asyncio
     async def test_handles_pre_market_session(self, mock_broker, mock_ext_hours_manager):
         """Test behavior during pre-market session."""
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -231,10 +215,7 @@ class TestSessionDetection:
     @pytest.mark.asyncio
     async def test_handles_after_hours_session(self, mock_broker, mock_ext_hours_manager):
         """Test behavior during after-hours session."""
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -258,10 +239,7 @@ class TestSessionDetection:
     @pytest.mark.asyncio
     async def test_regular_hours_returns_early(self, mock_broker, mock_ext_hours_manager):
         """Test that regular hours session causes early return in on_trading_iteration."""
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -294,7 +272,7 @@ class TestGapTrading:
             parameters={
                 "symbols": ["AAPL"],
                 "gap_threshold": 0.02,  # 2% gap threshold
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -323,7 +301,7 @@ class TestGapTrading:
             parameters={
                 "symbols": ["AAPL"],
                 "gap_threshold": 0.02,  # 2% gap threshold
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -351,7 +329,7 @@ class TestGapTrading:
             parameters={
                 "symbols": ["AAPL"],
                 "gap_threshold": 0.02,  # 2% threshold
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -376,10 +354,7 @@ class TestGapTrading:
     @pytest.mark.asyncio
     async def test_returns_neutral_when_no_bars(self, mock_broker):
         """Test that neutral is returned when bars are not available."""
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -409,7 +384,7 @@ class TestEarningsReaction:
             parameters={
                 "symbols": ["AAPL"],
                 "earnings_threshold": 0.03,  # 3% move threshold
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -435,7 +410,7 @@ class TestEarningsReaction:
             parameters={
                 "symbols": ["AAPL"],
                 "earnings_threshold": 0.03,  # 3% move threshold
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -461,7 +436,7 @@ class TestEarningsReaction:
             parameters={
                 "symbols": ["AAPL"],
                 "earnings_threshold": 0.03,  # 3% threshold
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -498,7 +473,7 @@ class TestSpreadValidation:
             parameters={
                 "symbols": ["AAPL"],
                 "max_spread_pct": 0.005,  # 0.5% max spread
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -520,7 +495,7 @@ class TestSpreadValidation:
             parameters={
                 "symbols": ["AAPL"],
                 "max_spread_pct": 0.005,  # 0.5% max spread
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -542,10 +517,7 @@ class TestSpreadValidation:
         """Test that None is returned when quote is unavailable."""
         mock_broker.get_latest_quote.return_value = None
 
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -573,10 +545,7 @@ class TestExtendedHoursOrderTypes:
         quote.ask_price = 150.05  # 0.07% spread
         mock_broker.get_latest_quote.return_value = quote
 
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -589,7 +558,7 @@ class TestExtendedHoursOrderTypes:
         mock_order.limit_price = 150.15  # Limit order attribute
 
         # Patch OrderBuilder to return our mock order (avoids validation issues)
-        with patch('strategies.extended_hours_strategy.OrderBuilder') as MockOrderBuilder:
+        with patch("strategies.extended_hours_strategy.OrderBuilder") as MockOrderBuilder:
             mock_builder = MagicMock()
             mock_builder.limit.return_value = mock_builder
             mock_builder.extended_hours.return_value = mock_builder
@@ -622,7 +591,7 @@ class TestExtendedHoursOrderTypes:
                 "symbols": ["AAPL"],
                 "gap_stop_loss": 0.015,
                 "gap_take_profit": 0.03,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -635,7 +604,7 @@ class TestExtendedHoursOrderTypes:
         mock_order = MagicMock()
 
         # Patch OrderBuilder to return our mock order
-        with patch('strategies.extended_hours_strategy.OrderBuilder') as MockOrderBuilder:
+        with patch("strategies.extended_hours_strategy.OrderBuilder") as MockOrderBuilder:
             mock_builder = MagicMock()
             mock_builder.limit.return_value = mock_builder
             mock_builder.extended_hours.return_value = mock_builder
@@ -654,8 +623,8 @@ class TestExtendedHoursOrderTypes:
             mock_builder.bracket.assert_called_once()
             # Get the kwargs that were passed to bracket()
             bracket_call = mock_builder.bracket.call_args
-            assert 'take_profit' in bracket_call.kwargs or len(bracket_call.args) >= 1
-            assert 'stop_loss' in bracket_call.kwargs or len(bracket_call.args) >= 2
+            assert "take_profit" in bracket_call.kwargs or len(bracket_call.args) >= 1
+            assert "stop_loss" in bracket_call.kwargs or len(bracket_call.args) >= 2
 
 
 # =============================================================================
@@ -680,7 +649,7 @@ class TestExtendedHoursPositionSizing:
             parameters={
                 "symbols": ["AAPL"],
                 "ext_position_size": 0.05,  # 5% (conservative)
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -690,7 +659,7 @@ class TestExtendedHoursPositionSizing:
         strategy.ext_hours = mock_ext_hours_manager
 
         # Patch OrderBuilder to avoid validation issues
-        with patch('strategies.extended_hours_strategy.OrderBuilder') as MockOrderBuilder:
+        with patch("strategies.extended_hours_strategy.OrderBuilder") as MockOrderBuilder:
             mock_builder = MagicMock()
             mock_builder.limit.return_value = mock_builder
             mock_builder.extended_hours.return_value = mock_builder
@@ -726,7 +695,7 @@ class TestExtendedHoursPositionSizing:
                 "symbols": ["AAPL"],
                 "ext_position_size": 0.50,  # 50% (too large)
                 "max_position_size": 0.05,  # Max 5%
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -736,7 +705,7 @@ class TestExtendedHoursPositionSizing:
         strategy.ext_hours = mock_ext_hours_manager
 
         # Patch OrderBuilder to avoid validation issues
-        with patch('strategies.extended_hours_strategy.OrderBuilder') as MockOrderBuilder:
+        with patch("strategies.extended_hours_strategy.OrderBuilder") as MockOrderBuilder:
             mock_builder = MagicMock()
             mock_builder.limit.return_value = mock_builder
             mock_builder.extended_hours.return_value = mock_builder
@@ -768,7 +737,7 @@ class TestTradeCooldown:
             parameters={
                 "symbols": ["AAPL"],
                 "trade_cooldown_minutes": 30,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -789,7 +758,7 @@ class TestTradeCooldown:
             parameters={
                 "symbols": ["AAPL"],
                 "trade_cooldown_minutes": 30,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -805,10 +774,7 @@ class TestTradeCooldown:
     @pytest.mark.asyncio
     async def test_allows_first_trade(self, mock_broker):
         """Test that first trade is always allowed."""
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -878,10 +844,7 @@ class TestPositionManagement:
         position.qty = "10"
         position.avg_entry_price = "145.0"
 
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -902,10 +865,7 @@ class TestPositionManagement:
         position.qty = "10"
         mock_broker.get_position.return_value = position
 
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -937,10 +897,7 @@ class TestAnalyzeSymbol:
         """Test that neutral is returned when trading is not allowed."""
         mock_ext_hours_manager.can_trade_extended_hours.return_value = (False, "Not eligible")
 
-        strategy = ExtendedHoursStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = ExtendedHoursStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -960,7 +917,7 @@ class TestAnalyzeSymbol:
             parameters={
                 "symbols": ["AAPL"],
                 "gap_threshold": 0.02,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -993,7 +950,7 @@ class TestAnalyzeSymbol:
             parameters={
                 "symbols": ["AAPL"],
                 "earnings_threshold": 0.03,
-            }
+            },
         )
 
         with warnings.catch_warnings():

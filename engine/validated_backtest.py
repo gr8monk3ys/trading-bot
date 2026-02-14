@@ -174,9 +174,7 @@ class ValidatedBacktestRunner:
         stat_sig = False
         p_value = None
         if backtest_result.get("daily_returns") is not None:
-            stat_sig, p_value = self._calculate_significance(
-                backtest_result["daily_returns"]
-            )
+            stat_sig, p_value = self._calculate_significance(backtest_result["daily_returns"])
 
         # Build result
         result = ValidatedBacktestResult(
@@ -245,7 +243,11 @@ class ValidatedBacktestRunner:
                 equity_curve = result_df["equity"].dropna()
                 daily_returns = result_df["returns"].dropna()
 
-                total_return = (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1 if len(equity_curve) > 0 else 0
+                total_return = (
+                    (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1
+                    if len(equity_curve) > 0
+                    else 0
+                )
                 sharpe = self._calculate_sharpe(daily_returns)
                 max_dd = result_df["drawdown"].min() if "drawdown" in result_df else 0
 
@@ -289,14 +291,22 @@ class ValidatedBacktestRunner:
 
                 # Run backtest on training period
                 is_result = await self._run_backtest(
-                    strategy_class, symbols, train_start, train_end,
-                    initial_capital, **strategy_kwargs
+                    strategy_class,
+                    symbols,
+                    train_start,
+                    train_end,
+                    initial_capital,
+                    **strategy_kwargs,
                 )
 
                 # Run backtest on test period
                 oos_result = await self._run_backtest(
-                    strategy_class, symbols, test_start, test_end,
-                    initial_capital, **strategy_kwargs
+                    strategy_class,
+                    symbols,
+                    test_start,
+                    test_end,
+                    initial_capital,
+                    **strategy_kwargs,
                 )
 
                 is_ret = is_result.get("total_return", 0)
@@ -336,7 +346,9 @@ class ValidatedBacktestRunner:
             else:
                 overfit_ratio = 1.0
 
-            consistency = sum(1 for r in oos_returns if r > 0) / len(oos_returns) if oos_returns else 0
+            consistency = (
+                sum(1 for r in oos_returns if r > 0) / len(oos_returns) if oos_returns else 0
+            )
 
             overfit_warning = overfit_ratio > self.overfit_threshold or consistency < 0.5
 
@@ -387,7 +399,11 @@ class ValidatedBacktestRunner:
                 # Detect regime for this date
                 try:
                     regime_info = await detector.detect_regime(date)
-                    regime = regime_info.get("regime", "UNKNOWN") if isinstance(regime_info, dict) else "UNKNOWN"
+                    regime = (
+                        regime_info.get("regime", "UNKNOWN")
+                        if isinstance(regime_info, dict)
+                        else "UNKNOWN"
+                    )
                 except Exception:
                     regime = "UNKNOWN"
 
@@ -444,9 +460,7 @@ class ValidatedBacktestRunner:
 
         return np.sqrt(252) * excess_returns.mean() / returns.std()
 
-    def _calculate_significance(
-        self, daily_returns: pd.Series
-    ) -> tuple[bool, Optional[float]]:
+    def _calculate_significance(self, daily_returns: pd.Series) -> tuple[bool, Optional[float]]:
         """Calculate statistical significance of returns."""
         try:
             from scipy import stats
@@ -465,9 +479,7 @@ class ValidatedBacktestRunner:
         except Exception:
             return False, None
 
-    def _calculate_permutation_tests(
-        self, daily_returns: Optional[pd.Series]
-    ) -> Dict[str, Any]:
+    def _calculate_permutation_tests(self, daily_returns: Optional[pd.Series]) -> Dict[str, Any]:
         """Run permutation tests for mean and Sharpe significance."""
         if daily_returns is None:
             return {"error": "No daily returns available"}
@@ -481,8 +493,7 @@ class ValidatedBacktestRunner:
 
         stats = ["mean", "sharpe"]
         raw_results = [
-            permutation_test_returns(returns, statistic=stat, alpha=alpha)
-            for stat in stats
+            permutation_test_returns(returns, statistic=stat, alpha=alpha) for stat in stats
         ]
         p_values = [r.p_value for r in raw_results]
 
@@ -545,16 +556,14 @@ class ValidatedBacktestRunner:
             },
             "walk_forward_overfit": {
                 "passed": (
-                    result.walk_forward_validated
-                    and result.overfit_ratio <= overfit_threshold
+                    result.walk_forward_validated and result.overfit_ratio <= overfit_threshold
                 ),
                 "value": result.overfit_ratio,
                 "threshold": overfit_threshold,
             },
             "walk_forward_consistency": {
                 "passed": (
-                    result.walk_forward_validated
-                    and result.consistency_score >= min_consistency
+                    result.walk_forward_validated and result.consistency_score >= min_consistency
                 ),
                 "value": result.consistency_score,
                 "threshold": min_consistency,
@@ -576,9 +585,7 @@ class ValidatedBacktestRunner:
             },
         }
 
-        blockers = [
-            name for name, gate in gates.items() if not gate.get("passed", False)
-        ]
+        blockers = [name for name, gate in gates.items() if not gate.get("passed", False)]
         gates["blockers"] = blockers
         gates["permutation"] = permutation
 
@@ -640,10 +647,7 @@ def format_validated_backtest_report(result: ValidatedBacktestResult) -> str:
         f"Period: {result.start_date.date()} to {result.end_date.date()} | "
         f"Trades: {result.num_trades} | Return: {result.total_return:+.2%}"
     )
-    lines.append(
-        f"Sharpe: {result.sharpe_ratio:.2f} | "
-        f"Max Drawdown: {result.max_drawdown:.2%}"
-    )
+    lines.append(f"Sharpe: {result.sharpe_ratio:.2f} | " f"Max Drawdown: {result.max_drawdown:.2%}")
 
     if result.walk_forward_validated:
         lines.append("-" * 60)

@@ -95,7 +95,7 @@ class PositionReconciler:
 
     # Tolerance for floating-point comparison (1% or 1 share, whichever is smaller)
     QUANTITY_TOLERANCE_PCT = 0.01  # 1%
-    QUANTITY_TOLERANCE_ABS = 1.0   # 1 share
+    QUANTITY_TOLERANCE_ABS = 1.0  # 1 share
 
     def __init__(
         self,
@@ -255,12 +255,12 @@ class PositionReconciler:
 
             for pos in internal_positions:
                 # Handle different position object formats
-                if hasattr(pos, 'symbol'):
+                if hasattr(pos, "symbol"):
                     symbol = pos.symbol
-                    qty = float(pos.qty) if hasattr(pos, 'qty') else float(pos.quantity)
+                    qty = float(pos.qty) if hasattr(pos, "qty") else float(pos.quantity)
                 elif isinstance(pos, dict):
-                    symbol = pos.get('symbol')
-                    qty = float(pos.get('qty', pos.get('quantity', 0)))
+                    symbol = pos.get("symbol")
+                    qty = float(pos.get("qty", pos.get("quantity", 0)))
                 else:
                     continue
 
@@ -409,7 +409,7 @@ class PositionReconciler:
             logger.warning("Cannot sync - no internal tracker configured")
             return
 
-        if not hasattr(self.internal_tracker, 'sync_positions'):
+        if not hasattr(self.internal_tracker, "sync_positions"):
             logger.warning("Internal tracker does not support sync_positions()")
             return
 

@@ -19,6 +19,7 @@ class TestTradingHaltedException:
     def test_exception_exists(self):
         """TradingHaltedException should be importable."""
         from utils.circuit_breaker import TradingHaltedException
+
         assert TradingHaltedException is not None
 
     def test_exception_attributes(self):
@@ -89,9 +90,7 @@ class TestEnforceBeforeOrder:
         circuit_breaker.last_reset_date = datetime.now().date()
 
         # Mock is_blocked_by_event to return True
-        circuit_breaker.is_blocked_by_event = MagicMock(
-            return_value=(True, "FOMC", 2.5)
-        )
+        circuit_breaker.is_blocked_by_event = MagicMock(return_value=(True, "FOMC", 2.5))
 
         with pytest.raises(TradingHaltedException) as exc_info:
             await circuit_breaker.enforce_before_order(is_exit_order=False)
@@ -114,9 +113,7 @@ class TestEnforceBeforeOrder:
         circuit_breaker._true_peak_equity = 100000
 
         # Mock is_blocked_by_event to return True (but exit should bypass)
-        circuit_breaker.is_blocked_by_event = MagicMock(
-            return_value=(True, "FOMC", 2.5)
-        )
+        circuit_breaker.is_blocked_by_event = MagicMock(return_value=(True, "FOMC", 2.5))
 
         # Should NOT raise for exit orders
         await circuit_breaker.enforce_before_order(is_exit_order=True)

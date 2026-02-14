@@ -325,11 +325,16 @@ class TestMultiBrokerManager:
         await manager._evaluate_failover()
 
         # Should have failed over to backup
-        if manager._broker_health[primary_broker.name].consecutive_failures >= manager.failure_threshold:
+        if (
+            manager._broker_health[primary_broker.name].consecutive_failures
+            >= manager.failure_threshold
+        ):
             assert manager.is_failed_over
 
     @pytest.mark.asyncio
-    async def test_operation_succeeds_on_backup_after_failover(self, manager, primary_broker, backup_broker):
+    async def test_operation_succeeds_on_backup_after_failover(
+        self, manager, primary_broker, backup_broker
+    ):
         """Test operations work after failover."""
         primary_broker.set_should_fail(True)
 

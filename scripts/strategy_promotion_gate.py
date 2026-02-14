@@ -106,10 +106,7 @@ def run_gate(args: argparse.Namespace) -> int:
     else:
         print("Blockers: none")
     if shadow_dashboard:
-        print(
-            "Shadow Drift Status: "
-            f"{str(shadow_dashboard.get('status', 'unknown')).upper()}"
-        )
+        print("Shadow Drift Status: " f"{str(shadow_dashboard.get('status', 'unknown')).upper()}")
     if burn_in_scorecard:
         print(
             "Burn-In Signoff: "

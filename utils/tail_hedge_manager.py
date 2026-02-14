@@ -280,11 +280,7 @@ class TailHedgeManager:
             estimated_gain_mult = 1 + (vix_change / 10)  # Rough approximation
             estimated_gain_mult = max(0.2, min(5.0, estimated_gain_mult))
 
-            entry_cost = (
-                self.current_hedge_position["contracts"]
-                * self.hedge_entry_price
-                * 100
-            )
+            entry_cost = self.current_hedge_position["contracts"] * self.hedge_entry_price * 100
             estimated_value = entry_cost * estimated_gain_mult
             estimated_pnl = estimated_value - entry_cost
 

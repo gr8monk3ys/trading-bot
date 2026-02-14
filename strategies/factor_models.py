@@ -494,9 +494,7 @@ class FactorCalculator:
             # Normalize weights and guard against caller bugs that provide all-zero weights.
             total_weight = sum(weights.values())
             if total_weight <= 0:
-                logger.warning(
-                    "Invalid factor weights (sum <= 0). Falling back to equal weights."
-                )
+                logger.warning("Invalid factor weights (sum <= 0). Falling back to equal weights.")
                 weights = {ft: 1.0 / len(factor_scores) for ft in factor_scores}
             else:
                 weights = {k: v / total_weight for k, v in weights.items()}
@@ -626,12 +624,7 @@ class FactorModel:
             if isinstance(key, FactorType):
                 factor_type = key
             elif isinstance(key, str):
-                normalized = (
-                    key.strip()
-                    .lower()
-                    .replace("-", "_")
-                    .replace(" ", "_")
-                )
+                normalized = key.strip().lower().replace("-", "_").replace(" ", "_")
                 for candidate in FactorType:
                     if candidate.value == normalized or candidate.name.lower() == normalized:
                         factor_type = candidate
@@ -710,9 +703,7 @@ class FactorModel:
             return {}
 
         # Adjust weights based on available factors
-        available_weights = {
-            ft: w for ft, w in self.factor_weights.items() if ft in factor_scores
-        }
+        available_weights = {ft: w for ft, w in self.factor_weights.items() if ft in factor_scores}
 
         return self.calculator.calculate_composite(factor_scores, available_weights)
 

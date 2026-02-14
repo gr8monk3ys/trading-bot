@@ -129,8 +129,7 @@ class PerformanceTracker:
         cursor = conn.cursor()
 
         # Trades table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS trades (
                 trade_id TEXT PRIMARY KEY,
                 strategy TEXT NOT NULL,
@@ -149,24 +148,20 @@ class PerformanceTracker:
                 tags TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # Equity curve table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS equity_curve (
                 timestamp TIMESTAMP PRIMARY KEY,
                 equity REAL NOT NULL,
                 daily_pnl REAL,
                 daily_pnl_pct REAL
             )
-        """
-        )
+        """)
 
         # Performance snapshots (daily rollup)
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS performance_snapshots (
                 date DATE PRIMARY KEY,
                 total_trades INTEGER,
@@ -176,8 +171,7 @@ class PerformanceTracker:
                 max_drawdown_pct REAL,
                 equity REAL
             )
-        """
-        )
+        """)
 
         conn.commit()
         conn.close()
@@ -187,12 +181,10 @@ class PerformanceTracker:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT * FROM trades
             ORDER BY exit_time
-        """
-        )
+        """)
 
         rows = cursor.fetchall()
         conn.close()

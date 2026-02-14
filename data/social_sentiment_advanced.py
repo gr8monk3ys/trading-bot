@@ -46,7 +46,7 @@ TICKER_BLACKLIST = {
     "IV", "LOL", "MACD", "MOM", "MOASS", "NYSE", "OTM", "PE", "PR", "PT",
     "RSI", "SEC", "SPAC", "SPY", "TLDR", "USA", "USD", "WTF", "YOY", "YTD",
     "ATH", "ATL", "HODL", "YOLO", "APE", "APES", "MOON", "DIP", "RIP",
-    "ALL", "ANY", "ARE", "CAN", "CEO", "FOR", "HAS", "THE", "WAS",
+    "ALL", "ANY", "ARE", "CAN", "FOR", "HAS", "THE", "WAS",
     "NOW", "NEW", "OLD", "BIG", "TOP", "LOW", "HIGH", "UP", "DOWN",
 }
 
@@ -367,13 +367,14 @@ class RedditSentimentProvider(AlternativeDataProvider):
             for subreddit_name in self._subreddits:
                 try:
                     subreddit = await loop.run_in_executor(
-                        None, lambda: self._reddit.subreddit(subreddit_name)
+                        None,
+                        lambda subreddit_name=subreddit_name: self._reddit.subreddit(subreddit_name),
                     )
 
                     # Search for symbol mentions
                     search_results = await loop.run_in_executor(
                         None,
-                        lambda: list(
+                        lambda subreddit=subreddit: list(
                             subreddit.search(
                                 f"${symbol} OR {symbol}",
                                 time_filter="day",

@@ -436,9 +436,7 @@ class HistoricalUniverse:
             await self._fetch_broker_data()
 
         self._initialized = True
-        logger.info(
-            f"HistoricalUniverse initialized: {len(self._symbols)} symbols tracked"
-        )
+        logger.info(f"HistoricalUniverse initialized: {len(self._symbols)} symbols tracked")
 
     def _load_from_csv(self, csv_path: str):
         """
@@ -474,7 +472,9 @@ class HistoricalUniverse:
                     delist_date = None
                     if row.get("delisting_date"):
                         try:
-                            delist_date = datetime.strptime(row["delisting_date"], "%Y-%m-%d").date()
+                            delist_date = datetime.strptime(
+                                row["delisting_date"], "%Y-%m-%d"
+                            ).date()
                         except ValueError:
                             pass
 
@@ -554,16 +554,12 @@ class HistoricalUniverse:
         if symbol not in self._symbols:
             # Unknown symbol - assume it was tradeable (conservative)
             # Log warning for manual review
-            logger.debug(
-                f"Unknown symbol {symbol} - assuming tradeable on {check_date}"
-            )
+            logger.debug(f"Unknown symbol {symbol} - assuming tradeable on {check_date}")
             return True
 
         return self._symbols[symbol].was_tradeable_on(check_date)
 
-    def get_tradeable_symbols(
-        self, check_date: date, candidates: List[str]
-    ) -> List[str]:
+    def get_tradeable_symbols(self, check_date: date, candidates: List[str]) -> List[str]:
         """
         Filter a list of symbols to only those tradeable on a specific date.
 
@@ -580,8 +576,7 @@ class HistoricalUniverse:
                 tradeable.append(symbol)
             else:
                 logger.debug(
-                    f"Excluding {symbol} from backtest on {check_date} "
-                    f"(not tradeable)"
+                    f"Excluding {symbol} from backtest on {check_date} " f"(not tradeable)"
                 )
         return tradeable
 
@@ -671,9 +666,7 @@ class HistoricalUniverse:
                 is_active=is_active,
             )
 
-    def add_symbol_change(
-        self, old_symbol: str, new_symbol: str, change_date: date
-    ):
+    def add_symbol_change(self, old_symbol: str, new_symbol: str, change_date: date):
         """
         Record a symbol change (rebrand, merger, etc.).
 
@@ -754,13 +747,9 @@ class HistoricalUniverse:
                 report["missing_data"].append(symbol)
 
         # Calculate coverage percentages
-        report["coverage_pct"] = (
-            len(report["covered"]) / len(symbols) * 100 if symbols else 0
-        )
+        report["coverage_pct"] = len(report["covered"]) / len(symbols) * 100 if symbols else 0
         covered_with_ipo = len(report["covered"]) - len(report["missing_ipo_date"])
-        report["ipo_coverage_pct"] = (
-            covered_with_ipo / len(symbols) * 100 if symbols else 0
-        )
+        report["ipo_coverage_pct"] = covered_with_ipo / len(symbols) * 100 if symbols else 0
 
         # Generate warnings
         if report["missing_data"]:
@@ -799,23 +788,34 @@ class HistoricalUniverse:
         """
         with open(filepath, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "symbol", "ipo_date", "delisting_date", "delisting_reason",
-                "final_price", "company_name", "is_active", "previous_symbols", "next_symbol"
-            ])
+            writer.writerow(
+                [
+                    "symbol",
+                    "ipo_date",
+                    "delisting_date",
+                    "delisting_reason",
+                    "final_price",
+                    "company_name",
+                    "is_active",
+                    "previous_symbols",
+                    "next_symbol",
+                ]
+            )
 
             for _symbol, info in sorted(self._symbols.items()):
-                writer.writerow([
-                    info.symbol,
-                    info.ipo_date.isoformat() if info.ipo_date else "",
-                    info.delisting_date.isoformat() if info.delisting_date else "",
-                    info.delisting_reason.value if info.delisting_reason else "",
-                    info.final_price if info.final_price is not None else "",
-                    info.company_name or "",
-                    info.is_active,
-                    ",".join(info.previous_symbols) if info.previous_symbols else "",
-                    info.next_symbol or "",
-                ])
+                writer.writerow(
+                    [
+                        info.symbol,
+                        info.ipo_date.isoformat() if info.ipo_date else "",
+                        info.delisting_date.isoformat() if info.delisting_date else "",
+                        info.delisting_reason.value if info.delisting_reason else "",
+                        info.final_price if info.final_price is not None else "",
+                        info.company_name or "",
+                        info.is_active,
+                        ",".join(info.previous_symbols) if info.previous_symbols else "",
+                        info.next_symbol or "",
+                    ]
+                )
 
         logger.info(f"Exported {len(self._symbols)} symbols to {filepath}")
 

@@ -4,6 +4,7 @@ Simple Backtest Runner
 
 A lightweight script to run backtests without the full Lumibot dependency
 """
+
 import argparse
 import logging
 import os

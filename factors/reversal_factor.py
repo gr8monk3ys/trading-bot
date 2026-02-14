@@ -116,7 +116,9 @@ class ReversalFactor(BaseFactor):
 
             # Calculate volatility of returns (higher vol = stronger reversal signal)
             if len(closes) > 5:
-                daily_returns = np.diff(closes[-self.lookback_days:]) / closes[-self.lookback_days:-1]
+                daily_returns = (
+                    np.diff(closes[-self.lookback_days :]) / closes[-self.lookback_days : -1]
+                )
                 return_volatility = np.std(daily_returns) * np.sqrt(252)
             else:
                 return_volatility = 0.0

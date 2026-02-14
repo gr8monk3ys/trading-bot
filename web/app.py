@@ -227,16 +227,18 @@ async def get_positions():
         positions = await _broker.get_positions()
         result = []
         for pos in positions:
-            result.append({
-                "symbol": str(pos.symbol),
-                "qty": _safe_float(pos.qty),
-                "side": str(pos.side) if hasattr(pos, "side") else "long",
-                "avg_entry_price": _safe_float(pos.avg_entry_price),
-                "current_price": _safe_float(pos.current_price),
-                "market_value": _safe_float(pos.market_value),
-                "unrealized_pl": _safe_float(pos.unrealized_pl),
-                "unrealized_plpc": _safe_float(pos.unrealized_plpc),
-            })
+            result.append(
+                {
+                    "symbol": str(pos.symbol),
+                    "qty": _safe_float(pos.qty),
+                    "side": str(pos.side) if hasattr(pos, "side") else "long",
+                    "avg_entry_price": _safe_float(pos.avg_entry_price),
+                    "current_price": _safe_float(pos.current_price),
+                    "market_value": _safe_float(pos.market_value),
+                    "unrealized_pl": _safe_float(pos.unrealized_pl),
+                    "unrealized_plpc": _safe_float(pos.unrealized_plpc),
+                }
+            )
         return {"positions": result, "count": len(result)}
     except Exception as exc:
         logger.error(f"Error fetching positions: {exc}")
@@ -288,7 +290,9 @@ async def get_performance():
         # Build performance response from available data
         response: Dict[str, Any] = {
             "total_trades": summary.get("total_trades", 0),
-            "winning_trades": summary.get("winning_trades", 0) if "winning_trades" in summary else None,
+            "winning_trades": (
+                summary.get("winning_trades", 0) if "winning_trades" in summary else None
+            ),
             "win_rate": round(summary.get("win_rate", 0) * 100, 2),
             "total_pnl": round(summary.get("total_pnl", 0), 2),
             "open_positions": summary.get("open_positions", 0),
@@ -300,7 +304,9 @@ async def get_performance():
 
         # Add daily metrics if available
         if latest:
-            response["max_drawdown"] = round(latest.max_drawdown * 100, 2) if latest.max_drawdown else None
+            response["max_drawdown"] = (
+                round(latest.max_drawdown * 100, 2) if latest.max_drawdown else None
+            )
             response["latest_pnl"] = round(latest.pnl, 2) if latest.pnl else None
             response["latest_pnl_pct"] = round(latest.pnl_pct * 100, 2) if latest.pnl_pct else None
 
@@ -323,17 +329,17 @@ async def get_performance():
 
                     # Sharpe (annualized, assuming 252 trading days)
                     if std_ret > 0:
-                        response["sharpe_ratio"] = round(
-                            (mean_ret / std_ret) * (252 ** 0.5), 2
-                        )
+                        response["sharpe_ratio"] = round((mean_ret / std_ret) * (252**0.5), 2)
 
                     # Sortino (annualized, downside deviation)
                     downside = [r for r in returns if r < 0]
                     if downside:
-                        downside_std = statistics.stdev(downside) if len(downside) > 1 else abs(downside[0])
+                        downside_std = (
+                            statistics.stdev(downside) if len(downside) > 1 else abs(downside[0])
+                        )
                         if downside_std > 0:
                             response["sortino_ratio"] = round(
-                                (mean_ret / downside_std) * (252 ** 0.5), 2
+                                (mean_ret / downside_std) * (252**0.5), 2
                             )
 
                     # Profit factor from daily returns

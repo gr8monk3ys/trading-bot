@@ -672,7 +672,9 @@ class TestStatistics:
         tracker.track_order("order-2", "MSFT", "buy", 100)
 
         await tracker.record_fill("order-1", 95, 150.0, is_final=True)  # 95% - above 90
-        await tracker.record_fill("order-2", 70, 250.0, is_final=True, status="partial")  # 70% - below 90
+        await tracker.record_fill(
+            "order-2", 70, 250.0, is_final=True, status="partial"
+        )  # 70% - below 90
 
         stats = tracker.get_statistics()
 

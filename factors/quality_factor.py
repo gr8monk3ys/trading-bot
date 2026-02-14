@@ -87,10 +87,7 @@ class QualityFactor(BaseFactor):
 
             # Weighted composite
             composite = (
-                0.35 * roe_score +
-                0.25 * margin_score +
-                0.25 * debt_score +
-                0.15 * liquidity_score
+                0.35 * roe_score + 0.25 * margin_score + 0.25 * debt_score + 0.15 * liquidity_score
             )
 
             metadata = {

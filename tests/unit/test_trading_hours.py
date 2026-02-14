@@ -559,9 +559,16 @@ class TestGetTradingStatus:
         status = filter_default.get_trading_status(dt)
 
         expected_keys = {
-            "current_time", "day_of_week", "window", "day_quality",
-            "is_good_time", "quality_score", "position_size_mult",
-            "next_good_window", "time_until_good", "recommendation"
+            "current_time",
+            "day_of_week",
+            "window",
+            "day_quality",
+            "is_good_time",
+            "quality_score",
+            "position_size_mult",
+            "next_good_window",
+            "time_until_good",
+            "recommendation",
         }
         assert set(status.keys()) == expected_keys
 

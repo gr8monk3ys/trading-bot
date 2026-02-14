@@ -61,6 +61,7 @@ class MockBroker:
             # Generate bars that produce approximately the target VIX
             # VIX ~ annualized volatility * 100, so daily vol ~ VIX / (sqrt(252) * 100)
             import numpy as np
+
             daily_vol = self.vix_value / (np.sqrt(252) * 100)
             # Generate 30 prices with that volatility
             np.random.seed(42)  # For reproducibility
@@ -461,6 +462,7 @@ class TestEdgeCases:
             if symbol == "SPY":
                 # Return bars that produce approximately VIX of 20
                 import numpy as np
+
                 daily_vol = 20.0 / (np.sqrt(252) * 100)
                 np.random.seed(42)
                 returns = np.random.normal(0, daily_vol, 30)

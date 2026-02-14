@@ -29,7 +29,7 @@ class TestPortfolioRebalancerInit:
             broker=mock_broker,
             target_allocations={"AAPL": 0.25, "MSFT": 0.25, "GOOGL": 0.50},
             rebalance_threshold=0.05,
-            rebalance_frequency="weekly"
+            rebalance_frequency="weekly",
         )
 
         assert rebalancer.target_allocations == {"AAPL": 0.25, "MSFT": 0.25, "GOOGL": 0.50}
@@ -44,8 +44,7 @@ class TestPortfolioRebalancerInit:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            equal_weight_symbols=["AAPL", "MSFT", "GOOGL", "AMZN"]
+            broker=mock_broker, equal_weight_symbols=["AAPL", "MSFT", "GOOGL", "AMZN"]
         )
 
         assert len(rebalancer.target_allocations) == 4
@@ -62,8 +61,7 @@ class TestPortfolioRebalancerInit:
 
         with pytest.raises(ValueError) as excinfo:
             PortfolioRebalancer(
-                broker=mock_broker,
-                target_allocations={"AAPL": 0.25, "MSFT": 0.25}  # Sums to 0.50
+                broker=mock_broker, target_allocations={"AAPL": 0.25, "MSFT": 0.25}  # Sums to 0.50
             )
 
         assert "must sum to 1.0" in str(excinfo.value)
@@ -85,9 +83,7 @@ class TestPortfolioRebalancerInit:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            min_trade_size=500.0
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, min_trade_size=500.0
         )
 
         assert rebalancer.min_trade_size == 500.0
@@ -98,9 +94,7 @@ class TestPortfolioRebalancerInit:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            dry_run=True
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, dry_run=True
         )
 
         assert rebalancer.dry_run is True
@@ -112,8 +106,7 @@ class TestPortfolioRebalancerInit:
         mock_broker = MagicMock()
         # Sum = 0.999 which is within tolerance
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 0.333, "MSFT": 0.333, "GOOGL": 0.333}
+            broker=mock_broker, target_allocations={"AAPL": 0.333, "MSFT": 0.333, "GOOGL": 0.333}
         )
 
         assert len(rebalancer.target_allocations) == 3
@@ -139,8 +132,7 @@ class TestGetCurrentAllocations:
         mock_broker.get_positions = AsyncMock(return_value=mock_positions)
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 0.25, "MSFT": 0.25, "GOOGL": 0.50}
+            broker=mock_broker, target_allocations={"AAPL": 0.25, "MSFT": 0.25, "GOOGL": 0.50}
         )
 
         allocations = await rebalancer.get_current_allocations()
@@ -161,8 +153,7 @@ class TestGetCurrentAllocations:
         mock_broker.get_positions = AsyncMock(return_value=[])
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 0.50, "MSFT": 0.50}
+            broker=mock_broker, target_allocations={"AAPL": 0.50, "MSFT": 0.50}
         )
 
         allocations = await rebalancer.get_current_allocations()
@@ -180,10 +171,7 @@ class TestGetCurrentAllocations:
         mock_account.equity = "0"
         mock_broker.get_account = AsyncMock(return_value=mock_account)
 
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0}
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, target_allocations={"AAPL": 1.0})
 
         allocations = await rebalancer.get_current_allocations()
 
@@ -197,10 +185,7 @@ class TestGetCurrentAllocations:
         mock_broker = AsyncMock()
         mock_broker.get_account = AsyncMock(side_effect=Exception("API Error"))
 
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0}
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, target_allocations={"AAPL": 1.0})
 
         allocations = await rebalancer.get_current_allocations()
 
@@ -228,14 +213,13 @@ class TestCalculateDrift:
         mock_broker.get_positions = AsyncMock(return_value=mock_positions)
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 0.30, "MSFT": 0.70}
+            broker=mock_broker, target_allocations={"AAPL": 0.30, "MSFT": 0.70}
         )
 
         drift = await rebalancer.calculate_drift()
 
         assert abs(drift["AAPL"] - (-0.10)) < 0.001  # Underweight
-        assert abs(drift["MSFT"] - 0.10) < 0.001    # Overweight
+        assert abs(drift["MSFT"] - 0.10) < 0.001  # Overweight
 
     @pytest.mark.asyncio
     async def test_calculate_drift_no_positions(self):
@@ -249,8 +233,7 @@ class TestCalculateDrift:
         mock_broker.get_positions = AsyncMock(return_value=[])
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 0.50, "MSFT": 0.50}
+            broker=mock_broker, target_allocations={"AAPL": 0.50, "MSFT": 0.50}
         )
 
         drift = await rebalancer.calculate_drift()
@@ -283,7 +266,7 @@ class TestNeedsRebalancing:
         rebalancer = PortfolioRebalancer(
             broker=mock_broker,
             target_allocations={"AAPL": 0.25, "MSFT": 0.75},
-            rebalance_threshold=0.05
+            rebalance_threshold=0.05,
         )
 
         assert await rebalancer.needs_rebalancing() is True
@@ -308,7 +291,7 @@ class TestNeedsRebalancing:
         rebalancer = PortfolioRebalancer(
             broker=mock_broker,
             target_allocations={"AAPL": 0.25, "MSFT": 0.75},
-            rebalance_threshold=0.05
+            rebalance_threshold=0.05,
         )
 
         assert await rebalancer.needs_rebalancing() is False
@@ -324,9 +307,7 @@ class TestShouldRebalanceBySchedule:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            rebalance_frequency="weekly"
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, rebalance_frequency="weekly"
         )
 
         assert await rebalancer._should_rebalance_by_schedule() is True
@@ -338,9 +319,7 @@ class TestShouldRebalanceBySchedule:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            rebalance_frequency="daily"
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, rebalance_frequency="daily"
         )
         rebalancer.last_rebalance = datetime.now() - timedelta(hours=12)
 
@@ -353,9 +332,7 @@ class TestShouldRebalanceBySchedule:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            rebalance_frequency="daily"
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, rebalance_frequency="daily"
         )
         rebalancer.last_rebalance = datetime.now() - timedelta(days=2)
 
@@ -368,9 +345,7 @@ class TestShouldRebalanceBySchedule:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            rebalance_frequency="weekly"
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, rebalance_frequency="weekly"
         )
         rebalancer.last_rebalance = datetime.now() - timedelta(days=3)
 
@@ -383,9 +358,7 @@ class TestShouldRebalanceBySchedule:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            rebalance_frequency="weekly"
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, rebalance_frequency="weekly"
         )
         rebalancer.last_rebalance = datetime.now() - timedelta(weeks=2)
 
@@ -398,9 +371,7 @@ class TestShouldRebalanceBySchedule:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            rebalance_frequency="monthly"
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, rebalance_frequency="monthly"
         )
         rebalancer.last_rebalance = datetime.now() - timedelta(days=15)
 
@@ -413,9 +384,7 @@ class TestShouldRebalanceBySchedule:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            rebalance_frequency="monthly"
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, rebalance_frequency="monthly"
         )
         rebalancer.last_rebalance = datetime.now() - timedelta(days=45)
 
@@ -428,9 +397,7 @@ class TestShouldRebalanceBySchedule:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            rebalance_frequency="unknown"
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, rebalance_frequency="unknown"
         )
         rebalancer.last_rebalance = datetime.now()
 
@@ -459,7 +426,7 @@ class TestGenerateRebalanceOrders:
         rebalancer = PortfolioRebalancer(
             broker=mock_broker,
             target_allocations={"AAPL": 0.30, "MSFT": 0.70},
-            min_trade_size=100.0
+            min_trade_size=100.0,
         )
 
         orders = await rebalancer.generate_rebalance_orders()
@@ -496,7 +463,7 @@ class TestGenerateRebalanceOrders:
         rebalancer = PortfolioRebalancer(
             broker=mock_broker,
             target_allocations={"AAPL": 0.50, "MSFT": 0.50},
-            min_trade_size=2000.0
+            min_trade_size=2000.0,
         )
 
         orders = await rebalancer.generate_rebalance_orders()
@@ -521,9 +488,7 @@ class TestGenerateRebalanceOrders:
         mock_broker.get_quote = AsyncMock(return_value=mock_quote)
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            min_trade_size=100.0
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, min_trade_size=100.0
         )
 
         orders = await rebalancer.generate_rebalance_orders()
@@ -545,9 +510,7 @@ class TestGenerateRebalanceOrders:
         mock_broker.get_quote = AsyncMock(side_effect=Exception("No quote"))
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            min_trade_size=100.0
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, min_trade_size=100.0
         )
 
         orders = await rebalancer.generate_rebalance_orders()
@@ -563,10 +526,7 @@ class TestGenerateRebalanceOrders:
         mock_broker = AsyncMock()
         mock_broker.get_account = AsyncMock(side_effect=Exception("API Error"))
 
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0}
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, target_allocations={"AAPL": 1.0})
 
         orders = await rebalancer.generate_rebalance_orders()
 
@@ -582,10 +542,7 @@ class TestExecuteRebalancing:
         from utils.portfolio_rebalancer import PortfolioRebalancer
 
         mock_broker = MagicMock()
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0}
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, target_allocations={"AAPL": 1.0})
 
         result = await rebalancer.execute_rebalancing([])
 
@@ -599,22 +556,22 @@ class TestExecuteRebalancing:
 
         mock_broker = MagicMock()
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            dry_run=True
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, dry_run=True
         )
 
-        orders = [{
-            "symbol": "AAPL",
-            "side": "buy",
-            "quantity": 10,
-            "price": 150.0,
-            "value": 1500.0,
-            "current_weight": 0.0,
-            "target_weight": 1.0,
-            "drift": -1.0,
-            "reason": "underweight"
-        }]
+        orders = [
+            {
+                "symbol": "AAPL",
+                "side": "buy",
+                "quantity": 10,
+                "price": 150.0,
+                "value": 1500.0,
+                "current_weight": 0.0,
+                "target_weight": 1.0,
+                "drift": -1.0,
+                "reason": "underweight",
+            }
+        ]
 
         result = await rebalancer.execute_rebalancing(orders)
 
@@ -630,22 +587,22 @@ class TestExecuteRebalancing:
         mock_broker.submit_order_advanced = AsyncMock(return_value=MagicMock())
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            dry_run=False
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, dry_run=False
         )
 
-        orders = [{
-            "symbol": "AAPL",
-            "side": "buy",
-            "quantity": 10,
-            "price": 150.0,
-            "value": 1500.0,
-            "current_weight": 0.0,
-            "target_weight": 1.0,
-            "drift": -1.0,
-            "reason": "underweight"
-        }]
+        orders = [
+            {
+                "symbol": "AAPL",
+                "side": "buy",
+                "quantity": 10,
+                "price": 150.0,
+                "value": 1500.0,
+                "current_weight": 0.0,
+                "target_weight": 1.0,
+                "drift": -1.0,
+                "reason": "underweight",
+            }
+        ]
 
         result = await rebalancer.execute_rebalancing(orders)
 
@@ -664,22 +621,22 @@ class TestExecuteRebalancing:
         mock_broker.submit_order_advanced = AsyncMock(return_value=None)
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            dry_run=False
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, dry_run=False
         )
 
-        orders = [{
-            "symbol": "AAPL",
-            "side": "buy",
-            "quantity": 10,
-            "price": 150.0,
-            "value": 1500.0,
-            "current_weight": 0.0,
-            "target_weight": 1.0,
-            "drift": -1.0,
-            "reason": "underweight"
-        }]
+        orders = [
+            {
+                "symbol": "AAPL",
+                "side": "buy",
+                "quantity": 10,
+                "price": 150.0,
+                "value": 1500.0,
+                "current_weight": 0.0,
+                "target_weight": 1.0,
+                "drift": -1.0,
+                "reason": "underweight",
+            }
+        ]
 
         result = await rebalancer.execute_rebalancing(orders)
 
@@ -696,22 +653,22 @@ class TestExecuteRebalancing:
         mock_broker.submit_order_advanced = AsyncMock(side_effect=Exception("Order failed"))
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0},
-            dry_run=False
+            broker=mock_broker, target_allocations={"AAPL": 1.0}, dry_run=False
         )
 
-        orders = [{
-            "symbol": "AAPL",
-            "side": "buy",
-            "quantity": 10,
-            "price": 150.0,
-            "value": 1500.0,
-            "current_weight": 0.0,
-            "target_weight": 1.0,
-            "drift": -1.0,
-            "reason": "underweight"
-        }]
+        orders = [
+            {
+                "symbol": "AAPL",
+                "side": "buy",
+                "quantity": 10,
+                "price": 150.0,
+                "value": 1500.0,
+                "current_weight": 0.0,
+                "target_weight": 1.0,
+                "drift": -1.0,
+                "reason": "underweight",
+            }
+        ]
 
         result = await rebalancer.execute_rebalancing(orders)
 
@@ -726,9 +683,7 @@ class TestExecuteRebalancing:
         mock_broker.submit_order_advanced = AsyncMock(return_value=MagicMock())
 
         rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 0.5, "MSFT": 0.5},
-            dry_run=False
+            broker=mock_broker, target_allocations={"AAPL": 0.5, "MSFT": 0.5}, dry_run=False
         )
 
         orders = [
@@ -741,7 +696,7 @@ class TestExecuteRebalancing:
                 "current_weight": 0.3,
                 "target_weight": 0.5,
                 "drift": -0.2,
-                "reason": "underweight"
+                "reason": "underweight",
             },
             {
                 "symbol": "MSFT",
@@ -752,8 +707,8 @@ class TestExecuteRebalancing:
                 "current_weight": 0.7,
                 "target_weight": 0.5,
                 "drift": 0.2,
-                "reason": "overweight"
-            }
+                "reason": "overweight",
+            },
         ]
 
         result = await rebalancer.execute_rebalancing(orders)
@@ -783,7 +738,7 @@ class TestGetRebalanceReport:
         rebalancer = PortfolioRebalancer(
             broker=mock_broker,
             target_allocations={"AAPL": 0.50, "MSFT": 0.50},
-            rebalance_threshold=0.05
+            rebalance_threshold=0.05,
         )
 
         report = await rebalancer.get_rebalance_report()
@@ -804,10 +759,7 @@ class TestGetRebalanceReport:
         mock_broker.get_account = AsyncMock(return_value=mock_account)
         mock_broker.get_positions = AsyncMock(return_value=[])
 
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0}
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, target_allocations={"AAPL": 1.0})
         rebalancer.last_rebalance = datetime(2024, 1, 15, 10, 30, 0)
 
         report = await rebalancer.get_rebalance_report()
@@ -826,10 +778,7 @@ class TestGetRebalanceReport:
         mock_broker.get_account = AsyncMock(return_value=mock_account)
         mock_broker.get_positions = AsyncMock(return_value=[])
 
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0}
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, target_allocations={"AAPL": 1.0})
 
         report = await rebalancer.get_rebalance_report()
 
@@ -854,10 +803,7 @@ class TestEdgeCases:
         ]
         mock_broker.get_positions = AsyncMock(return_value=mock_positions)
 
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            target_allocations={"AAPL": 1.0}
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, target_allocations={"AAPL": 1.0})
 
         allocations = await rebalancer.get_current_allocations()
         drift = await rebalancer.calculate_drift()
@@ -878,16 +824,10 @@ class TestEdgeCases:
 
         # 10 equal weight symbols
         symbols = [f"SYM{i}" for i in range(10)]
-        mock_positions = [
-            MagicMock(symbol=sym, market_value="10000")
-            for sym in symbols
-        ]
+        mock_positions = [MagicMock(symbol=sym, market_value="10000") for sym in symbols]
         mock_broker.get_positions = AsyncMock(return_value=mock_positions)
 
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            equal_weight_symbols=symbols
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, equal_weight_symbols=symbols)
 
         allocations = await rebalancer.get_current_allocations()
         drift = await rebalancer.calculate_drift()
@@ -901,10 +841,7 @@ class TestEdgeCases:
         from utils.portfolio_rebalancer import PortfolioRebalancer
 
         mock_broker = MagicMock()
-        rebalancer = PortfolioRebalancer(
-            broker=mock_broker,
-            equal_weight_symbols=["AAPL", "MSFT"]
-        )
+        rebalancer = PortfolioRebalancer(broker=mock_broker, equal_weight_symbols=["AAPL", "MSFT"])
 
         assert rebalancer.target_allocations["AAPL"] == 0.5
         assert rebalancer.target_allocations["MSFT"] == 0.5

@@ -33,11 +33,13 @@ def mock_broker():
     """Mock broker for testing."""
     broker = MagicMock()
     broker.submit_order_advanced = AsyncMock(return_value={"order_id": "test123"})
-    broker.get_asset = AsyncMock(return_value={
-        "symbol": "AAPL",
-        "overnight_tradeable": True,
-        "overnight_halted": False,
-    })
+    broker.get_asset = AsyncMock(
+        return_value={
+            "symbol": "AAPL",
+            "overnight_tradeable": True,
+            "overnight_halted": False,
+        }
+    )
     return broker
 
 
@@ -219,7 +221,9 @@ class TestIsMarketOpen:
     def test_overnight_open_when_enabled(self, manager_no_broker):
         """Test overnight is open when enabled."""
         ET.localize(datetime(2024, 1, 9, 22, 0))
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.OVERNIGHT):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.OVERNIGHT
+        ):
             assert manager_no_broker.is_market_open() is True
 
     def test_overnight_closed_when_disabled(self, manager_overnight_disabled):
@@ -230,7 +234,9 @@ class TestIsMarketOpen:
 
     def test_regular_hours_always_open(self, manager_no_broker):
         """Test regular hours is always open."""
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.REGULAR):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.REGULAR
+        ):
             assert manager_no_broker.is_market_open() is True
             assert manager_no_broker.is_market_open(include_extended=False) is True
             assert manager_no_broker.is_market_open(include_overnight=False) is True
@@ -247,13 +253,17 @@ class TestIsOvernight:
     def test_is_overnight_true(self, manager_no_broker):
         """Test is_overnight returns True during overnight."""
         ET.localize(datetime(2024, 1, 9, 22, 0))
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.OVERNIGHT):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.OVERNIGHT
+        ):
             assert manager_no_broker.is_overnight() is True
 
     def test_is_overnight_false_during_day(self, manager_no_broker):
         """Test is_overnight returns False during day."""
         ET.localize(datetime(2024, 1, 9, 11, 0))
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.REGULAR):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.REGULAR
+        ):
             assert manager_no_broker.is_overnight() is False
 
 
@@ -269,7 +279,7 @@ class TestOvernightTradability:
     async def test_can_trade_overnight_success(self, manager):
         """Test successful overnight trade eligibility."""
         # Set session to overnight
-        with patch.object(manager, 'get_current_session', return_value=TradingSession.OVERNIGHT):
+        with patch.object(manager, "get_current_session", return_value=TradingSession.OVERNIGHT):
             can_trade, reason = await manager.can_trade_overnight("AAPL")
             assert can_trade is True
             assert "overnight" in reason.lower()
@@ -277,7 +287,7 @@ class TestOvernightTradability:
     @pytest.mark.asyncio
     async def test_cannot_trade_overnight_wrong_session(self, manager):
         """Test cannot trade overnight outside overnight session."""
-        with patch.object(manager, 'get_current_session', return_value=TradingSession.REGULAR):
+        with patch.object(manager, "get_current_session", return_value=TradingSession.REGULAR):
             can_trade, reason = await manager.can_trade_overnight("AAPL")
             assert can_trade is False
             assert "Not in overnight session" in reason
@@ -285,7 +295,9 @@ class TestOvernightTradability:
     @pytest.mark.asyncio
     async def test_cannot_trade_overnight_disabled(self, manager_overnight_disabled):
         """Test cannot trade overnight when disabled."""
-        with patch.object(manager_overnight_disabled, 'get_current_session', return_value=TradingSession.OVERNIGHT):
+        with patch.object(
+            manager_overnight_disabled, "get_current_session", return_value=TradingSession.OVERNIGHT
+        ):
             can_trade, reason = await manager_overnight_disabled.can_trade_overnight("AAPL")
             assert can_trade is False
             assert "disabled" in reason.lower()
@@ -294,13 +306,15 @@ class TestOvernightTradability:
     async def test_cannot_trade_symbol_not_overnight_enabled(self, manager):
         """Test cannot trade symbol that doesn't support overnight."""
         # Mock broker returns symbol not overnight tradeable
-        manager.broker.get_asset = AsyncMock(return_value={
-            "symbol": "XYZ",
-            "overnight_tradeable": False,
-            "overnight_halted": False,
-        })
+        manager.broker.get_asset = AsyncMock(
+            return_value={
+                "symbol": "XYZ",
+                "overnight_tradeable": False,
+                "overnight_halted": False,
+            }
+        )
 
-        with patch.object(manager, 'get_current_session', return_value=TradingSession.OVERNIGHT):
+        with patch.object(manager, "get_current_session", return_value=TradingSession.OVERNIGHT):
             can_trade, reason = await manager.can_trade_overnight("XYZ")
             assert can_trade is False
             assert "not available" in reason.lower()
@@ -314,11 +328,13 @@ class TestOvernightTradability:
     @pytest.mark.asyncio
     async def test_check_overnight_tradeable_halted(self, manager):
         """Test check_overnight_tradeable when halted."""
-        manager.broker.get_asset = AsyncMock(return_value={
-            "symbol": "AAPL",
-            "overnight_tradeable": True,
-            "overnight_halted": True,  # Halted
-        })
+        manager.broker.get_asset = AsyncMock(
+            return_value={
+                "symbol": "AAPL",
+                "overnight_tradeable": True,
+                "overnight_halted": True,  # Halted
+            }
+        )
         result = await manager.check_overnight_tradeable(manager.broker, "AAPL")
         assert result is False
 
@@ -343,25 +359,33 @@ class TestPositionSizeAdjustments:
 
     def test_get_position_size_multiplier_overnight(self, manager_no_broker):
         """Test position size multiplier during overnight."""
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.OVERNIGHT):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.OVERNIGHT
+        ):
             multiplier = manager_no_broker.get_position_size_multiplier()
             assert multiplier == 0.3
 
     def test_get_position_size_multiplier_regular(self, manager_no_broker):
         """Test position size multiplier during regular hours."""
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.REGULAR):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.REGULAR
+        ):
             multiplier = manager_no_broker.get_position_size_multiplier()
             assert multiplier == 1.0
 
     def test_get_position_size_multiplier_extended(self, manager_no_broker):
         """Test position size multiplier during extended hours."""
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.PRE_MARKET):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.PRE_MARKET
+        ):
             multiplier = manager_no_broker.get_position_size_multiplier()
             assert multiplier == 0.5
 
     def test_get_position_size_multiplier_closed(self, manager_no_broker):
         """Test position size multiplier when closed."""
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.CLOSED):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.CLOSED
+        ):
             multiplier = manager_no_broker.get_position_size_multiplier()
             assert multiplier == 0.0
 
@@ -377,7 +401,9 @@ class TestSessionInfo:
     def test_overnight_session_info(self, manager_no_broker):
         """Test get_session_info returns overnight details."""
         dt = ET.localize(datetime(2024, 1, 9, 22, 0))
-        with patch.object(manager_no_broker, 'get_current_session', return_value=TradingSession.OVERNIGHT):
+        with patch.object(
+            manager_no_broker, "get_current_session", return_value=TradingSession.OVERNIGHT
+        ):
             info = manager_no_broker.get_session_info(dt)
 
         assert info["session"] == "overnight"
@@ -445,16 +471,18 @@ class TestExecuteOvernightTrade:
     @pytest.mark.asyncio
     async def test_execute_overnight_trade_checks_tradability(self, manager):
         """Test overnight trade execution checks tradability."""
-        with patch.object(manager, 'get_current_session', return_value=TradingSession.OVERNIGHT):
-            with patch.object(manager, 'can_trade_overnight', return_value=(True, "OK")) as mock_check:
-                with patch.object(manager, 'get_extended_hours_quote', return_value=None):
+        with patch.object(manager, "get_current_session", return_value=TradingSession.OVERNIGHT):
+            with patch.object(
+                manager, "can_trade_overnight", return_value=(True, "OK")
+            ) as mock_check:
+                with patch.object(manager, "get_extended_hours_quote", return_value=None):
                     await manager.execute_extended_hours_trade("AAPL", "buy", 10)
                     mock_check.assert_called_once_with("AAPL")
 
     @pytest.mark.asyncio
     async def test_execute_trade_rejected_outside_sessions(self, manager):
         """Test trade rejected when not in valid session."""
-        with patch.object(manager, 'get_current_session', return_value=TradingSession.CLOSED):
+        with patch.object(manager, "get_current_session", return_value=TradingSession.CLOSED):
             result = await manager.execute_extended_hours_trade("AAPL", "buy", 10)
             assert result is None
 
@@ -551,7 +579,7 @@ class TestEdgeCases:
         )
 
         # During overnight time, market should not be open
-        with patch.object(manager, 'get_current_session', return_value=TradingSession.CLOSED):
+        with patch.object(manager, "get_current_session", return_value=TradingSession.CLOSED):
             assert manager.is_market_open() is False
 
     def test_overnight_params_custom_multiplier(self, mock_broker):

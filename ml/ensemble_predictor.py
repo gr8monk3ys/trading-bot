@@ -222,9 +222,7 @@ class EnsemblePredictor:
 
         # Performance tracking
         self._predictions: List[Dict] = []
-        self._source_accuracy: Dict[SignalSource, List[float]] = {
-            s: [] for s in SignalSource
-        }
+        self._source_accuracy: Dict[SignalSource, List[float]] = {s: [] for s in SignalSource}
 
         # INSTITUTIONAL SAFETY: Track killed sources
         # Sources that fall below kill threshold are disabled
@@ -316,7 +314,7 @@ class EnsemblePredictor:
                 continue
 
             # Use only recent predictions for responsiveness
-            recent_history = accuracy_history[-self.performance_window:]
+            recent_history = accuracy_history[-self.performance_window :]
             n_recent = len(recent_history)
             n_successes = sum(recent_history)
             n_failures = n_recent - n_successes
@@ -452,9 +450,7 @@ class EnsemblePredictor:
         if self._meta_learner is not None:
             ensemble_signal, ensemble_confidence = self._meta_predict(components)
         else:
-            ensemble_signal, ensemble_confidence = self._weighted_combine(
-                components, weights
-            )
+            ensemble_signal, ensemble_confidence = self._weighted_combine(components, weights)
 
         # Determine direction
         if ensemble_signal > 0.1:
@@ -536,10 +532,12 @@ class EnsemblePredictor:
         features = []
         for source in SignalSource:
             if source in components:
-                features.extend([
-                    components[source].signal_value,
-                    components[source].confidence,
-                ])
+                features.extend(
+                    [
+                        components[source].signal_value,
+                        components[source].confidence,
+                    ]
+                )
             else:
                 features.extend([0.0, 0.0])
 
@@ -633,9 +631,8 @@ class EnsemblePredictor:
                 prediction = pred_record["prediction"]
 
                 # Determine if prediction was correct
-                correct = (
-                    (prediction.direction == "long" and actual_return > 0)
-                    or (prediction.direction == "short" and actual_return < 0)
+                correct = (prediction.direction == "long" and actual_return > 0) or (
+                    prediction.direction == "short" and actual_return < 0
                 )
 
                 # Update accuracy for each source
@@ -663,7 +660,7 @@ class EnsemblePredictor:
                 continue
 
             # Recent history for metrics
-            recent_history = accuracy_history[-self.performance_window:]
+            recent_history = accuracy_history[-self.performance_window :]
             n_recent = len(recent_history)
             n_successes = sum(recent_history)
             n_failures = n_recent - n_successes
@@ -740,6 +737,7 @@ def create_ensemble_from_components(
     ensemble = EnsemblePredictor()
 
     if lstm_predictor is not None:
+
         def lstm_signal(symbol: str, data: Any) -> Optional[SignalComponent]:
             result = lstm_predictor.predict_with_uncertainty(symbol, data.get("prices", []))
             if result is None:
@@ -756,6 +754,7 @@ def create_ensemble_from_components(
         ensemble.register_source(SignalSource.LSTM, lstm_signal)
 
     if dqn_agent is not None:
+
         def dqn_signal(symbol: str, data: Any) -> Optional[SignalComponent]:
             try:
                 state = data.get("state")
@@ -787,6 +786,7 @@ def create_ensemble_from_components(
         ensemble.register_source(SignalSource.DQN, dqn_signal)
 
     if factor_model is not None:
+
         def factor_signal(symbol: str, data: Any) -> Optional[SignalComponent]:
             scores = data.get("factor_scores", {})
             signal_dict = factor_model.get_signal(symbol, scores)
@@ -805,6 +805,7 @@ def create_ensemble_from_components(
         ensemble.register_source(SignalSource.FACTOR, factor_signal)
 
     if momentum_strategy is not None:
+
         def momentum_signal(symbol: str, data: Any) -> Optional[SignalComponent]:
             try:
                 signal = momentum_strategy.analyze_symbol(symbol)
@@ -902,7 +903,11 @@ class AltDataSignalGenerator:
                     JobPostingsProvider,
                 )
 
-                for ProviderClass in [JobPostingsProvider, GlassdoorSentimentProvider, AppRankingsProvider]:
+                for ProviderClass in [
+                    JobPostingsProvider,
+                    GlassdoorSentimentProvider,
+                    AppRankingsProvider,
+                ]:
                     provider = ProviderClass()
                     await provider.initialize()
                     self._aggregator.register_provider(provider)
@@ -988,6 +993,7 @@ class AltDataSignalGenerator:
             if loop.is_running():
                 # Create a new loop for this call
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(asyncio.run, self.get_signal(symbol, data))
                     return future.result(timeout=30)
@@ -1028,6 +1034,7 @@ def create_ensemble_with_alt_data(
 
     # Add alternative data source
     if alt_data_generator is not None:
+
         def alt_data_signal(symbol: str, data: Any) -> Optional[SignalComponent]:
             return alt_data_generator.get_signal_sync(symbol, data)
 
@@ -1134,9 +1141,17 @@ class CrossAssetSignalGenerator:
                     "agreement_ratio": aggregated.agreement_ratio,
                     "sources": [s.value for s in aggregated.sources],
                     "should_reduce_exposure": aggregated.should_reduce_exposure,
-                    "vix_signal": aggregated.vix_signal.signal_value if aggregated.vix_signal else None,
-                    "yield_signal": aggregated.yield_curve_signal.signal_value if aggregated.yield_curve_signal else None,
-                    "fx_signal": aggregated.fx_signal.signal_value if aggregated.fx_signal else None,
+                    "vix_signal": (
+                        aggregated.vix_signal.signal_value if aggregated.vix_signal else None
+                    ),
+                    "yield_signal": (
+                        aggregated.yield_curve_signal.signal_value
+                        if aggregated.yield_curve_signal
+                        else None
+                    ),
+                    "fx_signal": (
+                        aggregated.fx_signal.signal_value if aggregated.fx_signal else None
+                    ),
                 },
             )
 
@@ -1156,6 +1171,7 @@ class CrossAssetSignalGenerator:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(asyncio.run, self.get_signal(symbol, data))
                     return future.result(timeout=30)
@@ -1207,6 +1223,7 @@ def create_ensemble_with_cross_asset(
 
     # Add cross-asset source
     if cross_asset_generator is not None:
+
         def cross_asset_signal(symbol: str, data: Any) -> Optional[SignalComponent]:
             return cross_asset_generator.get_signal_sync(symbol, data)
 

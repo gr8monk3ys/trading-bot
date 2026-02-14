@@ -5,9 +5,9 @@ Unit tests for operational SLO monitor.
 
 from datetime import timedelta
 
-from utils.slo_monitor import SLOMonitor
 from utils.incident_tracker import IncidentTracker
 from utils.run_artifacts import read_jsonl
+from utils.slo_monitor import SLOMonitor
 
 
 def test_order_reconciliation_health_critical_breach(tmp_path):
@@ -199,7 +199,9 @@ def test_slo_monitor_incident_lifecycle_e2e_with_ack_clears_sla(tmp_path):
     assert incident_event_types.count("incident_ack") == 1
 
     slo_events = read_jsonl(slo_events_path)
-    slo_names = [event.get("name") for event in slo_events if event.get("event_type") == "slo_breach"]
+    slo_names = [
+        event.get("name") for event in slo_events if event.get("event_type") == "slo_breach"
+    ]
     assert "data_quality_errors" in slo_names
     assert "incident_ack_sla_breach" in slo_names
 
@@ -211,9 +213,7 @@ def test_slo_monitor_shadow_drift_warning_breach():
         shadow_drift_warning_threshold=0.10,
         shadow_drift_critical_threshold=0.15,
     )
-    breaches = monitor.record_shadow_drift_summary(
-        {"paper_live_shadow_drift": 0.12}
-    )
+    breaches = monitor.record_shadow_drift_summary({"paper_live_shadow_drift": 0.12})
     assert len(breaches) == 1
     assert breaches[0].name == "paper_live_shadow_drift_warning"
     assert breaches[0].severity == "warning"
@@ -225,9 +225,7 @@ def test_slo_monitor_shadow_drift_critical_breach():
         shadow_drift_warning_threshold=0.10,
         shadow_drift_critical_threshold=0.15,
     )
-    breaches = monitor.record_shadow_drift_summary(
-        {"paper_live_shadow_drift": 0.18}
-    )
+    breaches = monitor.record_shadow_drift_summary({"paper_live_shadow_drift": 0.18})
     assert len(breaches) == 1
     assert breaches[0].name == "paper_live_shadow_drift"
     assert breaches[0].severity == "critical"

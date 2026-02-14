@@ -32,9 +32,7 @@ class TestSimpleMACrossoverStrategyInit:
         """Test initialization with custom parameters."""
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
-        strategy = SimpleMACrossoverStrategy(
-            parameters={"fast_period": 5, "slow_period": 20}
-        )
+        strategy = SimpleMACrossoverStrategy(parameters={"fast_period": 5, "slow_period": 20})
 
         assert strategy.fast_period == 5
         assert strategy.slow_period == 20
@@ -67,9 +65,7 @@ class TestInitialize:
         """Test initialization sets up symbol tracking."""
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
-        strategy = SimpleMACrossoverStrategy(
-            parameters={"symbols": ["AAPL", "MSFT", "GOOGL"]}
-        )
+        strategy = SimpleMACrossoverStrategy(parameters={"symbols": ["AAPL", "MSFT", "GOOGL"]})
         await strategy.initialize()
 
         assert strategy.signals["AAPL"] == "neutral"
@@ -139,9 +135,7 @@ class TestUpdateSignal:
         """Test buy signal on bullish crossover."""
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
-        strategy = SimpleMACrossoverStrategy(
-            parameters={"fast_period": 5, "slow_period": 10}
-        )
+        strategy = SimpleMACrossoverStrategy(parameters={"fast_period": 5, "slow_period": 10})
         strategy.signals = {"AAPL": "neutral"}
         strategy.previous_crossover = {"AAPL": "bearish"}
 
@@ -162,9 +156,7 @@ class TestUpdateSignal:
         """Test sell signal on bearish crossover."""
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
-        strategy = SimpleMACrossoverStrategy(
-            parameters={"fast_period": 5, "slow_period": 10}
-        )
+        strategy = SimpleMACrossoverStrategy(parameters={"fast_period": 5, "slow_period": 10})
         strategy.signals = {"AAPL": "neutral"}
         strategy.previous_crossover = {"AAPL": "bullish"}
 
@@ -184,9 +176,7 @@ class TestUpdateSignal:
         """Test neutral signal when no crossover occurs."""
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
-        strategy = SimpleMACrossoverStrategy(
-            parameters={"fast_period": 5, "slow_period": 10}
-        )
+        strategy = SimpleMACrossoverStrategy(parameters={"fast_period": 5, "slow_period": 10})
         strategy.signals = {"AAPL": "neutral"}
         strategy.previous_crossover = {"AAPL": "bullish"}
 
@@ -393,9 +383,7 @@ class TestExecuteTrade:
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
         mock_broker = AsyncMock()
-        mock_broker.get_all_positions.return_value = [
-            {"symbol": "AAPL", "quantity": 50}
-        ]
+        mock_broker.get_all_positions.return_value = [{"symbol": "AAPL", "quantity": 50}]
         mock_account = MagicMock()
         mock_account.cash = "100000"
         mock_broker.get_account.return_value = mock_account

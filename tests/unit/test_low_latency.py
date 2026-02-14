@@ -448,15 +448,9 @@ class TestLatencyOptimizer:
     def test_analyze(self, optimizer):
         """Test analyzing latencies."""
         # Add some measurements
-        optimizer.executor.latency_monitor.record(
-            LatencyBucket.ORDER_CREATION, 100
-        )
-        optimizer.executor.latency_monitor.record(
-            LatencyBucket.NETWORK_SEND, 200
-        )
-        optimizer.executor.latency_monitor.record(
-            LatencyBucket.TOTAL_ROUND_TRIP, 300
-        )
+        optimizer.executor.latency_monitor.record(LatencyBucket.ORDER_CREATION, 100)
+        optimizer.executor.latency_monitor.record(LatencyBucket.NETWORK_SEND, 200)
+        optimizer.executor.latency_monitor.record(LatencyBucket.TOTAL_ROUND_TRIP, 300)
 
         analysis = optimizer.analyze()
 
@@ -468,9 +462,7 @@ class TestLatencyOptimizer:
         """Test recommendations for high latency."""
         # Add high latency measurement
         for _ in range(100):
-            optimizer.executor.latency_monitor.record(
-                LatencyBucket.NETWORK_SEND, 5000
-            )
+            optimizer.executor.latency_monitor.record(LatencyBucket.NETWORK_SEND, 5000)
 
         analysis = optimizer.analyze()
 
@@ -493,9 +485,7 @@ class TestCreateLowLatencyExecutor:
 
     def test_create_with_config(self):
         """Test creating with custom config."""
-        config = ExecutionConfig(
-            latency_alert_threshold_us=500
-        )
+        config = ExecutionConfig(latency_alert_threshold_us=500)
         executor = create_low_latency_executor(config=config)
         assert executor.config.latency_alert_threshold_us == 500
 

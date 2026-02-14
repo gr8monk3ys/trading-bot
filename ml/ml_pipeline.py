@@ -150,7 +150,7 @@ class FeatureEngineer:
         # Moving average distances
         for period in [10, 20, 50]:
             if len(price_data) > period:
-                ma = np.convolve(price_data, np.ones(period)/period, mode='same')
+                ma = np.convolve(price_data, np.ones(period) / period, mode="same")
                 distance = (price_data - ma) / ma
                 features.append(distance)
                 names.append(f"ma_dist_{period}")
@@ -160,10 +160,12 @@ class FeatureEngineer:
             if len(price_data) > period:
                 returns = np.diff(np.log(price_data))
                 returns = np.concatenate([[0], returns])
-                vol = np.array([
-                    np.std(returns[max(0, i-period):i]) if i > 0 else 0
-                    for i in range(len(returns))
-                ])
+                vol = np.array(
+                    [
+                        np.std(returns[max(0, i - period) : i]) if i > 0 else 0
+                        for i in range(len(returns))
+                    ]
+                )
                 features.append(vol * np.sqrt(252))  # Annualized
                 names.append(f"volatility_{period}d")
 
@@ -172,14 +174,14 @@ class FeatureEngineer:
             # Volume ratio to average
             for period in [5, 20]:
                 if len(volume_data) > period:
-                    avg_vol = np.convolve(volume_data, np.ones(period)/period, mode='same')
+                    avg_vol = np.convolve(volume_data, np.ones(period) / period, mode="same")
                     vol_ratio = volume_data / (avg_vol + 1e-8)
                     features.append(vol_ratio)
                     names.append(f"volume_ratio_{period}d")
 
             # Volume trend
-            vol_ma_5 = np.convolve(volume_data, np.ones(5)/5, mode='same')
-            vol_ma_20 = np.convolve(volume_data, np.ones(20)/20, mode='same')
+            vol_ma_5 = np.convolve(volume_data, np.ones(5) / 5, mode="same")
+            vol_ma_20 = np.convolve(volume_data, np.ones(20) / 20, mode="same")
             vol_trend = vol_ma_5 / (vol_ma_20 + 1e-8)
             features.append(vol_trend)
             names.append("volume_trend")
@@ -225,8 +227,8 @@ class FeatureEngineer:
         gains = np.where(deltas > 0, deltas, 0)
         losses = np.where(deltas < 0, -deltas, 0)
 
-        avg_gain = np.convolve(gains, np.ones(period)/period, mode='same')
-        avg_loss = np.convolve(losses, np.ones(period)/period, mode='same')
+        avg_gain = np.convolve(gains, np.ones(period) / period, mode="same")
+        avg_loss = np.convolve(losses, np.ones(period) / period, mode="same")
 
         rs = avg_gain / (avg_loss + 1e-8)
         rsi = 100 - (100 / (1 + rs))
@@ -249,18 +251,17 @@ class FeatureEngineer:
         ema = np.zeros_like(data)
         ema[0] = data[0]
         for i in range(1, len(data)):
-            ema[i] = alpha * data[i] + (1 - alpha) * ema[i-1]
+            ema[i] = alpha * data[i] + (1 - alpha) * ema[i - 1]
         return ema
 
     def _calculate_bb_position(
         self, prices: np.ndarray, period: int = 20, num_std: float = 2
     ) -> np.ndarray:
         """Calculate position within Bollinger Bands (0 to 1)."""
-        ma = np.convolve(prices, np.ones(period)/period, mode='same')
-        std = np.array([
-            np.std(prices[max(0, i-period):i]) if i > 0 else 0
-            for i in range(len(prices))
-        ])
+        ma = np.convolve(prices, np.ones(period) / period, mode="same")
+        std = np.array(
+            [np.std(prices[max(0, i - period) : i]) if i > 0 else 0 for i in range(len(prices))]
+        )
 
         upper = ma + num_std * std
         lower = ma - num_std * std
@@ -395,9 +396,7 @@ class MLPipeline:
 
             for symbol in symbols:
                 try:
-                    features, targets = await self._prepare_data(
-                        symbol, start_date, end_date
-                    )
+                    features, targets = await self._prepare_data(symbol, start_date, end_date)
                     if features is not None and len(features) > 100:
                         all_features.append(features)
                         all_targets.append(targets)
@@ -415,9 +414,7 @@ class MLPipeline:
             logger.info(f"Training data: {X.shape[0]} samples, {X.shape[1]} features")
 
             # Run walk-forward validation
-            fold_results = await self._walk_forward_validate(
-                X, y, n_splits, train_ratio
-            )
+            fold_results = await self._walk_forward_validate(X, y, n_splits, train_ratio)
 
             result.fold_results = fold_results
             result.num_folds = len(fold_results)
@@ -568,14 +565,16 @@ class MLPipeline:
 
             overfit_ratio = is_sharpe / max(oos_sharpe, 0.01) if oos_sharpe > 0 else 10.0
 
-            results.append({
-                "fold": i,
-                "in_sample_sharpe": is_sharpe,
-                "out_of_sample_sharpe": oos_sharpe,
-                "overfit_ratio": overfit_ratio,
-                "train_size": len(X_train),
-                "test_size": len(X_test),
-            })
+            results.append(
+                {
+                    "fold": i,
+                    "in_sample_sharpe": is_sharpe,
+                    "out_of_sample_sharpe": oos_sharpe,
+                    "overfit_ratio": overfit_ratio,
+                    "train_size": len(X_train),
+                    "test_size": len(X_test),
+                }
+            )
 
             logger.debug(
                 f"Fold {i}: IS Sharpe={is_sharpe:.2f}, OOS Sharpe={oos_sharpe:.2f}, "
@@ -690,12 +689,15 @@ class MLPipeline:
             path = self.model_dir / f"model_{self.model_version}.pkl"
 
         with open(path, "wb") as f:
-            pickle.dump({
-                "model": self.model,
-                "scaler": self.scaler,
-                "feature_engineer": self.feature_engineer,
-                "version": self.model_version,
-            }, f)
+            pickle.dump(
+                {
+                    "model": self.model,
+                    "scaler": self.scaler,
+                    "feature_engineer": self.feature_engineer,
+                    "version": self.model_version,
+                },
+                f,
+            )
 
         logger.info(f"Model saved to {path}")
         return str(path)

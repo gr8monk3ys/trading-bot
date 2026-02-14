@@ -13,14 +13,13 @@ from data.alt_data_types import AltDataSource, AlternativeSignal
 from data.alternative_data_provider import AlternativeDataProvider
 from data.data_fetchers import EarningsTranscript, EarningsTranscriptFetcher
 from llm import (
+    EarningsAnalysis,
     LLMClientWithFallback,
     create_llm_client,
-    EarningsAnalysis,
 )
 from llm.prompts.earnings_prompts import (
     EARNINGS_SYSTEM_PROMPT,
     format_earnings_prompt,
-    EARNINGS_ANALYSIS_SCHEMA,
 )
 
 logger = logging.getLogger(__name__)

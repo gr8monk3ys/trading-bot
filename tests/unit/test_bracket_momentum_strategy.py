@@ -53,14 +53,16 @@ def sample_price_history():
         high = p * (1 + abs(np.random.normal(0, 0.01)))
         low = p * (1 - abs(np.random.normal(0, 0.01)))
         open_price = p * (1 + np.random.normal(0, 0.005))
-        history.append({
-            "timestamp": datetime.now(),
-            "open": open_price,
-            "high": max(high, open_price, p),
-            "low": min(low, open_price, p),
-            "close": p,
-            "volume": 1000000 + np.random.randint(-100000, 100000),
-        })
+        history.append(
+            {
+                "timestamp": datetime.now(),
+                "open": open_price,
+                "high": max(high, open_price, p),
+                "low": min(low, open_price, p),
+                "close": p,
+                "volume": 1000000 + np.random.randint(-100000, 100000),
+            }
+        )
     return history
 
 
@@ -120,10 +122,7 @@ class TestBracketMomentumStrategyInit:
     @pytest.mark.asyncio
     async def test_initializes_with_defaults(self, mock_broker):
         """Test that strategy initializes with default parameters."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -144,10 +143,7 @@ class TestBracketMomentumStrategyInit:
     @pytest.mark.asyncio
     async def test_shows_deprecation_warning(self, mock_broker):
         """Test that deprecation warning is shown during initialization."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with pytest.warns(UserWarning, match="experimental"):
             await strategy.initialize()
@@ -165,10 +161,7 @@ class TestBracketMomentumStrategyInit:
             "use_atr_stops": False,
         }
 
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters=custom_params
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters=custom_params)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -185,10 +178,7 @@ class TestBracketMomentumStrategyInit:
     async def test_initializes_tracking_dictionaries(self, mock_broker):
         """Test that tracking dictionaries are properly initialized."""
         symbols = ["AAPL", "MSFT", "GOOGL"]
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": symbols}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": symbols})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -214,14 +204,9 @@ class TestSignalGeneration:
     """Test signal generation logic."""
 
     @pytest.mark.asyncio
-    async def test_generates_buy_signal_when_conditions_met(
-        self, mock_broker, bullish_indicators
-    ):
+    async def test_generates_buy_signal_when_conditions_met(self, mock_broker, bullish_indicators):
         """Test that buy signal is generated when all bullish conditions are met."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -234,14 +219,9 @@ class TestSignalGeneration:
         assert signal == "buy"
 
     @pytest.mark.asyncio
-    async def test_generates_neutral_signal_when_bearish(
-        self, mock_broker, bearish_indicators
-    ):
+    async def test_generates_neutral_signal_when_bearish(self, mock_broker, bearish_indicators):
         """Test that neutral signal is generated when conditions are bearish."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -253,14 +233,9 @@ class TestSignalGeneration:
         assert signal == "neutral"
 
     @pytest.mark.asyncio
-    async def test_generates_neutral_signal_when_mixed_conditions(
-        self, mock_broker
-    ):
+    async def test_generates_neutral_signal_when_mixed_conditions(self, mock_broker):
         """Test that neutral signal is generated when conditions are mixed."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -285,10 +260,7 @@ class TestSignalGeneration:
     @pytest.mark.asyncio
     async def test_returns_neutral_when_indicators_not_available(self, mock_broker):
         """Test that neutral is returned when indicators are not calculated."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -303,10 +275,7 @@ class TestSignalGeneration:
     @pytest.mark.asyncio
     async def test_returns_neutral_when_rsi_is_none(self, mock_broker):
         """Test that neutral is returned when RSI is None."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -335,7 +304,7 @@ class TestBracketOrderCreation:
                 "symbols": ["AAPL"],
                 "use_atr_stops": True,
                 "atr_multiplier": 2.0,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -371,7 +340,7 @@ class TestBracketOrderCreation:
                 "use_atr_stops": False,
                 "profit_target_pct": 0.08,
                 "stop_loss_pct": 0.03,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -395,10 +364,7 @@ class TestBracketOrderCreation:
         existing_position.symbol = "AAPL"
         mock_broker.get_positions.return_value = [existing_position]
 
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -428,7 +394,7 @@ class TestBracketOrderCreation:
             parameters={
                 "symbols": ["AAPL"],
                 "max_positions": 3,
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -446,10 +412,7 @@ class TestBracketOrderCreation:
     @pytest.mark.asyncio
     async def test_tracks_bracket_order_after_submission(self, mock_broker):
         """Test that bracket order is tracked after successful submission."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -490,7 +453,7 @@ class TestPositionSizing:
                 "symbols": ["AAPL"],
                 "position_size": 0.5,  # 50% is way too large
                 "max_position_size": 0.05,  # But max is 5%
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -519,7 +482,7 @@ class TestPositionSizing:
             parameters={
                 "symbols": ["AAPL"],
                 "position_size": 0.01,  # 1% of $10 = $0.10
-            }
+            },
         )
 
         with warnings.catch_warnings():
@@ -547,10 +510,7 @@ class TestOnBar:
     @pytest.mark.asyncio
     async def test_on_bar_updates_price_history(self, mock_broker):
         """Test that on_bar updates price history correctly."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -575,10 +535,7 @@ class TestOnBar:
     @pytest.mark.asyncio
     async def test_on_bar_ignores_unknown_symbols(self, mock_broker):
         """Test that on_bar ignores symbols not in strategy.symbols."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -601,10 +558,7 @@ class TestOnBar:
     @pytest.mark.asyncio
     async def test_on_bar_limits_history_size(self, mock_broker, sample_price_history):
         """Test that price history is trimmed to max size."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -623,12 +577,15 @@ class TestOnBar:
             )
 
         # Verify history is limited
-        max_history = max(
-            strategy.slow_ma,
-            strategy.rsi_period,
-            strategy.macd_slow + strategy.macd_signal,
-            strategy.atr_period,
-        ) + 10
+        max_history = (
+            max(
+                strategy.slow_ma,
+                strategy.rsi_period,
+                strategy.macd_slow + strategy.macd_signal,
+                strategy.atr_period,
+            )
+            + 10
+        )
 
         assert len(strategy.price_history["AAPL"]) <= max_history
 
@@ -644,10 +601,7 @@ class TestAnalyzeSymbol:
     @pytest.mark.asyncio
     async def test_analyze_symbol_returns_current_signal(self, mock_broker):
         """Test that analyze_symbol returns the current signal for a symbol."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -662,10 +616,7 @@ class TestAnalyzeSymbol:
     @pytest.mark.asyncio
     async def test_analyze_symbol_returns_neutral_for_unknown(self, mock_broker):
         """Test that analyze_symbol returns neutral for unknown symbols."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -686,10 +637,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_default_parameters_are_valid(self, mock_broker):
         """Test that default_parameters returns valid configuration."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         params = strategy.default_parameters()
 
@@ -704,10 +652,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_atr_parameters_are_valid(self, mock_broker):
         """Test that ATR parameters are properly configured."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         params = strategy.default_parameters()
 
@@ -718,10 +663,7 @@ class TestParameterValidation:
     @pytest.mark.asyncio
     async def test_ma_parameters_are_valid(self, mock_broker):
         """Test that moving average parameters are valid."""
-        strategy = BracketMomentumStrategy(
-            broker=mock_broker,
-            parameters={"symbols": ["AAPL"]}
-        )
+        strategy = BracketMomentumStrategy(broker=mock_broker, parameters={"symbols": ["AAPL"]})
 
         params = strategy.default_parameters()
 

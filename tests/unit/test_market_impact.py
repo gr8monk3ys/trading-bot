@@ -35,8 +35,8 @@ class TestAlmgrenChrissModel:
     def test_small_order_low_impact(self, model):
         """Test that small orders have low market impact."""
         result = model.calculate_impact(
-            order_value=10_000,           # $10K order
-            daily_volume_usd=100_000_000, # $100M daily volume
+            order_value=10_000,  # $10K order
+            daily_volume_usd=100_000_000,  # $100M daily volume
             price=100.0,
             volatility=0.25,
         )
@@ -49,8 +49,8 @@ class TestAlmgrenChrissModel:
     def test_large_order_high_impact(self, model):
         """Test that large orders have higher market impact."""
         result = model.calculate_impact(
-            order_value=1_000_000,      # $1M order
-            daily_volume_usd=5_000_000, # $5M daily volume (20% participation)
+            order_value=1_000_000,  # $1M order
+            daily_volume_usd=5_000_000,  # $5M daily volume (20% participation)
             price=100.0,
             volatility=0.30,
         )

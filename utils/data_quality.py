@@ -196,9 +196,8 @@ def validate_ohlcv_frame(
             )
         )
 
-    invalid_high_low_mask = (
-        (df["high"] < df[["open", "close", "low"]].max(axis=1))
-        | (df["low"] > df[["open", "close", "high"]].min(axis=1))
+    invalid_high_low_mask = (df["high"] < df[["open", "close", "low"]].max(axis=1)) | (
+        df["low"] > df[["open", "close", "high"]].min(axis=1)
     )
     invalid_high_low_rows = int(invalid_high_low_mask.sum())
     if invalid_high_low_rows > 0:
@@ -315,9 +314,7 @@ def summarize_quality_reports(
             symbols_with_errors += 1
 
         stale_warnings += sum(
-            1
-            for issue in issues
-            if isinstance(issue, dict) and issue.get("code") == "stale_data"
+            1 for issue in issues if isinstance(issue, dict) and issue.get("code") == "stale_data"
         )
 
     return {

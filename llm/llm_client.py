@@ -83,15 +83,13 @@ class RateLimiter:
             # Refill token buckets
             token_elapsed = now - self._token_last_update
             self._tokens = min(
-                self._token_capacity,
-                self._tokens + token_elapsed * self._token_rate
+                self._token_capacity, self._tokens + token_elapsed * self._token_rate
             )
             self._token_last_update = now
 
             request_elapsed = now - self._request_last_update
             self._requests = min(
-                self._request_capacity,
-                self._requests + request_elapsed * self._request_rate
+                self._request_capacity, self._requests + request_elapsed * self._request_rate
             )
             self._request_last_update = now
 
@@ -107,12 +105,10 @@ class RateLimiter:
                 await asyncio.sleep(wait_time)
                 # Refill after waiting
                 self._tokens = min(
-                    self._token_capacity,
-                    self._tokens + wait_time * self._token_rate
+                    self._token_capacity, self._tokens + wait_time * self._token_rate
                 )
                 self._requests = min(
-                    self._request_capacity,
-                    self._requests + wait_time * self._request_rate
+                    self._request_capacity, self._requests + wait_time * self._request_rate
                 )
 
             # Consume tokens
@@ -202,21 +198,21 @@ class CostTracker:
             # Today's cost
             result = conn.execute(
                 "SELECT COALESCE(SUM(cost_usd), 0) FROM llm_costs WHERE timestamp >= ?",
-                (today_start.isoformat(),)
+                (today_start.isoformat(),),
             ).fetchone()
             self._today_cost = result[0] if result else 0.0
 
             # Week's cost
             result = conn.execute(
                 "SELECT COALESCE(SUM(cost_usd), 0) FROM llm_costs WHERE timestamp >= ?",
-                (week_start.isoformat(),)
+                (week_start.isoformat(),),
             ).fetchone()
             self._week_cost = result[0] if result else 0.0
 
             # Month's cost
             result = conn.execute(
                 "SELECT COALESCE(SUM(cost_usd), 0) FROM llm_costs WHERE timestamp >= ?",
-                (month_start.isoformat(),)
+                (month_start.isoformat(),),
             ).fetchone()
             self._month_cost = result[0] if result else 0.0
 
@@ -247,7 +243,7 @@ class CostTracker:
                     cost_usd,
                     source_type,
                     symbol,
-                )
+                ),
             )
             conn.commit()
 
@@ -379,7 +375,7 @@ class ResponseCache:
         with sqlite3.connect(self._db_path) as conn:
             result = conn.execute(
                 "SELECT response FROM response_cache WHERE cache_key = ? AND expires_at > ?",
-                (key, now.isoformat())
+                (key, now.isoformat()),
             ).fetchone()
 
             if result:
@@ -416,7 +412,7 @@ class ResponseCache:
                 (cache_key, response, created_at, expires_at, provider, model)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (key, response, now.isoformat(), expiry.isoformat(), "", model)
+                (key, response, now.isoformat(), expiry.isoformat(), "", model),
             )
             conn.commit()
 
@@ -427,8 +423,7 @@ class ResponseCache:
         if len(self._memory_cache) > self._memory_size:
             # Remove oldest entries
             sorted_items = sorted(
-                self._memory_cache.items(),
-                key=lambda x: x[1][1]  # Sort by expiry
+                self._memory_cache.items(), key=lambda x: x[1][1]  # Sort by expiry
             )
             for key, _ in sorted_items[: len(self._memory_cache) - self._memory_size]:
                 del self._memory_cache[key]
@@ -437,8 +432,7 @@ class ResponseCache:
         """Remove expired entries from SQLite."""
         with sqlite3.connect(self._db_path) as conn:
             cursor = conn.execute(
-                "DELETE FROM response_cache WHERE expires_at < ?",
-                (datetime.now().isoformat(),)
+                "DELETE FROM response_cache WHERE expires_at < ?", (datetime.now().isoformat(),)
             )
             conn.commit()
             return cursor.rowcount

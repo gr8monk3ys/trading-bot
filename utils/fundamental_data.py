@@ -383,9 +383,7 @@ class FundamentalDataProvider:
             if data:
                 results[symbol] = data
 
-        logger.info(
-            f"Fetched fundamentals for {len(results)}/{len(symbols)} symbols"
-        )
+        logger.info(f"Fetched fundamentals for {len(results)}/{len(symbols)} symbols")
 
         return results
 

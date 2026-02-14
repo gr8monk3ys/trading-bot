@@ -270,9 +270,9 @@ class FactorDataProvider:
             df["date"] = pd.to_datetime(df["date"])
 
             # Point-in-time: get most recent data before as_of_date
-            symbol_data = df[
-                (df["symbol"] == symbol) & (df["date"] <= as_of_date)
-            ].sort_values("date", ascending=False)
+            symbol_data = df[(df["symbol"] == symbol) & (df["date"] <= as_of_date)].sort_values(
+                "date", ascending=False
+            )
 
             if symbol_data.empty:
                 return None
@@ -461,7 +461,9 @@ class FactorDataProvider:
         coverage_ratio = (symbols_with_data / total_symbols) if total_symbols else 0.0
         synthetic_ratio = (synthetic_count / total_symbols) if total_symbols else 0.0
         real_ratio = (real_count / total_symbols) if total_symbols else 0.0
-        missing_ratio = ((total_symbols - symbols_with_data) / total_symbols) if total_symbols else 0.0
+        missing_ratio = (
+            ((total_symbols - symbols_with_data) / total_symbols) if total_symbols else 0.0
+        )
 
         return {
             "fundamental_data": fundamental_data,
@@ -540,9 +542,7 @@ class PointInTimeDataManager:
         # For earnings-based metrics, use data from ~45 days prior
         available_date = self.get_available_date("earnings", as_of_date)
 
-        batch = await self.data_provider.get_batch_fundamental_data(
-            symbols, available_date
-        )
+        batch = await self.data_provider.get_batch_fundamental_data(symbols, available_date)
 
         return {symbol: fd.to_dict() for symbol, fd in batch.items()}
 
@@ -557,9 +557,29 @@ def create_sample_fundamentals_csv(output_dir: str = ".factor_cache"):
     output_path.mkdir(exist_ok=True)
 
     symbols = [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-        "JPM", "V", "JNJ", "UNH", "PG", "HD", "MA", "BAC",
-        "XOM", "CVX", "PFE", "ABBV", "KO", "PEP", "WMT", "COST",
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "META",
+        "NVDA",
+        "TSLA",
+        "JPM",
+        "V",
+        "JNJ",
+        "UNH",
+        "PG",
+        "HD",
+        "MA",
+        "BAC",
+        "XOM",
+        "CVX",
+        "PFE",
+        "ABBV",
+        "KO",
+        "PEP",
+        "WMT",
+        "COST",
     ]
 
     provider = FactorDataProvider(cache_dir=output_dir)

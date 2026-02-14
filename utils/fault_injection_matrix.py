@@ -193,9 +193,7 @@ def format_fault_injection_report(report: Dict[str, Any]) -> str:
     for check in report.get("checks", []):
         label = "PASS" if check.get("passed") else "FAIL"
         lines.append(f"[{label}] {check.get('name')}")
-        lines.append(
-            f"  expected={check.get('expected_slo')} observed={check.get('observed_slo')}"
-        )
+        lines.append(f"  expected={check.get('expected_slo')} observed={check.get('observed_slo')}")
         lines.append(f"  {check.get('details')}")
     lines.append("=" * 72)
     return "\n".join(lines)

@@ -117,14 +117,12 @@ class TestLoadAvailableStrategies:
         manager_without_load.strategy_path = str(strategy_dir)
 
         # Create dummy strategy file
-        (strategy_dir / "dummy_strategy.py").write_text(
-            """
+        (strategy_dir / "dummy_strategy.py").write_text("""
 from strategies.base_strategy import BaseStrategy
 
 class DummyStrategy(BaseStrategy):
     NAME = "DummyStrategy"
-"""
-        )
+""")
 
         with patch("os.getcwd", return_value=str(tmp_path)):
             # Should not raise

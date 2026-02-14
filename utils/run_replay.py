@@ -99,7 +99,9 @@ def format_replay_report(
     lines.append(f"REPLAY REPORT | run_id={run_id} | strategy={strategy}")
     lines.append("=" * 72)
     if final_equity is not None and total_return is not None:
-        lines.append(f"Final Equity: ${float(final_equity):,.2f} | Total Return: {float(total_return):+.2%}")
+        lines.append(
+            f"Final Equity: ${float(final_equity):,.2f} | Total Return: {float(total_return):+.2%}"
+        )
     lines.append(f"Decision events: {len(decisions)} | Trade events: {len(trades)}")
     lines.append(
         "Reconciliation snapshots: "
@@ -123,9 +125,7 @@ def format_replay_report(
     lines.append("-" * 72)
     lines.append("Operations Timeline")
     latest_order = (order_reconciliation or [])[-1] if order_reconciliation else None
-    latest_position = (
-        (position_reconciliation or [])[-1] if position_reconciliation else None
-    )
+    latest_position = (position_reconciliation or [])[-1] if position_reconciliation else None
     latest_slo = (slo_events or [])[-1] if slo_events else None
     latest_incident = (incident_events or [])[-1] if incident_events else None
     latest_quality = (data_quality_events or [])[-1] if data_quality_events else None

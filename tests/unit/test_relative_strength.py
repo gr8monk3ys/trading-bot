@@ -52,6 +52,7 @@ def rs_filter(mock_broker):
 @pytest.fixture
 def mock_bars():
     """Create mock bars with prices."""
+
     def create_bars(prices):
         bars = []
         for price in prices:
@@ -59,6 +60,7 @@ def mock_bars():
             bar.close = price
             bars.append(bar)
         return bars
+
     return create_bars
 
 
@@ -298,9 +300,9 @@ class TestRankSymbols:
         """Test returns list sorted by RS ratio."""
         # Set up different returns for each symbol
         stock_prices_high = [100.0] * 5 + [130.0] * 20  # +30%
-        stock_prices_mid = [100.0] * 5 + [110.0] * 20   # +10%
-        stock_prices_low = [100.0] * 5 + [95.0] * 20    # -5%
-        benchmark_prices = [100.0] * 5 + [110.0] * 20   # +10%
+        stock_prices_mid = [100.0] * 5 + [110.0] * 20  # +10%
+        stock_prices_low = [100.0] * 5 + [95.0] * 20  # -5%
+        benchmark_prices = [100.0] * 5 + [110.0] * 20  # +10%
 
         mock_broker.get_bars.side_effect = [
             mock_bars(stock_prices_high),
@@ -716,10 +718,10 @@ class TestEdgeCases:
 
         # At exact boundaries
         test_cases = [
-            (0.80, 1.2),   # Top tier
-            (0.60, 1.1),   # Upper tier
-            (0.40, 0.9),   # Lower tier
-            (0.20, 0.8),   # Bottom tier
+            (0.80, 1.2),  # Top tier
+            (0.60, 1.1),  # Upper tier
+            (0.40, 0.9),  # Lower tier
+            (0.20, 0.8),  # Bottom tier
         ]
 
         for percentile, expected in test_cases:

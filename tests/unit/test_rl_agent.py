@@ -1,6 +1,7 @@
 """
 Tests for the DQN Reinforcement Learning agent.
 """
+
 import os
 
 import numpy as np
@@ -152,7 +153,7 @@ class TestDQNAgent:
             batch_size=8,
             buffer_size=100,
             target_update_freq=10,
-            model_dir=str(tmp_path)
+            model_dir=str(tmp_path),
         )
 
     @pytest.fixture
@@ -163,13 +164,15 @@ class TestDQNAgent:
         for _i in range(20):
             change = np.random.randn() * 0.02
             close = base_price * (1 + change)
-            prices.append({
-                "open": base_price,
-                "high": max(base_price, close) * 1.01,
-                "low": min(base_price, close) * 0.99,
-                "close": close,
-                "volume": 1000000 + np.random.randint(-100000, 100000)
-            })
+            prices.append(
+                {
+                    "open": base_price,
+                    "high": max(base_price, close) * 1.01,
+                    "low": min(base_price, close) * 0.99,
+                    "close": close,
+                    "volume": 1000000 + np.random.randint(-100000, 100000),
+                }
+            )
             base_price = close
         return prices
 
@@ -242,9 +245,7 @@ class TestDQNAgent:
     def test_calculate_reward_hold(self, agent):
         """Test reward calculation for HOLD action."""
         reward = agent.calculate_reward(
-            action=TradingAction.HOLD,
-            price_change_pct=0.01,
-            position=0.5
+            action=TradingAction.HOLD, price_change_pct=0.01, position=0.5
         )
         # Position * price_change * 100 = 0.5 * 0.01 * 100 = 0.5
         # No transaction cost for hold
@@ -253,10 +254,7 @@ class TestDQNAgent:
     def test_calculate_reward_buy_profit(self, agent):
         """Test reward calculation for profitable BUY."""
         reward = agent.calculate_reward(
-            action=TradingAction.BUY,
-            price_change_pct=0.02,
-            position=1.0,
-            transaction_cost=0.001
+            action=TradingAction.BUY, price_change_pct=0.02, position=1.0, transaction_cost=0.001
         )
         # Should be positive (profit minus costs)
         assert reward > 0
@@ -267,7 +265,7 @@ class TestDQNAgent:
             action=TradingAction.SELL,
             price_change_pct=0.02,  # Price went up after selling
             position=-1.0,
-            transaction_cost=0.001
+            transaction_cost=0.001,
         )
         # Negative position * positive change = loss
         assert reward < 0
@@ -376,10 +374,7 @@ class TestDQNAgent:
 
         # Create new agent and load
         new_agent = DQNAgent(
-            state_size=20,
-            action_size=3,
-            hidden_sizes=[32, 16],
-            model_dir=str(tmp_path)
+            state_size=20, action_size=3, hidden_sizes=[32, 16], model_dir=str(tmp_path)
         )
         loaded = new_agent.load("test_agent.pt")
 
@@ -413,7 +408,7 @@ class TestDoubleDQNAgent:
             hidden_sizes=[32, 16],
             batch_size=8,
             buffer_size=100,
-            model_dir=str(tmp_path)
+            model_dir=str(tmp_path),
         )
 
     def test_inheritance(self, agent):
@@ -445,7 +440,7 @@ class TestIntegration:
             batch_size=16,
             buffer_size=1000,
             epsilon_decay=0.99,
-            model_dir=str(tmp_path)
+            model_dir=str(tmp_path),
         )
 
         # Simulate 100 trading steps
@@ -457,13 +452,15 @@ class TestIntegration:
             # Generate price movement
             change = np.random.randn() * 0.02
             price = base_price * (1 + change)
-            prices.append({
-                "open": base_price,
-                "high": max(base_price, price) * 1.01,
-                "low": min(base_price, price) * 0.99,
-                "close": price,
-                "volume": 1000000
-            })
+            prices.append(
+                {
+                    "open": base_price,
+                    "high": max(base_price, price) * 1.01,
+                    "low": min(base_price, price) * 0.99,
+                    "close": price,
+                    "volume": 1000000,
+                }
+            )
             prices = prices[-20:]  # Keep last 20
 
             if len(prices) >= 10:
@@ -514,7 +511,7 @@ class TestIntegration:
             batch_size=32,
             buffer_size=5000,
             learning_rate=0.001,
-            model_dir=str(tmp_path)
+            model_dir=str(tmp_path),
         )
 
         # Generate deterministic price data (uptrend)
@@ -535,13 +532,15 @@ class TestIntegration:
                 noise = np.random.randn() * 0.01
                 price = base_price * (1 + trend + noise)
 
-                prices.append({
-                    "open": base_price,
-                    "high": max(base_price, price) * 1.01,
-                    "low": min(base_price, price) * 0.99,
-                    "close": price,
-                    "volume": 1000000
-                })
+                prices.append(
+                    {
+                        "open": base_price,
+                        "high": max(base_price, price) * 1.01,
+                        "low": min(base_price, price) * 0.99,
+                        "close": price,
+                        "volume": 1000000,
+                    }
+                )
                 prices = prices[-20:]
 
                 if len(prices) >= 10:
@@ -590,6 +589,7 @@ class TestIntegration:
 # RewardConfig Tests
 # =============================================================================
 
+
 class TestRewardConfig:
     """Tests for RewardConfig dataclass."""
 
@@ -602,11 +602,7 @@ class TestRewardConfig:
 
     def test_custom_values(self):
         """Test custom configuration values."""
-        config = RewardConfig(
-            spread_bps=10,
-            market_impact_coeff=0.2,
-            drawdown_penalty_coeff=1.0
-        )
+        config = RewardConfig(spread_bps=10, market_impact_coeff=0.2, drawdown_penalty_coeff=1.0)
         assert config.spread_bps == 10
         assert config.market_impact_coeff == 0.2
         assert config.drawdown_penalty_coeff == 1.0
@@ -626,25 +622,19 @@ class TestRewardConfig:
 # Transaction Cost Tests
 # =============================================================================
 
+
 class TestTransactionCost:
     """Tests for institutional-grade transaction cost calculation."""
 
     @pytest.fixture
     def agent(self, tmp_path):
         """Create agent for transaction cost testing."""
-        return DQNAgent(
-            state_size=20,
-            action_size=3,
-            model_dir=str(tmp_path)
-        )
+        return DQNAgent(state_size=20, action_size=3, model_dir=str(tmp_path))
 
     def test_basic_transaction_cost(self, agent):
         """Test basic transaction cost calculation."""
         cost = agent.calculate_transaction_cost(
-            order_size=1000,
-            price=100.0,
-            spread_bps=5,
-            avg_daily_volume=1_000_000
+            order_size=1000, price=100.0, spread_bps=5, avg_daily_volume=1_000_000
         )
         assert cost > 0
         # Should be at least half the spread
@@ -653,23 +643,17 @@ class TestTransactionCost:
     def test_market_impact_increases_with_size(self, agent):
         """Test market impact increases with order size."""
         small_cost = agent.calculate_transaction_cost(
-            order_size=1000,
-            price=100.0,
-            avg_daily_volume=1_000_000
+            order_size=1000, price=100.0, avg_daily_volume=1_000_000
         )
         large_cost = agent.calculate_transaction_cost(
-            order_size=100000,
-            price=100.0,
-            avg_daily_volume=1_000_000
+            order_size=100000, price=100.0, avg_daily_volume=1_000_000
         )
         assert large_cost > small_cost
 
     def test_zero_order_size(self, agent):
         """Test transaction cost with zero order size."""
         cost = agent.calculate_transaction_cost(
-            order_size=0,
-            price=100.0,
-            avg_daily_volume=1_000_000
+            order_size=0, price=100.0, avg_daily_volume=1_000_000
         )
         # Should only be spread cost
         assert cost == DEFAULT_SPREAD_BPS / 10000 / 2
@@ -681,13 +665,10 @@ class TestTransactionCost:
             order_size=10000,  # 1% of ADV
             price=100.0,
             spread_bps=0,  # Isolate impact
-            avg_daily_volume=1_000_000
+            avg_daily_volume=1_000_000,
         )
         cost_4pct = agent.calculate_transaction_cost(
-            order_size=40000,  # 4% of ADV
-            price=100.0,
-            spread_bps=0,
-            avg_daily_volume=1_000_000
+            order_size=40000, price=100.0, spread_bps=0, avg_daily_volume=1_000_000  # 4% of ADV
         )
         # 4% participation = 2x impact of 1% (sqrt(4) = 2)
         ratio = cost_4pct / cost_1pct
@@ -696,32 +677,20 @@ class TestTransactionCost:
     def test_high_spread_increases_cost(self, agent):
         """Test higher spread increases cost."""
         cost_low_spread = agent.calculate_transaction_cost(
-            order_size=1000,
-            price=100.0,
-            spread_bps=5,
-            avg_daily_volume=1_000_000
+            order_size=1000, price=100.0, spread_bps=5, avg_daily_volume=1_000_000
         )
         cost_high_spread = agent.calculate_transaction_cost(
-            order_size=1000,
-            price=100.0,
-            spread_bps=20,
-            avg_daily_volume=1_000_000
+            order_size=1000, price=100.0, spread_bps=20, avg_daily_volume=1_000_000
         )
         assert cost_high_spread > cost_low_spread
 
     def test_low_adv_increases_impact(self, agent):
         """Test lower ADV increases market impact."""
         cost_high_adv = agent.calculate_transaction_cost(
-            order_size=10000,
-            price=100.0,
-            spread_bps=0,
-            avg_daily_volume=10_000_000
+            order_size=10000, price=100.0, spread_bps=0, avg_daily_volume=10_000_000
         )
         cost_low_adv = agent.calculate_transaction_cost(
-            order_size=10000,
-            price=100.0,
-            spread_bps=0,
-            avg_daily_volume=100_000
+            order_size=10000, price=100.0, spread_bps=0, avg_daily_volume=100_000
         )
         assert cost_low_adv > cost_high_adv
 
@@ -730,17 +699,14 @@ class TestTransactionCost:
 # Drawdown Penalty Tests
 # =============================================================================
 
+
 class TestDrawdownPenalty:
     """Tests for drawdown penalty calculation."""
 
     @pytest.fixture
     def agent(self, tmp_path):
         """Create agent for drawdown testing."""
-        agent = DQNAgent(
-            state_size=20,
-            action_size=3,
-            model_dir=str(tmp_path)
-        )
+        agent = DQNAgent(state_size=20, action_size=3, model_dir=str(tmp_path))
         agent.reset_equity_tracking(100000)
         return agent
 
@@ -797,17 +763,14 @@ class TestDrawdownPenalty:
 # Equity Tracking Tests
 # =============================================================================
 
+
 class TestEquityTracking:
     """Tests for equity tracking functionality."""
 
     @pytest.fixture
     def agent(self, tmp_path):
         """Create agent for equity tracking testing."""
-        return DQNAgent(
-            state_size=20,
-            action_size=3,
-            model_dir=str(tmp_path)
-        )
+        return DQNAgent(state_size=20, action_size=3, model_dir=str(tmp_path))
 
     def test_update_equity(self, agent):
         """Test equity update."""
@@ -846,17 +809,14 @@ class TestEquityTracking:
 # Institutional Reward Calculation Tests
 # =============================================================================
 
+
 class TestInstitutionalReward:
     """Tests for institutional-grade reward calculation."""
 
     @pytest.fixture
     def agent(self, tmp_path):
         """Create agent for reward testing."""
-        agent = DQNAgent(
-            state_size=20,
-            action_size=3,
-            model_dir=str(tmp_path)
-        )
+        agent = DQNAgent(state_size=20, action_size=3, model_dir=str(tmp_path))
         agent.reset_equity_tracking(100000)
         return agent
 
@@ -1035,17 +995,14 @@ class TestInstitutionalReward:
 # Episode End Statistics Tests
 # =============================================================================
 
+
 class TestEpisodeStatistics:
     """Tests for episode statistics calculation."""
 
     @pytest.fixture
     def agent(self, tmp_path):
         """Create agent for episode stats testing."""
-        return DQNAgent(
-            state_size=20,
-            action_size=3,
-            model_dir=str(tmp_path)
-        )
+        return DQNAgent(state_size=20, action_size=3, model_dir=str(tmp_path))
 
     def test_end_episode_returns_stats(self, agent):
         """Test end_episode returns comprehensive statistics."""
@@ -1111,45 +1068,30 @@ class TestEpisodeStatistics:
 # Agent Config Tests
 # =============================================================================
 
+
 class TestAgentConfig:
     """Tests for agent configuration."""
 
     def test_agent_uses_config(self, tmp_path):
         """Test agent uses reward config."""
-        agent = DQNAgent(
-            state_size=20,
-            action_size=3,
-            model_dir=str(tmp_path)
-        )
+        agent = DQNAgent(state_size=20, action_size=3, model_dir=str(tmp_path))
         agent.reward_config.spread_bps = 20
 
         cost = agent.calculate_transaction_cost(
-            order_size=1000,
-            price=100.0,
-            avg_daily_volume=1_000_000
+            order_size=1000, price=100.0, avg_daily_volume=1_000_000
         )
 
         # With higher spread, cost should be higher
-        default_agent = DQNAgent(
-            state_size=20,
-            action_size=3,
-            model_dir=str(tmp_path)
-        )
+        default_agent = DQNAgent(state_size=20, action_size=3, model_dir=str(tmp_path))
         default_cost = default_agent.calculate_transaction_cost(
-            order_size=1000,
-            price=100.0,
-            avg_daily_volume=1_000_000
+            order_size=1000, price=100.0, avg_daily_volume=1_000_000
         )
 
         assert cost > default_cost
 
     def test_config_modifiable(self, tmp_path):
         """Test reward config can be modified."""
-        agent = DQNAgent(
-            state_size=20,
-            action_size=3,
-            model_dir=str(tmp_path)
-        )
+        agent = DQNAgent(state_size=20, action_size=3, model_dir=str(tmp_path))
 
         # Modify config
         agent.reward_config.drawdown_penalty_coeff = 2.0

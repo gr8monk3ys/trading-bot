@@ -222,7 +222,18 @@ class TestCheckVolumeDivergence:
     def test_bearish_divergence(self, filter_default):
         """Test detection of bearish divergence (price up, volume down)."""
         prices = [100, 101, 102, 103, 104, 106, 108, 110, 112, 115]  # Increasing
-        volumes = [150000, 145000, 140000, 135000, 130000, 110000, 100000, 90000, 80000, 70000]  # Decreasing
+        volumes = [
+            150000,
+            145000,
+            140000,
+            135000,
+            130000,
+            110000,
+            100000,
+            90000,
+            80000,
+            70000,
+        ]  # Decreasing
         has_div, div_type = filter_default.check_volume_divergence(prices, volumes)
         assert has_div
         assert div_type == "bearish"
@@ -230,7 +241,18 @@ class TestCheckVolumeDivergence:
     def test_bullish_divergence(self, filter_default):
         """Test detection of bullish divergence (price down, volume up)."""
         prices = [115, 112, 110, 108, 106, 104, 102, 100, 98, 95]  # Decreasing
-        volumes = [70000, 80000, 90000, 100000, 110000, 130000, 140000, 150000, 160000, 180000]  # Increasing
+        volumes = [
+            70000,
+            80000,
+            90000,
+            100000,
+            110000,
+            130000,
+            140000,
+            150000,
+            160000,
+            180000,
+        ]  # Increasing
         has_div, div_type = filter_default.check_volume_divergence(prices, volumes)
         assert has_div
         assert div_type == "bullish"
@@ -569,8 +591,7 @@ class TestGetAdTrend:
         """Test detection of accumulation trend."""
         # Close consistently near highs
         bars = [
-            {"high": 110, "low": 100, "close": 108 + i * 0.1, "volume": 1000000}
-            for i in range(12)
+            {"high": 110, "low": 100, "close": 108 + i * 0.1, "volume": 1000000} for i in range(12)
         ]
         trend = filter_default.get_ad_trend(bars)
         # Second half should have higher AD values
@@ -580,14 +601,8 @@ class TestGetAdTrend:
         """Test detection of distribution trend."""
         # First half: close near highs (accumulation), second half: close near lows (distribution)
         # This creates a clear shift from accumulation to distribution
-        bars_first = [
-            {"high": 110, "low": 100, "close": 109, "volume": 1000000}
-            for _ in range(6)
-        ]
-        bars_second = [
-            {"high": 110, "low": 100, "close": 101, "volume": 1000000}
-            for _ in range(6)
-        ]
+        bars_first = [{"high": 110, "low": 100, "close": 109, "volume": 1000000} for _ in range(6)]
+        bars_second = [{"high": 110, "low": 100, "close": 101, "volume": 1000000} for _ in range(6)]
         bars = bars_first + bars_second
         trend = filter_default.get_ad_trend(bars)
         # Second half (distribution) should be lower than first half (accumulation)
@@ -651,10 +666,7 @@ class TestVolumeAnalyzerAnalyzeVolume:
                 self.close = close
                 self.volume = volume
 
-        return [
-            MockBar(110 + i, 100 + i, 105 + i, 1000000 + i * 10000)
-            for i in range(20)
-        ]
+        return [MockBar(110 + i, 100 + i, 105 + i, 1000000 + i * 10000) for i in range(20)]
 
     @pytest.mark.asyncio
     async def test_analyze_volume_success(self, mock_broker, mock_bars):

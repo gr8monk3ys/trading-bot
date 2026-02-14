@@ -228,9 +228,7 @@ class MomentumStrategy(BaseStrategy):
 
             # Performance optimization: Use deque with maxlen for O(1) append and auto-trimming
             # This avoids memory churn from list slicing
-            self.price_history = {
-                symbol: deque(maxlen=self.max_history) for symbol in self.symbols
-            }
+            self.price_history = {symbol: deque(maxlen=self.max_history) for symbol in self.symbols}
 
             # Performance optimization: Position caching to reduce API calls
             self._positions_cache = None
@@ -257,6 +255,7 @@ class MomentumStrategy(BaseStrategy):
 
     async def export_state(self) -> dict:
         """Export lightweight state for restart recovery."""
+
         def _dt(v):
             return v.isoformat() if hasattr(v, "isoformat") else v
 
@@ -713,11 +712,15 @@ class MomentumStrategy(BaseStrategy):
     async def _execute_short_signal(self, symbol, positions, buying_power, current_time):
         """Execute a short signal for the given symbol."""
         if len(positions) >= self.max_positions:
-            logger.info(f"Max positions reached ({self.max_positions}), skipping short for {symbol}")
+            logger.info(
+                f"Max positions reached ({self.max_positions}), skipping short for {symbol}"
+            )
             return
 
         price = self.current_prices[symbol]
-        position_value = await self._calculate_position_value(symbol, price, buying_power, is_short=True)
+        position_value = await self._calculate_position_value(
+            symbol, price, buying_power, is_short=True
+        )
         position_value = await self._apply_risk_adjustments(symbol, position_value, positions)
 
         if position_value <= 0:
@@ -739,8 +742,12 @@ class MomentumStrategy(BaseStrategy):
 
         logger.info(f"🔻 Creating SHORT bracket order for {symbol}:")
         logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
-        logger.info(f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)")
-        logger.info(f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)")
+        logger.info(
+            f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)"
+        )
+        logger.info(
+            f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)"
+        )
 
         order = (
             OrderBuilder(symbol, "sell", quantity)
@@ -798,8 +805,7 @@ class MomentumStrategy(BaseStrategy):
 
             # Performance optimization: Fetch positions and account info in parallel
             positions, account = await asyncio.gather(
-                self.broker.get_positions(),
-                self.broker.get_account()
+                self.broker.get_positions(), self.broker.get_account()
             )
             current_position = next((p for p in positions if p.symbol == symbol), None)
             buying_power = float(account.buying_power)

@@ -64,11 +64,7 @@ class TestMarketRegimeDetectorInit:
         from utils.market_regime import MarketRegimeDetector
 
         mock_broker = MagicMock()
-        detector = MarketRegimeDetector(
-            mock_broker,
-            lookback_days=100,
-            cache_minutes=60
-        )
+        detector = MarketRegimeDetector(mock_broker, lookback_days=100, cache_minutes=60)
 
         assert detector.lookback_days == 100
         assert detector.cache_minutes == 60
@@ -300,7 +296,7 @@ class TestClassifyRegime:
             trend_strength=30,
             is_trending=True,
             is_ranging=False,
-            volatility_regime="high"
+            volatility_regime="high",
         )
 
         assert regime == MarketRegime.VOLATILE
@@ -318,7 +314,7 @@ class TestClassifyRegime:
             trend_strength=35,
             is_trending=True,
             is_ranging=False,
-            volatility_regime="normal"
+            volatility_regime="normal",
         )
 
         assert regime == MarketRegime.BULL
@@ -336,7 +332,7 @@ class TestClassifyRegime:
             trend_strength=35,
             is_trending=True,
             is_ranging=False,
-            volatility_regime="normal"
+            volatility_regime="normal",
         )
 
         assert regime == MarketRegime.BEAR
@@ -354,7 +350,7 @@ class TestClassifyRegime:
             trend_strength=15,
             is_trending=False,
             is_ranging=True,
-            volatility_regime="normal"
+            volatility_regime="normal",
         )
 
         assert regime == MarketRegime.SIDEWAYS
@@ -372,7 +368,7 @@ class TestClassifyRegime:
             trend_strength=22,
             is_trending=False,
             is_ranging=False,
-            volatility_regime="normal"
+            volatility_regime="normal",
         )
 
         assert regime == MarketRegime.BULL
@@ -390,7 +386,7 @@ class TestClassifyRegime:
             trend_strength=22,
             is_trending=False,
             is_ranging=False,
-            volatility_regime="normal"
+            volatility_regime="normal",
         )
 
         assert regime == MarketRegime.BEAR
@@ -408,7 +404,7 @@ class TestClassifyRegime:
             trend_strength=22,
             is_trending=False,
             is_ranging=False,
-            volatility_regime="normal"
+            volatility_regime="normal",
         )
 
         assert regime == MarketRegime.SIDEWAYS
@@ -425,9 +421,7 @@ class TestGetStrategyRecommendation:
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
 
-        strategy, mult = detector._get_strategy_recommendation(
-            MarketRegime.BULL, 0.75, "normal"
-        )
+        strategy, mult = detector._get_strategy_recommendation(MarketRegime.BULL, 0.75, "normal")
 
         assert strategy == "momentum_long"
         assert 1.0 <= mult <= 1.5
@@ -439,9 +433,7 @@ class TestGetStrategyRecommendation:
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
 
-        strategy, mult = detector._get_strategy_recommendation(
-            MarketRegime.BEAR, 0.75, "normal"
-        )
+        strategy, mult = detector._get_strategy_recommendation(MarketRegime.BEAR, 0.75, "normal")
 
         assert strategy == "momentum_short"
         assert mult <= 1.0
@@ -467,9 +459,7 @@ class TestGetStrategyRecommendation:
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
 
-        strategy, mult = detector._get_strategy_recommendation(
-            MarketRegime.VOLATILE, 0.75, "high"
-        )
+        strategy, mult = detector._get_strategy_recommendation(MarketRegime.VOLATILE, 0.75, "high")
 
         assert strategy == "defensive"
         assert mult <= 0.5  # Heavily reduced
@@ -481,9 +471,7 @@ class TestGetStrategyRecommendation:
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
 
-        strategy, mult = detector._get_strategy_recommendation(
-            MarketRegime.UNKNOWN, 0.5, "normal"
-        )
+        strategy, mult = detector._get_strategy_recommendation(MarketRegime.UNKNOWN, 0.5, "normal")
 
         assert strategy == "momentum_long"
         assert mult < 1.0  # Conservative
@@ -496,14 +484,10 @@ class TestGetStrategyRecommendation:
         detector = MarketRegimeDetector(mock_broker)
 
         # Low confidence
-        _, mult_low = detector._get_strategy_recommendation(
-            MarketRegime.BULL, 0.50, "normal"
-        )
+        _, mult_low = detector._get_strategy_recommendation(MarketRegime.BULL, 0.50, "normal")
 
         # High confidence
-        _, mult_high = detector._get_strategy_recommendation(
-            MarketRegime.BULL, 0.85, "normal"
-        )
+        _, mult_high = detector._get_strategy_recommendation(MarketRegime.BULL, 0.85, "normal")
 
         assert mult_low < mult_high
 
@@ -514,13 +498,9 @@ class TestGetStrategyRecommendation:
         mock_broker = MagicMock()
         detector = MarketRegimeDetector(mock_broker)
 
-        _, mult_low_vol = detector._get_strategy_recommendation(
-            MarketRegime.BULL, 0.75, "low"
-        )
+        _, mult_low_vol = detector._get_strategy_recommendation(MarketRegime.BULL, 0.75, "low")
 
-        _, mult_high_vol = detector._get_strategy_recommendation(
-            MarketRegime.BULL, 0.75, "high"
-        )
+        _, mult_high_vol = detector._get_strategy_recommendation(MarketRegime.BULL, 0.75, "high")
 
         assert mult_low_vol > mult_high_vol
 
@@ -532,9 +512,7 @@ class TestGetStrategyRecommendation:
         detector = MarketRegimeDetector(mock_broker)
 
         # High confidence, low vol, bull = maximum multiplier
-        _, mult = detector._get_strategy_recommendation(
-            MarketRegime.BULL, 0.95, "low"
-        )
+        _, mult = detector._get_strategy_recommendation(MarketRegime.BULL, 0.95, "low")
 
         assert 0.3 <= mult <= 1.5
 
@@ -586,12 +564,9 @@ class TestGetRegimeHistory:
         detector = MarketRegimeDetector(mock_broker)
 
         # Simulate regime change by modifying history directly
-        detector.regime_history.append({
-            "time": datetime.now(),
-            "from": "bull",
-            "to": "bear",
-            "confidence": 0.8
-        })
+        detector.regime_history.append(
+            {"time": datetime.now(), "from": "bull", "to": "bear", "confidence": 0.8}
+        )
 
         history = detector.get_regime_history()
         assert len(history) == 1
@@ -614,13 +589,11 @@ class TestDetectRegime:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.5  # Strong uptrend
-            bars.append(MagicMock(
-                open=price - 0.5,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(
+                    open=price - 0.5, high=price + 1, low=price - 1, close=price, volume=1000000
+                )
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -645,13 +618,11 @@ class TestDetectRegime:
         bars = []
         for i in range(n):
             price = 200.0 - i * 0.5  # Strong downtrend
-            bars.append(MagicMock(
-                open=price + 0.5,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(
+                    open=price + 0.5, high=price + 1, low=price - 1, close=price, volume=1000000
+                )
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -700,13 +671,9 @@ class TestDetectRegime:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.3
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -732,13 +699,9 @@ class TestDetectRegime:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.3
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -777,13 +740,9 @@ class TestDetectRegime:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.5
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -866,13 +825,9 @@ class TestHelperMethods:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.8
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -894,13 +849,11 @@ class TestHelperMethods:
         bars = []
         for i in range(n):
             price = 100.0 + np.sin(i * 0.1) * 2  # Oscillating
-            bars.append(MagicMock(
-                open=price,
-                high=price + 0.5,
-                low=price - 0.5,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(
+                    open=price, high=price + 0.5, low=price - 0.5, close=price, volume=1000000
+                )
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -922,13 +875,11 @@ class TestHelperMethods:
         bars = []
         for i in range(n):
             price = 100.0 + np.sin(i * 0.1) * 2
-            bars.append(MagicMock(
-                open=price,
-                high=price + 0.5,
-                low=price - 0.5,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(
+                    open=price, high=price + 0.5, low=price - 0.5, close=price, volume=1000000
+                )
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -949,13 +900,9 @@ class TestHelperMethods:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.3
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -979,13 +926,9 @@ class TestGetCurrentRegime:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.3
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -1011,13 +954,15 @@ class TestVolatilityRegimeClassification:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.1
-            bars.append(MagicMock(
-                open=price,
-                high=price + 5,  # Large high/low range
-                low=price - 5,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(
+                    open=price,
+                    high=price + 5,  # Large high/low range
+                    low=price - 5,
+                    close=price,
+                    volume=1000000,
+                )
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -1039,13 +984,15 @@ class TestVolatilityRegimeClassification:
         bars = []
         for i in range(n):
             price = 100.0 + i * 0.1
-            bars.append(MagicMock(
-                open=price,
-                high=price + 0.2,  # Tiny high/low range
-                low=price - 0.2,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(
+                    open=price,
+                    high=price + 0.2,  # Tiny high/low range
+                    low=price - 0.2,
+                    close=price,
+                    volume=1000000,
+                )
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -1099,13 +1046,9 @@ class TestEdgeCases:
         bars = []
         for i in range(50):
             price = 100.0 + i * 0.5
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -1125,13 +1068,9 @@ class TestEdgeCases:
         bars = []
         for i in range(49):
             price = 100.0 + i * 0.5
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 
@@ -1168,13 +1107,9 @@ class TestEdgeCases:
         bars = []
         for i in range(100):
             price = 100.0 + i * 0.5
-            bars.append(MagicMock(
-                open=price,
-                high=price + 1,
-                low=price - 1,
-                close=price,
-                volume=1000000
-            ))
+            bars.append(
+                MagicMock(open=price, high=price + 1, low=price - 1, close=price, volume=1000000)
+            )
 
         mock_broker.get_bars = AsyncMock(return_value=bars)
 

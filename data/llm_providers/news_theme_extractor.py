@@ -13,8 +13,8 @@ from data.alt_data_types import AltDataSource, AlternativeSignal
 from data.alternative_data_provider import AlternativeDataProvider
 from llm import (
     LLMClientWithFallback,
-    create_llm_client,
     NewsThemeAnalysis,
+    create_llm_client,
 )
 from llm.prompts.news_theme_prompts import (
     NEWS_SYSTEM_PROMPT,

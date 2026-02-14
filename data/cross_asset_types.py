@@ -8,9 +8,9 @@ and FX correlation signals used for cross-asset alpha generation.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-from data.alt_data_types import AlternativeSignal, AltDataSource, SignalDirection, SignalStrength
+from data.alt_data_types import AlternativeSignal, SignalDirection
 
 
 class CrossAssetSource(Enum):
@@ -275,7 +275,7 @@ class CrossAssetAggregatedSignal:
         total_confidence = sum(confidences)
         if total_confidence > 0:
             self.composite_signal = sum(
-                s * c for s, c in zip(signals, confidences)
+                s * c for s, c in zip(signals, confidences, strict=True)
             ) / total_confidence
             self.composite_confidence = sum(confidences) / len(confidences)
 

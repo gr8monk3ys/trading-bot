@@ -75,10 +75,7 @@ class FeatureImportanceResult:
     def to_dataframe(self) -> pd.DataFrame:
         """Convert to pandas DataFrame."""
         return pd.DataFrame(
-            [
-                {"feature": k, "importance": v}
-                for k, v in self.importance_scores.items()
-            ]
+            [{"feature": k, "importance": v} for k, v in self.importance_scores.items()]
         ).sort_values("importance", key=abs, ascending=False)
 
 
@@ -161,7 +158,9 @@ class FeatureImportanceAnalyzer:
                 shap_values = explainer.shap_values(X)
             elif model_type == "deep":
                 # For neural networks
-                background = X[np.random.choice(len(X), min(self.background_samples, len(X)), replace=False)]
+                background = X[
+                    np.random.choice(len(X), min(self.background_samples, len(X)), replace=False)
+                ]
                 explainer = shap.DeepExplainer(model, background)
                 shap_values = explainer.shap_values(X)
             elif model_type == "kernel":
@@ -249,6 +248,7 @@ class FeatureImportanceAnalyzer:
             feature_names = [f"feature_{i}" for i in range(X.shape[-1])]
 
         if scoring_fn is None:
+
             def scoring_fn(y_true, y_pred):
                 return -np.mean((y_true - y_pred) ** 2)  # Negative MSE
 
@@ -264,7 +264,11 @@ class FeatureImportanceAnalyzer:
         if len(X.shape) == 3:
             # For LSTM: (samples, sequence, features)
             for feature_idx in range(X.shape[-1]):
-                feature_name = feature_names[feature_idx] if feature_idx < len(feature_names) else f"feature_{feature_idx}"
+                feature_name = (
+                    feature_names[feature_idx]
+                    if feature_idx < len(feature_names)
+                    else f"feature_{feature_idx}"
+                )
                 score_drops = []
 
                 for _ in range(n_repeats):
@@ -283,7 +287,11 @@ class FeatureImportanceAnalyzer:
         else:
             # For 2D arrays
             for feature_idx in range(X.shape[-1]):
-                feature_name = feature_names[feature_idx] if feature_idx < len(feature_names) else f"feature_{feature_idx}"
+                feature_name = (
+                    feature_names[feature_idx]
+                    if feature_idx < len(feature_names)
+                    else f"feature_{feature_idx}"
+                )
                 score_drops = []
 
                 for _ in range(n_repeats):
@@ -331,6 +339,7 @@ class FeatureImportanceAnalyzer:
         """
         try:
             from ml.torch_utils import import_torch
+
             torch, _, _, _ = import_torch()
         except ImportError:
             logger.warning("PyTorch not available for gradient importance")
@@ -439,9 +448,7 @@ class FeatureImportanceAnalyzer:
 
         return drift_results
 
-    def _average_importance(
-        self, results: List[FeatureImportanceResult]
-    ) -> Dict[str, float]:
+    def _average_importance(self, results: List[FeatureImportanceResult]) -> Dict[str, float]:
         """Calculate average importance across multiple results."""
         if not results:
             return {}
@@ -476,9 +483,7 @@ class FeatureImportanceAnalyzer:
         return {
             "latest_method": latest.method,
             "n_features": len(latest.feature_names),
-            "top_features": [
-                {"feature": f, "importance": float(i)} for f, i in top_features
-            ],
+            "top_features": [{"feature": f, "importance": float(i)} for f, i in top_features],
             "n_importance_records": len(self._importance_history),
             "drift_detected": len(significant_drifts) > 0,
             "drifting_features": [
@@ -557,6 +562,7 @@ class LSTMFeatureImportance:
 
                 def predict(self, X):
                     from ml.torch_utils import import_torch
+
                     torch, _, _, _ = import_torch()
                     self.model.eval()
                     with torch.no_grad():

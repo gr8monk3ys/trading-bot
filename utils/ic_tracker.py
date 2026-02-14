@@ -211,9 +211,9 @@ class ICTracker:
 
         # Filter observations
         observations = [
-            o for o in self._observations
-            if o.timestamp >= cutoff
-            and (market_regime is None or o.market_regime == market_regime)
+            o
+            for o in self._observations
+            if o.timestamp >= cutoff and (market_regime is None or o.market_regime == market_regime)
         ]
 
         if len(observations) < self.min_observations:
@@ -370,9 +370,7 @@ class ICTracker:
             "historical_avg_ic": historical_ic,
             "trend_slope": slope,
             "trend_direction": (
-                "IMPROVING" if slope > 0.001 else
-                "STABLE" if slope > -0.001 else
-                "DECLINING"
+                "IMPROVING" if slope > 0.001 else "STABLE" if slope > -0.001 else "DECLINING"
             ),
             "ic_volatility": np.std(ics),
             "min_ic": np.min(ics),
@@ -419,7 +417,8 @@ class ICTracker:
                     "is_significant": current.is_significant,
                     "n_observations": current.n_observations,
                 }
-                if current else None
+                if current
+                else None
             ),
             "baseline_ic": self._baseline_ic,
             "trend": trend,

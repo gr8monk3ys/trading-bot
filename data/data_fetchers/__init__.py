@@ -11,15 +11,13 @@ from data.data_fetchers.earnings_fetcher import (
     EarningsTranscript,
     EarningsTranscriptFetcher,
 )
-
 from data.data_fetchers.fed_speech_fetcher import (
     FedSpeech,
     FedSpeechFetcher,
 )
-
 from data.data_fetchers.sec_edgar_fetcher import (
-    SECFiling,
     SECEdgarFetcher,
+    SECFiling,
 )
 
 __all__ = [

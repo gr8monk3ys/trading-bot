@@ -121,7 +121,7 @@ def main() -> None:
         paper_results = _load_paper_results(args)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        raise SystemExit(2)
+        raise SystemExit(2) from e
 
     dashboard = build_shadow_drift_dashboard(
         paper_results,

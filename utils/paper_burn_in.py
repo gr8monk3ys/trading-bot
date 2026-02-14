@@ -51,8 +51,7 @@ def _extract_metrics(paper_results: Mapping[str, Any]) -> Dict[str, Any]:
     )
 
     raw_drawdown = _as_float(
-        paper_results.get("max_drawdown")
-        or paper_results.get("max_drawdown_pct"),
+        paper_results.get("max_drawdown") or paper_results.get("max_drawdown_pct"),
         0.0,
     )
     max_drawdown = abs(raw_drawdown)
@@ -97,8 +96,7 @@ def _extract_metrics(paper_results: Mapping[str, Any]) -> Dict[str, Any]:
         "paper_live_shadow_drift": extract_paper_live_shadow_drift(paper_results),
         "critical_slo_breaches": critical_slo,
         "manual_signoff_approved": bool(
-            paper_results.get("manual_signoff_approved")
-            or paper_results.get("signoff_approved")
+            paper_results.get("manual_signoff_approved") or paper_results.get("signoff_approved")
         ),
     }
 
@@ -188,19 +186,14 @@ def build_paper_burn_in_scorecard(
             "name": "burn_in_manual_signoff",
             "required": bool(c.require_manual_signoff),
             "passed": metrics["manual_signoff_approved"] is True,
-            "details": (
-                "manual_signoff_approved="
-                f"{metrics['manual_signoff_approved']}"
-            ),
+            "details": ("manual_signoff_approved=" f"{metrics['manual_signoff_approved']}"),
         },
     ]
 
     required_checks = [check for check in checks if check["required"]]
     passed_required = sum(1 for check in required_checks if check["passed"])
     blockers = [
-        f"{check['name']}: {check['details']}"
-        for check in required_checks
-        if not check["passed"]
+        f"{check['name']}: {check['details']}" for check in required_checks if not check["passed"]
     ]
     score = (passed_required / len(required_checks)) if required_checks else 0.0
     ready = len(blockers) == 0

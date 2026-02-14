@@ -73,53 +73,68 @@ def test_main_research_create_and_strict_check_flow(tmp_path):
     assert output_path.exists()
 
     # Populate validation inputs.
-    assert run_research(
-        _base_args(
-            tmp_path,
-            research_action="record-backtest",
-            experiment_id=exp_id,
-            backtest_json='{"sharpe_ratio": 1.5, "max_drawdown": -0.1}',
+    assert (
+        run_research(
+            _base_args(
+                tmp_path,
+                research_action="record-backtest",
+                experiment_id=exp_id,
+                backtest_json='{"sharpe_ratio": 1.5, "max_drawdown": -0.1}',
+            )
         )
-    ) == 0
-    assert run_research(
-        _base_args(
-            tmp_path,
-            research_action="record-validation",
-            experiment_id=exp_id,
-            validation_json='{"in_sample_sharpe": 2.0, "out_of_sample_sharpe": 1.4, "alpha_t_stat": 2.4}',
+        == 0
+    )
+    assert (
+        run_research(
+            _base_args(
+                tmp_path,
+                research_action="record-validation",
+                experiment_id=exp_id,
+                validation_json='{"in_sample_sharpe": 2.0, "out_of_sample_sharpe": 1.4, "alpha_t_stat": 2.4}',
+            )
         )
-    ) == 0
-    assert run_research(
-        _base_args(
-            tmp_path,
-            research_action="record-paper",
-            experiment_id=exp_id,
-            paper_json=(
-                '{"trading_days": 70, "total_trades": 160, "net_return": 0.03, '
-                '"max_drawdown": -0.11, "reconciliation_pass_rate": 0.999, '
-                '"operational_error_rate": 0.005, "execution_quality_score": 82.0, '
-                '"avg_actual_slippage_bps": 14.0, "fill_rate": 0.97, '
-                '"paper_live_shadow_drift": 0.09, "critical_slo_breaches": 0}'
-            ),
+        == 0
+    )
+    assert (
+        run_research(
+            _base_args(
+                tmp_path,
+                research_action="record-paper",
+                experiment_id=exp_id,
+                paper_json=(
+                    '{"trading_days": 70, "total_trades": 160, "net_return": 0.03, '
+                    '"max_drawdown": -0.11, "reconciliation_pass_rate": 0.999, '
+                    '"operational_error_rate": 0.005, "execution_quality_score": 82.0, '
+                    '"avg_actual_slippage_bps": 14.0, "fill_rate": 0.97, '
+                    '"paper_live_shadow_drift": 0.09, "critical_slo_breaches": 0}'
+                ),
+            )
         )
-    ) == 0
-    assert run_research(
-        _base_args(
-            tmp_path,
-            research_action="approve-review",
-            experiment_id=exp_id,
-            reviewer="reviewer_1",
+        == 0
+    )
+    assert (
+        run_research(
+            _base_args(
+                tmp_path,
+                research_action="approve-review",
+                experiment_id=exp_id,
+                reviewer="reviewer_1",
+            )
         )
-    ) == 0
-    assert run_research(
-        _base_args(
-            tmp_path,
-            research_action="store-walk-forward",
-            experiment_id=exp_id,
-            walk_forward_json='{"is_avg_sharpe": 2.0, "oos_avg_sharpe": 1.4, "alpha_t_stat": 2.4, "passes_validation": true}',
-            source_run_id="backtest_demo_001",
+        == 0
+    )
+    assert (
+        run_research(
+            _base_args(
+                tmp_path,
+                research_action="store-walk-forward",
+                experiment_id=exp_id,
+                walk_forward_json='{"is_avg_sharpe": 2.0, "oos_avg_sharpe": 1.4, "alpha_t_stat": 2.4, "passes_validation": true}',
+                source_run_id="backtest_demo_001",
+            )
         )
-    ) == 0
+        == 0
+    )
 
     output_ready = tmp_path / "check_ready.json"
     rc = run_research(

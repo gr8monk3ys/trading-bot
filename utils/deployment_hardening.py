@@ -133,7 +133,9 @@ def run_deployment_preflight(
             DeploymentCheck(
                 name="clean_worktree",
                 passed=not dirty,
-                message="Working tree clean" if not dirty else "Working tree has uncommitted changes",
+                message=(
+                    "Working tree clean" if not dirty else "Working tree has uncommitted changes"
+                ),
             )
         )
 

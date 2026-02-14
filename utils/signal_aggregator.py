@@ -244,11 +244,13 @@ class SignalAggregator:
                 try:
                     # Check if PyTorch is available first
                     import importlib.util
+
                     if importlib.util.find_spec("torch") is None:
                         logger.info("ML features disabled (PyTorch not installed)")
                         self.enable_ml = False
                     else:
                         from ml.lstm_predictor import LSTMPredictor
+
                         self.lstm_predictor = LSTMPredictor()
                         logger.info("LSTM predictor initialized")
                 except Exception as e:
@@ -545,9 +547,7 @@ class SignalAggregator:
                 "neutral": SignalDirection.NEUTRAL,
             }
 
-            direction = direction_map.get(
-                prediction.predicted_direction, SignalDirection.NEUTRAL
-            )
+            direction = direction_map.get(prediction.predicted_direction, SignalDirection.NEUTRAL)
 
             return SourceSignal(
                 source=SignalSource.ML_LSTM,
@@ -633,12 +633,8 @@ class SignalAggregator:
             confidence = 1.0 - abs(score_diff)
 
         # Calculate agreement percentage
-        buy_signals = sum(
-            1 for s in signals if s.direction == SignalDirection.BUY
-        )
-        sell_signals = sum(
-            1 for s in signals if s.direction == SignalDirection.SELL
-        )
+        buy_signals = sum(1 for s in signals if s.direction == SignalDirection.BUY)
+        sell_signals = sum(1 for s in signals if s.direction == SignalDirection.SELL)
         total_directional = buy_signals + sell_signals
 
         if total_directional > 0:
@@ -691,14 +687,11 @@ class SignalAggregator:
             predicted_direction: What direction was predicted
             actual_return: What actually happened (positive = price went up)
         """
-        correct = (
-            (predicted_direction == SignalDirection.BUY and actual_return > 0)
-            or (predicted_direction == SignalDirection.SELL and actual_return < 0)
+        correct = (predicted_direction == SignalDirection.BUY and actual_return > 0) or (
+            predicted_direction == SignalDirection.SELL and actual_return < 0
         )
 
-        self.source_accuracy[source].append(
-            {"correct": correct, "timestamp": datetime.now()}
-        )
+        self.source_accuracy[source].append({"correct": correct, "timestamp": datetime.now()})
 
         # Keep only recent history (last 100 signals)
         if len(self.source_accuracy[source]) > 100:

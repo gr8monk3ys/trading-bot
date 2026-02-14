@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 class Venue(Enum):
     """Trading venue identifiers."""
+
     NYSE = "NYSE"
     NASDAQ = "NASDAQ"
     ARCA = "ARCA"
@@ -39,11 +40,11 @@ class Venue(Enum):
     MEMX = "MEMX"
 
     # Dark pools
-    SIGMA_X = "SIGMA_X"          # Goldman Sachs
+    SIGMA_X = "SIGMA_X"  # Goldman Sachs
     CROSSFINDER = "CROSSFINDER"  # Credit Suisse
-    LEVEL_ATS = "LEVEL_ATS"      # Citadel
-    MS_POOL = "MS_POOL"          # Morgan Stanley
-    UBS_ATS = "UBS_ATS"          # UBS
+    LEVEL_ATS = "LEVEL_ATS"  # Citadel
+    MS_POOL = "MS_POOL"  # Morgan Stanley
+    UBS_ATS = "UBS_ATS"  # UBS
     VIRTU_MATCHIT = "VIRTU_MATCHIT"  # Virtu
 
     # Retail/wholesale
@@ -53,24 +54,27 @@ class Venue(Enum):
 
 class OrderSide(Enum):
     """Order side."""
+
     BUY = "buy"
     SELL = "sell"
 
 
 class RoutingStrategy(Enum):
     """Order routing strategy."""
-    BEST_PRICE = "best_price"           # Lowest ask / highest bid
-    BEST_SIZE = "best_size"             # Most liquidity at NBBO
-    LEAST_COST = "least_cost"           # Minimize total cost (fees + impact)
+
+    BEST_PRICE = "best_price"  # Lowest ask / highest bid
+    BEST_SIZE = "best_size"  # Most liquidity at NBBO
+    LEAST_COST = "least_cost"  # Minimize total cost (fees + impact)
     PRICE_IMPROVEMENT = "price_improvement"  # Maximize price improvement
     MINIMIZE_INFORMATION = "minimize_information"  # Minimize information leakage
-    PASSIVE = "passive"                 # Prioritize rebate capture
-    AGGRESSIVE = "aggressive"           # Prioritize fill rate
+    PASSIVE = "passive"  # Prioritize rebate capture
+    AGGRESSIVE = "aggressive"  # Prioritize fill rate
 
 
 @dataclass
 class VenueQuote:
     """Quote from a single venue."""
+
     venue: Venue
     symbol: str
     timestamp: datetime
@@ -119,15 +123,16 @@ class VenueQuote:
 @dataclass
 class VenueFees:
     """Fee structure for a venue."""
+
     venue: Venue
 
     # Per-share fees (in dollars)
-    maker_fee: float = 0.0      # Negative = rebate
+    maker_fee: float = 0.0  # Negative = rebate
     taker_fee: float = 0.0
 
     # Access fees
-    access_fee: float = 0.0     # Fixed per order
-    routing_fee: float = 0.0    # Fee for routing away
+    access_fee: float = 0.0  # Fixed per order
+    routing_fee: float = 0.0  # Fee for routing away
 
     # Minimum charges
     min_per_order: float = 0.0
@@ -140,7 +145,7 @@ class VenueFees:
             Venue.NYSE: cls(
                 venue=venue,
                 maker_fee=-0.0020,  # $0.20 rebate per 100 shares
-                taker_fee=0.0030,   # $0.30 per 100 shares
+                taker_fee=0.0030,  # $0.30 per 100 shares
             ),
             Venue.NASDAQ: cls(
                 venue=venue,
@@ -149,8 +154,8 @@ class VenueFees:
             ),
             Venue.IEX: cls(
                 venue=venue,
-                maker_fee=0.0,      # No rebate
-                taker_fee=0.0009,   # Very low taker fee
+                maker_fee=0.0,  # No rebate
+                taker_fee=0.0009,  # Very low taker fee
             ),
             Venue.BATS_BZX: cls(
                 venue=venue,
@@ -159,7 +164,7 @@ class VenueFees:
             ),
             Venue.BATS_BYX: cls(
                 venue=venue,
-                maker_fee=0.0,      # Inverted pricing
+                maker_fee=0.0,  # Inverted pricing
                 taker_fee=-0.0002,  # Taker rebate
             ),
             Venue.EDGX: cls(
@@ -170,7 +175,7 @@ class VenueFees:
             Venue.EDGA: cls(
                 venue=venue,
                 maker_fee=0.0,
-                taker_fee=0.0004,   # Low taker fee
+                taker_fee=0.0004,  # Low taker fee
             ),
         }
         return fee_schedules.get(venue, cls(venue=venue))
@@ -193,6 +198,7 @@ class VenueFees:
 @dataclass
 class NBBO:
     """National Best Bid and Offer."""
+
     symbol: str
     timestamp: datetime
 
@@ -224,6 +230,7 @@ class NBBO:
 @dataclass
 class RoutingDecision:
     """Decision for how to route an order."""
+
     venue: Venue
     quantity: int
     price: Optional[float]
@@ -247,6 +254,7 @@ class RoutingDecision:
 @dataclass
 class RouteResult:
     """Result of order routing."""
+
     success: bool
     decisions: List[RoutingDecision]
     total_quantity: int
@@ -338,15 +346,9 @@ class MockVenueConnector(VenueConnector):
             ask_price=self.base_ask + venue_offset,
             bid_size=self.base_size + (hash(self._venue.value) % 200),
             ask_size=self.base_size + (hash(self._venue.value) % 200),
-            is_lit=self._venue not in [
-                Venue.SIGMA_X, Venue.CROSSFINDER, Venue.LEVEL_ATS
-            ],
-            is_dark=self._venue in [
-                Venue.SIGMA_X, Venue.CROSSFINDER, Venue.LEVEL_ATS
-            ],
-            supports_midpoint=self._venue in [
-                Venue.IEX, Venue.SIGMA_X, Venue.CROSSFINDER
-            ],
+            is_lit=self._venue not in [Venue.SIGMA_X, Venue.CROSSFINDER, Venue.LEVEL_ATS],
+            is_dark=self._venue in [Venue.SIGMA_X, Venue.CROSSFINDER, Venue.LEVEL_ATS],
+            supports_midpoint=self._venue in [Venue.IEX, Venue.SIGMA_X, Venue.CROSSFINDER],
         )
 
     async def send_order(
@@ -439,7 +441,7 @@ class SmartOrderRouter:
         # Process results
         quotes: Dict[Venue, VenueQuote] = {}
         best_bid = 0.0
-        best_ask = float('inf')
+        best_ask = float("inf")
         best_bid_size = 0
         best_ask_size = 0
         bid_venues: List[Venue] = []
@@ -476,7 +478,7 @@ class SmartOrderRouter:
             symbol=symbol,
             timestamp=datetime.now(),
             best_bid=best_bid,
-            best_ask=best_ask if best_ask != float('inf') else 0,
+            best_ask=best_ask if best_ask != float("inf") else 0,
             best_bid_size=best_bid_size,
             best_ask_size=best_ask_size,
             bid_venues=bid_venues,
@@ -583,7 +585,7 @@ class SmartOrderRouter:
             reverse=(side == OrderSide.SELL),
         )
 
-        for venue, quote in sorted_venues[:self.max_venues_per_order]:
+        for venue, quote in sorted_venues[: self.max_venues_per_order]:
             if remaining <= 0:
                 break
 
@@ -591,19 +593,21 @@ class SmartOrderRouter:
             fill_qty = min(remaining, available)
 
             if fill_qty > 0:
-                decisions.append(RoutingDecision(
-                    venue=venue,
-                    quantity=fill_qty,
-                    price=quote.price_for_side(side),
-                    is_marketable=True,
-                    expected_fill_probability=self._estimate_fill_probability(
-                        quote, side, fill_qty, None
-                    ),
-                    expected_cost=self._calculate_routing_cost(
-                        venue, quote, side, fill_qty, True
-                    ),
-                    reasoning=f"Best price at {venue.value}",
-                ))
+                decisions.append(
+                    RoutingDecision(
+                        venue=venue,
+                        quantity=fill_qty,
+                        price=quote.price_for_side(side),
+                        is_marketable=True,
+                        expected_fill_probability=self._estimate_fill_probability(
+                            quote, side, fill_qty, None
+                        ),
+                        expected_cost=self._calculate_routing_cost(
+                            venue, quote, side, fill_qty, True
+                        ),
+                        reasoning=f"Best price at {venue.value}",
+                    )
+                )
                 remaining -= fill_qty
 
         return decisions
@@ -631,24 +635,26 @@ class SmartOrderRouter:
         # Sort by cost
         sorted_venues = sorted(venue_costs, key=lambda x: x[2])
 
-        for venue, quote, cost, available in sorted_venues[:self.max_venues_per_order]:
+        for venue, quote, cost, available in sorted_venues[: self.max_venues_per_order]:
             if remaining <= 0:
                 break
 
             fill_qty = min(remaining, available)
 
             if fill_qty > 0:
-                decisions.append(RoutingDecision(
-                    venue=venue,
-                    quantity=fill_qty,
-                    price=quote.price_for_side(side),
-                    is_marketable=True,
-                    expected_fill_probability=self._estimate_fill_probability(
-                        quote, side, fill_qty, None
-                    ),
-                    expected_cost=cost,
-                    reasoning=f"Lowest cost at {venue.value} (${cost:.4f})",
-                ))
+                decisions.append(
+                    RoutingDecision(
+                        venue=venue,
+                        quantity=fill_qty,
+                        price=quote.price_for_side(side),
+                        is_marketable=True,
+                        expected_fill_probability=self._estimate_fill_probability(
+                            quote, side, fill_qty, None
+                        ),
+                        expected_cost=cost,
+                        reasoning=f"Lowest cost at {venue.value} (${cost:.4f})",
+                    )
+                )
                 remaining -= fill_qty
 
         return decisions
@@ -677,22 +683,24 @@ class SmartOrderRouter:
         # Post at NBBO on rebate venues
         passive_price = nbbo.best_bid if side == OrderSide.BUY else nbbo.best_ask
 
-        for venue, _quote, rebate in sorted_venues[:self.max_venues_per_order]:
+        for venue, _quote, rebate in sorted_venues[: self.max_venues_per_order]:
             if remaining <= 0:
                 break
 
             fill_qty = min(remaining, quantity // len(sorted_venues))
 
             if fill_qty > 0:
-                decisions.append(RoutingDecision(
-                    venue=venue,
-                    quantity=fill_qty,
-                    price=passive_price,
-                    is_marketable=False,
-                    expected_fill_probability=0.3,  # Passive orders have lower fill rate
-                    expected_cost=-rebate * fill_qty,  # Negative cost = rebate
-                    reasoning=f"Passive at {venue.value} for ${rebate:.4f}/share rebate",
-                ))
+                decisions.append(
+                    RoutingDecision(
+                        venue=venue,
+                        quantity=fill_qty,
+                        price=passive_price,
+                        is_marketable=False,
+                        expected_fill_probability=0.3,  # Passive orders have lower fill rate
+                        expected_cost=-rebate * fill_qty,  # Negative cost = rebate
+                        reasoning=f"Passive at {venue.value} for ${rebate:.4f}/share rebate",
+                    )
+                )
                 remaining -= fill_qty
 
         return decisions
@@ -710,13 +718,14 @@ class SmartOrderRouter:
 
         # Look for dark pools and midpoint venues
         midpoint_venues = [
-            (venue, quote) for venue, quote in quotes.items()
+            (venue, quote)
+            for venue, quote in quotes.items()
             if quote.supports_midpoint or quote.is_dark
         ]
 
         midpoint = nbbo.mid_price
 
-        for venue, quote in midpoint_venues[:self.max_venues_per_order]:
+        for venue, quote in midpoint_venues[: self.max_venues_per_order]:
             if remaining <= 0:
                 break
 
@@ -724,21 +733,23 @@ class SmartOrderRouter:
 
             if fill_qty > 0:
                 # Estimate improvement vs NBBO
-                improvement = abs(
-                    midpoint - quote.price_for_side(side)
-                ) if side == OrderSide.BUY else abs(
-                    quote.price_for_side(side) - midpoint
+                improvement = (
+                    abs(midpoint - quote.price_for_side(side))
+                    if side == OrderSide.BUY
+                    else abs(quote.price_for_side(side) - midpoint)
                 )
 
-                decisions.append(RoutingDecision(
-                    venue=venue,
-                    quantity=fill_qty,
-                    price=midpoint,  # Midpoint pegged
-                    is_marketable=False,
-                    expected_fill_probability=0.4,  # Dark pool uncertainty
-                    expected_cost=0,  # Midpoint execution
-                    reasoning=f"Midpoint at {venue.value} for ~{improvement*10000:.1f}bps improvement",
-                ))
+                decisions.append(
+                    RoutingDecision(
+                        venue=venue,
+                        quantity=fill_qty,
+                        price=midpoint,  # Midpoint pegged
+                        is_marketable=False,
+                        expected_fill_probability=0.4,  # Dark pool uncertainty
+                        expected_cost=0,  # Midpoint execution
+                        reasoning=f"Midpoint at {venue.value} for ~{improvement*10000:.1f}bps improvement",
+                    )
+                )
                 remaining -= fill_qty
 
         return decisions
@@ -794,9 +805,7 @@ class SmartOrderRouter:
         elif strategy == RoutingStrategy.PASSIVE:
             decisions = self._select_venues_passive(quotes, nbbo, side, quantity)
         elif strategy == RoutingStrategy.PRICE_IMPROVEMENT:
-            decisions = self._select_venues_price_improvement(
-                quotes, nbbo, side, quantity
-            )
+            decisions = self._select_venues_price_improvement(quotes, nbbo, side, quantity)
         else:
             # Default to least cost
             decisions = self._select_venues_least_cost(quotes, side, quantity)
@@ -807,16 +816,16 @@ class SmartOrderRouter:
 
         # Estimate average price
         if total_qty > 0:
-            weighted_price = sum(
-                (d.price or nbbo.mid_price) * d.quantity for d in decisions
-            )
+            weighted_price = sum((d.price or nbbo.mid_price) * d.quantity for d in decisions)
             avg_price = weighted_price / total_qty
         else:
             avg_price = nbbo.mid_price
 
         # Calculate expected price improvement
         nbbo_price = nbbo.best_ask if side == OrderSide.BUY else nbbo.best_bid
-        improvement = (nbbo_price - avg_price) if side == OrderSide.BUY else (avg_price - nbbo_price)
+        improvement = (
+            (nbbo_price - avg_price) if side == OrderSide.BUY else (avg_price - nbbo_price)
+        )
 
         # Decision time
         decision_time = (datetime.now() - start_time).microseconds
@@ -932,8 +941,12 @@ def print_routing_report(result: RouteResult) -> None:
     print("=" * 60)
 
     print(f"\n{'NBBO at Decision':-^40}")
-    print(f"  Bid: ${result.nbbo_at_decision.best_bid:.4f} x {result.nbbo_at_decision.best_bid_size}")
-    print(f"  Ask: ${result.nbbo_at_decision.best_ask:.4f} x {result.nbbo_at_decision.best_ask_size}")
+    print(
+        f"  Bid: ${result.nbbo_at_decision.best_bid:.4f} x {result.nbbo_at_decision.best_bid_size}"
+    )
+    print(
+        f"  Ask: ${result.nbbo_at_decision.best_ask:.4f} x {result.nbbo_at_decision.best_ask_size}"
+    )
     print(f"  Spread: {result.nbbo_at_decision.spread_bps:.1f} bps")
 
     print(f"\n{'Routing Decisions':-^40}")

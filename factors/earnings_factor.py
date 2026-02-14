@@ -94,11 +94,7 @@ class EarningsSurpriseFactor(BaseFactor):
             consistency_score = beat_rate
 
             # Weighted composite
-            composite = (
-                0.50 * latest_score +
-                0.30 * avg_score +
-                0.20 * consistency_score
-            )
+            composite = 0.50 * latest_score + 0.30 * avg_score + 0.20 * consistency_score
 
             metadata = {
                 "latest_surprise_pct": latest_surprise * 100,

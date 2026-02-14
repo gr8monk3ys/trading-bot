@@ -16,7 +16,9 @@ def _as_float(value: Any) -> Optional[float]:
         return None
 
 
-def extract_execution_quality_metrics(paper_results: Mapping[str, Any]) -> dict[str, Optional[float]]:
+def extract_execution_quality_metrics(
+    paper_results: Mapping[str, Any],
+) -> dict[str, Optional[float]]:
     """
     Normalize execution-quality metrics from paper trading result payloads.
     """

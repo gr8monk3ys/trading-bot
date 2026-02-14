@@ -13,9 +13,9 @@ from data.alt_data_types import AltDataSource, AlternativeSignal
 from data.alternative_data_provider import AlternativeDataProvider
 from data.data_fetchers import FedSpeech, FedSpeechFetcher
 from llm import (
+    FedSpeechAnalysis,
     LLMClientWithFallback,
     create_llm_client,
-    FedSpeechAnalysis,
 )
 from llm.prompts.fed_speech_prompts import (
     FED_SYSTEM_PROMPT,

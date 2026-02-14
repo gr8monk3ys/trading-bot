@@ -211,9 +211,7 @@ class TestPrevDayCloseTracking:
 
     def test_update_prev_day_closes_from_positions(self, broker_with_position):
         """Test updating closes for all held positions."""
-        broker_with_position.update_prev_day_closes(
-            broker_with_position._current_date
-        )
+        broker_with_position.update_prev_day_closes(broker_with_position._current_date)
 
         assert "AAPL" in broker_with_position._prev_day_close
 

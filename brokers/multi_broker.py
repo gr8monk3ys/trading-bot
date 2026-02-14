@@ -55,11 +55,12 @@ from brokers.broker_interface import (
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class FailoverEvent(Enum):
     """Types of failover events."""
+
     PRIMARY_FAILED = "primary_failed"
     FAILOVER_TO_BACKUP = "failover_to_backup"
     FAILBACK_TO_PRIMARY = "failback_to_primary"
@@ -72,6 +73,7 @@ class FailoverEvent(Enum):
 @dataclass
 class BrokerHealth:
     """Health status for a single broker."""
+
     broker_name: str
     status: BrokerStatus
     last_check: datetime
@@ -88,6 +90,7 @@ class BrokerHealth:
 @dataclass
 class FailoverLog:
     """Log entry for failover events."""
+
     timestamp: datetime
     event: FailoverEvent
     from_broker: Optional[str]
@@ -315,10 +318,7 @@ class MultiBrokerManager(BrokerInterface):
                 )
                 self._failover_log.append(log_entry)
 
-                logger.warning(
-                    f"FAILOVER: {old_broker} -> {backup.name} "
-                    f"({log_entry.reason})"
-                )
+                logger.warning(f"FAILOVER: {old_broker} -> {backup.name} " f"({log_entry.reason})")
 
                 if self.on_failover:
                     try:
@@ -408,9 +408,7 @@ class MultiBrokerManager(BrokerInterface):
 
                 # If this wasn't the active broker, we've failed over
                 if broker != self._active_broker:
-                    logger.warning(
-                        f"Operation {operation_name} succeeded on backup {broker.name}"
-                    )
+                    logger.warning(f"Operation {operation_name} succeeded on backup {broker.name}")
                     # Update health for the broker that worked
                     health = self._broker_health[broker.name]
                     health.consecutive_failures = 0
@@ -590,18 +588,17 @@ class MultiBrokerManager(BrokerInterface):
             "active_broker": self._active_broker.name,
             "is_failed_over": self._is_failed_over,
             "primary_health": self._broker_health[self._primary.name].__dict__,
-            "backup_health": [
-                self._broker_health[b.name].__dict__
-                for b in self._backups
-            ],
-            "recent_failovers": len([
-                f for f in self._failover_log
-                if f.timestamp > datetime.now() - timedelta(hours=24)
-            ]),
-            "total_failovers": len([
-                f for f in self._failover_log
-                if f.event == FailoverEvent.FAILOVER_TO_BACKUP
-            ]),
+            "backup_health": [self._broker_health[b.name].__dict__ for b in self._backups],
+            "recent_failovers": len(
+                [
+                    f
+                    for f in self._failover_log
+                    if f.timestamp > datetime.now() - timedelta(hours=24)
+                ]
+            ),
+            "total_failovers": len(
+                [f for f in self._failover_log if f.event == FailoverEvent.FAILOVER_TO_BACKUP]
+            ),
         }
 
 
@@ -616,14 +613,14 @@ def print_broker_status(manager: MultiBrokerManager):
     print(f"Failed Over: {'Yes' if status['is_failed_over'] else 'No'}")
 
     print("\n--- Broker Health ---")
-    primary = status['primary_health']
+    primary = status["primary_health"]
     print(f"Primary ({primary['broker_name']}): {primary['status']}")
     print(f"  Last check: {primary['last_check']}")
     print(f"  Consecutive failures: {primary['consecutive_failures']}")
-    if primary['response_time_ms']:
+    if primary["response_time_ms"]:
         print(f"  Response time: {primary['response_time_ms']:.0f}ms")
 
-    for backup in status['backup_health']:
+    for backup in status["backup_health"]:
         print(f"\nBackup ({backup['broker_name']}): {backup['status']}")
         print(f"  Consecutive failures: {backup['consecutive_failures']}")
 

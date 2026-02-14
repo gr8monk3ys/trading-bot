@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 class AlgoState(Enum):
     """Execution algorithm state."""
+
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"
@@ -38,15 +39,17 @@ class AlgoState(Enum):
 
 class Urgency(Enum):
     """Execution urgency level."""
-    LOW = "low"           # Patient, maximize price
-    MEDIUM = "medium"     # Balanced
-    HIGH = "high"         # Faster, accept impact
-    CRITICAL = "critical" # Immediate, ignore impact
+
+    LOW = "low"  # Patient, maximize price
+    MEDIUM = "medium"  # Balanced
+    HIGH = "high"  # Faster, accept impact
+    CRITICAL = "critical"  # Immediate, ignore impact
 
 
 @dataclass
 class ExecutionSlice:
     """A single slice of the parent order."""
+
     slice_id: int
     target_quantity: int
     target_start_time: datetime
@@ -77,6 +80,7 @@ class ExecutionSlice:
 @dataclass
 class AlgoOrder:
     """Parent order for algorithmic execution."""
+
     algo_id: str
     symbol: str
     side: str  # 'buy' or 'sell'
@@ -128,6 +132,7 @@ class AlgoOrder:
 @dataclass
 class MarketSnapshot:
     """Current market state for algo decisions."""
+
     symbol: str
     timestamp: datetime
     bid: float
@@ -142,6 +147,7 @@ class MarketSnapshot:
 @dataclass
 class AlgoMetrics:
     """Performance metrics for completed algo."""
+
     algo_id: str
     symbol: str
 
@@ -313,12 +319,14 @@ class ImplementationShortfall(ExecutionAlgorithm):
             if i == num_slices - 1:
                 slice_qty = order.total_quantity - sum(s.target_quantity for s in slices)
 
-            slices.append(ExecutionSlice(
-                slice_id=i,
-                target_quantity=slice_qty,
-                target_start_time=order.start_time + timedelta(seconds=i * slice_duration),
-                target_end_time=order.start_time + timedelta(seconds=(i + 1) * slice_duration),
-            ))
+            slices.append(
+                ExecutionSlice(
+                    slice_id=i,
+                    target_quantity=slice_qty,
+                    target_start_time=order.start_time + timedelta(seconds=i * slice_duration),
+                    target_end_time=order.start_time + timedelta(seconds=(i + 1) * slice_duration),
+                )
+            )
             prev_pct = target_pct
 
         return slices
@@ -334,7 +342,7 @@ class ImplementationShortfall(ExecutionAlgorithm):
             return order.slices
 
         # Check if we're behind schedule
-        expected_filled = sum(s.target_quantity for s in order.slices[:current_slice + 1])
+        expected_filled = sum(s.target_quantity for s in order.slices[: current_slice + 1])
         actual_filled = order.filled_quantity
         shortfall = expected_filled - actual_filled
 
@@ -342,7 +350,7 @@ class ImplementationShortfall(ExecutionAlgorithm):
             return order.slices  # On track
 
         # Distribute shortfall across remaining slices
-        remaining_slices = order.slices[current_slice + 1:]
+        remaining_slices = order.slices[current_slice + 1 :]
         if not remaining_slices:
             # Increase current slice
             order.slices[current_slice].target_quantity += shortfall
@@ -422,12 +430,14 @@ class POVAlgorithm(ExecutionAlgorithm):
             # Target = POV * expected market volume
             slice_qty = int(expected_slice_volume * self.target_pov)
 
-            slices.append(ExecutionSlice(
-                slice_id=i,
-                target_quantity=slice_qty,
-                target_start_time=order.start_time + timedelta(seconds=i * slice_duration),
-                target_end_time=order.start_time + timedelta(seconds=(i + 1) * slice_duration),
-            ))
+            slices.append(
+                ExecutionSlice(
+                    slice_id=i,
+                    target_quantity=slice_qty,
+                    target_start_time=order.start_time + timedelta(seconds=i * slice_duration),
+                    target_end_time=order.start_time + timedelta(seconds=(i + 1) * slice_duration),
+                )
+            )
 
         # Adjust to match total quantity
         total_scheduled = sum(s.target_quantity for s in slices)
@@ -462,7 +472,7 @@ class POVAlgorithm(ExecutionAlgorithm):
             actual_pov = 0
 
         # Adjust future slices if too fast/slow
-        remaining_slices = order.slices[current_slice + 1:]
+        remaining_slices = order.slices[current_slice + 1 :]
 
         if actual_pov > self.max_pov:
             # Slow down
@@ -506,9 +516,7 @@ class POVAlgorithm(ExecutionAlgorithm):
 
         # Trim old entries
         cutoff = datetime.now() - timedelta(minutes=self.volume_lookback_minutes * 2)
-        self._volume_history = [
-            (t, v) for t, v in self._volume_history if t >= cutoff
-        ]
+        self._volume_history = [(t, v) for t, v in self._volume_history if t >= cutoff]
 
 
 class AdaptiveTWAP(ExecutionAlgorithm):
@@ -550,12 +558,14 @@ class AdaptiveTWAP(ExecutionAlgorithm):
             if i == num_slices - 1:
                 qty = order.total_quantity - sum(s.target_quantity for s in slices)
 
-            slices.append(ExecutionSlice(
-                slice_id=i,
-                target_quantity=qty,
-                target_start_time=order.start_time + timedelta(seconds=i * slice_duration),
-                target_end_time=order.start_time + timedelta(seconds=(i + 1) * slice_duration),
-            ))
+            slices.append(
+                ExecutionSlice(
+                    slice_id=i,
+                    target_quantity=qty,
+                    target_start_time=order.start_time + timedelta(seconds=i * slice_duration),
+                    target_end_time=order.start_time + timedelta(seconds=(i + 1) * slice_duration),
+                )
+            )
 
         return slices
 
@@ -572,7 +582,7 @@ class AdaptiveTWAP(ExecutionAlgorithm):
         # Wide spread: defer to later
         if market.spread_bps > self.spread_threshold_bps:
             current = order.slices[current_slice]
-            remaining = order.slices[current_slice + 1:]
+            remaining = order.slices[current_slice + 1 :]
 
             if remaining:
                 deferred = current.target_quantity // 2
@@ -682,12 +692,14 @@ class AdaptiveVWAP(ExecutionAlgorithm):
 
             qty = int(order.total_quantity * slice_pct)
 
-            slices.append(ExecutionSlice(
-                slice_id=i,
-                target_quantity=qty,
-                target_start_time=order.start_time + timedelta(seconds=i * slice_duration),
-                target_end_time=order.start_time + timedelta(seconds=(i + 1) * slice_duration),
-            ))
+            slices.append(
+                ExecutionSlice(
+                    slice_id=i,
+                    target_quantity=qty,
+                    target_start_time=order.start_time + timedelta(seconds=i * slice_duration),
+                    target_end_time=order.start_time + timedelta(seconds=(i + 1) * slice_duration),
+                )
+            )
 
         # Fix rounding
         diff = order.total_quantity - sum(s.target_quantity for s in slices)
@@ -717,7 +729,7 @@ class AdaptiveVWAP(ExecutionAlgorithm):
             # Adjust remaining slices
             adjustment = 1.0 + (volume_ratio - 1.0) * self.adaptive_factor
 
-            for s in order.slices[current_slice + 1:]:
+            for s in order.slices[current_slice + 1 :]:
                 s.target_quantity = int(s.target_quantity * adjustment)
 
         return order.slices
@@ -759,12 +771,14 @@ class SweepAlgorithm(ExecutionAlgorithm):
     ) -> List[ExecutionSlice]:
         """Create single-slice sweep schedule."""
         # Sweep executes immediately in one slice
-        return [ExecutionSlice(
-            slice_id=0,
-            target_quantity=order.total_quantity,
-            target_start_time=order.start_time,
-            target_end_time=order.start_time + timedelta(seconds=1),
-        )]
+        return [
+            ExecutionSlice(
+                slice_id=0,
+                target_quantity=order.total_quantity,
+                target_start_time=order.start_time,
+                target_end_time=order.start_time + timedelta(seconds=1),
+            )
+        ]
 
     def adjust_schedule(
         self,
@@ -932,8 +946,7 @@ class AlgorithmicExecutor:
         # Calculate VWAP from slices
         if order.filled_quantity > 0 and order.slices:
             weighted_price = sum(
-                s.avg_fill_price * s.filled_quantity
-                for s in order.slices if s.filled_quantity > 0
+                s.avg_fill_price * s.filled_quantity for s in order.slices if s.filled_quantity > 0
             )
             vwap = weighted_price / order.filled_quantity
         else:

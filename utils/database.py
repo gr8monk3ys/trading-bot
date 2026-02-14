@@ -41,16 +41,16 @@ class Trade:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            'id': self.id,
-            'symbol': self.symbol,
-            'side': self.side,
-            'qty': self.qty,
-            'price': self.price,
-            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
-            'strategy': self.strategy,
-            'order_id': self.order_id,
-            'status': self.status,
-            'pnl': self.pnl,
+            "id": self.id,
+            "symbol": self.symbol,
+            "side": self.side,
+            "qty": self.qty,
+            "price": self.price,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "strategy": self.strategy,
+            "order_id": self.order_id,
+            "status": self.status,
+            "pnl": self.pnl,
         }
 
 
@@ -73,17 +73,17 @@ class DailyMetrics:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            'id': self.id,
-            'date': self.date.isoformat() if self.date else None,
-            'starting_equity': self.starting_equity,
-            'ending_equity': self.ending_equity,
-            'pnl': self.pnl,
-            'pnl_pct': self.pnl_pct,
-            'trades_count': self.trades_count,
-            'winning_trades': self.winning_trades,
-            'losing_trades': self.losing_trades,
-            'win_rate': self.win_rate,
-            'max_drawdown': self.max_drawdown,
+            "id": self.id,
+            "date": self.date.isoformat() if self.date else None,
+            "starting_equity": self.starting_equity,
+            "ending_equity": self.ending_equity,
+            "pnl": self.pnl,
+            "pnl_pct": self.pnl_pct,
+            "trades_count": self.trades_count,
+            "winning_trades": self.winning_trades,
+            "losing_trades": self.losing_trades,
+            "win_rate": self.win_rate,
+            "max_drawdown": self.max_drawdown,
         }
 
 
@@ -105,21 +105,22 @@ class Position:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            'id': self.id,
-            'symbol': self.symbol,
-            'qty': self.qty,
-            'entry_price': self.entry_price,
-            'entry_time': self.entry_time.isoformat() if self.entry_time else None,
-            'exit_price': self.exit_price,
-            'exit_time': self.exit_time.isoformat() if self.exit_time else None,
-            'strategy': self.strategy,
-            'status': self.status,
-            'pnl': self.pnl,
+            "id": self.id,
+            "symbol": self.symbol,
+            "qty": self.qty,
+            "entry_price": self.entry_price,
+            "entry_time": self.entry_time.isoformat() if self.entry_time else None,
+            "exit_price": self.exit_price,
+            "exit_time": self.exit_time.isoformat() if self.exit_time else None,
+            "strategy": self.strategy,
+            "status": self.status,
+            "pnl": self.pnl,
         }
 
 
 class DatabaseError(Exception):
     """Exception raised for database operation failures."""
+
     pass
 
 
@@ -325,12 +326,14 @@ class TradingDatabase:
                         trade.order_id,
                         trade.status,
                         trade.pnl,
-                    )
+                    ),
                 )
                 await self._connection.commit()
 
                 trade_id = cursor.lastrowid
-                self.logger.debug(f"Inserted trade {trade_id}: {trade.symbol} {trade.side} {trade.qty}@{trade.price}")
+                self.logger.debug(
+                    f"Inserted trade {trade_id}: {trade.symbol} {trade.side} {trade.qty}@{trade.price}"
+                )
                 return trade_id
 
             except aiosqlite.IntegrityError as e:
@@ -399,18 +402,20 @@ class TradingDatabase:
 
             trades = []
             for row in rows:
-                trades.append(Trade(
-                    id=row[0],
-                    symbol=row[1],
-                    side=row[2],
-                    qty=row[3],
-                    price=row[4],
-                    timestamp=datetime.fromisoformat(row[5]) if row[5] else None,
-                    strategy=row[6],
-                    order_id=row[7],
-                    status=row[8],
-                    pnl=row[9],
-                ))
+                trades.append(
+                    Trade(
+                        id=row[0],
+                        symbol=row[1],
+                        side=row[2],
+                        qty=row[3],
+                        price=row[4],
+                        timestamp=datetime.fromisoformat(row[5]) if row[5] else None,
+                        strategy=row[6],
+                        order_id=row[7],
+                        status=row[8],
+                        pnl=row[9],
+                    )
+                )
 
             return trades
 
@@ -436,7 +441,7 @@ class TradingDatabase:
                 SELECT id, symbol, side, qty, price, timestamp, strategy, order_id, status, pnl
                 FROM trades WHERE order_id = ?
                 """,
-                (order_id,)
+                (order_id,),
             ) as cursor:
                 row = await cursor.fetchone()
 
@@ -475,8 +480,7 @@ class TradingDatabase:
         async with self._lock:
             try:
                 cursor = await self._connection.execute(
-                    "UPDATE trades SET pnl = ? WHERE order_id = ?",
-                    (pnl, order_id)
+                    "UPDATE trades SET pnl = ? WHERE order_id = ?", (pnl, order_id)
                 )
                 await self._connection.commit()
 
@@ -537,11 +541,13 @@ class TradingDatabase:
                         metrics.losing_trades,
                         metrics.win_rate,
                         metrics.max_drawdown,
-                    )
+                    ),
                 )
                 await self._connection.commit()
 
-                self.logger.debug(f"Saved daily metrics for {metrics.date}: P&L ${metrics.pnl:+,.2f}")
+                self.logger.debug(
+                    f"Saved daily metrics for {metrics.date}: P&L ${metrics.pnl:+,.2f}"
+                )
                 return cursor.lastrowid
 
             except Exception as e:
@@ -574,25 +580,27 @@ class TradingDatabase:
                 WHERE date >= ? AND date <= ?
                 ORDER BY date ASC
                 """,
-                (start_date.isoformat(), end_date.isoformat())
+                (start_date.isoformat(), end_date.isoformat()),
             ) as cursor:
                 rows = await cursor.fetchall()
 
             metrics_list = []
             for row in rows:
-                metrics_list.append(DailyMetrics(
-                    id=row[0],
-                    date=date.fromisoformat(row[1]) if row[1] else None,
-                    starting_equity=row[2],
-                    ending_equity=row[3],
-                    pnl=row[4],
-                    pnl_pct=row[5],
-                    trades_count=row[6],
-                    winning_trades=row[7],
-                    losing_trades=row[8],
-                    win_rate=row[9],
-                    max_drawdown=row[10],
-                ))
+                metrics_list.append(
+                    DailyMetrics(
+                        id=row[0],
+                        date=date.fromisoformat(row[1]) if row[1] else None,
+                        starting_equity=row[2],
+                        ending_equity=row[3],
+                        pnl=row[4],
+                        pnl_pct=row[5],
+                        trades_count=row[6],
+                        winning_trades=row[7],
+                        losing_trades=row[8],
+                        win_rate=row[9],
+                        max_drawdown=row[10],
+                    )
+                )
 
             return metrics_list
 
@@ -610,15 +618,13 @@ class TradingDatabase:
         await self._ensure_connection()
 
         try:
-            async with self._connection.execute(
-                """
+            async with self._connection.execute("""
                 SELECT id, date, starting_equity, ending_equity, pnl, pnl_pct,
                        trades_count, winning_trades, losing_trades, win_rate, max_drawdown
                 FROM daily_metrics
                 ORDER BY date DESC
                 LIMIT 1
-                """
-            ) as cursor:
+                """) as cursor:
                 row = await cursor.fetchone()
 
             if row:
@@ -678,7 +684,7 @@ class TradingDatabase:
                     SELECT id FROM positions
                     WHERE symbol = ? AND strategy = ? AND status = 'open'
                     """,
-                    (symbol, strategy)
+                    (symbol, strategy),
                 ) as cursor:
                     existing = await cursor.fetchone()
 
@@ -690,7 +696,7 @@ class TradingDatabase:
                         SET qty = ?, entry_price = ?, entry_time = ?
                         WHERE id = ?
                         """,
-                        (qty, entry_price, entry_time.isoformat(), existing[0])
+                        (qty, entry_price, entry_time.isoformat(), existing[0]),
                     )
                     await self._connection.commit()
                     self.logger.debug(f"Updated position {symbol}: {qty}@{entry_price}")
@@ -702,7 +708,7 @@ class TradingDatabase:
                         INSERT INTO positions (symbol, qty, entry_price, entry_time, strategy, status)
                         VALUES (?, ?, ?, ?, ?, 'open')
                         """,
-                        (symbol, qty, entry_price, entry_time.isoformat(), strategy)
+                        (symbol, qty, entry_price, entry_time.isoformat(), strategy),
                     )
                     await self._connection.commit()
                     self.logger.debug(f"Opened position {symbol}: {qty}@{entry_price}")
@@ -751,15 +757,17 @@ class TradingDatabase:
 
             positions = []
             for row in rows:
-                positions.append({
-                    'id': row[0],
-                    'symbol': row[1],
-                    'qty': row[2],
-                    'entry_price': row[3],
-                    'entry_time': datetime.fromisoformat(row[4]) if row[4] else None,
-                    'strategy': row[5],
-                    'status': 'open',
-                })
+                positions.append(
+                    {
+                        "id": row[0],
+                        "symbol": row[1],
+                        "qty": row[2],
+                        "entry_price": row[3],
+                        "entry_time": datetime.fromisoformat(row[4]) if row[4] else None,
+                        "strategy": row[5],
+                        "status": "open",
+                    }
+                )
 
             return positions
 
@@ -825,7 +833,7 @@ class TradingDatabase:
                     SET exit_price = ?, exit_time = ?, status = 'closed', pnl = ?
                     WHERE id = ?
                     """,
-                    (exit_price, exit_time.isoformat(), pnl, position_id)
+                    (exit_price, exit_time.isoformat(), pnl, position_id),
                 )
                 await self._connection.commit()
 
@@ -870,22 +878,22 @@ class TradingDatabase:
                 FROM trades
                 WHERE strategy = ? AND pnl IS NOT NULL
                 """,
-                (strategy,)
+                (strategy,),
             ) as cursor:
                 row = await cursor.fetchone()
 
             if not row or row[0] == 0:
                 return {
-                    'strategy': strategy,
-                    'total_trades': 0,
-                    'winning_trades': 0,
-                    'losing_trades': 0,
-                    'win_rate': 0.0,
-                    'total_pnl': 0.0,
-                    'avg_pnl': 0.0,
-                    'profit_factor': 0.0,
-                    'best_trade': 0.0,
-                    'worst_trade': 0.0,
+                    "strategy": strategy,
+                    "total_trades": 0,
+                    "winning_trades": 0,
+                    "losing_trades": 0,
+                    "win_rate": 0.0,
+                    "total_pnl": 0.0,
+                    "avg_pnl": 0.0,
+                    "profit_factor": 0.0,
+                    "best_trade": 0.0,
+                    "worst_trade": 0.0,
                 }
 
             total_trades = row[0] or 0
@@ -897,22 +905,26 @@ class TradingDatabase:
 
             # Calculate derived metrics
             win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
-            profit_factor = (avg_win * winning_trades) / (avg_loss * losing_trades) if losing_trades > 0 and avg_loss > 0 else 0.0
+            profit_factor = (
+                (avg_win * winning_trades) / (avg_loss * losing_trades)
+                if losing_trades > 0 and avg_loss > 0
+                else 0.0
+            )
 
             return {
-                'strategy': strategy,
-                'total_trades': total_trades,
-                'winning_trades': winning_trades,
-                'losing_trades': losing_trades,
-                'breakeven_trades': row[3] or 0,
-                'win_rate': win_rate,
-                'total_pnl': total_pnl,
-                'avg_pnl': row[5] or 0.0,
-                'profit_factor': profit_factor,
-                'best_trade': row[6] or 0.0,
-                'worst_trade': row[7] or 0.0,
-                'avg_win': avg_win,
-                'avg_loss': -avg_loss,  # Return as negative for clarity
+                "strategy": strategy,
+                "total_trades": total_trades,
+                "winning_trades": winning_trades,
+                "losing_trades": losing_trades,
+                "breakeven_trades": row[3] or 0,
+                "win_rate": win_rate,
+                "total_pnl": total_pnl,
+                "avg_pnl": row[5] or 0.0,
+                "profit_factor": profit_factor,
+                "best_trade": row[6] or 0.0,
+                "worst_trade": row[7] or 0.0,
+                "avg_win": avg_win,
+                "avg_loss": -avg_loss,  # Return as negative for clarity
             }
 
         except Exception as e:
@@ -946,22 +958,22 @@ class TradingDatabase:
                 FROM trades
                 WHERE symbol = ? AND pnl IS NOT NULL
                 """,
-                (symbol,)
+                (symbol,),
             ) as cursor:
                 row = await cursor.fetchone()
 
             if not row or row[0] == 0:
                 return {
-                    'symbol': symbol,
-                    'total_trades': 0,
-                    'winning_trades': 0,
-                    'losing_trades': 0,
-                    'win_rate': 0.0,
-                    'total_pnl': 0.0,
-                    'avg_pnl': 0.0,
-                    'best_trade': 0.0,
-                    'worst_trade': 0.0,
-                    'total_volume': 0.0,
+                    "symbol": symbol,
+                    "total_trades": 0,
+                    "winning_trades": 0,
+                    "losing_trades": 0,
+                    "win_rate": 0.0,
+                    "total_pnl": 0.0,
+                    "avg_pnl": 0.0,
+                    "best_trade": 0.0,
+                    "worst_trade": 0.0,
+                    "total_volume": 0.0,
                 }
 
             total_trades = row[0] or 0
@@ -969,16 +981,16 @@ class TradingDatabase:
             win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
 
             return {
-                'symbol': symbol,
-                'total_trades': total_trades,
-                'winning_trades': winning_trades,
-                'losing_trades': row[2] or 0,
-                'win_rate': win_rate,
-                'total_pnl': row[3] or 0.0,
-                'avg_pnl': row[4] or 0.0,
-                'best_trade': row[5] or 0.0,
-                'worst_trade': row[6] or 0.0,
-                'total_volume': row[7] or 0.0,
+                "symbol": symbol,
+                "total_trades": total_trades,
+                "winning_trades": winning_trades,
+                "losing_trades": row[2] or 0,
+                "win_rate": win_rate,
+                "total_pnl": row[3] or 0.0,
+                "avg_pnl": row[4] or 0.0,
+                "best_trade": row[5] or 0.0,
+                "worst_trade": row[6] or 0.0,
+                "total_volume": row[7] or 0.0,
             }
 
         except Exception as e:
@@ -996,8 +1008,7 @@ class TradingDatabase:
 
         try:
             # Trade summary
-            async with self._connection.execute(
-                """
+            async with self._connection.execute("""
                 SELECT
                     COUNT(*) as total_trades,
                     COUNT(DISTINCT symbol) as unique_symbols,
@@ -1008,8 +1019,7 @@ class TradingDatabase:
                     MAX(timestamp) as last_trade
                 FROM trades
                 WHERE pnl IS NOT NULL
-                """
-            ) as cursor:
+                """) as cursor:
                 row = await cursor.fetchone()
 
             # Open positions count
@@ -1022,14 +1032,14 @@ class TradingDatabase:
             winning_trades = row[4] or 0
 
             return {
-                'total_trades': total_trades,
-                'unique_symbols': row[1] or 0,
-                'unique_strategies': row[2] or 0,
-                'total_pnl': row[3] or 0.0,
-                'win_rate': winning_trades / total_trades if total_trades > 0 else 0.0,
-                'open_positions': open_positions,
-                'first_trade': row[5],
-                'last_trade': row[6],
+                "total_trades": total_trades,
+                "unique_symbols": row[1] or 0,
+                "unique_strategies": row[2] or 0,
+                "total_pnl": row[3] or 0.0,
+                "win_rate": winning_trades / total_trades if total_trades > 0 else 0.0,
+                "open_positions": open_positions,
+                "first_trade": row[5],
+                "last_trade": row[6],
             }
 
         except Exception as e:

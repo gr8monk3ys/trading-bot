@@ -56,7 +56,9 @@ async def test_runtime_state_store_roundtrip_writes_checksum_envelope(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_runtime_state_store_checksum_mismatch_falls_back_to_replay_and_heals_primary(tmp_path):
+async def test_runtime_state_store_checksum_mismatch_falls_back_to_replay_and_heals_primary(
+    tmp_path,
+):
     path = tmp_path / "runtime_state.json"
     store = RuntimeStateStore(str(path))
     pm = _DummyPositionManager({"ownership": {"AAPL": {"strategy": "S2"}}})

@@ -41,10 +41,7 @@ def _parse_args() -> argparse.Namespace:
 
 def _git_sha() -> str:
     try:
-        return (
-            subprocess.check_output(["git", "rev-parse", "HEAD"], text=True)
-            .strip()
-        )
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     except Exception:
         return "unknown"
 
@@ -67,11 +64,7 @@ async def _run(args: argparse.Namespace) -> int:
     datetime.strptime(args.start_date, "%Y-%m-%d")
     datetime.strptime(args.end_date, "%Y-%m-%d")
 
-    symbols = (
-        [s.strip() for s in args.symbols.split(",") if s.strip()]
-        if args.symbols
-        else SYMBOLS
-    )
+    symbols = [s.strip() for s in args.symbols.split(",") if s.strip()] if args.symbols else SYMBOLS
 
     broker = AlpacaBroker(paper=True)
     manager = StrategyManager(broker=broker)

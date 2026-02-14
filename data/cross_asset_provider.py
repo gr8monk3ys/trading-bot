@@ -7,23 +7,19 @@ and FX correlation data using yfinance (no API keys required).
 
 import asyncio
 import logging
-from abc import abstractmethod
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 import numpy as np
 
 from data.alt_data_types import AltDataSource, SignalDirection
-from data.alternative_data_provider import AlternativeDataProvider, AltDataCache
+from data.alternative_data_provider import AltDataCache, AlternativeDataProvider
 from data.cross_asset_types import (
-    CrossAssetSource,
     CrossAssetAggregatedSignal,
+    CrossAssetSource,
+    FxCorrelationSignal,
     VixTermStructureSignal,
     YieldCurveSignal,
-    FxCorrelationSignal,
-    VolatilityRegime,
-    YieldCurveRegime,
-    RiskAppetiteRegime,
 )
 
 logger = logging.getLogger(__name__)
@@ -604,7 +600,7 @@ class CrossAssetAggregator:
         # Execute in parallel
         results = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
 
-        for (name, _), result in zip(tasks, results):
+        for (name, _), result in zip(tasks, results, strict=True):
             if isinstance(result, Exception):
                 logger.error(f"Error fetching {name} signal: {result}")
                 continue

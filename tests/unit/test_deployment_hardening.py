@@ -3,8 +3,7 @@
 Unit tests for deployment hardening checks.
 """
 
-from utils.deployment_hardening import run_deployment_preflight
-from utils.deployment_hardening import run_runtime_rollback_drill
+from utils.deployment_hardening import run_deployment_preflight, run_runtime_rollback_drill
 
 
 def test_deployment_preflight_reports_missing_required_env_var(monkeypatch):

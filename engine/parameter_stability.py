@@ -298,9 +298,7 @@ class ParameterStabilityAnalyzer:
                     f"Parameter '{name}' is highly sensitive - consider widening acceptable range"
                 )
             if sens.max_degradation > 0.5:
-                warnings.append(
-                    f"Parameter '{name}' has >50% performance degradation risk at ±20%"
-                )
+                warnings.append(f"Parameter '{name}' has >50% performance degradation risk at ±20%")
 
         # Generate recommendations
         recommendations = []
@@ -387,6 +385,7 @@ async def quick_stability_check(
         Dict with stability metrics
     """
     if metric_fn is None:
+
         def metric_fn(r):
             return np.mean(r) / np.std(r) * np.sqrt(252) if np.std(r) > 0 else 0
 

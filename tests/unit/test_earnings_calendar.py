@@ -41,8 +41,7 @@ def mock_ticker_with_earnings():
     mock_ticker = MagicMock()
     future_date = datetime.now() + timedelta(days=10)
     mock_calendar = pd.DataFrame(
-        {"Values": [future_date, None]},
-        index=["Earnings Date", "Revenue Date"]
+        {"Values": [future_date, None]}, index=["Earnings Date", "Revenue Date"]
     )
     mock_ticker.calendar = mock_calendar
     return mock_ticker
@@ -209,7 +208,7 @@ class TestGetNextEarningsDate:
             mock_ticker = MagicMock()
             mock_calendar = pd.DataFrame(
                 {"Values": [[future_date, future_date + timedelta(days=90)]]},
-                index=["Earnings Date"]
+                index=["Earnings Date"],
             )
             mock_ticker.calendar = mock_calendar
             mock_yf.return_value = mock_ticker
@@ -550,7 +549,9 @@ class TestCheckEarningsSafety:
             # Need to also patch the class instantiation
             with patch("utils.earnings_calendar.EarningsCalendar.__init__") as mock_init:
                 mock_init.return_value = None
-                with patch("utils.earnings_calendar.EarningsCalendar.is_safe_to_enter") as mock_method:
+                with patch(
+                    "utils.earnings_calendar.EarningsCalendar.is_safe_to_enter"
+                ) as mock_method:
                     mock_method.return_value = True
 
                     result = check_earnings_safety(["AAPL", "MSFT"])

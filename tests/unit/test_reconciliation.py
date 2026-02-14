@@ -214,7 +214,7 @@ class TestPositionReconciler:
             internal_tracker=mock_tracker,
             halt_on_mismatch=False,
             tolerance_pct=0.01,  # 1%
-            tolerance_abs=1.0,   # 1 share
+            tolerance_abs=1.0,  # 1 share
         )
 
         result = await reconciler.reconcile()

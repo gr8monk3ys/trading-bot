@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class BrokerStatus(Enum):
     """Broker connection status."""
+
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
     DEGRADED = "degraded"  # Partial functionality
@@ -35,6 +36,7 @@ class BrokerStatus(Enum):
 
 class OrderStatus(Enum):
     """Standard order status across all brokers."""
+
     PENDING = "pending"
     ACCEPTED = "accepted"
     FILLED = "filled"
@@ -46,12 +48,14 @@ class OrderStatus(Enum):
 
 class OrderSide(Enum):
     """Order side."""
+
     BUY = "buy"
     SELL = "sell"
 
 
 class OrderType(Enum):
     """Standard order types."""
+
     MARKET = "market"
     LIMIT = "limit"
     STOP = "stop"
@@ -61,6 +65,7 @@ class OrderType(Enum):
 
 class TimeInForce(Enum):
     """Time in force options."""
+
     DAY = "day"
     GTC = "gtc"  # Good til cancelled
     IOC = "ioc"  # Immediate or cancel
@@ -72,6 +77,7 @@ class TimeInForce(Enum):
 @dataclass
 class AccountInfo:
     """Standardized account information."""
+
     broker_name: str
     account_id: str
     equity: float
@@ -102,6 +108,7 @@ class AccountInfo:
 @dataclass
 class Position:
     """Standardized position information."""
+
     symbol: str
     quantity: float  # Positive = long, negative = short
     avg_entry_price: float
@@ -129,6 +136,7 @@ class Position:
 @dataclass
 class Order:
     """Standardized order information."""
+
     order_id: str
     client_order_id: Optional[str]
     symbol: str
@@ -165,6 +173,7 @@ class Order:
 @dataclass
 class Bar:
     """OHLCV bar data."""
+
     symbol: str
     timestamp: datetime
     open: float
@@ -178,6 +187,7 @@ class Bar:
 @dataclass
 class OrderRequest:
     """Order request to submit to broker."""
+
     symbol: str
     side: OrderSide
     quantity: float
@@ -378,19 +388,23 @@ class BrokerInterface(ABC):
 
 class BrokerError(Exception):
     """Base exception for broker errors."""
+
     pass
 
 
 class BrokerConnectionError(BrokerError):
     """Connection-related error."""
+
     pass
 
 
 class BrokerOrderError(BrokerError):
     """Order submission/cancellation error."""
+
     pass
 
 
 class BrokerDataError(BrokerError):
     """Market data error."""
+
     pass

@@ -421,11 +421,7 @@ class AuditLog:
         Returns:
             List of entries related to this order
         """
-        return [
-            entry
-            for entry in self._entries
-            if entry.data.get("order_id") == order_id
-        ]
+        return [entry for entry in self._entries if entry.data.get("order_id") == order_id]
 
     def get_risk_events(
         self,
@@ -474,13 +470,18 @@ class AuditLog:
         circuit_breaker_events = [
             e
             for e in entries
-            if e.event_type in (AuditEventType.CIRCUIT_BREAKER_TRIGGERED, AuditEventType.TRADING_HALTED)
+            if e.event_type
+            in (AuditEventType.CIRCUIT_BREAKER_TRIGGERED, AuditEventType.TRADING_HALTED)
         ]
 
         # Order statistics
         order_events = [e for e in entries if e.event_type.value.startswith("order_")]
-        orders_submitted = sum(1 for e in order_events if e.event_type == AuditEventType.ORDER_SUBMITTED)
-        orders_rejected = sum(1 for e in order_events if e.event_type == AuditEventType.ORDER_REJECTED)
+        orders_submitted = sum(
+            1 for e in order_events if e.event_type == AuditEventType.ORDER_SUBMITTED
+        )
+        orders_rejected = sum(
+            1 for e in order_events if e.event_type == AuditEventType.ORDER_REJECTED
+        )
 
         return {
             "period_start": start_time.isoformat(),
@@ -600,7 +601,11 @@ def log_circuit_breaker_event(
 ) -> AuditEntry:
     """Log a circuit breaker event."""
     return audit_log.log(
-        AuditEventType.CIRCUIT_BREAKER_TRIGGERED if triggered else AuditEventType.CIRCUIT_BREAKER_RESET,
+        (
+            AuditEventType.CIRCUIT_BREAKER_TRIGGERED
+            if triggered
+            else AuditEventType.CIRCUIT_BREAKER_RESET
+        ),
         {
             "reason": reason,
             "equity": equity,

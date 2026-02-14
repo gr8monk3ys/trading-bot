@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 from utils.data_quality import should_halt_trading_for_data_quality
-from utils.order_lifecycle import OrderLifecycleTracker
 from utils.order_gateway import OrderGateway
+from utils.order_lifecycle import OrderLifecycleTracker
 from utils.order_reconciliation import OrderReconciler
 from utils.partial_fill_tracker import PartialFillTracker
 from utils.slo_monitor import SLOMonitor
@@ -215,10 +215,9 @@ async def _drill_partial_fill_stall_detection() -> ChaosDrillCheck:
     )
     # Simulate stalled fill updates.
     tracker._orders["order-stall-1"].updated_at = datetime.now().replace(microsecond=0)
-    tracker._orders["order-stall-1"].updated_at = (
-        tracker._orders["order-stall-1"].updated_at
-        - timedelta(seconds=600)
-    )
+    tracker._orders["order-stall-1"].updated_at = tracker._orders[
+        "order-stall-1"
+    ].updated_at - timedelta(seconds=600)
     stalled = tracker.detect_stalled_orders(max_stall_seconds=60)
     passed = len(stalled) == 1 and stalled[0].get("order_id") == "order-stall-1"
     details = (

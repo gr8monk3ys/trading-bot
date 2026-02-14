@@ -170,9 +170,7 @@ class LSTMNetwork:
         class _LSTMModel(nn.Module):
             """Internal LSTM model class."""
 
-            def __init__(
-                self, input_size, hidden_size, num_layers, output_size, dropout
-            ):
+            def __init__(self, input_size, hidden_size, num_layers, output_size, dropout):
                 super().__init__()
                 self.hidden_size = hidden_size
                 self.num_layers = num_layers
@@ -444,7 +442,9 @@ class LSTMPredictor:
 
         # Split raw features BEFORE normalization
         train_features = features[:train_split_idx]
-        val_features = features[train_split_idx - self.sequence_length - self.prediction_horizon + 1:]
+        val_features = features[
+            train_split_idx - self.sequence_length - self.prediction_horizon + 1 :
+        ]
 
         logger.info(
             f"Data leakage prevention: Fitting scaler on {len(train_features)} training samples only "
@@ -471,7 +471,9 @@ class LSTMPredictor:
         # Create sequences for validation data
         X_val, y_val = self._create_sequences(normalized_val, val_targets)
         if len(X_val) == 0:
-            logger.warning(f"No validation sequences created for {symbol}, using last 20% of training")
+            logger.warning(
+                f"No validation sequences created for {symbol}, using last 20% of training"
+            )
             # Fallback: use last portion of training as validation
             fallback_split = int(len(X_train) * 0.8)
             X_val = X_train[fallback_split:]
@@ -574,8 +576,7 @@ class LSTMPredictor:
 
             if patience_counter >= early_stopping_patience:
                 logger.info(
-                    f"Early stopping at epoch {epoch + 1} "
-                    f"(best val loss: {best_val_loss:.6f})"
+                    f"Early stopping at epoch {epoch + 1} " f"(best val loss: {best_val_loss:.6f})"
                 )
                 break
 
@@ -681,9 +682,7 @@ class LSTMPredictor:
             predicted_price = predicted_normalized * (close_max - close_min) + close_min
 
             # Get current price for comparison
-            current_close = float(
-                prices[-1].get("close", prices[-1].get("c", 0))
-            )
+            current_close = float(prices[-1].get("close", prices[-1].get("c", 0)))
 
             if current_close <= 0:
                 logger.error(f"Invalid current price for {symbol}")
@@ -927,7 +926,7 @@ class LSTMPredictor:
 
         try:
             # Prepare features
-            recent_prices = prices[-self.sequence_length:]
+            recent_prices = prices[-self.sequence_length :]
             features = self._prepare_features(recent_prices)
 
             if len(features) == 0:
@@ -1108,9 +1107,7 @@ class LSTMPredictor:
                 confidence_bins[bin_key] = []
             confidence_bins[bin_key].append(acc)
 
-        calibration_by_bin = {
-            k: np.mean(v) for k, v in confidence_bins.items() if len(v) >= 3
-        }
+        calibration_by_bin = {k: np.mean(v) for k, v in confidence_bins.items() if len(v) >= 3}
 
         return {
             "coverage_95ci": coverage,

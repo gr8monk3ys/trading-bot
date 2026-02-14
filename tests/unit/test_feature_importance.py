@@ -70,9 +70,7 @@ def mock_model():
     """Create a mock model with predict method."""
     model = MagicMock()
     # Default predict returns array matching input shape
-    model.predict = MagicMock(
-        side_effect=lambda X: np.random.randn(len(X))
-    )
+    model.predict = MagicMock(side_effect=lambda X: np.random.randn(len(X)))
     return model
 
 
@@ -81,9 +79,7 @@ def mock_lstm_model():
     """Create a mock LSTM model for sequence data."""
     model = MagicMock()
     # For 3D input (samples, sequence, features)
-    model.predict = MagicMock(
-        side_effect=lambda X: np.random.randn(X.shape[0])
-    )
+    model.predict = MagicMock(side_effect=lambda X: np.random.randn(X.shape[0]))
     return model
 
 
@@ -176,8 +172,8 @@ class TestFeatureImportanceResult:
         assert len(top) == 3
         # Verify sorted by absolute importance
         assert top[0][0] == "close"  # 0.40
-        assert top[1][0] == "high"   # 0.25
-        assert top[2][0] == "open"   # 0.15
+        assert top[1][0] == "high"  # 0.25
+        assert top[2][0] == "open"  # 0.15
 
     def test_get_top_features_with_negative_importance(self):
         """Test get_top_features handles negative importance values."""
@@ -354,6 +350,7 @@ class TestPermutationImportance:
 
     def test_permutation_importance_feature_shuffling_affects_score(self):
         """Test that shuffling features actually changes predictions."""
+
         # Create a model that returns different values based on first feature
         class SimpleModel:
             def predict(self, X):
@@ -443,9 +440,7 @@ class TestPermutationImportance:
         """Test that 2D predictions are flattened."""
         model = MagicMock()
         # Return 2D array (n_samples, 1)
-        model.predict = MagicMock(
-            side_effect=lambda X: np.random.randn(len(X), 1)
-        )
+        model.predict = MagicMock(side_effect=lambda X: np.random.randn(len(X), 1))
 
         result = analyzer_with_features.calculate_permutation_importance(
             model=model,
@@ -717,7 +712,9 @@ class TestGradientImportance:
 
         # Patch the torch import
         with patch.dict("sys.modules", {"ml.torch_utils": MagicMock()}):
-            with patch("ml.feature_importance.FeatureImportanceAnalyzer.calculate_gradient_importance") as mock_grad:
+            with patch(
+                "ml.feature_importance.FeatureImportanceAnalyzer.calculate_gradient_importance"
+            ) as mock_grad:
                 mock_grad.return_value = FeatureImportanceResult(
                     feature_names=sample_feature_names,
                     importance_scores=dict.fromkeys(sample_feature_names, 0.2),
@@ -925,9 +922,7 @@ class TestImportanceDriftDetection:
 
         drift_results = analyzer.detect_importance_drift(window_size=5)
 
-        new_feature_drift = next(
-            d for d in drift_results if d.feature_name == "new_feature"
-        )
+        new_feature_drift = next(d for d in drift_results if d.feature_name == "new_feature")
         assert new_feature_drift.historical_importance == 0.0
         assert new_feature_drift.recent_importance == 0.3
         assert new_feature_drift.change_pct == float("inf")
@@ -1131,9 +1126,7 @@ class TestLSTMFeatureImportance:
         lstm_fi = LSTMFeatureImportance(predictor=mock_predictor)
 
         # Mock the analyzer's permutation importance
-        with patch.object(
-            lstm_fi.analyzer, "calculate_permutation_importance"
-        ) as mock_perm:
+        with patch.object(lstm_fi.analyzer, "calculate_permutation_importance") as mock_perm:
             mock_perm.return_value = FeatureImportanceResult(
                 feature_names=["open", "high", "low", "close", "volume"],
                 importance_scores={
@@ -1177,9 +1170,7 @@ class TestLSTMFeatureImportance:
         lstm_fi = LSTMFeatureImportance(predictor=mock_predictor)
 
         # Mock the analyzer's gradient importance
-        with patch.object(
-            lstm_fi.analyzer, "calculate_gradient_importance"
-        ) as mock_grad:
+        with patch.object(lstm_fi.analyzer, "calculate_gradient_importance") as mock_grad:
             mock_grad.return_value = FeatureImportanceResult(
                 feature_names=["open", "high", "low", "close", "volume"],
                 importance_scores={
@@ -1234,9 +1225,7 @@ class TestAnalyzeFeatureImportanceFunction:
             assert result is not None
             assert result.method == "shap"
 
-    def test_auto_method_falls_back_to_permutation(
-        self, sample_2d_data, sample_target
-    ):
+    def test_auto_method_falls_back_to_permutation(self, sample_2d_data, sample_target):
         """Test auto method falls back to permutation when SHAP unavailable."""
         with patch("ml.feature_importance._import_shap", return_value=None):
             model = MagicMock()

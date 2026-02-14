@@ -71,14 +71,46 @@ def mock_composite_score() -> CompositeScore:
 def mock_scores_universe() -> Dict[str, CompositeScore]:
     """Create a universe of mock composite scores for testing."""
     symbols = [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META",
-        "NVDA", "TSLA", "AMD", "INTC", "ORCL",
-        "CRM", "ADBE", "PYPL", "NFLX", "UBER",
-        "LYFT", "SNAP", "PINS", "TWTR", "SPOT",
-        "ROKU", "ZM", "DOCU", "OKTA", "CRWD",
-        "NET", "DDOG", "MDB", "SNOW", "PLTR",
-        "COIN", "RBLX", "DASH", "ABNB", "U",
-        "PATH", "AFRM", "HOOD", "RIVN", "LCID",
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "META",
+        "NVDA",
+        "TSLA",
+        "AMD",
+        "INTC",
+        "ORCL",
+        "CRM",
+        "ADBE",
+        "PYPL",
+        "NFLX",
+        "UBER",
+        "LYFT",
+        "SNAP",
+        "PINS",
+        "TWTR",
+        "SPOT",
+        "ROKU",
+        "ZM",
+        "DOCU",
+        "OKTA",
+        "CRWD",
+        "NET",
+        "DDOG",
+        "MDB",
+        "SNOW",
+        "PLTR",
+        "COIN",
+        "RBLX",
+        "DASH",
+        "ABNB",
+        "U",
+        "PATH",
+        "AFRM",
+        "HOOD",
+        "RIVN",
+        "LCID",
     ]
 
     scores = {}
@@ -113,24 +145,46 @@ def mock_scores_universe() -> Dict[str, CompositeScore]:
 def mock_sectors() -> Dict[str, str]:
     """Create sector classifications for testing."""
     return {
-        "AAPL": "Technology", "MSFT": "Technology", "GOOGL": "Technology",
-        "AMZN": "Consumer Discretionary", "META": "Technology",
-        "NVDA": "Technology", "TSLA": "Consumer Discretionary", "AMD": "Technology",
-        "INTC": "Technology", "ORCL": "Technology",
-        "CRM": "Technology", "ADBE": "Technology", "PYPL": "Financials",
-        "NFLX": "Communication Services", "UBER": "Technology",
-        "LYFT": "Technology", "SNAP": "Communication Services",
-        "PINS": "Communication Services", "TWTR": "Communication Services",
+        "AAPL": "Technology",
+        "MSFT": "Technology",
+        "GOOGL": "Technology",
+        "AMZN": "Consumer Discretionary",
+        "META": "Technology",
+        "NVDA": "Technology",
+        "TSLA": "Consumer Discretionary",
+        "AMD": "Technology",
+        "INTC": "Technology",
+        "ORCL": "Technology",
+        "CRM": "Technology",
+        "ADBE": "Technology",
+        "PYPL": "Financials",
+        "NFLX": "Communication Services",
+        "UBER": "Technology",
+        "LYFT": "Technology",
+        "SNAP": "Communication Services",
+        "PINS": "Communication Services",
+        "TWTR": "Communication Services",
         "SPOT": "Communication Services",
-        "ROKU": "Communication Services", "ZM": "Technology",
-        "DOCU": "Technology", "OKTA": "Technology", "CRWD": "Technology",
-        "NET": "Technology", "DDOG": "Technology", "MDB": "Technology",
-        "SNOW": "Technology", "PLTR": "Technology",
-        "COIN": "Financials", "RBLX": "Communication Services",
-        "DASH": "Consumer Discretionary", "ABNB": "Consumer Discretionary",
+        "ROKU": "Communication Services",
+        "ZM": "Technology",
+        "DOCU": "Technology",
+        "OKTA": "Technology",
+        "CRWD": "Technology",
+        "NET": "Technology",
+        "DDOG": "Technology",
+        "MDB": "Technology",
+        "SNOW": "Technology",
+        "PLTR": "Technology",
+        "COIN": "Financials",
+        "RBLX": "Communication Services",
+        "DASH": "Consumer Discretionary",
+        "ABNB": "Consumer Discretionary",
         "U": "Technology",
-        "PATH": "Technology", "AFRM": "Financials", "HOOD": "Financials",
-        "RIVN": "Consumer Discretionary", "LCID": "Consumer Discretionary",
+        "PATH": "Technology",
+        "AFRM": "Financials",
+        "HOOD": "Financials",
+        "RIVN": "Consumer Discretionary",
+        "LCID": "Consumer Discretionary",
     }
 
 
@@ -139,14 +193,46 @@ def mock_price_data() -> pd.DataFrame:
     """Create mock price data for testing."""
     dates = pd.date_range(end=datetime.now(), periods=300, freq="D")
     symbols = [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "META",
-        "NVDA", "TSLA", "AMD", "INTC", "ORCL",
-        "CRM", "ADBE", "PYPL", "NFLX", "UBER",
-        "LYFT", "SNAP", "PINS", "TWTR", "SPOT",
-        "ROKU", "ZM", "DOCU", "OKTA", "CRWD",
-        "NET", "DDOG", "MDB", "SNOW", "PLTR",
-        "COIN", "RBLX", "DASH", "ABNB", "U",
-        "PATH", "AFRM", "HOOD", "RIVN", "LCID",
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "META",
+        "NVDA",
+        "TSLA",
+        "AMD",
+        "INTC",
+        "ORCL",
+        "CRM",
+        "ADBE",
+        "PYPL",
+        "NFLX",
+        "UBER",
+        "LYFT",
+        "SNAP",
+        "PINS",
+        "TWTR",
+        "SPOT",
+        "ROKU",
+        "ZM",
+        "DOCU",
+        "OKTA",
+        "CRWD",
+        "NET",
+        "DDOG",
+        "MDB",
+        "SNOW",
+        "PLTR",
+        "COIN",
+        "RBLX",
+        "DASH",
+        "ABNB",
+        "U",
+        "PATH",
+        "AFRM",
+        "HOOD",
+        "RIVN",
+        "LCID",
     ]
 
     np.random.seed(42)
@@ -453,9 +539,7 @@ class TestConstructLongOnly:
 
     def test_long_only_basic(self, constructor_long_only, mock_scores_universe):
         """Test basic long-only construction."""
-        allocation = constructor_long_only._construct_long_only(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_only._construct_long_only(mock_scores_universe, None)
 
         assert allocation.n_long == 10  # n_stocks_per_side
         assert allocation.n_short == 0
@@ -465,18 +549,14 @@ class TestConstructLongOnly:
 
     def test_long_only_weights_sum_to_one(self, constructor_long_only, mock_scores_universe):
         """Test that long-only weights sum to 1.0."""
-        allocation = constructor_long_only._construct_long_only(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_only._construct_long_only(mock_scores_universe, None)
 
         total_weight = sum(p.weight for p in allocation.positions)
         assert abs(total_weight - 1.0) < 1e-6
 
     def test_long_only_all_positive_weights(self, constructor_long_only, mock_scores_universe):
         """Test that all positions have positive weights."""
-        allocation = constructor_long_only._construct_long_only(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_only._construct_long_only(mock_scores_universe, None)
 
         for pos in allocation.positions:
             assert pos.weight > 0
@@ -499,26 +579,22 @@ class TestConstructLongOnly:
 
     def test_long_only_selects_top_scores(self, constructor_long_only, mock_scores_universe):
         """Test that top scoring stocks are selected."""
-        allocation = constructor_long_only._construct_long_only(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_only._construct_long_only(mock_scores_universe, None)
 
         # Get the top 10 z-scores from the universe
         sorted_scores = sorted(
-            mock_scores_universe.items(),
-            key=lambda x: x[1].composite_z,
-            reverse=True
+            mock_scores_universe.items(), key=lambda x: x[1].composite_z, reverse=True
         )
         expected_symbols = {s[0] for s in sorted_scores[:10]}
         actual_symbols = {p.symbol for p in allocation.positions}
 
         assert actual_symbols == expected_symbols
 
-    def test_long_only_with_sectors(self, constructor_long_only, mock_scores_universe, mock_sectors):
+    def test_long_only_with_sectors(
+        self, constructor_long_only, mock_scores_universe, mock_sectors
+    ):
         """Test long-only construction with sector information."""
-        allocation = constructor_long_only._construct_long_only(
-            mock_scores_universe, mock_sectors
-        )
+        allocation = constructor_long_only._construct_long_only(mock_scores_universe, mock_sectors)
 
         # Check that sector info is attached to positions
         for pos in allocation.positions:
@@ -527,9 +603,7 @@ class TestConstructLongOnly:
 
     def test_long_only_factor_scores_attached(self, constructor_long_only, mock_scores_universe):
         """Test that factor scores are attached to positions."""
-        allocation = constructor_long_only._construct_long_only(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_only._construct_long_only(mock_scores_universe, None)
 
         for pos in allocation.positions:
             assert pos.factor_score is not None
@@ -541,9 +615,7 @@ class TestConstructLongShort:
 
     def test_long_short_basic(self, constructor_long_short, mock_scores_universe):
         """Test basic long-short construction."""
-        allocation = constructor_long_short._construct_long_short(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_short._construct_long_short(mock_scores_universe, None)
 
         assert allocation.n_long == 10
         assert allocation.n_short == 10
@@ -552,9 +624,7 @@ class TestConstructLongShort:
 
     def test_long_short_has_both_sides(self, constructor_long_short, mock_scores_universe):
         """Test that both long and short positions exist."""
-        allocation = constructor_long_short._construct_long_short(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_short._construct_long_short(mock_scores_universe, None)
 
         long_positions = [p for p in allocation.positions if p.weight > 0]
         short_positions = [p for p in allocation.positions if p.weight < 0]
@@ -564,9 +634,7 @@ class TestConstructLongShort:
 
     def test_long_short_short_weights_negative(self, constructor_long_short, mock_scores_universe):
         """Test that short positions have negative weights."""
-        allocation = constructor_long_short._construct_long_short(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_short._construct_long_short(mock_scores_universe, None)
 
         short_positions = [p for p in allocation.positions if p.side == "short"]
         for pos in short_positions:
@@ -574,14 +642,10 @@ class TestConstructLongShort:
 
     def test_long_short_selects_extremes(self, constructor_long_short, mock_scores_universe):
         """Test that top and bottom scoring stocks are selected."""
-        allocation = constructor_long_short._construct_long_short(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_short._construct_long_short(mock_scores_universe, None)
 
         sorted_scores = sorted(
-            mock_scores_universe.items(),
-            key=lambda x: x[1].composite_z,
-            reverse=True
+            mock_scores_universe.items(), key=lambda x: x[1].composite_z, reverse=True
         )
 
         expected_longs = {s[0] for s in sorted_scores[:10]}
@@ -593,7 +657,9 @@ class TestConstructLongShort:
         assert actual_longs == expected_longs
         assert actual_shorts == expected_shorts
 
-    def test_long_short_with_sectors(self, constructor_long_short, mock_scores_universe, mock_sectors):
+    def test_long_short_with_sectors(
+        self, constructor_long_short, mock_scores_universe, mock_sectors
+    ):
         """Test long-short construction with sector information."""
         allocation = constructor_long_short._construct_long_short(
             mock_scores_universe, mock_sectors
@@ -605,9 +671,7 @@ class TestConstructLongShort:
 
     def test_long_short_gross_exposure(self, constructor_long_short, mock_scores_universe):
         """Test gross exposure calculation."""
-        allocation = constructor_long_short._construct_long_short(
-            mock_scores_universe, None
-        )
+        allocation = constructor_long_short._construct_long_short(mock_scores_universe, None)
 
         calculated_gross = allocation.total_long_weight + allocation.total_short_weight
         assert abs(calculated_gross - allocation.gross_exposure) < 1e-6
@@ -638,7 +702,9 @@ class TestConstructMarketNeutral:
         assert abs(allocation.total_long_weight - 0.5) < 1e-6
         assert abs(allocation.total_short_weight - 0.5) < 1e-6
 
-    def test_market_neutral_gross_exposure_is_one(self, constructor_market_neutral, mock_scores_universe):
+    def test_market_neutral_gross_exposure_is_one(
+        self, constructor_market_neutral, mock_scores_universe
+    ):
         """Test that gross exposure is 1.0 for market neutral."""
         allocation = constructor_market_neutral._construct_market_neutral(
             mock_scores_universe, None
@@ -646,7 +712,9 @@ class TestConstructMarketNeutral:
 
         assert abs(allocation.gross_exposure - 1.0) < 1e-6
 
-    def test_market_neutral_weights_balanced(self, constructor_market_neutral, mock_scores_universe):
+    def test_market_neutral_weights_balanced(
+        self, constructor_market_neutral, mock_scores_universe
+    ):
         """Test that total long and short weights are balanced."""
         allocation = constructor_market_neutral._construct_market_neutral(
             mock_scores_universe, None
@@ -684,7 +752,9 @@ class TestConstructMarketNeutral:
 class TestConstructSectorNeutral:
     """Test _construct_sector_neutral method."""
 
-    def test_sector_neutral_basic(self, constructor_sector_neutral, mock_scores_universe, mock_sectors):
+    def test_sector_neutral_basic(
+        self, constructor_sector_neutral, mock_scores_universe, mock_sectors
+    ):
         """Test basic sector neutral construction."""
         allocation = constructor_sector_neutral._construct_sector_neutral(
             mock_scores_universe, mock_sectors
@@ -693,7 +763,9 @@ class TestConstructSectorNeutral:
         assert allocation.n_long > 0
         assert allocation.n_short > 0
 
-    def test_sector_neutral_falls_back_without_sectors(self, constructor_sector_neutral, mock_scores_universe):
+    def test_sector_neutral_falls_back_without_sectors(
+        self, constructor_sector_neutral, mock_scores_universe
+    ):
         """Test fallback to market neutral when no sectors provided."""
         allocation = constructor_sector_neutral._construct_sector_neutral(
             mock_scores_universe, None
@@ -702,7 +774,9 @@ class TestConstructSectorNeutral:
         # Should behave like market neutral
         assert abs(allocation.net_exposure) < 1e-6
 
-    def test_sector_neutral_has_both_sides(self, constructor_sector_neutral, mock_scores_universe, mock_sectors):
+    def test_sector_neutral_has_both_sides(
+        self, constructor_sector_neutral, mock_scores_universe, mock_sectors
+    ):
         """Test that sector neutral has both long and short."""
         allocation = constructor_sector_neutral._construct_sector_neutral(
             mock_scores_universe, mock_sectors
@@ -781,13 +855,17 @@ class TestConstruct:
         assert allocation.n_long > 0
         assert allocation.n_short > 0
 
-    def test_construct_routes_to_market_neutral(self, constructor_market_neutral, mock_scores_universe):
+    def test_construct_routes_to_market_neutral(
+        self, constructor_market_neutral, mock_scores_universe
+    ):
         """Test that construct routes to market neutral correctly."""
         allocation = constructor_market_neutral.construct(mock_scores_universe)
 
         assert abs(allocation.net_exposure) < 1e-6
 
-    def test_construct_routes_to_sector_neutral(self, constructor_sector_neutral, mock_scores_universe, mock_sectors):
+    def test_construct_routes_to_sector_neutral(
+        self, constructor_sector_neutral, mock_scores_universe, mock_sectors
+    ):
         """Test that construct routes to sector neutral correctly."""
         allocation = constructor_sector_neutral.construct(mock_scores_universe, mock_sectors)
 
@@ -827,7 +905,9 @@ class TestCalculateTurnover:
 
         assert abs(turnover) < 1e-6
 
-    def test_turnover_full_when_completely_different(self, constructor_long_short, mock_scores_universe):
+    def test_turnover_full_when_completely_different(
+        self, constructor_long_short, mock_scores_universe
+    ):
         """Test turnover when completely different positions."""
         allocation = constructor_long_short.construct(mock_scores_universe)
 
@@ -950,10 +1030,7 @@ class TestApplyTurnoverConstraint:
         )
 
         # Old positions should still have significant weight
-        old_weight = sum(
-            p.weight for p in result.positions
-            if p.symbol in existing
-        )
+        old_weight = sum(p.weight for p in result.positions if p.symbol in existing)
         assert old_weight > 0.5
 
     def test_constraint_filters_tiny_positions(self, constructor_long_short, mock_scores_universe):
@@ -1104,9 +1181,7 @@ class TestGenerateSignals:
             for symbol in symbols
         }
 
-        signals = await strategy.generate_signals(
-            symbols, mock_price_data, fundamental_data
-        )
+        signals = await strategy.generate_signals(symbols, mock_price_data, fundamental_data)
 
         assert len(signals) > 0
 
@@ -1116,14 +1191,9 @@ class TestGenerateSignals:
         strategy = FactorPortfolioStrategy()
         symbols = list(mock_price_data.columns)
 
-        market_caps = {
-            symbol: 1e9 * (1 + np.random.uniform(0, 100))
-            for symbol in symbols
-        }
+        market_caps = {symbol: 1e9 * (1 + np.random.uniform(0, 100)) for symbol in symbols}
 
-        signals = await strategy.generate_signals(
-            symbols, mock_price_data, market_caps=market_caps
-        )
+        signals = await strategy.generate_signals(symbols, mock_price_data, market_caps=market_caps)
 
         assert len(signals) > 0
 
@@ -1169,7 +1239,9 @@ class TestGetTargetAllocation:
         assert strategy._current_allocation is allocation
 
     @pytest.mark.asyncio
-    async def test_get_target_allocation_with_existing_positions(self, mock_price_data, mock_sectors):
+    async def test_get_target_allocation_with_existing_positions(
+        self, mock_price_data, mock_sectors
+    ):
         """Test allocation with existing positions."""
         strategy = FactorPortfolioStrategy(n_stocks=5)
         symbols = list(mock_price_data.columns)
@@ -1389,7 +1461,9 @@ class TestIntegration:
         existing = {p.symbol: p.weight for p in allocation1.positions}
 
         # Modify price data slightly
-        modified_prices = mock_price_data * (1 + np.random.uniform(-0.05, 0.05, mock_price_data.shape))
+        modified_prices = mock_price_data * (
+            1 + np.random.uniform(-0.05, 0.05, mock_price_data.shape)
+        )
         modified_prices.index = mock_price_data.index
 
         await strategy.generate_signals(symbols, modified_prices)

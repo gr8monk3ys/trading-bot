@@ -217,9 +217,7 @@ class TWAPExecutor:
 
                 # Execute slice
                 try:
-                    fill_price = await self._execute_slice(
-                        symbol, slice_qty, side
-                    )
+                    fill_price = await self._execute_slice(symbol, slice_qty, side)
 
                     if fill_price:
                         slice_result.executed_time = datetime.now()
@@ -265,9 +263,13 @@ class TWAPExecutor:
                 # Calculate slippage
                 if result.arrival_price > 0:
                     if side == "buy":
-                        slippage = (result.average_price - result.arrival_price) / result.arrival_price
+                        slippage = (
+                            result.average_price - result.arrival_price
+                        ) / result.arrival_price
                     else:
-                        slippage = (result.arrival_price - result.average_price) / result.arrival_price
+                        slippage = (
+                            result.arrival_price - result.average_price
+                        ) / result.arrival_price
 
                     result.total_slippage_pct = slippage
                     result.execution_cost_bps = slippage * 10000
@@ -399,7 +401,9 @@ class TWAPExecutor:
         logger.info(f"TWAP adaptive: urgency={urgency} -> {n_slices} slices, {interval}s intervals")
 
         return await self.execute(
-            symbol, quantity, side,
+            symbol,
+            quantity,
+            side,
             n_slices=n_slices,
             interval_seconds=interval,
         )
@@ -444,7 +448,9 @@ class TWAPExecutor:
 
         # Estimate participation rate
         slices_per_day = (6.5 * 60 * 60) / interval_seconds  # Trading day in seconds
-        daily_volume_participation = (slice_qty * slices_per_day) / avg_volume if avg_volume > 0 else 0
+        daily_volume_participation = (
+            (slice_qty * slices_per_day) / avg_volume if avg_volume > 0 else 0
+        )
 
         # Estimate market impact (simplified model)
         # Impact = 0.1% * sqrt(participation_rate)
@@ -538,8 +544,7 @@ class VWAPExecutor(TWAPExecutor):
             slice_quantities.append(max(0, slice_qty))
 
         logger.info(
-            f"VWAP: Slice distribution for {symbol}: "
-            f"{[f'{q}' for q in slice_quantities]}"
+            f"VWAP: Slice distribution for {symbol}: " f"{[f'{q}' for q in slice_quantities]}"
         )
 
         # Execute with custom slice quantities
@@ -626,9 +631,7 @@ class VWAPExecutor(TWAPExecutor):
 
         return result
 
-    async def _get_volume_profile(
-        self, symbol: str, n_slices: int
-    ) -> List[float]:
+    async def _get_volume_profile(self, symbol: str, n_slices: int) -> List[float]:
         """
         Get normalized volume weights based on historical patterns.
 
@@ -636,9 +639,7 @@ class VWAPExecutor(TWAPExecutor):
         """
         try:
             # Get intraday volume data
-            bars = await self.broker.get_bars(
-                symbol, timeframe="1Hour", limit=n_slices * 5
-            )
+            bars = await self.broker.get_bars(symbol, timeframe="1Hour", limit=n_slices * 5)
 
             if not bars or len(bars) < n_slices:
                 # Fallback to equal weights

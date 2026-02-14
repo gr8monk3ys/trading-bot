@@ -439,7 +439,9 @@ class PartialFillTracker:
             "filled_qty": record.filled_qty,
             "unfilled_qty": record.unfilled_qty,
             "avg_fill_price": record.avg_fill_price,
-            "fill_rate": record.filled_qty / record.requested_qty if record.requested_qty > 0 else 0,
+            "fill_rate": (
+                record.filled_qty / record.requested_qty if record.requested_qty > 0 else 0
+            ),
             "status": record.status,
             "fills_count": len(record.fills),
             "resubmit_attempts": record.resubmit_attempts,

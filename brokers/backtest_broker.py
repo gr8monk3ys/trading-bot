@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GapEvent:
     """Record of an overnight gap event affecting a position."""
+
     symbol: str
     date: datetime
     prev_close: float
@@ -31,6 +32,7 @@ class GapEvent:
 @dataclass
 class GapStatistics:
     """Aggregate gap statistics for analysis."""
+
     total_gaps: int
     gaps_exceeding_2pct: int
     stops_gapped_through: int
@@ -174,18 +176,19 @@ class BacktestBroker:
         try:
             # Normalize date for comparison
             import pytz
-            if hasattr(date, 'tzinfo') and date.tzinfo is None:
+
+            if hasattr(date, "tzinfo") and date.tzinfo is None:
                 date = date.replace(tzinfo=pytz.UTC)
 
             # Get volume data up to (but not including) current date to avoid look-ahead
             try:
-                historical_volume = df[df.index < date]['volume']
+                historical_volume = df[df.index < date]["volume"]
             except TypeError:
                 # Handle timezone issues
                 df_naive = df.copy()
                 df_naive.index = df_naive.index.tz_localize(None)
-                date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') else date
-                historical_volume = df_naive[df_naive.index < date_naive]['volume']
+                date_naive = date.replace(tzinfo=None) if hasattr(date, "tzinfo") else date
+                historical_volume = df_naive[df_naive.index < date_naive]["volume"]
 
             if len(historical_volume) == 0:
                 return 1000000.0
@@ -226,7 +229,8 @@ class BacktestBroker:
         try:
             # Get historical data (avoid look-ahead)
             import pytz
-            if hasattr(date, 'tzinfo') and date.tzinfo is None:
+
+            if hasattr(date, "tzinfo") and date.tzinfo is None:
                 date = date.replace(tzinfo=pytz.UTC)
 
             try:
@@ -234,14 +238,14 @@ class BacktestBroker:
             except TypeError:
                 df_naive = df.copy()
                 df_naive.index = df_naive.index.tz_localize(None)
-                date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') else date
+                date_naive = date.replace(tzinfo=None) if hasattr(date, "tzinfo") else date
                 historical = df_naive[df_naive.index < date_naive]
 
             if len(historical) < 10:
                 return base_spread_bps
 
             # Factor 1: Volume-based liquidity (lower volume = wider spread)
-            avg_volume = historical['volume'].tail(20).mean()
+            avg_volume = historical["volume"].tail(20).mean()
             volume_factor = 1.0
             if avg_volume < 500000:
                 volume_factor = 2.0  # Low liquidity
@@ -251,7 +255,7 @@ class BacktestBroker:
                 volume_factor = 0.7  # Very liquid
 
             # Factor 2: Price-based (lower price = wider spread as % of price)
-            price = historical['close'].iloc[-1]
+            price = historical["close"].iloc[-1]
             price_factor = 1.0
             if price < 10:
                 price_factor = 2.0  # Penny stock territory
@@ -261,7 +265,7 @@ class BacktestBroker:
                 price_factor = 0.8  # High-price stocks often more liquid
 
             # Factor 3: Volatility (higher volatility = wider spread)
-            returns = historical['close'].pct_change().tail(20)
+            returns = historical["close"].pct_change().tail(20)
             volatility = returns.std() * np.sqrt(252)  # Annualized
             vol_factor = 1.0
             if volatility > 0.50:
@@ -290,7 +294,8 @@ class BacktestBroker:
 
         try:
             import pytz
-            if hasattr(date, 'tzinfo') and date.tzinfo is None:
+
+            if hasattr(date, "tzinfo") and date.tzinfo is None:
                 date = date.replace(tzinfo=pytz.UTC)
 
             try:
@@ -298,13 +303,13 @@ class BacktestBroker:
             except TypeError:
                 df_naive = df.copy()
                 df_naive.index = df_naive.index.tz_localize(None)
-                date_naive = date.replace(tzinfo=None) if hasattr(date, 'tzinfo') else date
+                date_naive = date.replace(tzinfo=None) if hasattr(date, "tzinfo") else date
                 historical = df_naive[df_naive.index < date_naive]
 
             if len(historical) < 20:
                 return 0.30
 
-            returns = historical['close'].pct_change().tail(20).dropna()
+            returns = historical["close"].pct_change().tail(20).dropna()
             return float(returns.std() * np.sqrt(252))
 
         except Exception:
@@ -818,7 +823,9 @@ class BacktestBroker:
     # GAP RISK MODELING - INSTITUTIONAL GRADE
     # =========================================================================
 
-    def set_stop_order(self, symbol: str, stop_price: float, quantity: int, side: str = "sell") -> None:
+    def set_stop_order(
+        self, symbol: str, stop_price: float, quantity: int, side: str = "sell"
+    ) -> None:
         """
         Register a stop order for gap risk tracking.
 

@@ -249,10 +249,7 @@ class PaperTradingMonitor:
             self.state.peak_equity = self.state.current_equity
 
         # Update drawdown
-        current_dd = (
-            (self.state.peak_equity - self.state.current_equity)
-            / self.state.peak_equity
-        )
+        current_dd = (self.state.peak_equity - self.state.current_equity) / self.state.peak_equity
         if current_dd > self.state.max_drawdown:
             self.state.max_drawdown = current_dd
 
@@ -276,20 +273,13 @@ class PaperTradingMonitor:
         # Calculate today's stats
         today_pnl = sum(t.pnl for t in self._today_trades)
         today_slippage = (
-            np.mean([t.slippage_pct for t in self._today_trades])
-            if self._today_trades
-            else 0
+            np.mean([t.slippage_pct for t in self._today_trades]) if self._today_trades else 0
         )
-        fill_rate = (
-            len(self._today_trades) / self._signals_today
-            if self._signals_today > 0
-            else 0
-        )
+        fill_rate = len(self._today_trades) / self._signals_today if self._signals_today > 0 else 0
 
         # Calculate drawdown
         current_dd = (
-            (self.state.peak_equity - self.state.current_equity)
-            / self.state.peak_equity
+            (self.state.peak_equity - self.state.current_equity) / self.state.peak_equity
             if self.state.peak_equity > 0
             else 0
         )
@@ -439,9 +429,7 @@ class PaperTradingMonitor:
 
         if total_return <= 0:
             result["ready"] = False
-            result["blockers"].append(
-                f"Paper trading is not profitable: {total_return:.1%} return"
-            )
+            result["blockers"].append(f"Paper trading is not profitable: {total_return:.1%} return")
 
         # 4. Maximum drawdown
         result["metrics"]["max_drawdown"] = self.state.max_drawdown
@@ -481,20 +469,13 @@ class PaperTradingMonitor:
 
             # Warn if slippage is high but don't block
             if avg_slippage > 0.005:  # 0.5%
-                result["warnings"].append(
-                    f"Average slippage is high: {avg_slippage:.2%}"
-                )
+                result["warnings"].append(f"Average slippage is high: {avg_slippage:.2%}")
 
         # 7. No circuit breaker triggers (check for large single-day losses)
         if self.state.daily_stats:
-            max_daily_loss = min(
-                s.get("pnl", 0)
-                for s in self.state.daily_stats
-            )
+            max_daily_loss = min(s.get("pnl", 0) for s in self.state.daily_stats)
             if max_daily_loss < -0.03 * self.state.initial_equity:  # 3% loss
-                result["warnings"].append(
-                    f"Had a large daily loss: ${max_daily_loss:,.2f}"
-                )
+                result["warnings"].append(f"Had a large daily loss: ${max_daily_loss:,.2f}")
 
         return result
 
@@ -508,16 +489,12 @@ class PaperTradingMonitor:
             "days_trading": days_trading,
             "initial_equity": self.state.initial_equity,
             "current_equity": self.state.current_equity,
-            "total_return": (
-                self.state.current_equity / self.state.initial_equity - 1
-            ),
+            "total_return": (self.state.current_equity / self.state.initial_equity - 1),
             "total_trades": self.state.total_trades,
             "total_pnl": self.state.total_pnl,
             "max_drawdown": self.state.max_drawdown,
             "avg_trade_pnl": (
-                self.state.total_pnl / self.state.total_trades
-                if self.state.total_trades > 0
-                else 0
+                self.state.total_pnl / self.state.total_trades if self.state.total_trades > 0 else 0
             ),
         }
 

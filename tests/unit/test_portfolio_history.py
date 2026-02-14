@@ -105,7 +105,11 @@ def create_mock_drawdown_history(
             eq = peak_equity - (peak_equity - trough_equity) * progress
         else:
             # Recovery
-            progress = (i - trough_day) / (num_points - trough_day - 1) if num_points > trough_day + 1 else 1
+            progress = (
+                (i - trough_day) / (num_points - trough_day - 1)
+                if num_points > trough_day + 1
+                else 1
+            )
             eq = trough_equity + (peak_equity - trough_equity) * progress * 0.5
         equity.append(eq)
 
@@ -138,9 +142,7 @@ class TestGetPortfolioHistory:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_portfolio_history_success(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_portfolio_history_success(self, mock_trading, mock_data, mock_stream):
         """Should return portfolio history with default parameters."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -165,9 +167,7 @@ class TestGetPortfolioHistory:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_portfolio_history_with_period(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_portfolio_history_with_period(self, mock_trading, mock_data, mock_stream):
         """Should pass period parameter to API."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -184,9 +184,7 @@ class TestGetPortfolioHistory:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_portfolio_history_with_timeframe(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_portfolio_history_with_timeframe(self, mock_trading, mock_data, mock_stream):
         """Should pass timeframe parameter to API."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -214,9 +212,7 @@ class TestGetPortfolioHistory:
         broker = AlpacaBroker(paper=True)
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 3, 1)
-        result = await broker.get_portfolio_history(
-            date_start=start_date, date_end=end_date
-        )
+        result = await broker.get_portfolio_history(date_start=start_date, date_end=end_date)
 
         assert result is not None
 
@@ -224,9 +220,7 @@ class TestGetPortfolioHistory:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_portfolio_history_extended_hours(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_portfolio_history_extended_hours(self, mock_trading, mock_data, mock_stream):
         """Should include extended hours when specified."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -248,9 +242,7 @@ class TestGetPortfolioHistory:
         """Should return None on API error."""
         from brokers.alpaca_broker import AlpacaBroker
 
-        mock_trading.return_value.get_portfolio_history.side_effect = Exception(
-            "API error"
-        )
+        mock_trading.return_value.get_portfolio_history.side_effect = Exception("API error")
 
         broker = AlpacaBroker(paper=True)
         result = await broker.get_portfolio_history()
@@ -319,9 +311,7 @@ class TestGetEquityCurve:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_equity_curve_custom_days(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_equity_curve_custom_days(self, mock_trading, mock_data, mock_stream):
         """Should request appropriate period for custom days."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -337,9 +327,7 @@ class TestGetEquityCurve:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_equity_curve_period_mapping(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_equity_curve_period_mapping(self, mock_trading, mock_data, mock_stream):
         """Should map days to correct period strings."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -362,9 +350,7 @@ class TestGetEquityCurve:
         """Should return empty list on error."""
         from brokers.alpaca_broker import AlpacaBroker
 
-        mock_trading.return_value.get_portfolio_history.side_effect = Exception(
-            "API error"
-        )
+        mock_trading.return_value.get_portfolio_history.side_effect = Exception("API error")
 
         broker = AlpacaBroker(paper=True)
         result = await broker.get_equity_curve()
@@ -408,9 +394,7 @@ class TestGetPerformanceSummary:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_performance_summary_success(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_performance_summary_success(self, mock_trading, mock_data, mock_stream):
         """Should return complete performance summary."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -473,9 +457,7 @@ class TestGetPerformanceSummary:
         """Should return None on API error."""
         from brokers.alpaca_broker import AlpacaBroker
 
-        mock_trading.return_value.get_portfolio_history.side_effect = Exception(
-            "API error"
-        )
+        mock_trading.return_value.get_portfolio_history.side_effect = Exception("API error")
 
         broker = AlpacaBroker(paper=True)
         result = await broker.get_performance_summary()
@@ -559,9 +541,7 @@ class TestCalculateMaxDrawdown:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    def test_calculate_max_drawdown_no_drawdown(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    def test_calculate_max_drawdown_no_drawdown(self, mock_trading, mock_data, mock_stream):
         """Should return 0 for monotonically increasing equity."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -575,9 +555,7 @@ class TestCalculateMaxDrawdown:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    def test_calculate_max_drawdown_empty_list(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    def test_calculate_max_drawdown_empty_list(self, mock_trading, mock_data, mock_stream):
         """Should return 0 for empty equity list."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -590,9 +568,7 @@ class TestCalculateMaxDrawdown:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    def test_calculate_max_drawdown_with_none_values(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    def test_calculate_max_drawdown_with_none_values(self, mock_trading, mock_data, mock_stream):
         """Should filter None values and calculate correctly."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -620,9 +596,7 @@ class TestCalculateMaxDrawdown:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    def test_calculate_max_drawdown_multiple_drawdowns(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    def test_calculate_max_drawdown_multiple_drawdowns(self, mock_trading, mock_data, mock_stream):
         """Should return the maximum of multiple drawdowns."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -664,9 +638,7 @@ class TestGetIntradayEquity:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_intraday_equity_default(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_intraday_equity_default(self, mock_trading, mock_data, mock_stream):
         """Should return intraday equity with default 1H timeframe."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -684,9 +656,7 @@ class TestGetIntradayEquity:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_intraday_equity_custom_timeframe(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_intraday_equity_custom_timeframe(self, mock_trading, mock_data, mock_stream):
         """Should use custom timeframe."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -711,9 +681,7 @@ class TestGetHistoricalPerformance:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_historical_performance_success(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_get_historical_performance_success(self, mock_trading, mock_data, mock_stream):
         """Should return historical performance for date range."""
         from brokers.alpaca_broker import AlpacaBroker
 
@@ -764,9 +732,7 @@ class TestGetHistoricalPerformance:
         broker = AlpacaBroker(paper=True)
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 6, 1)
-        result = await broker.get_historical_performance(
-            start_date, end_date, timeframe="1H"
-        )
+        result = await broker.get_historical_performance(start_date, end_date, timeframe="1H")
 
         assert result is not None
 

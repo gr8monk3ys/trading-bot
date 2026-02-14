@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # Try to import ib_insync (optional dependency)
 try:
     from ib_insync import IB, Contract, LimitOrder, MarketOrder, StopOrder, Trade
+
     IB_AVAILABLE = True
 except ImportError:
     IB_AVAILABLE = False
@@ -96,9 +97,7 @@ class InteractiveBrokersBroker(BrokerInterface):
         self._is_paper = port == 7497
 
         if not IB_AVAILABLE:
-            logger.error(
-                "ib_insync not installed. Install with: pip install ib_insync"
-            )
+            logger.error("ib_insync not installed. Install with: pip install ib_insync")
 
     @property
     def name(self) -> str:
@@ -208,18 +207,20 @@ class InteractiveBrokersBroker(BrokerInterface):
                 current_price = pos.avgCost  # Placeholder
                 market_value = pos.position * current_price
 
-                positions.append(Position(
-                    symbol=pos.contract.symbol,
-                    quantity=pos.position,
-                    avg_entry_price=pos.avgCost,
-                    market_value=market_value,
-                    unrealized_pnl=0.0,  # Would need market data
-                    unrealized_pnl_pct=0.0,
-                    current_price=current_price,
-                    cost_basis=abs(pos.position * pos.avgCost),
-                    asset_class=self._ib_sec_type_to_asset_class(pos.contract.secType),
-                    broker_name=self.name,
-                ))
+                positions.append(
+                    Position(
+                        symbol=pos.contract.symbol,
+                        quantity=pos.position,
+                        avg_entry_price=pos.avgCost,
+                        market_value=market_value,
+                        unrealized_pnl=0.0,  # Would need market data
+                        unrealized_pnl_pct=0.0,
+                        current_price=current_price,
+                        cost_basis=abs(pos.position * pos.avgCost),
+                        asset_class=self._ib_sec_type_to_asset_class(pos.contract.secType),
+                        broker_name=self.name,
+                    )
+                )
 
             return positions
 

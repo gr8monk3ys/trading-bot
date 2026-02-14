@@ -62,12 +62,14 @@ class TestCalculateMetrics:
         from engine.performance_metrics import PerformanceMetrics
 
         metrics = PerformanceMetrics()
-        result = metrics.calculate_metrics({
-            "equity_curve": [100000, 105000, 110000, 115000, 120000],
-            "trades": [],
-            "start_date": datetime(2024, 1, 1),
-            "end_date": datetime(2024, 12, 31),
-        })
+        result = metrics.calculate_metrics(
+            {
+                "equity_curve": [100000, 105000, 110000, 115000, 120000],
+                "trades": [],
+                "start_date": datetime(2024, 1, 1),
+                "end_date": datetime(2024, 12, 31),
+            }
+        )
 
         assert result["total_return"] == pytest.approx(0.20, rel=0.01)
         assert result["final_equity"] == 120000
@@ -77,12 +79,14 @@ class TestCalculateMetrics:
         from engine.performance_metrics import PerformanceMetrics
 
         metrics = PerformanceMetrics()
-        result = metrics.calculate_metrics({
-            "equity_curve": [100000, 95000, 90000, 85000],
-            "trades": [],
-            "start_date": datetime(2024, 1, 1),
-            "end_date": datetime(2024, 12, 31),
-        })
+        result = metrics.calculate_metrics(
+            {
+                "equity_curve": [100000, 95000, 90000, 85000],
+                "trades": [],
+                "start_date": datetime(2024, 1, 1),
+                "end_date": datetime(2024, 12, 31),
+            }
+        )
 
         assert result["total_return"] < 0
 
@@ -99,12 +103,14 @@ class TestCalculateMetrics:
             {"pnl": -150},
         ]
 
-        result = metrics.calculate_metrics({
-            "equity_curve": [100000, 100500, 100300, 100600, 100700, 100550],
-            "trades": trades,
-            "start_date": datetime(2024, 1, 1),
-            "end_date": datetime(2024, 6, 30),
-        })
+        result = metrics.calculate_metrics(
+            {
+                "equity_curve": [100000, 100500, 100300, 100600, 100700, 100550],
+                "trades": trades,
+                "start_date": datetime(2024, 1, 1),
+                "end_date": datetime(2024, 6, 30),
+            }
+        )
 
         assert result["trade_count"] == 5
         assert result["win_rate"] == 0.6  # 3 wins out of 5
@@ -417,9 +423,9 @@ class TestProfitFactor:
 
         metrics = PerformanceMetrics()
         trades = [
-            {"pnl": 200},   # Win
+            {"pnl": 200},  # Win
             {"pnl": -100},  # Loss
-            {"pnl": 100},   # Win
+            {"pnl": 100},  # Win
         ]
 
         result = metrics._calculate_profit_factor(trades)
@@ -504,12 +510,14 @@ class TestAnalyzeStrategy:
         from engine.performance_metrics import PerformanceMetrics
 
         metrics = PerformanceMetrics()
-        result = metrics.analyze_strategy({
-            "equity_curve": [100000, 110000, 120000],
-            "trades": [{"pnl": 5000}, {"pnl": 5000}],
-            "start_date": datetime(2024, 1, 1),
-            "end_date": datetime(2024, 12, 31),
-        })
+        result = metrics.analyze_strategy(
+            {
+                "equity_curve": [100000, 110000, 120000],
+                "trades": [{"pnl": 5000}, {"pnl": 5000}],
+                "start_date": datetime(2024, 1, 1),
+                "end_date": datetime(2024, 12, 31),
+            }
+        )
 
         assert "metrics" in result
         assert "insights" in result
@@ -524,7 +532,13 @@ class TestGenerateInsights:
         from engine.performance_metrics import PerformanceMetrics
 
         metrics_calc = PerformanceMetrics()
-        metrics = {"total_return": -0.05, "max_drawdown": 0.1, "sharpe_ratio": -0.5, "win_rate": 0.3, "profit_factor": 0.8}
+        metrics = {
+            "total_return": -0.05,
+            "max_drawdown": 0.1,
+            "sharpe_ratio": -0.5,
+            "win_rate": 0.3,
+            "profit_factor": 0.8,
+        }
 
         insights = metrics_calc._generate_insights(metrics)
 
@@ -535,7 +549,13 @@ class TestGenerateInsights:
         from engine.performance_metrics import PerformanceMetrics
 
         metrics_calc = PerformanceMetrics()
-        metrics = {"total_return": 0.10, "max_drawdown": 0.25, "sharpe_ratio": 1.0, "win_rate": 0.5, "profit_factor": 1.2}
+        metrics = {
+            "total_return": 0.10,
+            "max_drawdown": 0.25,
+            "sharpe_ratio": 1.0,
+            "win_rate": 0.5,
+            "profit_factor": 1.2,
+        }
 
         insights = metrics_calc._generate_insights(metrics)
 
@@ -546,11 +566,19 @@ class TestGenerateInsights:
         from engine.performance_metrics import PerformanceMetrics
 
         metrics_calc = PerformanceMetrics()
-        metrics = {"total_return": 0.20, "max_drawdown": 0.05, "sharpe_ratio": 2.5, "win_rate": 0.6, "profit_factor": 2.0}
+        metrics = {
+            "total_return": 0.20,
+            "max_drawdown": 0.05,
+            "sharpe_ratio": 2.5,
+            "win_rate": 0.6,
+            "profit_factor": 2.0,
+        }
 
         insights = metrics_calc._generate_insights(metrics)
 
-        assert any("strong" in insight.lower() or "high sharpe" in insight.lower() for insight in insights)
+        assert any(
+            "strong" in insight.lower() or "high sharpe" in insight.lower() for insight in insights
+        )
 
 
 class TestCompareStrategies:
@@ -571,14 +599,16 @@ class TestCompareStrategies:
         from engine.performance_metrics import PerformanceMetrics
 
         metrics = PerformanceMetrics()
-        result = metrics.compare_strategies({
-            "StrategyA": {
-                "equity_curve": [100000, 110000],
-                "trades": [],
-                "start_date": datetime(2024, 1, 1),
-                "end_date": datetime(2024, 12, 31),
+        result = metrics.compare_strategies(
+            {
+                "StrategyA": {
+                    "equity_curve": [100000, 110000],
+                    "trades": [],
+                    "start_date": datetime(2024, 1, 1),
+                    "end_date": datetime(2024, 12, 31),
+                }
             }
-        })
+        )
 
         assert "metrics" in result
         assert "rankings" in result
@@ -589,21 +619,26 @@ class TestCompareStrategies:
         from engine.performance_metrics import PerformanceMetrics
 
         metrics = PerformanceMetrics()
-        result = metrics.compare_strategies({
-            "StrategyA": {
-                "equity_curve": [100000, 120000],
-                "trades": [{"pnl": 10000}, {"pnl": 10000}],
-                "start_date": datetime(2024, 1, 1),
-                "end_date": datetime(2024, 12, 31),
-            },
-            "StrategyB": {
-                "equity_curve": [100000, 105000],
-                "trades": [{"pnl": 2500}, {"pnl": 2500}],
-                "start_date": datetime(2024, 1, 1),
-                "end_date": datetime(2024, 12, 31),
-            },
-        })
+        result = metrics.compare_strategies(
+            {
+                "StrategyA": {
+                    "equity_curve": [100000, 120000],
+                    "trades": [{"pnl": 10000}, {"pnl": 10000}],
+                    "start_date": datetime(2024, 1, 1),
+                    "end_date": datetime(2024, 12, 31),
+                },
+                "StrategyB": {
+                    "equity_curve": [100000, 105000],
+                    "trades": [{"pnl": 2500}, {"pnl": 2500}],
+                    "start_date": datetime(2024, 1, 1),
+                    "end_date": datetime(2024, 12, 31),
+                },
+            }
+        )
 
         # StrategyA should rank higher (better returns)
-        assert result["metrics"]["StrategyA"]["total_return"] > result["metrics"]["StrategyB"]["total_return"]
+        assert (
+            result["metrics"]["StrategyA"]["total_return"]
+            > result["metrics"]["StrategyB"]["total_return"]
+        )
         assert len(result["overall_ranking"]) == 2
