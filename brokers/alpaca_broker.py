@@ -4,7 +4,7 @@ import os
 import random
 from datetime import datetime, timedelta
 from functools import wraps
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
@@ -201,8 +201,13 @@ class AlpacaBroker:
     ORDER_API_TIMEOUT = 15.0
 
     async def _async_call_with_timeout(
-        self, func, *args, timeout: float = None, operation_name: str = "API call", **kwargs
-    ):
+        self,
+        func,
+        *args,
+        timeout: Optional[float] = None,
+        operation_name: str = "API call",
+        **kwargs,
+    ) -> Any:
         """
         Execute a sync function in a thread pool with timeout protection.
 
@@ -247,8 +252,8 @@ class AlpacaBroker:
             )
 
             # Initialize position tracking
-            self._filled_positions = []
-            self._subscribers = set()
+            self._filled_positions: List[Any] = []
+            self._subscribers: set[object] = set()
             self._ws_lock = asyncio.Lock()
             self._ws_task = None
             self._connected = False
@@ -282,8 +287,8 @@ class AlpacaBroker:
             self.data_client = StockHistoricalDataClient(api_key=_api_key, secret_key=_api_secret)
 
             # Crypto clients (lazy initialized to avoid unnecessary connections)
-            self._crypto_data_client = None
-            self._crypto_stream = None
+            self._crypto_data_client: Optional[CryptoHistoricalDataClient] = None
+            self._crypto_stream: Optional[CryptoDataStream] = None
 
             # Initialize the stream for WebSockets (stocks)
             self.stream = StockDataStream(
@@ -292,17 +297,17 @@ class AlpacaBroker:
                 url_override="https://paper-api.alpaca.markets/stream" if self.paper else None,
             )
 
-            self._subscribed_symbols = set()  # Keep track of subscribed symbols
+            self._subscribed_symbols: set[str] = set()  # Keep track of subscribed symbols
 
             # Performance optimization: TTL-based price cache to reduce API calls
-            self._price_cache = {}  # {symbol: (price, timestamp)}
+            self._price_cache: Dict[str, tuple[float, datetime]] = {}  # {symbol: (price, ts)}
             self._price_cache_ttl = timedelta(seconds=5)  # Cache prices for 5 seconds
 
             # INSTITUTIONAL SAFETY: Gateway enforcement flag
             # When True, direct calls to submit_order_advanced() will raise GatewayBypassError
             # All orders must route through OrderGateway for safety checks
-            self._gateway_required = False  # Set to True after OrderGateway is initialized
-            self._gateway_caller_token = None  # Token for authorized gateway calls
+            self._gateway_required: bool = False  # Set to True after OrderGateway is initialized
+            self._gateway_caller_token: Optional[str] = None  # Token for authorized gateway calls
 
             # INSTITUTIONAL SAFETY: Partial fill tracking
             # Tracks order fills and handles unfilled quantities
@@ -314,7 +319,7 @@ class AlpacaBroker:
 
             # Audit log (optional)
             self._audit_log = audit_log
-            self._order_metadata: Dict[str, Dict] = {}
+            self._order_metadata: Dict[str, Dict[str, Any]] = {}
             self._lifecycle_tracker: Optional[OrderLifecycleTracker] = None
             self._position_manager = None
 
@@ -355,11 +360,13 @@ class AlpacaBroker:
         Returns:
             CryptoHistoricalDataClient instance
         """
-        if self._crypto_data_client is None:
+        client = self._crypto_data_client
+        if client is None:
             # Crypto data client does not require authentication for public data
-            self._crypto_data_client = CryptoHistoricalDataClient()
+            client = CryptoHistoricalDataClient()
+            self._crypto_data_client = client
             logger.info("Initialized crypto data client")
-        return self._crypto_data_client
+        return client
 
     def is_crypto(self, symbol: str) -> bool:
         """
@@ -1138,7 +1145,7 @@ class AlpacaBroker:
             True if order passes liquidity check
         """
         impact = await self._calculate_market_impact(symbol, qty, "buy")
-        return impact["safe_to_trade"]
+        return bool(impact["safe_to_trade"])
 
     async def get_expected_slippage(self, symbol: str, qty: float, side: str) -> float:
         """
@@ -1153,7 +1160,7 @@ class AlpacaBroker:
             Expected slippage as decimal (e.g., 0.005 = 0.5%)
         """
         impact = await self._calculate_market_impact(symbol, qty, side)
-        return impact["expected_slippage_pct"]
+        return float(impact["expected_slippage_pct"])
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def submit_order(self, order):
@@ -1217,10 +1224,11 @@ class AlpacaBroker:
         """
         import secrets
 
-        self._gateway_caller_token = secrets.token_hex(16)
+        token = secrets.token_hex(16)
+        self._gateway_caller_token = token
         self._gateway_required = True
         logger.info("🔒 GATEWAY ENFORCEMENT ENABLED: All orders must route through OrderGateway")
-        return self._gateway_caller_token
+        return token
 
     def disable_gateway_requirement(self):
         """
@@ -1521,7 +1529,7 @@ class AlpacaBroker:
         """
         try:
             # Build replacement request with provided parameters
-            replace_params = {}
+            replace_params: Dict[str, Any] = {}
             if qty is not None:
                 replace_params["qty"] = float(qty)
             if limit_price is not None:
@@ -1679,7 +1687,7 @@ class AlpacaBroker:
                 operation_name=f"get_last_prices({len(validated_symbols)} symbols)",
             )
 
-            result = {}
+            result: Dict[str, Optional[float]] = {}
             now = datetime.now()
             for symbol in validated_symbols:
                 if symbol in response:
@@ -1695,10 +1703,10 @@ class AlpacaBroker:
 
         except ValueError as e:
             logger.error(f"Invalid symbol in batch: {e}")
-            return dict.fromkeys(symbols)
+            return cast(Dict[str, Optional[float]], dict.fromkeys(symbols, None))
         except Exception as e:
             logger.error(f"Error fetching batch prices for {symbols}: {e}", exc_info=DEBUG_MODE)
-            return dict.fromkeys(symbols)
+            return cast(Dict[str, Optional[float]], dict.fromkeys(symbols, None))
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_bars(self, symbol, timeframe=TimeFrame.Day, limit=100, start=None, end=None):
@@ -1845,8 +1853,8 @@ class AlpacaBroker:
         self,
         symbol: str,
         timeframe: str = "1Min",
-        start: datetime = None,
-        end: datetime = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
         limit: int = 100,
     ) -> List[dict]:
         """
@@ -2029,10 +2037,10 @@ class AlpacaBroker:
         self,
         symbol: str,
         side: str,
-        qty: float = None,
-        notional: float = None,
+        qty: Optional[float] = None,
+        notional: Optional[float] = None,
         order_type: str = "market",
-        limit_price: float = None,
+        limit_price: Optional[float] = None,
         time_in_force: str = "gtc",
     ) -> Optional[dict]:
         """
@@ -2080,6 +2088,7 @@ class AlpacaBroker:
             tif = tif_map.get(time_in_force.lower(), TimeInForce.GTC)
 
             # Build order request
+            request: Any
             if order_type.lower() == "market":
                 if notional is not None:
                     # Notional order (dollar amount)
@@ -2091,6 +2100,8 @@ class AlpacaBroker:
                     )
                 else:
                     # Quantity order
+                    if qty is None:
+                        raise ValueError("qty required for quantity-based market orders")
                     request = MarketOrderRequest(
                         symbol=symbol,
                         qty=float(qty),
@@ -2103,6 +2114,8 @@ class AlpacaBroker:
                     raise ValueError("limit_price required for limit orders")
                 if notional is not None:
                     raise ValueError("Limit orders do not support notional, use qty instead")
+                if qty is None:
+                    raise ValueError("qty required for limit orders")
 
                 request = LimitOrderRequest(
                     symbol=symbol,
@@ -2165,13 +2178,14 @@ class AlpacaBroker:
         # Normalize all symbols
         normalized_symbols = [self.normalize_crypto_symbol(s) for s in symbols]
 
-        self._crypto_stream = CryptoDataStream(
+        stream = CryptoDataStream(
             api_key=self._api_key,
             secret_key=self._api_secret,
         )
+        self._crypto_stream = stream
 
         logger.info(f"Setup crypto stream for symbols: {normalized_symbols}")
-        return self._crypto_stream
+        return stream
 
     async def get_crypto_positions(self) -> List[dict]:
         """
@@ -2478,21 +2492,20 @@ class AlpacaBroker:
         try:
             from alpaca.trading.requests import GetPortfolioHistoryRequest
 
-            # Build request parameters
-            request_params = {
-                "timeframe": timeframe,
-                "extended_hours": extended_hours,
-            }
-
             # Use date_start/date_end if provided, otherwise use period
-            if date_start:
-                request_params["date_start"] = date_start.strftime("%Y-%m-%d")
-                if date_end:
-                    request_params["date_end"] = date_end.strftime("%Y-%m-%d")
+            if date_start is not None:
+                request = GetPortfolioHistoryRequest(
+                    timeframe=timeframe,
+                    extended_hours=extended_hours,
+                    start=date_start,
+                    end=date_end,
+                )
             else:
-                request_params["period"] = period
-
-            request = GetPortfolioHistoryRequest(**request_params)
+                request = GetPortfolioHistoryRequest(
+                    timeframe=timeframe,
+                    extended_hours=extended_hours,
+                    period=period,
+                )
 
             # Execute API call with timeout protection (data-heavy operation)
             history = await self._async_call_with_timeout(
@@ -2696,11 +2709,12 @@ class AlpacaBroker:
             if intraday:
                 print(f"Current P&L: ${intraday['profit_loss'][-1]:,.2f}")
         """
-        return await self.get_portfolio_history(
+        history = await self.get_portfolio_history(
             period="1D",
             timeframe=timeframe,
             extended_hours=True,
         )
+        return cast(Optional[dict], history)
 
     async def get_historical_performance(
         self,
@@ -2728,9 +2742,10 @@ class AlpacaBroker:
             if history:
                 print(f"6-month equity data: {len(history['equity'])} points")
         """
-        return await self.get_portfolio_history(
+        history = await self.get_portfolio_history(
             timeframe=timeframe,
             extended_hours=True,
             date_start=start_date,
             date_end=end_date or datetime.now(),
         )
+        return cast(Optional[dict], history)
