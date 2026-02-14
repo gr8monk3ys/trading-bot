@@ -12,7 +12,7 @@ statistical validation including:
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import stats
@@ -238,13 +238,13 @@ def calculate_cohens_d(returns: np.ndarray, population_mean: float = 0.0) -> flo
     if len(returns) == 0:
         return 0.0
 
-    mean_return = np.mean(returns)
-    std_return = np.std(returns, ddof=1)  # Sample std
+    mean_return = float(np.mean(returns))
+    std_return = float(np.std(returns, ddof=1))  # Sample std
 
     if std_return == 0:
         return 0.0
 
-    return (mean_return - population_mean) / std_return
+    return float((mean_return - population_mean) / std_return)
 
 
 def calculate_hedges_g(returns: np.ndarray, population_mean: float = 0.0) -> float:
@@ -373,8 +373,14 @@ class PerformanceMetrics:
             # Extract required data
             equity_curve = backtest_result.get("equity_curve", [])
             trades = backtest_result.get("trades", [])
-            start_date = backtest_result.get("start_date")
-            end_date = backtest_result.get("end_date")
+            start_date_raw = backtest_result.get("start_date")
+            end_date_raw = backtest_result.get("end_date")
+            start_date: Optional[datetime] = (
+                start_date_raw if isinstance(start_date_raw, datetime) else None
+            )
+            end_date: Optional[datetime] = (
+                end_date_raw if isinstance(end_date_raw, datetime) else None
+            )
             initial_capital = backtest_result.get("initial_capital", 100000)
 
             if not equity_curve or len(equity_curve) < 2:
@@ -382,10 +388,10 @@ class PerformanceMetrics:
                 return self._empty_metrics()
 
             # Create numpy arrays for calculations
-            equity_array = np.array(equity_curve)
+            equity_array = np.array(equity_curve, dtype=float)
 
             # Calculate basic returns
-            total_return = (equity_array[-1] / equity_array[0]) - 1
+            total_return = float((equity_array[-1] / equity_array[0]) - 1)
 
             # Calculate daily returns
             daily_returns = np.diff(equity_array) / equity_array[:-1]
@@ -405,10 +411,12 @@ class PerformanceMetrics:
                 "avg_trade": self._calculate_avg_trade(trades),
                 "avg_win": avg_win,
                 "avg_loss": avg_loss,
-                "volatility": np.std(daily_returns) if len(daily_returns) > 0 else 0,
+                "volatility": float(np.std(daily_returns)) if len(daily_returns) > 0 else 0.0,
                 "trade_count": len(trades),
                 "num_trades": len(trades),  # Alias for compatibility
-                "final_equity": equity_array[-1] if len(equity_array) > 0 else initial_capital,
+                "final_equity": (
+                    float(equity_array[-1]) if len(equity_array) > 0 else float(initial_capital)
+                ),
             }
 
             # Calculate additional metrics
@@ -451,43 +459,43 @@ class PerformanceMetrics:
         }
 
     def _calculate_annualized_return(
-        self, total_return: float, start_date: datetime, end_date: datetime
+        self, total_return: float, start_date: Optional[datetime], end_date: Optional[datetime]
     ) -> float:
         """Calculate annualized return."""
-        if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
-            return 0
+        if start_date is None or end_date is None:
+            return 0.0
 
         years = (end_date - start_date).days / 365.25
         if years <= 0:
-            return 0
+            return 0.0
 
-        return (1 + total_return) ** (1 / years) - 1
+        return float((1 + total_return) ** (1 / years) - 1)
 
     def _calculate_max_drawdown(self, equity_curve: np.ndarray) -> float:
         """Calculate maximum drawdown."""
         peak = np.maximum.accumulate(equity_curve)
         drawdown = (equity_curve - peak) / peak
-        return abs(np.min(drawdown)) if len(drawdown) > 0 else 0
+        return float(abs(np.min(drawdown))) if len(drawdown) > 0 else 0.0
 
     def _calculate_sharpe_ratio(self, returns: np.ndarray, period=252) -> float:
         """Calculate Sharpe ratio (annualized)."""
         if len(returns) == 0:
-            return 0
+            return 0.0
 
         # Convert annual risk-free rate to period risk-free rate
         period_risk_free = (1 + self.risk_free_rate) ** (1 / period) - 1
 
         excess_returns = returns - period_risk_free
-        if np.std(returns) == 0:
-            return 0
+        std = float(np.std(returns))
+        if std == 0:
+            return 0.0
 
-        sharpe = np.mean(excess_returns) / np.std(returns) * np.sqrt(period)
-        return sharpe
+        return float(float(np.mean(excess_returns)) / std * np.sqrt(period))
 
     def _calculate_sortino_ratio(self, returns: np.ndarray, period=252) -> float:
         """Calculate Sortino ratio (annualized)."""
         if len(returns) == 0:
-            return 0
+            return 0.0
 
         # Convert annual risk-free rate to period risk-free rate
         period_risk_free = (1 + self.risk_free_rate) ** (1 / period) - 1
@@ -495,11 +503,11 @@ class PerformanceMetrics:
         excess_returns = returns - period_risk_free
         downside_returns = returns[returns < 0]
 
-        if len(downside_returns) == 0 or np.std(downside_returns) == 0:
+        downside_std = float(np.std(downside_returns)) if len(downside_returns) > 0 else 0.0
+        if len(downside_returns) == 0 or downside_std == 0:
             return 0 if np.mean(excess_returns) <= 0 else float("inf")
 
-        sortino = np.mean(excess_returns) / np.std(downside_returns) * np.sqrt(period)
-        return sortino
+        return float(float(np.mean(excess_returns)) / downside_std * np.sqrt(period))
 
     def _calculate_calmar_ratio(self, annualized_return: float, max_drawdown: float) -> float:
         """Calculate Calmar ratio."""
@@ -519,25 +527,27 @@ class PerformanceMetrics:
     def _calculate_profit_factor(self, trades: List[Dict[str, Any]]) -> float:
         """Calculate profit factor (gross profit / gross loss)."""
         if not trades:
-            return 0
+            return 0.0
 
-        gross_profit = sum(trade.get("pnl", 0) for trade in trades if trade.get("pnl", 0) > 0)
-        gross_loss = sum(abs(trade.get("pnl", 0)) for trade in trades if trade.get("pnl", 0) < 0)
+        pnls = [float(trade.get("pnl") or 0.0) for trade in trades]
+        gross_profit = sum(p for p in pnls if p > 0.0)
+        gross_loss = sum(-p for p in pnls if p < 0.0)
 
         if gross_loss == 0:
             return float("inf") if gross_profit > 0 else 0
 
-        return gross_profit / gross_loss
+        return float(gross_profit / gross_loss)
 
     def _calculate_avg_trade(self, trades: List[Dict[str, Any]]) -> float:
         """Calculate average trade P&L."""
         if not trades:
-            return 0
+            return 0.0
 
-        total_pnl = sum(trade.get("pnl", 0) for trade in trades)
-        return total_pnl / len(trades)
+        pnls = [float(trade.get("pnl") or 0.0) for trade in trades]
+        total_pnl = sum(pnls)
+        return float(total_pnl / len(pnls))
 
-    def _calculate_avg_win_loss(self, trades: List[Dict[str, Any]]) -> tuple:
+    def _calculate_avg_win_loss(self, trades: List[Dict[str, Any]]) -> tuple[float, float]:
         """Calculate average win and average loss separately.
 
         Returns:
@@ -546,20 +556,21 @@ class PerformanceMetrics:
         if not trades:
             return 0.0, 0.0
 
-        wins = [trade.get("pnl", 0) for trade in trades if trade.get("pnl", 0) > 0]
-        losses = [trade.get("pnl", 0) for trade in trades if trade.get("pnl", 0) < 0]
+        pnls = [float(trade.get("pnl") or 0.0) for trade in trades]
+        wins = [p for p in pnls if p > 0.0]
+        losses = [p for p in pnls if p < 0.0]
 
-        avg_win = np.mean(wins) if wins else 0.0
-        avg_loss = np.mean(losses) if losses else 0.0
+        avg_win = float(np.mean(wins)) if wins else 0.0
+        avg_loss = float(np.mean(losses)) if losses else 0.0
 
         # Convert to percentage relative to trade size if possible
         # For now return as raw P&L values normalized
-        total_pnl = sum(abs(trade.get("pnl", 0)) for trade in trades)
+        total_pnl = sum(abs(p) for p in pnls)
         if total_pnl > 0:
             avg_win = avg_win / total_pnl if avg_win else 0
             avg_loss = abs(avg_loss) / total_pnl if avg_loss else 0
 
-        return avg_win, avg_loss
+        return float(avg_win), float(avg_loss)
 
     def analyze_strategy(self, backtest_result: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -652,7 +663,7 @@ class PerformanceMetrics:
             rankings[metric] = [name for name, _ in ranked]
 
         # Calculate overall rank (average rank across metrics)
-        strategy_ranks = {name: [] for name in metrics}
+        strategy_ranks: Dict[str, List[int]] = {name: [] for name in metrics}
 
         for _metric, ranked_names in rankings.items():
             for i, name in enumerate(ranked_names):
@@ -697,7 +708,7 @@ class PerformanceMetrics:
             - confidence_interval: CI for mean return
             - sharpe_ci: Bootstrap CI for Sharpe ratio
         """
-        result = {
+        result: Dict[str, Any] = {
             "is_significant": False,
             "warnings": [],
             "trade_count": len(trades),
@@ -718,15 +729,15 @@ class PerformanceMetrics:
             return result
 
         # Extract returns
-        returns = np.array([trade.get("pnl", 0) for trade in trades])
+        returns = np.array([float(trade.get("pnl") or 0.0) for trade in trades], dtype=float)
 
         if len(returns) == 0 or np.all(returns == 0):
             result["warnings"].append("No valid trade returns found.")
             return result
 
         # Basic statistics
-        mean_return = np.mean(returns)
-        std_return = np.std(returns, ddof=1)  # Sample std
+        mean_return = float(np.mean(returns))
+        std_return = float(np.std(returns, ddof=1))  # Sample std
 
         result["mean_return"] = mean_return
         result["std_return"] = std_return
@@ -734,15 +745,15 @@ class PerformanceMetrics:
         # T-test: Is mean return significantly different from zero?
         if std_return > 0:
             t_stat, p_value = stats.ttest_1samp(returns, 0)
-            result["t_statistic"] = t_stat
-            result["p_value"] = p_value / 2  # One-tailed (we want return > 0)
+            result["t_statistic"] = float(t_stat)
+            result["p_value"] = float(p_value / 2)  # One-tailed (we want return > 0)
 
             # Confidence interval for mean
             se = std_return / np.sqrt(len(returns))
             t_crit = stats.t.ppf((1 + confidence_level) / 2, len(returns) - 1)
             ci_lower = mean_return - t_crit * se
             ci_upper = mean_return + t_crit * se
-            result["confidence_interval"] = (ci_lower, ci_upper)
+            result["confidence_interval"] = (float(ci_lower), float(ci_upper))
 
         # Bootstrap confidence interval for Sharpe ratio
         if len(returns) >= 30:
@@ -843,22 +854,22 @@ class PerformanceMetrics:
             Fraction of total profit from top 10% of trades (0-1)
         """
         if len(returns) < 10:
-            return 0
+            return 0.0
 
         # Only consider winning trades
         wins = returns[returns > 0]
         if len(wins) == 0:
-            return 0
+            return 0.0
 
-        total_profit = np.sum(wins)
+        total_profit = float(np.sum(wins))
         if total_profit <= 0:
-            return 0
+            return 0.0
 
         # Top 10% of winning trades
         top_n = max(1, len(wins) // 10)
-        top_profits = np.sum(np.sort(wins)[-top_n:])
+        top_profits = float(np.sum(np.sort(wins)[-top_n:]))
 
-        return top_profits / total_profit
+        return float(top_profits / total_profit)
 
     def validate_backtest_results(
         self,
@@ -963,10 +974,11 @@ class PerformanceMetrics:
         Returns:
             Dictionary with comprehensive significance analysis
         """
-        result = {
+        warnings: List[str] = []
+        result: Dict[str, Any] = {
             "is_significant": False,
             "is_practically_significant": False,
-            "warnings": [],
+            "warnings": warnings,
             "trade_count": len(trades),
             # Raw statistics
             "mean_return": 0.0,
@@ -989,35 +1001,44 @@ class PerformanceMetrics:
 
         # Check minimum trade count
         if len(trades) < min_trades:
-            result["warnings"].append(
+            warnings.append(
                 f"Insufficient trades: {len(trades)} < {min_trades} minimum. "
                 "Results are NOT statistically reliable."
             )
             return result
 
         # Extract returns
-        returns = np.array([trade.get("pnl", 0) for trade in trades])
+        raw_returns: List[float] = []
+        for trade in trades:
+            pnl = trade.get("pnl", 0.0)
+            try:
+                raw_returns.append(float(pnl if pnl is not None else 0.0))
+            except (TypeError, ValueError):
+                raw_returns.append(0.0)
+        returns = np.asarray(raw_returns, dtype=float)
 
         if len(returns) == 0 or np.all(returns == 0):
-            result["warnings"].append("No valid trade returns found.")
+            warnings.append("No valid trade returns found.")
             return result
 
         # Basic statistics
-        mean_return = np.mean(returns)
-        std_return = np.std(returns, ddof=1)
+        mean_return = float(np.mean(returns))
+        std_return = float(np.std(returns, ddof=1))
 
-        result["mean_return"] = float(mean_return)
-        result["std_return"] = float(std_return)
+        result["mean_return"] = mean_return
+        result["std_return"] = std_return
 
         # T-test for mean > 0
+        raw_p_value = 1.0
         if std_return > 0:
             t_stat, p_value_two_tailed = stats.ttest_1samp(returns, 0)
-            raw_p = p_value_two_tailed / 2  # One-tailed (we want return > 0)
+            raw_p = float(p_value_two_tailed) / 2  # One-tailed (we want return > 0)
             if mean_return < 0:
                 raw_p = 1 - raw_p  # Adjust for negative mean
 
+            raw_p_value = float(raw_p)
             result["t_statistic"] = float(t_stat)
-            result["raw_p_value"] = float(raw_p)
+            result["raw_p_value"] = raw_p_value
 
             # Confidence interval for mean
             se = std_return / np.sqrt(len(returns))
@@ -1025,15 +1046,18 @@ class PerformanceMetrics:
             ci_lower = mean_return - t_crit * se
             ci_upper = mean_return + t_crit * se
             result["mean_return_ci"] = (float(ci_lower), float(ci_upper))
+        else:
+            result["raw_p_value"] = raw_p_value
 
         # Apply multiple testing correction
         adjusted_result = calculate_adjusted_significance(
-            result["raw_p_value"],
+            raw_p_value,
             n_total_tests,
             method=correction_method,
             alpha=1 - confidence_level,
         )
-        result["adjusted_p_value"] = adjusted_result["adjusted_p_value"]
+        adjusted_p_value = float(adjusted_result["adjusted_p_value"])
+        result["adjusted_p_value"] = adjusted_p_value
 
         # Effect size calculation
         effect_size = calculate_effect_size(returns, 0.0, confidence_level)
@@ -1050,7 +1074,7 @@ class PerformanceMetrics:
         # Determine statistical significance (after correction)
         alpha = 1 - confidence_level
         result["is_significant"] = (
-            len(trades) >= min_trades and result["adjusted_p_value"] < alpha and mean_return > 0
+            len(trades) >= min_trades and adjusted_p_value < alpha and mean_return > 0
         )
 
         # Determine practical significance (effect size >= small)
@@ -1059,22 +1083,22 @@ class PerformanceMetrics:
         )
 
         # Generate warnings
-        if result["raw_p_value"] < alpha and result["adjusted_p_value"] >= alpha:
-            result["warnings"].append(
-                f"Raw p-value ({result['raw_p_value']:.4f}) was significant, "
+        if raw_p_value < alpha and adjusted_p_value >= alpha:
+            warnings.append(
+                f"Raw p-value ({raw_p_value:.4f}) was significant, "
                 f"but after {correction_method} correction for {n_total_tests} tests, "
-                f"adjusted p-value ({result['adjusted_p_value']:.4f}) is NOT significant. "
+                f"adjusted p-value ({adjusted_p_value:.4f}) is NOT significant. "
                 "This could be a false positive from testing multiple strategies."
             )
 
         if result["is_significant"] and not result["is_practically_significant"]:
-            result["warnings"].append(
+            warnings.append(
                 f"Statistically significant but negligible effect size (d={effect_size.cohens_d:.3f}). "
                 "The edge may be too small to overcome transaction costs in practice."
             )
 
         if abs(effect_size.cohens_d) >= 0.8:
-            result["warnings"].append(
+            warnings.append(
                 f"Large effect size (d={effect_size.cohens_d:.3f}) is unusual. "
                 "Verify no data issues or overfitting."
             )
@@ -1082,7 +1106,7 @@ class PerformanceMetrics:
         # Check outlier dependency
         outlier_impact = self._check_outlier_dependency(returns)
         if outlier_impact > 0.5:
-            result["warnings"].append(
+            warnings.append(
                 f"Results depend heavily on outliers ({outlier_impact:.0%} of profit from top 10% trades). "
                 "May not be reproducible."
             )
