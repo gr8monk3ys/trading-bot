@@ -20,7 +20,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import stats
@@ -28,6 +28,40 @@ from scipy import stats
 from config import BACKTEST_PARAMS
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_float(value: object, default: float) -> float:
+    """Convert config-style values to float without relying on unchecked casts."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _coerce_int(value: object, default: int) -> int:
+    """Convert config-style values to int without relying on unchecked casts."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(float(value))
+        except ValueError:
+            return default
+    return default
 
 
 @dataclass
@@ -162,29 +196,31 @@ def check_degradation_significance(
         # Can happen if too few non-zero differences
         stat, p_value = 0.0, 1.0
 
+    stat = float(stat)
+    p_value = float(p_value)
     degradation_significant = p_value < alpha
 
     # Calculate mean degradation and bootstrap CI
-    mean_degradation = np.mean(differences)
+    mean_degradation = float(np.mean(differences))
 
     rng = np.random.default_rng(random_state)
-    bootstrap_means = []
+    bootstrap_means: List[float] = []
 
     for _ in range(n_bootstrap):
         # Resample with replacement
         indices = rng.choice(n, size=n, replace=True)
         bootstrap_diff = differences[indices]
-        bootstrap_means.append(np.mean(bootstrap_diff))
+        bootstrap_means.append(float(np.mean(bootstrap_diff)))
 
-    bootstrap_means = np.array(bootstrap_means)
-    ci_lower = np.percentile(bootstrap_means, 2.5)
-    ci_upper = np.percentile(bootstrap_means, 97.5)
+    bootstrap_means_arr = np.asarray(bootstrap_means, dtype=float)
+    ci_lower = float(np.percentile(bootstrap_means_arr, 2.5))
+    ci_upper = float(np.percentile(bootstrap_means_arr, 97.5))
 
     # Calculate effect size (rank-biserial correlation for Wilcoxon)
     # r = 1 - (2W / (n(n+1)/2)) where W is the test statistic
     n_pairs = n
     max_stat = n_pairs * (n_pairs + 1) / 2
-    effect_size = 1 - (2 * stat / max_stat) if max_stat > 0 else 0
+    effect_size = float(1 - (2 * stat / max_stat) if max_stat > 0 else 0.0)
 
     # Interpret effect size magnitude
     abs_effect = abs(effect_size)
@@ -251,32 +287,34 @@ def calculate_sharpe_confidence_interval(
         Tuple of (sharpe_ratio, ci_lower, ci_upper)
     """
     if len(returns) < 10:
-        sharpe = np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
-        return sharpe, sharpe - 1, sharpe + 1  # Wide CI for small samples
+        std = float(np.std(returns))
+        sharpe = float(float(np.mean(returns)) / std * float(np.sqrt(252))) if std > 0 else 0.0
+        return sharpe, sharpe - 1.0, sharpe + 1.0  # Wide CI for small samples
 
     rng = np.random.default_rng(random_state)
     n = len(returns)
 
     # Calculate observed Sharpe
-    sharpe = np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
+    std = float(np.std(returns))
+    sharpe = float(float(np.mean(returns)) / std * float(np.sqrt(252))) if std > 0 else 0.0
 
     # Bootstrap
-    bootstrap_sharpes = []
+    bootstrap_sharpes: List[float] = []
     for _ in range(n_bootstrap):
         indices = rng.choice(n, size=n, replace=True)
         boot_returns = returns[indices]
-        boot_std = np.std(boot_returns)
+        boot_std = float(np.std(boot_returns))
         if boot_std > 0:
-            boot_sharpe = np.mean(boot_returns) / boot_std * np.sqrt(252)
-            bootstrap_sharpes.append(boot_sharpe)
+            boot_sharpe = float(float(np.mean(boot_returns)) / boot_std * float(np.sqrt(252)))
+            bootstrap_sharpes.append(float(boot_sharpe))
 
     if not bootstrap_sharpes:
-        return sharpe, sharpe - 1, sharpe + 1
+        return sharpe, sharpe - 1.0, sharpe + 1.0
 
-    bootstrap_sharpes = np.array(bootstrap_sharpes)
+    bootstrap_sharpes_arr = np.asarray(bootstrap_sharpes, dtype=float)
     alpha = 1 - confidence
-    ci_lower = np.percentile(bootstrap_sharpes, 100 * alpha / 2)
-    ci_upper = np.percentile(bootstrap_sharpes, 100 * (1 - alpha / 2))
+    ci_lower = float(np.percentile(bootstrap_sharpes_arr, 100 * alpha / 2))
+    ci_upper = float(np.percentile(bootstrap_sharpes_arr, 100 * (1 - alpha / 2)))
 
     return sharpe, ci_lower, ci_upper
 
@@ -295,9 +333,9 @@ class WalkForwardValidator:
 
     def __init__(
         self,
-        train_ratio: float = None,
-        n_splits: int = None,
-        min_train_days: int = None,
+        train_ratio: Optional[float] = None,
+        n_splits: Optional[int] = None,
+        min_train_days: Optional[int] = None,
         gap_days: int = 5,
     ):
         """
@@ -314,11 +352,20 @@ class WalkForwardValidator:
                      INSTITUTIONAL STANDARD: 3-10 days depending on strategy
                      holding period. Longer for strategies with longer horizons.
         """
-        self.train_ratio = train_ratio or BACKTEST_PARAMS.get("TRAIN_RATIO", 0.7)
-        self.n_splits = n_splits or BACKTEST_PARAMS.get("N_SPLITS", 5)
-        self.min_train_days = min_train_days or BACKTEST_PARAMS.get("MIN_TRAIN_DAYS", 30)
+        self.train_ratio = _coerce_float(
+            train_ratio if train_ratio is not None else BACKTEST_PARAMS.get("TRAIN_RATIO"), 0.7
+        )
+        self.n_splits = _coerce_int(
+            n_splits if n_splits is not None else BACKTEST_PARAMS.get("N_SPLITS"), 5
+        )
+        self.min_train_days = _coerce_int(
+            min_train_days if min_train_days is not None else BACKTEST_PARAMS.get("MIN_TRAIN_DAYS"),
+            30,
+        )
         self.gap_days = gap_days
-        self.overfitting_threshold = BACKTEST_PARAMS.get("OVERFITTING_RATIO_THRESHOLD", 2.0)
+        self.overfitting_threshold = _coerce_float(
+            BACKTEST_PARAMS.get("OVERFITTING_RATIO_THRESHOLD"), 2.0
+        )
 
         self.results: List[WalkForwardResult] = []
 
@@ -365,7 +412,7 @@ class WalkForwardValidator:
 
     async def validate(
         self,
-        backtest_fn,
+        backtest_fn: Callable[..., Awaitable[Dict[str, Any]]],
         symbols: List[str],
         start_date_str: str,
         end_date_str: str,
@@ -427,8 +474,8 @@ class WalkForwardValidator:
             )
 
             # Calculate comparison metrics
-            is_return = is_result.get("total_return", 0)
-            oos_return = oos_result.get("total_return", 0)
+            is_return = float(is_result.get("total_return", 0.0) or 0.0)
+            oos_return = float(oos_result.get("total_return", 0.0) or 0.0)
 
             # P1 Fix: Overfitting ratio with proper handling of edge cases
             # Ratio > 2 suggests overfitting
@@ -461,13 +508,13 @@ class WalkForwardValidator:
                 test_start=test_start,
                 test_end=test_end,
                 is_return=is_return,
-                is_sharpe=is_result.get("sharpe_ratio", 0),
-                is_trades=is_result.get("num_trades", 0),
-                is_win_rate=is_result.get("win_rate", 0),
+                is_sharpe=float(is_result.get("sharpe_ratio", 0.0) or 0.0),
+                is_trades=int(is_result.get("num_trades", 0) or 0),
+                is_win_rate=float(is_result.get("win_rate", 0.0) or 0.0),
                 oos_return=oos_return,
-                oos_sharpe=oos_result.get("sharpe_ratio", 0),
-                oos_trades=oos_result.get("num_trades", 0),
-                oos_win_rate=oos_result.get("win_rate", 0),
+                oos_sharpe=float(oos_result.get("sharpe_ratio", 0.0) or 0.0),
+                oos_trades=int(oos_result.get("num_trades", 0) or 0),
+                oos_win_rate=float(oos_result.get("win_rate", 0.0) or 0.0),
                 overfitting_ratio=overfitting_ratio,
                 degradation=degradation,
             )
@@ -485,11 +532,11 @@ class WalkForwardValidator:
             return {}
 
         # Calculate averages
-        avg_is_return = np.mean([r.is_return for r in self.results])
-        avg_oos_return = np.mean([r.oos_return for r in self.results])
-        avg_is_sharpe = np.mean([r.is_sharpe for r in self.results])
-        avg_oos_sharpe = np.mean([r.oos_sharpe for r in self.results])
-        avg_degradation = np.mean([r.degradation for r in self.results])
+        avg_is_return = float(np.mean([r.is_return for r in self.results]))
+        avg_oos_return = float(np.mean([r.oos_return for r in self.results]))
+        avg_is_sharpe = float(np.mean([r.is_sharpe for r in self.results]))
+        avg_oos_sharpe = float(np.mean([r.oos_sharpe for r in self.results]))
+        avg_degradation = float(np.mean([r.degradation for r in self.results]))
 
         # P1 Fix: Handle empty list and NaN values for overfitting ratio
         valid_ratios = [
@@ -497,7 +544,9 @@ class WalkForwardValidator:
             for r in self.results
             if r.overfitting_ratio != float("inf") and not np.isnan(r.overfitting_ratio)
         ]
-        avg_overfit_ratio = np.mean(valid_ratios) if valid_ratios else self.overfitting_threshold
+        avg_overfit_ratio = (
+            float(np.mean(valid_ratios)) if valid_ratios else float(self.overfitting_threshold)
+        )
 
         # Count how many folds show overfitting
         overfit_folds = sum(
@@ -520,7 +569,6 @@ class WalkForwardValidator:
         degradation_test = check_degradation_significance(is_returns, oos_returns)
 
         # Calculate Sharpe confidence intervals
-        np.array([r.is_return for r in self.results])
         oos_returns_arr = np.array([r.oos_return for r in self.results])
 
         oos_sharpe, oos_sharpe_ci_lower, oos_sharpe_ci_upper = calculate_sharpe_confidence_interval(
