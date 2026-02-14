@@ -271,11 +271,15 @@ class PaperTradingMonitor:
         today = date.today()
 
         # Calculate today's stats
-        today_pnl = sum(t.pnl for t in self._today_trades)
+        today_pnl = sum((t.pnl for t in self._today_trades), 0.0)
         today_slippage = (
-            np.mean([t.slippage_pct for t in self._today_trades]) if self._today_trades else 0
+            float(np.mean([t.slippage_pct for t in self._today_trades]))
+            if self._today_trades
+            else 0.0
         )
-        fill_rate = len(self._today_trades) / self._signals_today if self._signals_today > 0 else 0
+        fill_rate = (
+            len(self._today_trades) / self._signals_today if self._signals_today > 0 else 0.0
+        )
 
         # Calculate drawdown
         current_dd = (
@@ -285,14 +289,16 @@ class PaperTradingMonitor:
         )
 
         # Estimate Sharpe from paper trading so far
+        sharpe_estimate: float
         if len(self.state.trades) >= 10:
-            returns = [t.get("pnl", 0) for t in self.state.trades]
-            if np.std(returns) > 0:
-                sharpe_estimate = np.mean(returns) / np.std(returns) * np.sqrt(252)
+            returns = [float(t.get("pnl", 0.0) or 0.0) for t in self.state.trades]
+            std_returns = float(np.std(returns))
+            if std_returns > 0:
+                sharpe_estimate = float(float(np.mean(returns)) / std_returns * float(np.sqrt(252)))
             else:
-                sharpe_estimate = 0
+                sharpe_estimate = 0.0
         else:
-            sharpe_estimate = 0
+            sharpe_estimate = 0.0
 
         daily_stat = DailyStats(
             date=today,
@@ -300,7 +306,7 @@ class PaperTradingMonitor:
             signals_generated=self._signals_today,
             signals_executed=len(self._today_trades),
             pnl=today_pnl,
-            slippage_total=sum(t.slippage_pct for t in self._today_trades),
+            slippage_total=sum((t.slippage_pct for t in self._today_trades), 0.0),
             avg_slippage_pct=today_slippage,
             fill_rate=fill_rate,
             equity=self.state.current_equity,
@@ -313,7 +319,9 @@ class PaperTradingMonitor:
         self._save_state()
 
         # Generate report
-        report = {
+        backtest_comparison: Dict[str, str] = {}
+        warnings: List[str] = []
+        report: Dict[str, Any] = {
             "date": today.isoformat(),
             "strategy": self.strategy_name,
             "today": {
@@ -332,25 +340,25 @@ class PaperTradingMonitor:
                 "max_drawdown": f"{self.state.max_drawdown:.2%}",
                 "sharpe_estimate": f"{sharpe_estimate:.2f}",
             },
-            "backtest_comparison": {},
-            "warnings": [],
+            "backtest_comparison": backtest_comparison,
+            "warnings": warnings,
             "go_live_ready": False,
         }
 
         # Compare to backtest expectations
-        if self.state.backtest_sharpe:
-            sharpe_deviation = abs(sharpe_estimate - self.state.backtest_sharpe) / abs(
-                self.state.backtest_sharpe
+        if self.state.backtest_sharpe is not None:
+            sharpe_deviation = abs(sharpe_estimate - self.state.backtest_sharpe) / max(
+                abs(self.state.backtest_sharpe), 1e-12
             )
-            report["backtest_comparison"]["sharpe_deviation"] = f"{sharpe_deviation:.1%}"
+            backtest_comparison["sharpe_deviation"] = f"{sharpe_deviation:.1%}"
 
             if sharpe_deviation > 0.5:
-                report["warnings"].append(
+                warnings.append(
                     f"Sharpe ratio differs significantly from backtest "
                     f"(paper: {sharpe_estimate:.2f}, backtest: {self.state.backtest_sharpe:.2f})"
                 )
 
-        if self.state.backtest_return:
+        if self.state.backtest_return is not None:
             paper_return = self.state.current_equity / self.state.initial_equity - 1
             # Annualize for comparison
             days = max(1, (datetime.now() - self.state.start_date).days)
@@ -362,19 +370,17 @@ class PaperTradingMonitor:
                 if self.state.backtest_return != 0
                 else 0
             )
-            report["backtest_comparison"]["return_deviation"] = f"{return_deviation:.1%}"
+            backtest_comparison["return_deviation"] = f"{return_deviation:.1%}"
 
             if return_deviation > 0.3:
-                report["warnings"].append(
+                warnings.append(
                     f"Returns differ significantly from backtest expectations "
                     f"(paper: {annualized_return:.1%}, backtest: {self.state.backtest_return:.1%})"
                 )
 
         # Check drawdown warning
         if self.state.max_drawdown > 0.10:
-            report["warnings"].append(
-                f"Drawdown of {self.state.max_drawdown:.1%} approaching limit"
-            )
+            warnings.append(f"Drawdown of {self.state.max_drawdown:.1%} approaching limit")
 
         # Check go-live readiness
         go_live_result = await self.is_go_live_ready()
@@ -395,54 +401,57 @@ class PaperTradingMonitor:
         Returns:
             Dictionary with ready status and any blockers
         """
-        result = {
+        blockers: List[str] = []
+        warnings: List[str] = []
+        metrics: Dict[str, Any] = {}
+        result: Dict[str, Any] = {
             "ready": True,
-            "blockers": [],
-            "warnings": [],
-            "metrics": {},
+            "blockers": blockers,
+            "warnings": warnings,
+            "metrics": metrics,
         }
 
         # 1. Minimum days of paper trading
         days_trading = (datetime.now() - self.state.start_date).days
-        result["metrics"]["days_trading"] = days_trading
+        metrics["days_trading"] = days_trading
 
         if days_trading < self.MIN_PAPER_DAYS:
             result["ready"] = False
-            result["blockers"].append(
+            blockers.append(
                 f"Insufficient paper trading time: {days_trading} days "
                 f"(need {self.MIN_PAPER_DAYS}+)"
             )
 
         # 2. Minimum trades
-        result["metrics"]["total_trades"] = self.state.total_trades
+        metrics["total_trades"] = self.state.total_trades
 
         if self.state.total_trades < self.MIN_PAPER_TRADES:
             result["ready"] = False
-            result["blockers"].append(
+            blockers.append(
                 f"Insufficient trades: {self.state.total_trades} "
                 f"(need {self.MIN_PAPER_TRADES}+)"
             )
 
         # 3. Positive returns
         total_return = self.state.current_equity / self.state.initial_equity - 1
-        result["metrics"]["total_return"] = total_return
+        metrics["total_return"] = total_return
 
         if total_return <= 0:
             result["ready"] = False
-            result["blockers"].append(f"Paper trading is not profitable: {total_return:.1%} return")
+            blockers.append(f"Paper trading is not profitable: {total_return:.1%} return")
 
         # 4. Maximum drawdown
-        result["metrics"]["max_drawdown"] = self.state.max_drawdown
+        metrics["max_drawdown"] = self.state.max_drawdown
 
         if self.state.max_drawdown > self.MAX_DRAWDOWN:
             result["ready"] = False
-            result["blockers"].append(
+            blockers.append(
                 f"Drawdown too high: {self.state.max_drawdown:.1%} "
                 f"(max {self.MAX_DRAWDOWN:.1%})"
             )
 
         # 5. Check backtest correlation (if backtest data available)
-        if self.state.backtest_return and len(self.state.trades) >= 20:
+        if self.state.backtest_return is not None and len(self.state.trades) >= 20:
             # Annualize paper return
             days = max(1, days_trading)
             annualized_return = (1 + total_return) ** (365 / days) - 1
@@ -453,29 +462,31 @@ class PaperTradingMonitor:
                 if self.state.backtest_return != 0
                 else 0
             )
-            result["metrics"]["return_deviation"] = return_deviation
+            metrics["return_deviation"] = return_deviation
 
             if return_deviation > self.MAX_RETURN_DEVIATION:
                 result["ready"] = False
-                result["blockers"].append(
+                blockers.append(
                     f"Paper trading deviates too much from backtest: "
                     f"{return_deviation:.0%} deviation (max {self.MAX_RETURN_DEVIATION:.0%})"
                 )
 
         # 6. Check slippage
         if self.state.trades:
-            avg_slippage = np.mean([t.get("slippage_pct", 0) for t in self.state.trades])
-            result["metrics"]["avg_slippage"] = avg_slippage
+            avg_slippage = float(
+                np.mean([float(t.get("slippage_pct", 0.0) or 0.0) for t in self.state.trades])
+            )
+            metrics["avg_slippage"] = avg_slippage
 
             # Warn if slippage is high but don't block
             if avg_slippage > 0.005:  # 0.5%
-                result["warnings"].append(f"Average slippage is high: {avg_slippage:.2%}")
+                warnings.append(f"Average slippage is high: {avg_slippage:.2%}")
 
         # 7. No circuit breaker triggers (check for large single-day losses)
         if self.state.daily_stats:
-            max_daily_loss = min(s.get("pnl", 0) for s in self.state.daily_stats)
+            max_daily_loss = min(float(s.get("pnl", 0.0) or 0.0) for s in self.state.daily_stats)
             if max_daily_loss < -0.03 * self.state.initial_equity:  # 3% loss
-                result["warnings"].append(f"Had a large daily loss: ${max_daily_loss:,.2f}")
+                warnings.append(f"Had a large daily loss: ${max_daily_loss:,.2f}")
 
         return result
 
