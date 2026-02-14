@@ -144,7 +144,8 @@ def plot_drawdown_periods(equity_curve: pd.DataFrame, top_n: int = 5) -> Figure:
     equity_curve["equity"].plot(ax=ax, color="blue", alpha=0.3, linewidth=1)
 
     # Highlight top drawdown periods
-    colors = plt.cm.rainbow(np.linspace(0, 1, len(top_periods)))
+    cmap = plt.get_cmap("rainbow")
+    colors = cmap(np.linspace(0, 1, len(top_periods)))
 
     for i, (_, period) in enumerate(top_periods.iterrows()):
         start_idx = period["start_date"]
@@ -290,7 +291,15 @@ def plot_trade_analysis(trades: List[Dict]) -> Tuple[Figure, Figure]:
     """
     # Convert trades to DataFrame
     if not trades:
-        return None, None
+        fig1, ax1 = plt.subplots(figsize=(12, 7))
+        ax1.axis("off")
+        ax1.text(0.5, 0.5, "No trades to analyze", ha="center", va="center", fontsize=14)
+
+        fig2, ax2 = plt.subplots(figsize=(12, 7))
+        ax2.axis("off")
+        ax2.text(0.5, 0.5, "No trades to analyze", ha="center", va="center", fontsize=14)
+
+        return fig1, fig2
 
     trade_df = pd.DataFrame(trades)
 
