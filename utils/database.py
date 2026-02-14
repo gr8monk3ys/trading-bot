@@ -16,7 +16,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, cast
 
 import aiosqlite
 
@@ -46,7 +46,7 @@ class Trade:
             "side": self.side,
             "qty": self.qty,
             "price": self.price,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "timestamp": self.timestamp.isoformat(),
             "strategy": self.strategy,
             "order_id": self.order_id,
             "status": self.status,
@@ -68,13 +68,13 @@ class DailyMetrics:
     winning_trades: int
     losing_trades: int
     win_rate: float
-    max_drawdown: float
+    max_drawdown: Optional[float]
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "id": self.id,
-            "date": self.date.isoformat() if self.date else None,
+            "date": self.date.isoformat(),
             "starting_equity": self.starting_equity,
             "ending_equity": self.ending_equity,
             "pnl": self.pnl,
@@ -109,7 +109,7 @@ class Position:
             "symbol": self.symbol,
             "qty": self.qty,
             "entry_price": self.entry_price,
-            "entry_time": self.entry_time.isoformat() if self.entry_time else None,
+            "entry_time": self.entry_time.isoformat(),
             "exit_price": self.exit_price,
             "exit_time": self.exit_time.isoformat() if self.exit_time else None,
             "strategy": self.strategy,
@@ -175,14 +175,15 @@ class TradingDatabase:
         db_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            self._connection = await aiosqlite.connect(self.db_path)
+            conn = await aiosqlite.connect(self.db_path)
+            self._connection = conn
             # Enable foreign keys and WAL mode for better concurrency
-            await self._connection.execute("PRAGMA foreign_keys = ON")
-            await self._connection.execute("PRAGMA journal_mode = WAL")
+            await conn.execute("PRAGMA foreign_keys = ON")
+            await conn.execute("PRAGMA journal_mode = WAL")
 
             # Create tables
-            await self._create_tables()
-            await self._connection.commit()
+            await self._create_tables(conn)
+            await conn.commit()
 
             self.logger.info(f"Database initialized: {self.db_path}")
 
@@ -197,11 +198,11 @@ class TradingDatabase:
             self.logger.error(f"Failed to initialize database: {e}")
             raise DatabaseError(f"Database initialization failed: {e}") from e
 
-    async def _create_tables(self) -> None:
+    async def _create_tables(self, conn: aiosqlite.Connection) -> None:
         """Create all required database tables."""
 
         # Trades table - records every trade execution
-        await self._connection.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS trades (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 symbol TEXT NOT NULL,
@@ -218,7 +219,7 @@ class TradingDatabase:
         """)
 
         # Daily metrics table - daily performance rollup
-        await self._connection.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS daily_metrics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date DATE UNIQUE NOT NULL,
@@ -236,7 +237,7 @@ class TradingDatabase:
         """)
 
         # Positions table - track open and closed positions
-        await self._connection.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS positions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 symbol TEXT NOT NULL,
@@ -253,45 +254,53 @@ class TradingDatabase:
         """)
 
         # Create indexes for common query patterns
-        await self._connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol)"
-        )
-        await self._connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp)"
-        )
-        await self._connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy)"
-        )
-        await self._connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_trades_order_id ON trades(order_id)"
-        )
-        await self._connection.execute(
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_trades_order_id ON trades(order_id)")
+        await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_daily_metrics_date ON daily_metrics(date)"
         )
-        await self._connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_positions_status ON positions(status)"
-        )
-        await self._connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_positions_symbol ON positions(symbol)"
-        )
-        await self._connection.execute(
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_positions_status ON positions(status)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_positions_symbol ON positions(symbol)")
+        await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_positions_strategy ON positions(strategy)"
         )
 
     async def close(self) -> None:
         """Close database connection."""
-        if self._connection:
+        conn = self._connection
+        if conn is None:
+            return
+        if conn:
             try:
-                await self._connection.close()
+                await conn.close()
                 self._connection = None
                 self.logger.info("Database connection closed")
             except Exception as e:
                 self.logger.error(f"Error closing database: {e}")
 
-    async def _ensure_connection(self) -> None:
-        """Ensure database connection is active."""
+    def _ensure_connection(self) -> aiosqlite.Connection:
+        """Return an active connection or raise if not initialized."""
         if self._connection is None:
             raise DatabaseError("Database not initialized. Call initialize() first.")
+        return self._connection
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return datetime.fromisoformat(value)
+        raise DatabaseError(f"Invalid datetime value: {value!r}")
+
+    @staticmethod
+    def _parse_date(value: Any) -> date:
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return date.fromisoformat(value)
+        raise DatabaseError(f"Invalid date value: {value!r}")
 
     # =========================================================================
     # Trade Operations
@@ -307,11 +316,11 @@ class TradingDatabase:
         Returns:
             The auto-generated trade ID
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         async with self._lock:
             try:
-                cursor = await self._connection.execute(
+                cursor = await conn.execute(
                     """
                     INSERT INTO trades (symbol, side, qty, price, timestamp, strategy, order_id, status, pnl)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -321,20 +330,22 @@ class TradingDatabase:
                         trade.side,
                         trade.qty,
                         trade.price,
-                        trade.timestamp.isoformat() if trade.timestamp else None,
+                        trade.timestamp.isoformat(),
                         trade.strategy,
                         trade.order_id,
                         trade.status,
                         trade.pnl,
                     ),
                 )
-                await self._connection.commit()
+                await conn.commit()
 
                 trade_id = cursor.lastrowid
+                if trade_id is None:
+                    raise DatabaseError("Insert trade returned no row id")
                 self.logger.debug(
                     f"Inserted trade {trade_id}: {trade.symbol} {trade.side} {trade.qty}@{trade.price}"
                 )
-                return trade_id
+                return int(trade_id)
 
             except aiosqlite.IntegrityError as e:
                 self.logger.warning(f"Trade with order_id {trade.order_id} already exists: {e}")
@@ -368,10 +379,10 @@ class TradingDatabase:
         Returns:
             List of Trade objects matching filters
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         query = "SELECT id, symbol, side, qty, price, timestamp, strategy, order_id, status, pnl FROM trades WHERE 1=1"
-        params = []
+        params: List[Any] = []
 
         if symbol:
             query += " AND symbol = ?"
@@ -397,23 +408,24 @@ class TradingDatabase:
         params.extend([limit, offset])
 
         try:
-            async with self._connection.execute(query, params) as cursor:
+            async with conn.execute(query, params) as cursor:
                 rows = await cursor.fetchall()
 
             trades = []
             for row in rows:
+                row_seq = cast(Sequence[Any], row)
                 trades.append(
                     Trade(
-                        id=row[0],
-                        symbol=row[1],
-                        side=row[2],
-                        qty=row[3],
-                        price=row[4],
-                        timestamp=datetime.fromisoformat(row[5]) if row[5] else None,
-                        strategy=row[6],
-                        order_id=row[7],
-                        status=row[8],
-                        pnl=row[9],
+                        id=cast(Optional[int], row_seq[0]),
+                        symbol=cast(str, row_seq[1]),
+                        side=cast(str, row_seq[2]),
+                        qty=float(row_seq[3]),
+                        price=float(row_seq[4]),
+                        timestamp=self._parse_datetime(row_seq[5]),
+                        strategy=cast(str, row_seq[6]),
+                        order_id=cast(str, row_seq[7]),
+                        status=cast(str, row_seq[8]),
+                        pnl=cast(Optional[float], row_seq[9]),
                     )
                 )
 
@@ -433,10 +445,10 @@ class TradingDatabase:
         Returns:
             Trade object if found, None otherwise
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         try:
-            async with self._connection.execute(
+            async with conn.execute(
                 """
                 SELECT id, symbol, side, qty, price, timestamp, strategy, order_id, status, pnl
                 FROM trades WHERE order_id = ?
@@ -446,17 +458,18 @@ class TradingDatabase:
                 row = await cursor.fetchone()
 
             if row:
+                row_seq = cast(Sequence[Any], row)
                 return Trade(
-                    id=row[0],
-                    symbol=row[1],
-                    side=row[2],
-                    qty=row[3],
-                    price=row[4],
-                    timestamp=datetime.fromisoformat(row[5]) if row[5] else None,
-                    strategy=row[6],
-                    order_id=row[7],
-                    status=row[8],
-                    pnl=row[9],
+                    id=cast(Optional[int], row_seq[0]),
+                    symbol=cast(str, row_seq[1]),
+                    side=cast(str, row_seq[2]),
+                    qty=float(row_seq[3]),
+                    price=float(row_seq[4]),
+                    timestamp=self._parse_datetime(row_seq[5]),
+                    strategy=cast(str, row_seq[6]),
+                    order_id=cast(str, row_seq[7]),
+                    status=cast(str, row_seq[8]),
+                    pnl=cast(Optional[float], row_seq[9]),
                 )
             return None
 
@@ -475,14 +488,14 @@ class TradingDatabase:
         Returns:
             True if updated, False if trade not found
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         async with self._lock:
             try:
-                cursor = await self._connection.execute(
+                cursor = await conn.execute(
                     "UPDATE trades SET pnl = ? WHERE order_id = ?", (pnl, order_id)
                 )
-                await self._connection.commit()
+                await conn.commit()
 
                 if cursor.rowcount > 0:
                     self.logger.debug(f"Updated P&L for order {order_id}: ${pnl:+,.2f}")
@@ -509,11 +522,11 @@ class TradingDatabase:
         Returns:
             The metrics row ID
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         async with self._lock:
             try:
-                cursor = await self._connection.execute(
+                cursor = await conn.execute(
                     """
                     INSERT INTO daily_metrics (
                         date, starting_equity, ending_equity, pnl, pnl_pct,
@@ -531,7 +544,7 @@ class TradingDatabase:
                         max_drawdown = excluded.max_drawdown
                     """,
                     (
-                        metrics.date.isoformat() if metrics.date else None,
+                        metrics.date.isoformat(),
                         metrics.starting_equity,
                         metrics.ending_equity,
                         metrics.pnl,
@@ -543,12 +556,15 @@ class TradingDatabase:
                         metrics.max_drawdown,
                     ),
                 )
-                await self._connection.commit()
+                await conn.commit()
 
                 self.logger.debug(
                     f"Saved daily metrics for {metrics.date}: P&L ${metrics.pnl:+,.2f}"
                 )
-                return cursor.lastrowid
+                row_id = cursor.lastrowid
+                if row_id is None:
+                    raise DatabaseError("Insert daily metrics returned no row id")
+                return int(row_id)
 
             except Exception as e:
                 self.logger.error(f"Failed to insert daily metrics: {e}")
@@ -569,10 +585,10 @@ class TradingDatabase:
         Returns:
             List of DailyMetrics objects
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         try:
-            async with self._connection.execute(
+            async with conn.execute(
                 """
                 SELECT id, date, starting_equity, ending_equity, pnl, pnl_pct,
                        trades_count, winning_trades, losing_trades, win_rate, max_drawdown
@@ -586,19 +602,20 @@ class TradingDatabase:
 
             metrics_list = []
             for row in rows:
+                row_seq = cast(Sequence[Any], row)
                 metrics_list.append(
                     DailyMetrics(
-                        id=row[0],
-                        date=date.fromisoformat(row[1]) if row[1] else None,
-                        starting_equity=row[2],
-                        ending_equity=row[3],
-                        pnl=row[4],
-                        pnl_pct=row[5],
-                        trades_count=row[6],
-                        winning_trades=row[7],
-                        losing_trades=row[8],
-                        win_rate=row[9],
-                        max_drawdown=row[10],
+                        id=cast(Optional[int], row_seq[0]),
+                        date=self._parse_date(row_seq[1]),
+                        starting_equity=float(row_seq[2]),
+                        ending_equity=float(row_seq[3]),
+                        pnl=float(row_seq[4]),
+                        pnl_pct=float(row_seq[5]),
+                        trades_count=int(row_seq[6]),
+                        winning_trades=int(row_seq[7]),
+                        losing_trades=int(row_seq[8]),
+                        win_rate=float(row_seq[9]),
+                        max_drawdown=cast(Optional[float], row_seq[10]),
                     )
                 )
 
@@ -615,10 +632,10 @@ class TradingDatabase:
         Returns:
             DailyMetrics object or None if no metrics exist
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         try:
-            async with self._connection.execute("""
+            async with conn.execute("""
                 SELECT id, date, starting_equity, ending_equity, pnl, pnl_pct,
                        trades_count, winning_trades, losing_trades, win_rate, max_drawdown
                 FROM daily_metrics
@@ -628,18 +645,19 @@ class TradingDatabase:
                 row = await cursor.fetchone()
 
             if row:
+                row_seq = cast(Sequence[Any], row)
                 return DailyMetrics(
-                    id=row[0],
-                    date=date.fromisoformat(row[1]) if row[1] else None,
-                    starting_equity=row[2],
-                    ending_equity=row[3],
-                    pnl=row[4],
-                    pnl_pct=row[5],
-                    trades_count=row[6],
-                    winning_trades=row[7],
-                    losing_trades=row[8],
-                    win_rate=row[9],
-                    max_drawdown=row[10],
+                    id=cast(Optional[int], row_seq[0]),
+                    date=self._parse_date(row_seq[1]),
+                    starting_equity=float(row_seq[2]),
+                    ending_equity=float(row_seq[3]),
+                    pnl=float(row_seq[4]),
+                    pnl_pct=float(row_seq[5]),
+                    trades_count=int(row_seq[6]),
+                    winning_trades=int(row_seq[7]),
+                    losing_trades=int(row_seq[8]),
+                    win_rate=float(row_seq[9]),
+                    max_drawdown=cast(Optional[float], row_seq[10]),
                 )
             return None
 
@@ -674,12 +692,12 @@ class TradingDatabase:
         Returns:
             Position row ID
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         async with self._lock:
             try:
                 # Check for existing open position
-                async with self._connection.execute(
+                async with conn.execute(
                     """
                     SELECT id FROM positions
                     WHERE symbol = ? AND strategy = ? AND status = 'open'
@@ -689,30 +707,35 @@ class TradingDatabase:
                     existing = await cursor.fetchone()
 
                 if existing:
+                    existing_seq = cast(Sequence[Any], existing)
+                    existing_id = int(existing_seq[0])
                     # Update existing position
-                    await self._connection.execute(
+                    await conn.execute(
                         """
                         UPDATE positions
                         SET qty = ?, entry_price = ?, entry_time = ?
                         WHERE id = ?
                         """,
-                        (qty, entry_price, entry_time.isoformat(), existing[0]),
+                        (qty, entry_price, entry_time.isoformat(), existing_id),
                     )
-                    await self._connection.commit()
+                    await conn.commit()
                     self.logger.debug(f"Updated position {symbol}: {qty}@{entry_price}")
-                    return existing[0]
+                    return existing_id
                 else:
                     # Insert new position
-                    cursor = await self._connection.execute(
+                    cursor = await conn.execute(
                         """
                         INSERT INTO positions (symbol, qty, entry_price, entry_time, strategy, status)
                         VALUES (?, ?, ?, ?, ?, 'open')
                         """,
                         (symbol, qty, entry_price, entry_time.isoformat(), strategy),
                     )
-                    await self._connection.commit()
+                    await conn.commit()
                     self.logger.debug(f"Opened position {symbol}: {qty}@{entry_price}")
-                    return cursor.lastrowid
+                    row_id = cursor.lastrowid
+                    if row_id is None:
+                        raise DatabaseError("Insert position returned no row id")
+                    return int(row_id)
 
             except Exception as e:
                 self.logger.error(f"Failed to save position: {e}")
@@ -733,13 +756,13 @@ class TradingDatabase:
         Returns:
             List of position dictionaries
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         query = """
             SELECT id, symbol, qty, entry_price, entry_time, strategy
             FROM positions WHERE status = 'open'
         """
-        params = []
+        params: List[Any] = []
 
         if symbol:
             query += " AND symbol = ?"
@@ -752,19 +775,20 @@ class TradingDatabase:
         query += " ORDER BY entry_time DESC"
 
         try:
-            async with self._connection.execute(query, params) as cursor:
+            async with conn.execute(query, params) as cursor:
                 rows = await cursor.fetchall()
 
             positions = []
             for row in rows:
+                row_seq = cast(Sequence[Any], row)
                 positions.append(
                     {
-                        "id": row[0],
-                        "symbol": row[1],
-                        "qty": row[2],
-                        "entry_price": row[3],
-                        "entry_time": datetime.fromisoformat(row[4]) if row[4] else None,
-                        "strategy": row[5],
+                        "id": row_seq[0],
+                        "symbol": row_seq[1],
+                        "qty": row_seq[2],
+                        "entry_price": row_seq[3],
+                        "entry_time": self._parse_datetime(row_seq[4]),
+                        "strategy": row_seq[5],
                         "status": "open",
                     }
                 )
@@ -794,7 +818,7 @@ class TradingDatabase:
         Returns:
             Realized P&L, or None if no matching open position
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         async with self._lock:
             try:
@@ -803,7 +827,7 @@ class TradingDatabase:
                     SELECT id, qty, entry_price FROM positions
                     WHERE symbol = ? AND status = 'open'
                 """
-                params = [symbol]
+                params: List[Any] = [symbol]
 
                 if strategy:
                     query += " AND strategy = ?"
@@ -811,14 +835,17 @@ class TradingDatabase:
 
                 query += " LIMIT 1"
 
-                async with self._connection.execute(query, params) as cursor:
+                async with conn.execute(query, params) as cursor:
                     row = await cursor.fetchone()
 
                 if not row:
                     self.logger.warning(f"No open position found for {symbol}")
                     return None
 
-                position_id, qty, entry_price = row
+                row_seq = cast(Sequence[Any], row)
+                position_id = int(row_seq[0])
+                qty = float(row_seq[1])
+                entry_price = float(row_seq[2])
 
                 # Calculate P&L
                 if qty > 0:  # Long position
@@ -827,7 +854,7 @@ class TradingDatabase:
                     pnl = (entry_price - exit_price) * abs(qty)
 
                 # Update position
-                await self._connection.execute(
+                await conn.execute(
                     """
                     UPDATE positions
                     SET exit_price = ?, exit_time = ?, status = 'closed', pnl = ?
@@ -835,7 +862,7 @@ class TradingDatabase:
                     """,
                     (exit_price, exit_time.isoformat(), pnl, position_id),
                 )
-                await self._connection.commit()
+                await conn.commit()
 
                 self.logger.info(f"Closed position {symbol}: P&L ${pnl:+,.2f}")
                 return pnl
@@ -858,11 +885,11 @@ class TradingDatabase:
         Returns:
             Dictionary with performance metrics
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         try:
             # Get trade statistics
-            async with self._connection.execute(
+            async with conn.execute(
                 """
                 SELECT
                     COUNT(*) as total_trades,
@@ -882,7 +909,11 @@ class TradingDatabase:
             ) as cursor:
                 row = await cursor.fetchone()
 
-            if not row or row[0] == 0:
+            if row is None:
+                raise DatabaseError("Strategy performance query returned no row")
+
+            row_seq = cast(Sequence[Any], row)
+            if int(row_seq[0] or 0) == 0:
                 return {
                     "strategy": strategy,
                     "total_trades": 0,
@@ -896,12 +927,12 @@ class TradingDatabase:
                     "worst_trade": 0.0,
                 }
 
-            total_trades = row[0] or 0
-            winning_trades = row[1] or 0
-            losing_trades = row[2] or 0
-            total_pnl = row[4] or 0.0
-            avg_win = row[8] or 0.0
-            avg_loss = abs(row[9]) if row[9] else 0.0
+            total_trades = int(row_seq[0] or 0)
+            winning_trades = int(row_seq[1] or 0)
+            losing_trades = int(row_seq[2] or 0)
+            total_pnl = float(row_seq[4] or 0.0)
+            avg_win = float(row_seq[8] or 0.0)
+            avg_loss = abs(float(row_seq[9] or 0.0))
 
             # Calculate derived metrics
             win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
@@ -916,13 +947,13 @@ class TradingDatabase:
                 "total_trades": total_trades,
                 "winning_trades": winning_trades,
                 "losing_trades": losing_trades,
-                "breakeven_trades": row[3] or 0,
+                "breakeven_trades": int(row_seq[3] or 0),
                 "win_rate": win_rate,
                 "total_pnl": total_pnl,
-                "avg_pnl": row[5] or 0.0,
+                "avg_pnl": float(row_seq[5] or 0.0),
                 "profit_factor": profit_factor,
-                "best_trade": row[6] or 0.0,
-                "worst_trade": row[7] or 0.0,
+                "best_trade": float(row_seq[6] or 0.0),
+                "worst_trade": float(row_seq[7] or 0.0),
                 "avg_win": avg_win,
                 "avg_loss": -avg_loss,  # Return as negative for clarity
             }
@@ -941,10 +972,10 @@ class TradingDatabase:
         Returns:
             Dictionary with performance metrics
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         try:
-            async with self._connection.execute(
+            async with conn.execute(
                 """
                 SELECT
                     COUNT(*) as total_trades,
@@ -962,7 +993,12 @@ class TradingDatabase:
             ) as cursor:
                 row = await cursor.fetchone()
 
-            if not row or row[0] == 0:
+            if row is None:
+                raise DatabaseError("Symbol performance query returned no row")
+
+            row_seq = cast(Sequence[Any], row)
+            total_trades = int(row_seq[0] or 0)
+            if total_trades == 0:
                 return {
                     "symbol": symbol,
                     "total_trades": 0,
@@ -976,21 +1012,20 @@ class TradingDatabase:
                     "total_volume": 0.0,
                 }
 
-            total_trades = row[0] or 0
-            winning_trades = row[1] or 0
+            winning_trades = int(row_seq[1] or 0)
             win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
 
             return {
                 "symbol": symbol,
                 "total_trades": total_trades,
                 "winning_trades": winning_trades,
-                "losing_trades": row[2] or 0,
+                "losing_trades": int(row_seq[2] or 0),
                 "win_rate": win_rate,
-                "total_pnl": row[3] or 0.0,
-                "avg_pnl": row[4] or 0.0,
-                "best_trade": row[5] or 0.0,
-                "worst_trade": row[6] or 0.0,
-                "total_volume": row[7] or 0.0,
+                "total_pnl": float(row_seq[3] or 0.0),
+                "avg_pnl": float(row_seq[4] or 0.0),
+                "best_trade": float(row_seq[5] or 0.0),
+                "worst_trade": float(row_seq[6] or 0.0),
+                "total_volume": float(row_seq[7] or 0.0),
             }
 
         except Exception as e:
@@ -1004,11 +1039,11 @@ class TradingDatabase:
         Returns:
             Dictionary with summary stats
         """
-        await self._ensure_connection()
+        conn = self._ensure_connection()
 
         try:
             # Trade summary
-            async with self._connection.execute("""
+            async with conn.execute("""
                 SELECT
                     COUNT(*) as total_trades,
                     COUNT(DISTINCT symbol) as unique_symbols,
@@ -1022,24 +1057,32 @@ class TradingDatabase:
                 """) as cursor:
                 row = await cursor.fetchone()
 
+            if row is None:
+                raise DatabaseError("Summary stats query returned no row")
+            row_seq = cast(Sequence[Any], row)
+
             # Open positions count
-            async with self._connection.execute(
+            async with conn.execute(
                 "SELECT COUNT(*) FROM positions WHERE status = 'open'"
             ) as cursor:
-                open_positions = (await cursor.fetchone())[0]
+                open_row = await cursor.fetchone()
 
-            total_trades = row[0] or 0
-            winning_trades = row[4] or 0
+            if open_row is None:
+                raise DatabaseError("Open positions query returned no row")
+            open_positions = int(cast(Sequence[Any], open_row)[0] or 0)
+
+            total_trades = int(row_seq[0] or 0)
+            winning_trades = int(row_seq[4] or 0)
 
             return {
                 "total_trades": total_trades,
-                "unique_symbols": row[1] or 0,
-                "unique_strategies": row[2] or 0,
-                "total_pnl": row[3] or 0.0,
+                "unique_symbols": int(row_seq[1] or 0),
+                "unique_strategies": int(row_seq[2] or 0),
+                "total_pnl": float(row_seq[3] or 0.0),
                 "win_rate": winning_trades / total_trades if total_trades > 0 else 0.0,
                 "open_positions": open_positions,
-                "first_trade": row[5],
-                "last_trade": row[6],
+                "first_trade": row_seq[5],
+                "last_trade": row_seq[6],
             }
 
         except Exception as e:
