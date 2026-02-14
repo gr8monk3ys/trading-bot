@@ -13,7 +13,7 @@ import json
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Literal, Mapping, Optional
 from uuid import uuid4
 
 
@@ -41,7 +41,7 @@ def to_jsonable(value: Any) -> Any:
     if isinstance(value, Path):
         return str(value)
 
-    if is_dataclass(value):
+    if is_dataclass(value) and not isinstance(value, type):
         return to_jsonable(asdict(value))
 
     if isinstance(value, Mapping):
@@ -95,7 +95,7 @@ class JsonlWriter:
     def __enter__(self) -> "JsonlWriter":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> Literal[False]:
         self.close()
         return False
 
