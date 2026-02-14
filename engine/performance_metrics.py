@@ -459,10 +459,11 @@ class PerformanceMetrics:
         }
 
     def _calculate_annualized_return(
-        self, total_return: float, start_date: Optional[datetime], end_date: Optional[datetime]
+        self, total_return: float, start_date: object, end_date: object
     ) -> float:
         """Calculate annualized return."""
-        if start_date is None or end_date is None:
+        # Defensive: callers/tests may pass non-datetime values; treat as invalid.
+        if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
             return 0.0
 
         years = (end_date - start_date).days / 365.25
