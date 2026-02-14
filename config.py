@@ -158,6 +158,24 @@ def _validate_config():
             f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_MAX']}"
         )
 
+    # Validate factor data provenance gates
+    for key in (
+        "FACTOR_DATA_MAX_SYNTHETIC_RATIO",
+        "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO",
+        "FACTOR_DATA_MIN_COVERAGE_RATIO",
+    ):
+        val = RISK_PARAMS.get(key)
+        if val is None or val < 0 or val > 1:
+            errors.append(f"{key} must be between 0 and 1, got {val}")
+
+    if RISK_PARAMS.get("FACTOR_DATA_MIN_REAL_COVERAGE_RATIO", 0) > RISK_PARAMS.get(
+        "FACTOR_DATA_MIN_COVERAGE_RATIO", 1
+    ):
+        warnings.append(
+            "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO is greater than FACTOR_DATA_MIN_COVERAGE_RATIO "
+            "(this may unintentionally disable fundamental/size factors)."
+        )
+
     # Validate TECHNICAL_PARAMS
     if TECHNICAL_PARAMS["RSI_PERIOD"] < 2 or TECHNICAL_PARAMS["RSI_PERIOD"] > 100:
         warnings.append(
@@ -383,6 +401,16 @@ RISK_PARAMS = {
     "DATA_QUALITY_MAX_ERRORS": 0,  # Maximum tolerated data quality errors before halting new entries
     "DATA_QUALITY_MAX_STALE_WARNINGS": 0,  # Maximum stale data warnings before halting new entries
     "DATA_QUALITY_STALE_AFTER_DAYS": 3,  # Data freshness threshold for live/paper quality gates
+    # Factor-data provenance gates (prevents synthetic fundamentals from driving paper/live decisions)
+    "FACTOR_DATA_MAX_SYNTHETIC_RATIO": _parse_float_env(
+        "FACTOR_DATA_MAX_SYNTHETIC_RATIO", 0.0
+    ),
+    "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO": _parse_float_env(
+        "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO", 1.0
+    ),
+    "FACTOR_DATA_MIN_COVERAGE_RATIO": _parse_float_env(
+        "FACTOR_DATA_MIN_COVERAGE_RATIO", 1.0
+    ),
     "SLO_PAGING_ENABLED": _parse_bool_env("SLO_PAGING_ENABLED", default=False),
     "SLO_PAGING_WEBHOOK_URL": os.environ.get("SLO_PAGING_WEBHOOK_URL", "").strip(),
     "SLO_PAGING_MIN_SEVERITY": str(

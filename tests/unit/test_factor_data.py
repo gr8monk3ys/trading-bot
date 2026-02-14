@@ -470,6 +470,7 @@ class TestSyntheticDataGeneration:
 
         assert isinstance(result, FundamentalData)
         assert result.symbol == "AAPL"
+        assert result.source == "synthetic"
 
     def test_generate_synthetic_data_is_consistent_for_same_symbol(self, provider):
         """Test that synthetic data is consistent for the same symbol (seeded)."""
@@ -588,6 +589,7 @@ class TestCSVOperations:
 
         assert result is not None
         assert result.symbol == "AAPL"
+        assert result.source == "csv"
         # Should get Jan 15 data (most recent before Feb 15)
         assert result.pe_ratio == 25.0
 
@@ -741,8 +743,11 @@ class TestBuildFactorInputs:
         result = await provider.build_factor_inputs(symbols, price_data)
 
         assert "fundamental_data" in result
+        assert "fundamental_data_real" in result
         assert "market_caps" in result
+        assert "market_caps_real" in result
         assert "sectors" in result
+        assert "data_provenance" in result
 
     @pytest.mark.asyncio
     async def test_build_factor_inputs_fundamental_data(self, provider):
@@ -1025,6 +1030,7 @@ class TestAlpacaFetching:
 
         assert result is not None
         assert result.symbol == "AAPL"
+        assert result.source == "synthetic"
 
 
 class TestIntegration:
@@ -1051,6 +1057,7 @@ class TestIntegration:
 
         assert len(factor_inputs["fundamental_data"]) == 3
         assert len(factor_inputs["sectors"]) == 3
+        assert factor_inputs["data_provenance"]["counts_by_source"].get("synthetic") == 3
 
     @pytest.mark.asyncio
     async def test_full_workflow_with_csv(self, provider, sample_csv_data):
@@ -1068,6 +1075,7 @@ class TestIntegration:
         assert len(batch_data) == 2
         # Check that we got CSV data (not synthetic)
         assert batch_data["AAPL"].pe_ratio == 25.0  # From CSV
+        assert batch_data["AAPL"].source == "csv"
 
     @pytest.mark.asyncio
     async def test_point_in_time_workflow(self, provider):

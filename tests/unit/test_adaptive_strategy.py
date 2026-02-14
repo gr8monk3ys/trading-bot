@@ -1387,3 +1387,90 @@ class TestParametrizedRegimeSwitching:
             # Check that position size was adjusted
             expected_size = DEFAULT_POSITION_SIZE * expected_multiplier
             assert strategy.active_strategy.position_size == expected_size
+
+
+# =============================================================================
+# FACTOR SCORE UPDATE / PROVENANCE GATING TESTS
+# =============================================================================
+
+
+class TestAdaptiveStrategyFactorScoreUpdate:
+    """Tests for factor score refresh behavior (including provenance gates)."""
+
+    @pytest.mark.asyncio
+    async def test_update_factor_scores_gates_synthetic_fundamentals(self, mock_broker):
+        """Synthetic fundamentals should not be passed into the factor model."""
+        from strategies.adaptive_strategy import AdaptiveStrategy
+
+        strategy = AdaptiveStrategy(broker=mock_broker, symbols=["AAPL", "MSFT"])
+
+        # Provide sufficient price history for factor calculations.
+        strategy.price_history = {
+            "AAPL": [{"close": 100.0}] * 252,
+            "MSFT": [{"close": 200.0}] * 252,
+        }
+
+        strategy.factor_model = MagicMock()
+        strategy.factor_model.score_universe = MagicMock(return_value={})
+
+        strategy.factor_data_provider = AsyncMock()
+        strategy.factor_data_provider.build_factor_inputs = AsyncMock(
+            return_value={
+                "fundamental_data": {"AAPL": {"pe_ratio": 10.0}, "MSFT": {"pe_ratio": 12.0}},
+                "market_caps": {"AAPL": 1e12, "MSFT": 2e12},
+                "fundamental_data_real": {},
+                "market_caps_real": {},
+                "data_provenance": {
+                    "ratios": {
+                        "coverage_ratio": 1.0,
+                        "real_ratio": 0.0,
+                        "synthetic_ratio": 1.0,
+                        "missing_ratio": 0.0,
+                    }
+                },
+            }
+        )
+
+        await strategy.update_factor_scores()
+
+        _args, kwargs = strategy.factor_model.score_universe.call_args
+        assert kwargs["fundamental_data"] is None
+        assert kwargs["market_caps"] is None
+
+    @pytest.mark.asyncio
+    async def test_update_factor_scores_passes_real_fundamentals_when_healthy(self, mock_broker):
+        """When provenance looks healthy, the strategy should pass non-synthetic inputs."""
+        from strategies.adaptive_strategy import AdaptiveStrategy
+
+        strategy = AdaptiveStrategy(broker=mock_broker, symbols=["AAPL", "MSFT"])
+        strategy.price_history = {
+            "AAPL": [{"close": 100.0}] * 252,
+            "MSFT": [{"close": 200.0}] * 252,
+        }
+
+        strategy.factor_model = MagicMock()
+        strategy.factor_model.score_universe = MagicMock(return_value={})
+
+        strategy.factor_data_provider = AsyncMock()
+        strategy.factor_data_provider.build_factor_inputs = AsyncMock(
+            return_value={
+                "fundamental_data": {"AAPL": {"pe_ratio": 99.0}, "MSFT": {"pe_ratio": 98.0}},
+                "market_caps": {"AAPL": 9e12, "MSFT": 8e12},
+                "fundamental_data_real": {"AAPL": {"pe_ratio": 10.0}, "MSFT": {"pe_ratio": 12.0}},
+                "market_caps_real": {"AAPL": 1e12, "MSFT": 2e12},
+                "data_provenance": {
+                    "ratios": {
+                        "coverage_ratio": 1.0,
+                        "real_ratio": 1.0,
+                        "synthetic_ratio": 0.0,
+                        "missing_ratio": 0.0,
+                    }
+                },
+            }
+        )
+
+        await strategy.update_factor_scores()
+
+        _args, kwargs = strategy.factor_model.score_universe.call_args
+        assert kwargs["fundamental_data"] == {"AAPL": {"pe_ratio": 10.0}, "MSFT": {"pe_ratio": 12.0}}
+        assert kwargs["market_caps"] == {"AAPL": 1e12, "MSFT": 2e12}

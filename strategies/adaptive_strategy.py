@@ -505,17 +505,17 @@ class AdaptiveStrategy(BaseStrategy):
 
                 # Register Factor Model as signal source
                 try:
-                    from strategies.factor_models import FactorModel
+                    from strategies.factor_models import FactorModel, FactorType
                     from utils.factor_data import FactorDataProvider
 
                     self.factor_model = FactorModel(
                         factor_weights={
                             # Slightly overweight momentum for trading
-                            "value": 0.15,
-                            "quality": 0.20,
-                            "momentum": 0.35,
-                            "low_volatility": 0.20,
-                            "size": 0.10,
+                            FactorType.VALUE: 0.15,
+                            FactorType.QUALITY: 0.20,
+                            FactorType.MOMENTUM: 0.35,
+                            FactorType.LOW_VOLATILITY: 0.20,
+                            FactorType.SIZE: 0.10,
                         }
                     )
                     self.factor_data_provider = FactorDataProvider()
@@ -698,18 +698,75 @@ class AdaptiveStrategy(BaseStrategy):
                 price_data=price_df,
             )
 
+            # Provenance gate: never let synthetic fundamentals silently drive paper/live decisions.
+            # We still compute price-only factors (momentum/low_vol) when fundamentals are gated.
+            fundamental_data_for_scoring = factor_inputs.get("fundamental_data")
+            market_caps_for_scoring = factor_inputs.get("market_caps")
+
+            provenance = factor_inputs.get("data_provenance") or {}
+            ratios = (provenance.get("ratios") or {}) if isinstance(provenance, dict) else {}
+
+            synthetic_ratio = ratios.get("synthetic_ratio")
+            real_ratio = ratios.get("real_ratio")
+            coverage_ratio = ratios.get("coverage_ratio")
+
+            try:
+                from config import RISK_PARAMS
+
+                max_synth = float(RISK_PARAMS.get("FACTOR_DATA_MAX_SYNTHETIC_RATIO", 0.0))
+                min_real = float(RISK_PARAMS.get("FACTOR_DATA_MIN_REAL_COVERAGE_RATIO", 0.0))
+                min_cov = float(RISK_PARAMS.get("FACTOR_DATA_MIN_COVERAGE_RATIO", 0.0))
+
+                gate_fundamentals = False
+                if synthetic_ratio is not None and synthetic_ratio > max_synth:
+                    gate_fundamentals = True
+                if real_ratio is not None and real_ratio < min_real:
+                    gate_fundamentals = True
+                if coverage_ratio is not None and coverage_ratio < min_cov:
+                    gate_fundamentals = True
+
+                if gate_fundamentals:
+                    if ratios:
+                        logger.warning(
+                            "Gating fundamental/size factors due to data provenance "
+                            f"(coverage={coverage_ratio:.0%}, real={real_ratio:.0%}, synthetic={synthetic_ratio:.0%}; "
+                            f"thresholds: min_real={min_real:.0%}, max_synth={max_synth:.0%}, min_cov={min_cov:.0%}). "
+                            "Proceeding with price-only factors."
+                        )
+                    fundamental_data_for_scoring = None
+                    market_caps_for_scoring = None
+                else:
+                    # Prefer non-synthetic subsets when available.
+                    fundamental_data_for_scoring = (
+                        factor_inputs.get("fundamental_data_real")
+                        or factor_inputs.get("fundamental_data")
+                    )
+                    market_caps_for_scoring = (
+                        factor_inputs.get("market_caps_real")
+                        or factor_inputs.get("market_caps")
+                    )
+            except Exception as e:
+                logger.debug(f"Factor provenance gate unavailable: {e}")
+
             # Score the universe
             self._factor_scores_cache = self.factor_model.score_universe(
                 symbols=self.symbols,
                 price_data=price_df,
-                fundamental_data=factor_inputs.get("fundamental_data"),
-                market_caps=factor_inputs.get("market_caps"),
+                fundamental_data=fundamental_data_for_scoring,
+                market_caps=market_caps_for_scoring,
             )
             self._factor_scores_timestamp = datetime.now()
 
+            used_factors = set()
+            for score in self._factor_scores_cache.values():
+                try:
+                    used_factors.update(ft.value for ft in score.factor_scores.keys())
+                except Exception:
+                    continue
+
             logger.info(
                 f"Factor scores updated for {len(self._factor_scores_cache)} symbols "
-                f"(factors used: momentum, low_vol, value, quality, size)"
+                f"(factors used: {', '.join(sorted(used_factors)) if used_factors else 'none'})"
             )
 
         except Exception as e:

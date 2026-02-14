@@ -26,7 +26,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -490,10 +490,16 @@ class FactorCalculator:
         """
         if weights is None:
             weights = {ft: 1.0 / len(factor_scores) for ft in factor_scores}
-
-        # Normalize weights
-        total_weight = sum(weights.values())
-        weights = {k: v / total_weight for k, v in weights.items()}
+        else:
+            # Normalize weights and guard against caller bugs that provide all-zero weights.
+            total_weight = sum(weights.values())
+            if total_weight <= 0:
+                logger.warning(
+                    "Invalid factor weights (sum <= 0). Falling back to equal weights."
+                )
+                weights = {ft: 1.0 / len(factor_scores) for ft in factor_scores}
+            else:
+                weights = {k: v / total_weight for k, v in weights.items()}
 
         # Get all symbols
         all_symbols = set()
@@ -578,7 +584,7 @@ class FactorModel:
 
     def __init__(
         self,
-        factor_weights: Dict[str, float] = None,
+        factor_weights: Optional[Dict[Union["FactorType", str], float]] = None,
         long_threshold: float = 0.5,
         short_threshold: float = -0.5,
     ):
@@ -591,15 +597,66 @@ class FactorModel:
             short_threshold: Z-score threshold for short signal
         """
         self.calculator = FactorCalculator()
-        self.factor_weights = factor_weights or {
-            FactorType.VALUE: 0.20,
-            FactorType.QUALITY: 0.20,
-            FactorType.MOMENTUM: 0.30,  # Momentum slightly overweighted
-            FactorType.LOW_VOLATILITY: 0.20,
-            FactorType.SIZE: 0.10,  # Size underweighted (weaker premium)
-        }
+        self.factor_weights = (
+            self._coerce_factor_weights(factor_weights)
+            if factor_weights is not None
+            else {
+                FactorType.VALUE: 0.20,
+                FactorType.QUALITY: 0.20,
+                FactorType.MOMENTUM: 0.30,  # Momentum slightly overweighted
+                FactorType.LOW_VOLATILITY: 0.20,
+                FactorType.SIZE: 0.10,  # Size underweighted (weaker premium)
+            }
+        )
         self.long_threshold = long_threshold
         self.short_threshold = short_threshold
+
+    @staticmethod
+    def _coerce_factor_weights(
+        factor_weights: Dict[Union["FactorType", str], float],
+    ) -> Dict[FactorType, float]:
+        """
+        Accept factor weights keyed by FactorType or strings ("value", "momentum", etc.)
+        and normalize keys to FactorType for internal use.
+        """
+        coerced: Dict[FactorType, float] = {}
+        for key, weight in (factor_weights or {}).items():
+            factor_type: Optional[FactorType] = None
+
+            if isinstance(key, FactorType):
+                factor_type = key
+            elif isinstance(key, str):
+                normalized = (
+                    key.strip()
+                    .lower()
+                    .replace("-", "_")
+                    .replace(" ", "_")
+                )
+                for candidate in FactorType:
+                    if candidate.value == normalized or candidate.name.lower() == normalized:
+                        factor_type = candidate
+                        break
+
+            if factor_type is None:
+                logger.warning(f"Ignoring unknown factor weight key: {key!r}")
+                continue
+
+            try:
+                coerced[factor_type] = float(weight)
+            except (TypeError, ValueError):
+                logger.warning(f"Ignoring non-numeric factor weight for {key!r}: {weight!r}")
+
+        if not coerced:
+            logger.warning("No valid factor weights provided; using defaults.")
+            return {
+                FactorType.VALUE: 0.20,
+                FactorType.QUALITY: 0.20,
+                FactorType.MOMENTUM: 0.30,
+                FactorType.LOW_VOLATILITY: 0.20,
+                FactorType.SIZE: 0.10,
+            }
+
+        return coerced
 
     def score_universe(
         self,

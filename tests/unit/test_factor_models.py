@@ -1028,6 +1028,17 @@ class TestFactorModel:
         assert model.factor_weights[FactorType.MOMENTUM] == 0.5
         assert model.factor_weights[FactorType.VALUE] == 0.5
 
+    def test_factor_model_custom_weights_string_keys(self):
+        """Test FactorModel accepts string-keyed weights for integration callers."""
+        custom_weights = {
+            "momentum": 0.5,
+            "value": 0.5,
+        }
+        model = FactorModel(factor_weights=custom_weights)
+
+        assert model.factor_weights[FactorType.MOMENTUM] == 0.5
+        assert model.factor_weights[FactorType.VALUE] == 0.5
+
     def test_score_universe(self, factor_model, sample_symbols, sample_price_data, sample_fundamental_data, sample_market_caps):
         """Test score_universe method with all data types."""
         results = factor_model.score_universe(

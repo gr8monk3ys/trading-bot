@@ -36,6 +36,9 @@ class FundamentalData:
 
     symbol: str
     as_of_date: datetime
+    # Data provenance / source tracking. Not included in `to_dict()` to avoid
+    # polluting numeric factor inputs.
+    source: str = "unknown"
 
     # Value metrics
     pe_ratio: Optional[float] = None
@@ -128,6 +131,7 @@ class FactorDataProvider:
         cache_ttl_hours: int = 24,
         alpaca_api_key: str = None,
         alpaca_secret_key: str = None,
+        allow_synthetic_fallback: bool = True,
     ):
         """
         Initialize the factor data provider.
@@ -142,6 +146,7 @@ class FactorDataProvider:
         self.cache_ttl = timedelta(hours=cache_ttl_hours)
         self.alpaca_api_key = alpaca_api_key or os.getenv("ALPACA_API_KEY")
         self.alpaca_secret_key = alpaca_secret_key or os.getenv("ALPACA_SECRET_KEY")
+        self.allow_synthetic_fallback = allow_synthetic_fallback
 
         # Create cache directory
         self.cache_dir.mkdir(exist_ok=True)
@@ -245,6 +250,9 @@ class FactorDataProvider:
                 return alpaca_data
 
         # Fallback: synthetic data for testing
+        if not self.allow_synthetic_fallback:
+            return None
+
         return self._generate_synthetic_data(symbol, as_of_date)
 
     async def _fetch_from_csv(
@@ -273,6 +281,7 @@ class FactorDataProvider:
             return FundamentalData(
                 symbol=symbol,
                 as_of_date=row["date"].to_pydatetime(),
+                source="csv",
                 pe_ratio=row.get("pe_ratio"),
                 pb_ratio=row.get("pb_ratio"),
                 ps_ratio=row.get("ps_ratio"),
@@ -330,6 +339,7 @@ class FactorDataProvider:
         return FundamentalData(
             symbol=symbol,
             as_of_date=as_of_date,
+            source="synthetic",
             pe_ratio=max(5, np.random.normal(20 * adj["pe"], 8)),
             pb_ratio=max(0.5, np.random.normal(3.0, 1.5)),
             ps_ratio=max(0.5, np.random.normal(4.0 * adj["pe"], 2.0)),
@@ -406,8 +416,11 @@ class FactorDataProvider:
         Returns:
             Dictionary with:
             - fundamental_data: {symbol: {metric: value}}
+            - fundamental_data_real: {symbol: {metric: value}} (non-synthetic sources)
             - market_caps: {symbol: market_cap}
+            - market_caps_real: {symbol: market_cap} (non-synthetic sources)
             - sectors: {symbol: sector}
+            - data_provenance: summary of data sources/coverage
         """
         as_of_date = as_of_date or datetime.now()
 
@@ -416,20 +429,61 @@ class FactorDataProvider:
 
         # Build output dictionaries
         fundamental_data = {}
+        fundamental_data_real = {}
         market_caps = {}
+        market_caps_real = {}
         sectors = {}
+        sources: Dict[str, str] = {}
+        counts_by_source: Dict[str, int] = {}
+
+        real_sources = {"csv", "alpaca"}
 
         for symbol, fd in fundamental_batch.items():
+            source = (getattr(fd, "source", None) or "unknown").strip().lower()
+            sources[symbol] = source
+            counts_by_source[source] = counts_by_source.get(source, 0) + 1
+
             fundamental_data[symbol] = fd.to_dict()
+            if source in real_sources:
+                fundamental_data_real[symbol] = fd.to_dict()
             if fd.market_cap:
                 market_caps[symbol] = fd.market_cap
+                if source in real_sources:
+                    market_caps_real[symbol] = fd.market_cap
             if fd.sector:
                 sectors[symbol] = fd.sector
 
+        total_symbols = len(symbols)
+        symbols_with_data = len(fundamental_batch)
+        missing_symbols = [s for s in symbols if s not in fundamental_batch]
+        synthetic_count = counts_by_source.get("synthetic", 0)
+        real_count = sum(counts_by_source.get(s, 0) for s in real_sources)
+        coverage_ratio = (symbols_with_data / total_symbols) if total_symbols else 0.0
+        synthetic_ratio = (synthetic_count / total_symbols) if total_symbols else 0.0
+        real_ratio = (real_count / total_symbols) if total_symbols else 0.0
+        missing_ratio = ((total_symbols - symbols_with_data) / total_symbols) if total_symbols else 0.0
+
         return {
             "fundamental_data": fundamental_data,
+            "fundamental_data_real": fundamental_data_real,
             "market_caps": market_caps,
+            "market_caps_real": market_caps_real,
             "sectors": sectors,
+            "data_provenance": {
+                "as_of_date": as_of_date.isoformat(),
+                "total_symbols": total_symbols,
+                "symbols_with_data": symbols_with_data,
+                "missing_symbols": missing_symbols,
+                "real_sources": sorted(real_sources),
+                "sources": sources,
+                "counts_by_source": counts_by_source,
+                "ratios": {
+                    "coverage_ratio": coverage_ratio,
+                    "real_ratio": real_ratio,
+                    "synthetic_ratio": synthetic_ratio,
+                    "missing_ratio": missing_ratio,
+                },
+            },
         }
 
 
