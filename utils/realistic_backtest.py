@@ -36,15 +36,12 @@ Usage:
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 
 from config import BACKTEST_PARAMS
-
-# Lazy import for market impact model
-AlmgrenChrissModel = None
-MarketImpactResult = None
+from utils.market_impact import AlmgrenChrissModel, MarketImpactResult
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +55,7 @@ class Trade:
     quantity: float
     entry_price: float
     exit_price: Optional[float] = None
-    entry_time: datetime = None
+    entry_time: Optional[datetime] = None
     exit_time: Optional[datetime] = None
 
     # Costs
@@ -83,7 +80,7 @@ class Trade:
         slippage_pct: float = 0.004,
         spread_pct: float = 0.001,
         commission_per_share: float = 0.0,
-    ):
+    ) -> None:
         """Calculate transaction costs for this trade (fixed model)."""
         trade_value = self.quantity * self.entry_price
 
@@ -100,10 +97,10 @@ class Trade:
 
     def calculate_costs_almgren_chriss(
         self,
-        entry_impact: "MarketImpactResult",
-        exit_impact: Optional["MarketImpactResult"] = None,
+        entry_impact: MarketImpactResult,
+        exit_impact: Optional[MarketImpactResult] = None,
         commission_per_share: float = 0.0,
-    ):
+    ) -> None:
         """
         Calculate transaction costs using Almgren-Chriss model.
 
@@ -139,7 +136,7 @@ class Trade:
 
         self.total_cost = self.slippage_cost + self.commission_cost
 
-    def close(self, exit_price: float, exit_time: datetime):
+    def close(self, exit_price: float, exit_time: datetime) -> None:
         """Close the trade and calculate P&L."""
         self.exit_price = exit_price
         self.exit_time = exit_time
@@ -159,8 +156,8 @@ class BacktestResults:
     """Container for backtest results with detailed metrics."""
 
     # Basic info
-    start_date: datetime = None
-    end_date: datetime = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     trading_days: int = 0
 
     # Capital tracking
@@ -208,10 +205,14 @@ class BacktestResults:
     # Trade list
     trades: List[Trade] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert results to dictionary."""
+        if self.start_date is None or self.end_date is None:
+            period = "unknown"
+        else:
+            period = f"{self.start_date.date()} to {self.end_date.date()}"
         return {
-            "period": f"{self.start_date.date()} to {self.end_date.date()}",
+            "period": period,
             "trading_days": self.trading_days,
             "initial_capital": self.initial_capital,
             "final_capital": self.final_capital,
@@ -258,10 +259,10 @@ class RealisticBacktester:
         broker,
         strategy,
         initial_capital: float = 100000.0,
-        slippage_pct: float = None,
-        spread_pct: float = None,
-        commission_per_share: float = None,
-        execution_delay_bars: int = None,
+        slippage_pct: Optional[float] = None,
+        spread_pct: Optional[float] = None,
+        commission_per_share: Optional[float] = None,
+        execution_delay_bars: Optional[int] = None,
         use_almgren_chriss: bool = True,
         execution_time_hours: float = 1.0,
     ):
@@ -279,42 +280,42 @@ class RealisticBacktester:
             use_almgren_chriss: Use volume-based Almgren-Chriss model
             execution_time_hours: Assumed execution duration for impact calculation
         """
-        global AlmgrenChrissModel, MarketImpactResult
-
-        self.broker = broker
-        self.strategy = strategy
+        self.broker: Any = broker
+        self.strategy: Any = strategy
         self.initial_capital = initial_capital
         self.use_almgren_chriss = use_almgren_chriss
         self.execution_time_hours = execution_time_hours
 
         # Load defaults from config if not specified
-        self.slippage_pct = slippage_pct or BACKTEST_PARAMS.get("SLIPPAGE_PCT", 0.004)
-        self.spread_pct = spread_pct or BACKTEST_PARAMS.get("BID_ASK_SPREAD", 0.001)
-        self.commission = commission_per_share or BACKTEST_PARAMS.get("COMMISSION_PER_SHARE", 0.0)
-        self.execution_delay = execution_delay_bars or BACKTEST_PARAMS.get(
-            "EXECUTION_DELAY_BARS", 1
-        )
+        if slippage_pct is None:
+            default_slippage: Any = BACKTEST_PARAMS.get("SLIPPAGE_PCT", 0.004)
+            slippage_pct = float(default_slippage)
+        if spread_pct is None:
+            default_spread: Any = BACKTEST_PARAMS.get("BID_ASK_SPREAD", 0.001)
+            spread_pct = float(default_spread)
+        if commission_per_share is None:
+            default_commission: Any = BACKTEST_PARAMS.get("COMMISSION_PER_SHARE", 0.0)
+            commission_per_share = float(default_commission)
+        if execution_delay_bars is None:
+            default_delay: Any = BACKTEST_PARAMS.get("EXECUTION_DELAY_BARS", 1)
+            execution_delay_bars = int(default_delay)
+
+        self.slippage_pct: float = float(slippage_pct)
+        self.spread_pct: float = float(spread_pct)
+        self.commission: float = float(commission_per_share)
+        self.execution_delay: int = int(execution_delay_bars)
 
         # Enable/disable features
-        self.use_slippage = BACKTEST_PARAMS.get("USE_SLIPPAGE", True)
+        self.use_slippage: bool = bool(BACKTEST_PARAMS.get("USE_SLIPPAGE", True))
 
         # Initialize Almgren-Chriss model
-        self.impact_model = None
+        self.impact_model: Optional[AlmgrenChrissModel] = None
         if use_almgren_chriss:
             try:
-                from utils.market_impact import (
-                    AlmgrenChrissModel as ACM,
-                )
-                from utils.market_impact import (
-                    MarketImpactResult as MIR,
-                )
-
-                AlmgrenChrissModel = ACM
-                MarketImpactResult = MIR
                 self.impact_model = AlmgrenChrissModel()
                 logger.info("Almgren-Chriss market impact model enabled")
-            except ImportError as e:
-                logger.warning(f"Could not load Almgren-Chriss model: {e}")
+            except Exception as e:
+                logger.warning(f"Could not initialize Almgren-Chriss model: {e}")
                 self.use_almgren_chriss = False
 
         # Cache for volume/volatility data
@@ -380,10 +381,10 @@ class RealisticBacktester:
                 return results
 
             # Get all unique dates
-            all_dates = set()
+            all_dates_set: set[datetime] = set()
             for bars in all_bars.values():
-                all_dates.update(b["date"] for b in bars)
-            all_dates = sorted(all_dates)
+                all_dates_set.update(cast(datetime, b["date"]) for b in bars)
+            all_dates = sorted(all_dates_set)
 
             results.trading_days = len(all_dates)
 
@@ -469,9 +470,9 @@ class RealisticBacktester:
             return [
                 {
                     "date": (
-                        getattr(b, "timestamp", datetime.now()).date()
-                        if hasattr(b, "timestamp")
-                        else start_date.date()
+                        getattr(b, "timestamp", start_date)
+                        if isinstance(getattr(b, "timestamp", None), datetime)
+                        else start_date
                     ),
                     "open": float(b.open),
                     "high": float(b.high),
@@ -617,7 +618,7 @@ class RealisticBacktester:
         price: float,
         daily_volume: Optional[float] = None,
         volatility: Optional[float] = None,
-    ) -> Optional["MarketImpactResult"]:
+    ) -> Optional[MarketImpactResult]:
         """
         Calculate market impact using Almgren-Chriss model.
 
@@ -847,7 +848,11 @@ def print_backtest_report(results: BacktestResults):
     print("REALISTIC BACKTEST REPORT")
     print("=" * 60)
 
-    print(f"\nPeriod: {results.start_date.date()} to {results.end_date.date()}")
+    if results.start_date is not None and results.end_date is not None:
+        period = f"{results.start_date.date()} to {results.end_date.date()}"
+    else:
+        period = "unknown"
+    print(f"\nPeriod: {period}")
     print(f"Trading Days: {results.trading_days}")
     print(f"Initial Capital: ${results.initial_capital:,.2f}")
     print(f"Final Capital: ${results.final_capital:,.2f}")
