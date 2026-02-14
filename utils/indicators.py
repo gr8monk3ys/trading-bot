@@ -29,7 +29,7 @@ Usage:
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import talib
@@ -68,12 +68,12 @@ class TechnicalIndicators:
 
     def __init__(
         self,
-        high: np.ndarray = None,
-        low: np.ndarray = None,
-        close: np.ndarray = None,
-        open_: np.ndarray = None,
-        volume: np.ndarray = None,
-        timestamps: List[datetime] = None,
+        high: Optional[np.ndarray] = None,
+        low: Optional[np.ndarray] = None,
+        close: Optional[np.ndarray] = None,
+        open_: Optional[np.ndarray] = None,
+        volume: Optional[np.ndarray] = None,
+        timestamps: Optional[List[datetime]] = None,
     ):
         """
         Initialize with price/volume data.
@@ -86,11 +86,11 @@ class TechnicalIndicators:
             volume: Trading volume (optional)
             timestamps: Timestamps for each bar (optional, needed for VWAP)
         """
-        self.high = np.array(high) if high is not None else None
-        self.low = np.array(low) if low is not None else None
-        self.close = np.array(close) if close is not None else None
-        self.open = np.array(open_) if open_ is not None else None
-        self.volume = np.array(volume) if volume is not None else None
+        self.high = np.asarray(high, dtype=np.float64) if high is not None else None
+        self.low = np.asarray(low, dtype=np.float64) if low is not None else None
+        self.close = np.asarray(close, dtype=np.float64) if close is not None else None
+        self.open = np.asarray(open_, dtype=np.float64) if open_ is not None else None
+        self.volume = np.asarray(volume, dtype=np.float64) if volume is not None else None
         self.timestamps = timestamps
 
     # ==================== TREND INDICATORS ====================
@@ -137,8 +137,9 @@ class TechnicalIndicators:
         Returns:
             Tuple of (macd, signal, histogram)
         """
+        close = self._require_close()
         return talib.MACD(
-            self.close, fastperiod=fast_period, slowperiod=slow_period, signalperiod=signal_period
+            close, fastperiod=fast_period, slowperiod=slow_period, signalperiod=signal_period
         )
 
     def adx(self, period: int = 14) -> np.ndarray:
@@ -157,7 +158,8 @@ class TechnicalIndicators:
         Returns:
             ADX values
         """
-        return talib.ADX(self.high, self.low, self.close, timeperiod=period)
+        high, low, close = self._require_hlc()
+        return talib.ADX(high, low, close, timeperiod=period)
 
     def adx_di(self, period: int = 14) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -173,9 +175,10 @@ class TechnicalIndicators:
         Returns:
             Tuple of (adx, plus_di, minus_di)
         """
-        adx = talib.ADX(self.high, self.low, self.close, timeperiod=period)
-        plus_di = talib.PLUS_DI(self.high, self.low, self.close, timeperiod=period)
-        minus_di = talib.MINUS_DI(self.high, self.low, self.close, timeperiod=period)
+        high, low, close = self._require_hlc()
+        adx = talib.ADX(high, low, close, timeperiod=period)
+        plus_di = talib.PLUS_DI(high, low, close, timeperiod=period)
+        minus_di = talib.MINUS_DI(high, low, close, timeperiod=period)
         return adx, plus_di, minus_di
 
     def parabolic_sar(self, acceleration: float = 0.02, maximum: float = 0.2) -> np.ndarray:
@@ -193,7 +196,8 @@ class TechnicalIndicators:
         Returns:
             SAR values
         """
-        return talib.SAR(self.high, self.low, acceleration=acceleration, maximum=maximum)
+        high, low = self._require_high_low()
+        return talib.SAR(high, low, acceleration=acceleration, maximum=maximum)
 
     # ==================== MOMENTUM INDICATORS ====================
 
@@ -237,15 +241,16 @@ class TechnicalIndicators:
         Returns:
             Tuple of (slowk, slowd)
         """
+        high, low, close = self._require_hlc()
         slowk, slowd = talib.STOCH(
-            self.high,
-            self.low,
-            self.close,
+            high,
+            low,
+            close,
             fastk_period=fastk_period,
             slowk_period=slowk_period,
-            slowk_matype=0,
+            slowk_matype=talib.MA_Type.SMA,
             slowd_period=slowd_period,
-            slowd_matype=0,
+            slowd_matype=talib.MA_Type.SMA,
         )
         return slowk, slowd
 
@@ -266,12 +271,13 @@ class TechnicalIndicators:
         Returns:
             Tuple of (fastk, fastd)
         """
+        close = self._require_close()
         fastk, fastd = talib.STOCHRSI(
-            self.close,
+            close,
             timeperiod=rsi_period,
             fastk_period=k_period,
             fastd_period=d_period,
-            fastd_matype=0,
+            fastd_matype=talib.MA_Type.SMA,
         )
         return fastk, fastd
 
@@ -289,7 +295,8 @@ class TechnicalIndicators:
         Returns:
             CCI values
         """
-        return talib.CCI(self.high, self.low, self.close, timeperiod=period)
+        high, low, close = self._require_hlc()
+        return talib.CCI(high, low, close, timeperiod=period)
 
     def williams_r(self, period: int = 14) -> np.ndarray:
         """
@@ -305,7 +312,8 @@ class TechnicalIndicators:
         Returns:
             Williams %R values (-100 to 0)
         """
-        return talib.WILLR(self.high, self.low, self.close, timeperiod=period)
+        high, low, close = self._require_hlc()
+        return talib.WILLR(high, low, close, timeperiod=period)
 
     def roc(self, period: int = 12, price: str = "close") -> np.ndarray:
         """
@@ -349,7 +357,7 @@ class TechnicalIndicators:
         """
         prices = self._get_price_array(price)
         upper, middle, lower = talib.BBANDS(
-            prices, timeperiod=period, nbdevup=std, nbdevdn=std, matype=0
+            prices, timeperiod=period, nbdevup=std, nbdevdn=std, matype=talib.MA_Type.SMA
         )
         return upper, middle, lower
 
@@ -367,7 +375,8 @@ class TechnicalIndicators:
         Returns:
             ATR values
         """
-        return talib.ATR(self.high, self.low, self.close, timeperiod=period)
+        high, low, close = self._require_hlc()
+        return talib.ATR(high, low, close, timeperiod=period)
 
     def keltner_channels(
         self, ema_period: int = 20, atr_period: int = 10, atr_multiplier: float = 2.0
@@ -385,8 +394,9 @@ class TechnicalIndicators:
         Returns:
             Tuple of (upper, middle, lower)
         """
-        middle = talib.EMA(self.close, timeperiod=ema_period)
-        atr = talib.ATR(self.high, self.low, self.close, timeperiod=atr_period)
+        high, low, close = self._require_hlc()
+        middle = talib.EMA(close, timeperiod=ema_period)
+        atr = talib.ATR(high, low, close, timeperiod=atr_period)
 
         upper = middle + (atr * atr_multiplier)
         lower = middle - (atr * atr_multiplier)
@@ -423,11 +433,11 @@ class TechnicalIndicators:
         Returns:
             VWAP values
         """
-        if self.volume is None:
-            raise ValueError("Volume data required for VWAP calculation")
+        volume = self._require_volume()
+        high, low, close = self._require_hlc()
 
         # Typical price: (H + L + C) / 3
-        typical_price = (self.high + self.low + self.close) / 3
+        typical_price = (high + low + close) / 3
 
         # If timestamps provided, reset VWAP daily
         if self.timestamps:
@@ -447,7 +457,7 @@ class TechnicalIndicators:
 
                 # Calculate VWAP for this day
                 day_typical = typical_price[date_indices]
-                day_volume = self.volume[date_indices]
+                day_volume = volume[date_indices]
 
                 # Cumulative (typical_price * volume) / cumulative volume
                 pv = day_typical * day_volume
@@ -462,14 +472,14 @@ class TechnicalIndicators:
             return vwap_values
         else:
             # Simple cumulative VWAP (no daily reset)
-            pv = typical_price * self.volume
+            pv = typical_price * volume
             cumsum_pv = np.cumsum(pv)
-            cumsum_volume = np.cumsum(self.volume)
+            cumsum_volume = np.cumsum(volume)
 
             # Avoid division by zero
             cumsum_volume[cumsum_volume == 0] = 1
 
-            return cumsum_pv / cumsum_volume
+            return np.asarray(cumsum_pv / cumsum_volume)
 
     def obv(self) -> np.ndarray:
         """
@@ -485,10 +495,9 @@ class TechnicalIndicators:
         Returns:
             OBV values
         """
-        if self.volume is None:
-            raise ValueError("Volume data required for OBV calculation")
-
-        return talib.OBV(self.close, self.volume)
+        close = self._require_close()
+        volume = self._require_volume()
+        return talib.OBV(close, volume)
 
     def volume_sma(self, period: int = 20) -> np.ndarray:
         """
@@ -504,10 +513,8 @@ class TechnicalIndicators:
         Returns:
             Volume SMA values
         """
-        if self.volume is None:
-            raise ValueError("Volume data required for Volume SMA")
-
-        return talib.SMA(self.volume, timeperiod=period)
+        volume = self._require_volume()
+        return talib.SMA(volume, timeperiod=period)
 
     def mfi(self, period: int = 14) -> np.ndarray:
         """
@@ -523,10 +530,9 @@ class TechnicalIndicators:
         Returns:
             MFI values (0-100)
         """
-        if self.volume is None:
-            raise ValueError("Volume data required for MFI")
-
-        return talib.MFI(self.high, self.low, self.close, self.volume, timeperiod=period)
+        high, low, close = self._require_hlc()
+        volume = self._require_volume()
+        return talib.MFI(high, low, close, volume, timeperiod=period)
 
     # ==================== SUPPORT/RESISTANCE ====================
 
@@ -539,10 +545,12 @@ class TechnicalIndicators:
         Returns:
             Dict with keys: PP, R1, R2, R3, S1, S2, S3
         """
+        high_arr, low_arr, close_arr = self._require_hlc()
+
         # Use last bar
-        high = self.high[-1]
-        low = self.low[-1]
-        close = self.close[-1]
+        high = float(high_arr[-1])
+        low = float(low_arr[-1])
+        close = float(close_arr[-1])
 
         # Pivot Point
         pp = (high + low + close) / 3
@@ -559,7 +567,7 @@ class TechnicalIndicators:
         return {"PP": pp, "R1": r1, "R2": r2, "R3": r3, "S1": s1, "S2": s2, "S3": s3}
 
     def fibonacci_retracement(
-        self, swing_high: float = None, swing_low: float = None
+        self, swing_high: Optional[float] = None, swing_low: Optional[float] = None
     ) -> Dict[str, float]:
         """
         Fibonacci Retracement Levels.
@@ -571,11 +579,12 @@ class TechnicalIndicators:
         Returns:
             Dict with retracement levels (0%, 23.6%, 38.2%, 50%, 61.8%, 100%)
         """
+        high_arr, low_arr = self._require_high_low()
         if swing_high is None:
-            swing_high = np.max(self.high)
+            swing_high = float(np.max(high_arr))
 
         if swing_low is None:
-            swing_low = np.min(self.low)
+            swing_low = float(np.min(low_arr))
 
         diff = swing_high - swing_low
 
@@ -593,20 +602,50 @@ class TechnicalIndicators:
 
     def _get_price_array(self, price: str) -> np.ndarray:
         """Get price array by name."""
+        prices: Optional[np.ndarray]
         if price == "close":
-            return self.close
+            prices = self.close
         elif price == "high":
-            return self.high
+            prices = self.high
         elif price == "low":
-            return self.low
+            prices = self.low
         elif price == "open":
-            return self.open
+            prices = self.open
         else:
             raise ValueError(f"Invalid price type: {price}")
 
+        if prices is None:
+            raise ValueError(f"Price data required for '{price}' calculations")
+
+        return prices
+
+    def _require_close(self) -> np.ndarray:
+        """Ensure close prices are available."""
+        if self.close is None:
+            raise ValueError("Close price data required")
+        return self.close
+
+    def _require_high_low(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Ensure high/low prices are available."""
+        if self.high is None or self.low is None:
+            raise ValueError("High/low price data required")
+        return self.high, self.low
+
+    def _require_hlc(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Ensure high/low/close prices are available."""
+        if self.high is None or self.low is None or self.close is None:
+            raise ValueError("High/low/close price data required")
+        return self.high, self.low, self.close
+
+    def _require_volume(self) -> np.ndarray:
+        """Ensure volume data is available."""
+        if self.volume is None:
+            raise ValueError("Volume data required")
+        return self.volume
+
     # ==================== COMPOSITE INDICATORS ====================
 
-    def all_momentum_indicators(self) -> Dict[str, any]:
+    def all_momentum_indicators(self) -> Dict[str, Any]:
         """
         Calculate all momentum indicators at once.
 
@@ -622,7 +661,7 @@ class TechnicalIndicators:
             "macd": self.macd(),
         }
 
-    def all_trend_indicators(self) -> Dict[str, any]:
+    def all_trend_indicators(self) -> Dict[str, Any]:
         """
         Calculate all trend indicators at once.
 
@@ -644,7 +683,7 @@ class TechnicalIndicators:
             "parabolic_sar": self.parabolic_sar(),
         }
 
-    def all_volatility_indicators(self) -> Dict[str, any]:
+    def all_volatility_indicators(self) -> Dict[str, Any]:
         """
         Calculate all volatility indicators at once.
 
@@ -662,7 +701,7 @@ class TechnicalIndicators:
 # ==================== QUICK ANALYSIS FUNCTIONS ====================
 
 
-def analyze_trend(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, any]:
+def analyze_trend(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, Any]:
     """
     Quick trend analysis.
 
@@ -711,7 +750,7 @@ def analyze_trend(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[
     }
 
 
-def analyze_momentum(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, any]:
+def analyze_momentum(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, Any]:
     """
     Quick momentum analysis.
 
@@ -741,7 +780,7 @@ def analyze_momentum(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Di
     }
 
 
-def analyze_volatility(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, any]:
+def analyze_volatility(close: np.ndarray, high: np.ndarray, low: np.ndarray) -> Dict[str, Any]:
     """
     Quick volatility analysis.
 
