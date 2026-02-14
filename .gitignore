@@ -66,6 +66,10 @@ htmlcov/
 *.cover
 .hypothesis/
 
+# Generated research + audit artifacts (should not be committed)
+.research/
+audit_logs/
+
 # Type checking
 .mypy_cache/
 .pytype/
