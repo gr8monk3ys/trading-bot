@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import TypedDict
 
 from dotenv import load_dotenv
 
@@ -223,7 +224,13 @@ def _parse_float_env(name: str, default: float) -> float:
         return float(default)
 
 
-def _read_alpaca_creds_from_env() -> dict[str, str | bool]:
+class AlpacaCreds(TypedDict):
+    API_KEY: str
+    API_SECRET: str
+    PAPER: bool
+
+
+def _read_alpaca_creds_from_env() -> AlpacaCreds:
     """
     Read Alpaca credentials from environment variables.
 
@@ -242,7 +249,7 @@ def _read_alpaca_creds_from_env() -> dict[str, str | bool]:
 ALPACA_CREDS = _read_alpaca_creds_from_env()
 
 
-def get_alpaca_creds(refresh: bool = False) -> dict[str, str | bool]:
+def get_alpaca_creds(refresh: bool = False) -> AlpacaCreds:
     """
     Return Alpaca credentials.
 
@@ -251,10 +258,14 @@ def get_alpaca_creds(refresh: bool = False) -> dict[str, str | bool]:
     """
     if refresh:
         ALPACA_CREDS.update(_read_alpaca_creds_from_env())
-    return ALPACA_CREDS.copy()
+    return {
+        "API_KEY": ALPACA_CREDS["API_KEY"],
+        "API_SECRET": ALPACA_CREDS["API_SECRET"],
+        "PAPER": ALPACA_CREDS["PAPER"],
+    }
 
 
-def require_alpaca_credentials(context: str = "trading") -> dict[str, str | bool]:
+def require_alpaca_credentials(context: str = "trading") -> AlpacaCreds:
     """
     Return Alpaca credentials and raise when missing required keys.
 
