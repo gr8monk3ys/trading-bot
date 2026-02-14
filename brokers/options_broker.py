@@ -18,7 +18,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from config import ALPACA_CREDS
 
@@ -175,7 +175,9 @@ class OptionChain:
         closest = min(all_strikes, key=lambda x: abs(x - underlying_price))
         return closest
 
-    def filter_by_delta(self, min_delta: float = None, max_delta: float = None) -> "OptionChain":
+    def filter_by_delta(
+        self, min_delta: Optional[float] = None, max_delta: Optional[float] = None
+    ) -> "OptionChain":
         """
         Filter contracts by delta range.
 
@@ -244,7 +246,12 @@ class OptionsBroker:
     Note: Requires options trading approval on your Alpaca account.
     """
 
-    def __init__(self, api_key: str = None, secret_key: str = None, paper: bool = True):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        secret_key: Optional[str] = None,
+        paper: bool | str = True,
+    ):
         """
         Initialize OptionsBroker.
 
@@ -256,6 +263,7 @@ class OptionsBroker:
         self._api_key = api_key or ALPACA_CREDS.get("API_KEY", "")
         self._secret_key = secret_key or ALPACA_CREDS.get("API_SECRET", "")
 
+        self.paper: bool
         # Handle paper parameter - can be string or bool
         if isinstance(paper, str):
             self.paper = paper.lower() == "true"
@@ -265,11 +273,11 @@ class OptionsBroker:
         self.logger = logging.getLogger(__name__)
 
         # Lazy-loaded clients
-        self._trading_client = None
-        self._options_client = None
+        self._trading_client: Any = None
+        self._options_client: Any = None
 
         # Cache for option chains (TTL-based)
-        self._chain_cache: Dict[str, tuple] = {}  # {key: (chain, timestamp)}
+        self._chain_cache: Dict[str, tuple[OptionChain, datetime]] = {}  # {key: (chain, timestamp)}
         self._chain_cache_ttl = timedelta(minutes=5)
 
     def _get_trading_client(self):
@@ -444,11 +452,11 @@ class OptionsBroker:
     async def get_option_chain(
         self,
         underlying: str,
-        expiration: date = None,
-        min_strike: float = None,
-        max_strike: float = None,
-        min_dte: int = None,
-        max_dte: int = None,
+        expiration: Optional[date] = None,
+        min_strike: Optional[float] = None,
+        max_strike: Optional[float] = None,
+        min_dte: Optional[int] = None,
+        max_dte: Optional[int] = None,
         use_cache: bool = True,
     ) -> Optional[OptionChain]:
         """
@@ -487,17 +495,12 @@ class OptionsBroker:
             # Try to use Alpaca's option chain endpoint
             from alpaca.data.requests import OptionChainRequest
 
-            request_params = {"underlying_symbol": underlying}
-
-            if expiration:
-                request_params["expiration_date"] = expiration
-
-            request = OptionChainRequest(**request_params)
+            request = OptionChainRequest(underlying_symbol=underlying, expiration_date=expiration)
 
             chain_data = await asyncio.to_thread(client.get_option_chain, request)
 
-            calls = []
-            puts = []
+            calls: List[OptionContract] = []
+            puts: List[OptionContract] = []
             actual_expiration = expiration or date.today()
 
             for contract in chain_data:
@@ -707,7 +710,7 @@ class OptionsBroker:
         side: str,
         qty: int,
         order_type: str = "limit",
-        limit_price: float = None,
+        limit_price: Optional[float] = None,
         time_in_force: str = "day",
     ) -> Optional[dict]:
         """
@@ -756,11 +759,13 @@ class OptionsBroker:
             tif = tif_map.get(time_in_force.lower(), TIF.DAY)
 
             # Build order request
+            request: MarketOrderRequest | LimitOrderRequest
             if order_type.lower() == "market":
                 request = MarketOrderRequest(
                     symbol=occ_symbol, qty=qty, side=order_side, time_in_force=tif
                 )
             else:
+                assert limit_price is not None
                 request = LimitOrderRequest(
                     symbol=occ_symbol,
                     qty=qty,
@@ -911,7 +916,12 @@ class OptionsBroker:
     # =========================================================================
 
     async def buy_call(
-        self, underlying: str, expiration: date, strike: float, qty: int, limit_price: float = None
+        self,
+        underlying: str,
+        expiration: date,
+        strike: float,
+        qty: int,
+        limit_price: Optional[float] = None,
     ) -> Optional[dict]:
         """
         Buy a call option (bullish strategy).
@@ -936,7 +946,12 @@ class OptionsBroker:
         )
 
     async def buy_put(
-        self, underlying: str, expiration: date, strike: float, qty: int, limit_price: float = None
+        self,
+        underlying: str,
+        expiration: date,
+        strike: float,
+        qty: int,
+        limit_price: Optional[float] = None,
     ) -> Optional[dict]:
         """
         Buy a put option (bearish/hedging strategy).
@@ -961,7 +976,12 @@ class OptionsBroker:
         )
 
     async def sell_covered_call(
-        self, underlying: str, expiration: date, strike: float, qty: int, limit_price: float = None
+        self,
+        underlying: str,
+        expiration: date,
+        strike: float,
+        qty: int,
+        limit_price: Optional[float] = None,
     ) -> Optional[dict]:
         """
         Sell a covered call (income strategy).
@@ -988,7 +1008,12 @@ class OptionsBroker:
         )
 
     async def sell_cash_secured_put(
-        self, underlying: str, expiration: date, strike: float, qty: int, limit_price: float = None
+        self,
+        underlying: str,
+        expiration: date,
+        strike: float,
+        qty: int,
+        limit_price: Optional[float] = None,
     ) -> Optional[dict]:
         """
         Sell a cash-secured put (income/acquisition strategy).
@@ -1015,7 +1040,7 @@ class OptionsBroker:
         )
 
     async def buy_to_close(
-        self, occ_symbol: str, qty: int, limit_price: float = None
+        self, occ_symbol: str, qty: int, limit_price: Optional[float] = None
     ) -> Optional[dict]:
         """
         Buy to close a short option position.
@@ -1037,7 +1062,7 @@ class OptionsBroker:
         )
 
     async def sell_to_close(
-        self, occ_symbol: str, qty: int, limit_price: float = None
+        self, occ_symbol: str, qty: int, limit_price: Optional[float] = None
     ) -> Optional[dict]:
         """
         Sell to close a long option position.

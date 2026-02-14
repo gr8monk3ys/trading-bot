@@ -25,8 +25,9 @@ import asyncio
 import logging
 from collections import defaultdict
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
+from alpaca.data.enums import DataFeed
 from alpaca.data.live import StockDataStream
 from alpaca.data.models import Bar, Quote, Trade
 
@@ -45,7 +46,9 @@ class WebSocketManager:
         is_running: Whether the WebSocket is currently connected and running
     """
 
-    def __init__(self, api_key: str, secret_key: str, feed: str = "iex", raw_data: bool = False):
+    def __init__(
+        self, api_key: str, secret_key: str, feed: DataFeed | str = "iex", raw_data: bool = False
+    ):
         """
         Initialize WebSocket manager.
 
@@ -60,7 +63,14 @@ class WebSocketManager:
 
         self._api_key = api_key
         self._secret_key = secret_key
-        self._feed = feed
+        self._feed: DataFeed
+        if isinstance(feed, DataFeed):
+            self._feed = feed
+        else:
+            try:
+                self._feed = DataFeed(feed.lower())
+            except Exception as e:
+                raise ValueError(f"Invalid feed: {feed}") from e
         self._raw_data = raw_data
 
         # Initialize the Alpaca stream client
@@ -288,7 +298,7 @@ class WebSocketManager:
 
     async def _dispatch_to_handlers(
         self,
-        data,
+        data: Any,
         symbol_handlers: Dict[str, Set[Callable]],
         global_handlers: Set[Callable],
         data_type: str,
@@ -313,7 +323,17 @@ class WebSocketManager:
             if self._reconnect_attempts:
                 self._reconnect_attempts = 0
 
-            symbol = data.symbol
+            symbol: Optional[str] = None
+            if hasattr(data, "symbol"):
+                symbol = getattr(data, "symbol", None)
+            elif isinstance(data, dict):
+                # Alpaca raw stream payloads commonly use "S" for symbol.
+                sym = data.get("S") or data.get("symbol")
+                symbol = sym if isinstance(sym, str) else None
+
+            if not symbol:
+                logger.debug(f"Dropping {data_type} message without symbol: {data}")
+                return
 
             # Call symbol-specific handlers
             if symbol in symbol_handlers:
@@ -339,7 +359,7 @@ class WebSocketManager:
         except Exception as e:
             logger.error(f"Error handling {data_type} data: {e}")
 
-    async def _handle_bar(self, bar: Bar) -> None:
+    async def _handle_bar(self, bar: Bar | dict[Any, Any]) -> None:
         """
         Internal handler that routes bar data to registered callbacks.
 
@@ -348,7 +368,7 @@ class WebSocketManager:
         """
         await self._dispatch_to_handlers(bar, self._bar_handlers, self._global_bar_handlers, "bar")
 
-    async def _handle_quote(self, quote: Quote) -> None:
+    async def _handle_quote(self, quote: Quote | dict[Any, Any]) -> None:
         """
         Internal handler that routes quote data to registered callbacks.
 
@@ -359,7 +379,7 @@ class WebSocketManager:
             quote, self._quote_handlers, self._global_quote_handlers, "quote"
         )
 
-    async def _handle_trade(self, trade: Trade) -> None:
+    async def _handle_trade(self, trade: Trade | dict[Any, Any]) -> None:
         """
         Internal handler that routes trade data to registered callbacks.
 

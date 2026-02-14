@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TextIO
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +160,7 @@ class AuditLog:
         self._sequence_number = 0
         self._last_hash = self.GENESIS_HASH
         self._current_file: Optional[Path] = None
-        self._file_handle = None
+        self._file_handle: Optional[TextIO] = None
         self._closed = False
 
         # Initialize
@@ -309,6 +309,11 @@ class AuditLog:
     def _write_entry(self, entry: AuditEntry) -> None:
         """Write entry to file."""
         try:
+            if self._file_handle is None:
+                self._open_current_file()
+            if self._file_handle is None:
+                raise RuntimeError("Audit log file handle is not initialized")
+
             line = json.dumps(entry.to_dict(), separators=(",", ":"))
             self._file_handle.write(line + "\n")
             self._file_handle.flush()
@@ -460,7 +465,7 @@ class AuditLog:
         entries = self.get_entries(start_time=start_time, end_time=end_time, limit=100000)
 
         # Count by event type
-        event_counts = {}
+        event_counts: Dict[str, int] = {}
         for entry in entries:
             event_type = entry.event_type.value
             event_counts[event_type] = event_counts.get(event_type, 0) + 1

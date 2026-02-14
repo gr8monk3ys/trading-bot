@@ -456,11 +456,14 @@ class PartialFillTracker:
 
     def get_pending_orders(self) -> List[Dict[str, Any]]:
         """Get all orders that still have unfilled quantities."""
-        return [
-            self.get_order_status(oid)
-            for oid, record in self._orders.items()
-            if record.status in ("pending", "partial")
-        ]
+        pending: List[Dict[str, Any]] = []
+        for oid, record in self._orders.items():
+            if record.status not in ("pending", "partial"):
+                continue
+            status = self.get_order_status(oid)
+            if status is not None:
+                pending.append(status)
+        return pending
 
     def detect_stalled_orders(self, max_stall_seconds: float = 300.0) -> List[Dict[str, Any]]:
         """
