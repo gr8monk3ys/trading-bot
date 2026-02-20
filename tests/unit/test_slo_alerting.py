@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import json
 
-from utils.slo_alerting import WebhookSLOAlertNotifier, build_slo_alert_notifier
+from utils.slo_alerting import (
+    WebhookIncidentTicketNotifier,
+    WebhookSLOAlertNotifier,
+    build_incident_ticket_notifier,
+    build_slo_alert_notifier,
+)
 
 
 class _DummyResponse:
@@ -99,3 +104,48 @@ def test_build_notifier_returns_none_when_disabled():
         }
     )
     assert notifier is None
+
+def test_incident_ticket_notifier_posts_payload(monkeypatch):
+    notifier = WebhookIncidentTicketNotifier(
+        webhook_url="https://example.com/ticket",
+        timeout_seconds=7,
+        source="test-suite",
+    )
+    captured = {}
+
+    def _fake_urlopen(req, timeout):
+        captured["url"] = req.full_url
+        captured["timeout"] = timeout
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return _DummyResponse(status=200)
+
+    monkeypatch.setattr("utils.slo_alerting.request.urlopen", _fake_urlopen)
+    result = notifier.notify(
+        {
+            "name": "incident_ack_sla_breach",
+            "severity": "critical",
+            "context": {"incident": {"incident_id": "inc_123"}},
+        }
+    )
+
+    assert result is True
+    assert captured["url"] == "https://example.com/ticket"
+    assert captured["timeout"] == 7
+    assert captured["body"]["event_type"] == "incident_ticket"
+    assert captured["body"]["incident"]["incident_id"] == "inc_123"
+
+
+def test_build_incident_ticket_notifier_from_risk_params():
+    notifier = build_incident_ticket_notifier(
+        {
+            "INCIDENT_TICKETING_ENABLED": True,
+            "INCIDENT_TICKETING_WEBHOOK_URL": "https://example.com/ticket",
+            "INCIDENT_TICKETING_TIMEOUT_SECONDS": 5,
+        },
+        source="unit-test",
+    )
+    assert notifier is not None
+    assert notifier.webhook_url == "https://example.com/ticket"
+    assert notifier.timeout_seconds == 5
+    assert notifier.source == "unit-test"
+

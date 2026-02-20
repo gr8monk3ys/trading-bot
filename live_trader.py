@@ -48,7 +48,7 @@ from utils.position_manager import PositionManager
 from utils.reconciliation import PositionReconciler
 from utils.run_artifacts import JsonlWriter, ensure_run_directory, generate_run_id, write_json
 from utils.runtime_state import RuntimeStateStore
-from utils.slo_alerting import build_slo_alert_notifier
+from utils.slo_alerting import build_incident_ticket_notifier, build_slo_alert_notifier
 from utils.slo_monitor import SLOMonitor
 
 # Set up logging
@@ -216,15 +216,22 @@ class LiveTrader:
                 ack_sla_minutes=RISK_PARAMS.get("INCIDENT_ACK_SLA_MINUTES", 15),
             )
             slo_alert_notifier = build_slo_alert_notifier(RISK_PARAMS, source="live_trader")
+            incident_ticket_notifier = build_incident_ticket_notifier(
+                RISK_PARAMS,
+                source="live_trader",
+            )
             if slo_alert_notifier:
                 logger.info(
                     "SLO paging alerts enabled (severity>=%s)",
                     RISK_PARAMS.get("SLO_PAGING_MIN_SEVERITY", "critical"),
                 )
+            if incident_ticket_notifier:
+                logger.info("Incident ticketing enabled for ack-SLA breaches")
             self.slo_monitor = SLOMonitor(
                 audit_log=self.audit_log,
                 events_path=self.session_run_dir / "ops_slo_events.jsonl",
                 alert_notifier=slo_alert_notifier,
+                incident_ticket_notifier=incident_ticket_notifier,
                 incident_tracker=incident_tracker,
                 recon_mismatch_halt_runs=RISK_PARAMS.get("ORDER_RECON_MISMATCH_HALT_RUNS", 3),
                 max_data_quality_errors=RISK_PARAMS.get("DATA_QUALITY_MAX_ERRORS", 0),

@@ -21,7 +21,9 @@ async def test_run_chaos_drills_returns_passing_report():
     assert report["passed"] is True
     names = [c["name"] for c in report["checks"]]
     assert "order_reconciliation_fetch_failure" in names
+    assert "broker_auth_token_expiry_recovery" in names
     assert "data_quality_halt_on_critical_errors" in names
+    assert "quote_staleness_recovery" in names
     assert "slo_alert_failure_tolerance" in names
     assert "websocket_reconnect_storm_tolerance" in names
     assert "partial_fill_stall_detection" in names

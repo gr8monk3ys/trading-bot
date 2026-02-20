@@ -332,7 +332,9 @@ class LSTMPredictor:
             # Use existing scaler
             normalized = self.scalers[symbol].transform(features)
 
-        return normalized
+        # Guard against minor floating-point overshoot (e.g., 1.0000001)
+        # that can occur from scaler transforms on float32 inputs.
+        return np.clip(normalized, 0.0, 1.0)
 
     def _create_sequences(
         self, features: np.ndarray, targets: Optional[np.ndarray] = None
@@ -506,9 +508,18 @@ class LSTMPredictor:
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
         # Learning rate scheduler
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode="min", factor=0.5, patience=5, verbose=True
-        )
+        try:
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, mode="min", factor=0.5, patience=5, verbose=True
+            )
+        except TypeError:
+            # Compatibility fallback for torch builds that do not accept `verbose`.
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode="min",
+                factor=0.5,
+                patience=5,
+            )
 
         # Training loop
         train_losses = []

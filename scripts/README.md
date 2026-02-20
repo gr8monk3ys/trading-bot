@@ -18,6 +18,8 @@ This directory contains various runner scripts and utilities for the trading bot
 - **`deployment_preflight.py`** - Deployment hardening preflight checks (git/env readiness)
 - **`chaos_drill.py`** - Deterministic operational chaos drills (reconciliation/data-quality/alerting)
 - **`incident_ack.py`** - Acknowledge run incidents and satisfy ack-SLA tracking
+- **`validate_incident_ticketing.py`** - Validate ack-SLA breach -> ticket workflow
+- **`ops_status_report.py`** - Generate compact daily ops status from run artifacts
 
 ## Backtesting
 

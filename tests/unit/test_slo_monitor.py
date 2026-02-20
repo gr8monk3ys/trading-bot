@@ -230,3 +230,40 @@ def test_slo_monitor_shadow_drift_critical_breach():
     assert breaches[0].name == "paper_live_shadow_drift"
     assert breaches[0].severity == "critical"
     monitor.close()
+
+def test_slo_monitor_creates_ticket_for_incident_ack_sla_breach(tmp_path):
+    class RecordingTicketNotifier:
+        def __init__(self):
+            self.events = []
+
+        def notify(self, breach):
+            self.events.append(breach)
+            return True
+
+    ticket_notifier = RecordingTicketNotifier()
+    incident_tracker = IncidentTracker(
+        events_path=tmp_path / "incident_events.jsonl",
+        run_id="run_ticket",
+        ack_sla_minutes=1,
+    )
+    monitor = SLOMonitor(
+        incident_tracker=incident_tracker,
+        incident_ticket_notifier=ticket_notifier,
+        max_data_quality_errors=0,
+        max_stale_data_warnings=0,
+    )
+
+    monitor.record_data_quality_summary({"total_errors": 1, "stale_warnings": 0})
+    incident_id = next(iter(incident_tracker._incidents.keys()))
+    created_at = incident_tracker._incidents[incident_id].created_at
+
+    breaches = monitor.check_incident_ack_sla(now=created_at + timedelta(minutes=2))
+    status = monitor.get_status_snapshot()
+
+    assert any(b.name == "incident_ack_sla_breach" for b in breaches)
+    assert len(ticket_notifier.events) == 1
+    assert status["ticketing"]["attempts"] == 1
+    assert status["ticketing"]["created"] == 1
+    assert status["ticketing"]["failures"] == 0
+    monitor.close()
+

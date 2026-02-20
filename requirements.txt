@@ -2,8 +2,7 @@ torch>=2.0.0
 torchvision
 torchaudio
 transformers>=4.30.0
-lumibot>=3.0.0
-alpaca-py>=0.8.0  # New Alpaca SDK
+alpaca-py>=0.22.0  # Align with pyproject dependency floor
 timedelta
 pandas>=2.0.0
 numpy>=1.24.3,<3.0.0  # Pin to 1.x to avoid compatibility issues
