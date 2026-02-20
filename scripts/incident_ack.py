@@ -6,9 +6,14 @@ Acknowledge an operational incident from a run artifact stream.
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-from utils.incident_tracker import IncidentTracker
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from utils.incident_tracker import IncidentTracker  # noqa: E402
 
 
 def _parse_args() -> argparse.Namespace:

@@ -59,6 +59,7 @@ class SLOMonitor:
         events_path: str | Path | None = None,
         alert_notifier: Any | None = None,
         incident_tracker: IncidentTracker | None = None,
+        incident_ticket_notifier: Any | None = None,
         recon_mismatch_halt_runs: int = 3,
         max_data_quality_errors: int = 0,
         max_stale_data_warnings: int = 0,
@@ -68,6 +69,7 @@ class SLOMonitor:
         self.audit_log = audit_log
         self.alert_notifier = alert_notifier
         self.incident_tracker = incident_tracker
+        self.incident_ticket_notifier = incident_ticket_notifier
         self.recon_mismatch_halt_runs = max(1, int(recon_mismatch_halt_runs))
         self.max_data_quality_errors = max(0, int(max_data_quality_errors))
         self.max_stale_data_warnings = max(0, int(max_stale_data_warnings))
@@ -84,6 +86,9 @@ class SLOMonitor:
         self._alert_attempts = 0
         self._alert_sent = 0
         self._alert_failures = 0
+        self._ticket_attempts = 0
+        self._ticket_created = 0
+        self._ticket_failures = 0
 
     def close(self) -> None:
         if self._events_writer:
@@ -187,6 +192,11 @@ class SLOMonitor:
                 "attempts": self._alert_attempts,
                 "sent": self._alert_sent,
                 "failures": self._alert_failures,
+            },
+            "ticketing": {
+                "attempts": self._ticket_attempts,
+                "created": self._ticket_created,
+                "failures": self._ticket_failures,
             },
             "incidents": (
                 self.incident_tracker.get_status_snapshot() if self.incident_tracker else {}
@@ -325,6 +335,21 @@ class SLOMonitor:
                         **breach_payload,
                     }
                 )
+
+
+            if breach.name == "incident_ack_sla_breach" and self.incident_ticket_notifier:
+                try:
+                    result = self.incident_ticket_notifier.notify(breach_payload)
+                    if result is not None:
+                        self._ticket_attempts += 1
+                        if result:
+                            self._ticket_created += 1
+                        else:
+                            self._ticket_failures += 1
+                except Exception as e:
+                    self._ticket_attempts += 1
+                    self._ticket_failures += 1
+                    logger.warning(f"Failed to create incident ticket: {e}")
 
             if self.alert_notifier:
                 try:

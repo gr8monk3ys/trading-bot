@@ -18,7 +18,8 @@ This checklist summarizes operational readiness for live trading in this reposit
 - SLO breaches persisted in `ops_slo_events.jsonl` and mirrored to audit log.
 - Optional webhook paging for critical SLO breaches via `SLO_PAGING_*` risk/env settings.
 - Incident acknowledgment SLA tracking enabled via `incident_events.jsonl` and `INCIDENT_ACK_SLA_MINUTES`.
-- Automated chaos drill runner available via `python scripts/chaos_drill.py`.
+- Optional incident ticket auto-creation for ack-SLA breaches via `INCIDENT_TICKETING_*` risk/env settings.
+- Automated chaos drill runner available via `python scripts/chaos_drill.py` (includes auth-token expiry and quote-staleness recovery drills).
 - Restart recovery verified with open positions.
 
 ## Strategy Checkpoint Coverage
@@ -44,6 +45,8 @@ This checklist summarizes operational readiness for live trading in this reposit
     - `DeprecationWarning`
     - `PendingDeprecationWarning`
 - CI coverage reporting runs as a separate `tests/unit` pass (to produce `coverage.xml`) after strict warning checks.
+- Validate ack-SLA-to-ticket workflow with `python scripts/validate_incident_ticketing.py --tmp-dir results/validation`.
+- Generate daily operations summary from run artifacts with `python scripts/ops_status_report.py --run-dir results/runs/<run_id> --json-output results/ops_status.json --md-output results/ops_status.md`.
   - Existing module-specific warning guards remain in pytest config for local parity.
 - CI warning guard blocks new warning regressions in critical modules:
   - `FutureWarning`: `engine.backtest_engine`, `utils.factor_data`
@@ -52,8 +55,7 @@ This checklist summarizes operational readiness for live trading in this reposit
 - Runtime credential checks are deferred to execution paths; non-trading CLI paths (for example `main.py --help`) no longer emit Alpaca credential warnings at import/startup.
 
 ## Gaps To Resolve Before Live Capital
-- Expand chaos drills to include broker auth-token expiry and quote-staleness recovery.
-- Add post-incident auto-ticket creation workflow around SLO paging acknowledgments.
+- Integrate incident ticket auto-creation webhook with your on-call system and validate end-to-end runbook ownership.
 
 ## Go‑Live Gate
 - 30+ paper trading days and 30+ paper trades.

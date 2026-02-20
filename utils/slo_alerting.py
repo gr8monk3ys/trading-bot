@@ -76,6 +76,47 @@ class WebhookSLOAlertNotifier:
             return False
 
 
+
+
+@dataclass
+class WebhookIncidentTicketNotifier:
+    """Creates incident-ticket payloads for acknowledgment SLA breaches."""
+
+    webhook_url: str
+    timeout_seconds: int = 3
+    source: str = "trading-bot"
+
+    def notify(self, breach: Mapping[str, Any]) -> Optional[bool]:
+        if str(breach.get("name", "")).strip().lower() != "incident_ack_sla_breach":
+            return None
+
+        payload = {
+            "event_type": "incident_ticket",
+            "source": self.source,
+            "sent_at": datetime.utcnow().isoformat(),
+            "breach": dict(breach),
+            "incident": dict(breach.get("context", {}).get("incident", {}) or {}),
+        }
+        body = json.dumps(payload).encode("utf-8")
+        req = request.Request(self.webhook_url, data=body, method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("User-Agent", "trading-bot-incident-ticketing/1.0")
+
+        try:
+            with request.urlopen(req, timeout=self.timeout_seconds) as response:
+                status = int(getattr(response, "status", 200) or 200)
+                if status >= 400:
+                    logger.warning("Incident ticket webhook non-success status=%s", status)
+                    return False
+                return True
+        except error.URLError as exc:
+            logger.warning("Incident ticket webhook delivery failed: %s", exc)
+            return False
+        except Exception as exc:
+            logger.warning("Unexpected incident ticket webhook error: %s", exc)
+            return False
+
+
 def build_slo_alert_notifier(
     risk_params: Mapping[str, Any] | None,
     *,
@@ -107,3 +148,29 @@ def build_slo_alert_notifier(
         timeout_seconds=timeout_seconds,
         source=source,
     )
+
+
+def build_incident_ticket_notifier(
+    risk_params: Mapping[str, Any] | None,
+    *,
+    source: str = "trading-bot",
+) -> Optional[WebhookIncidentTicketNotifier]:
+    """Build incident-ticket notifier from runtime risk configuration."""
+    params = risk_params or {}
+    enabled = bool(params.get("INCIDENT_TICKETING_ENABLED", False))
+    webhook_url = str(params.get("INCIDENT_TICKETING_WEBHOOK_URL", "") or "").strip()
+    if not enabled or not webhook_url:
+        return None
+
+    try:
+        timeout_seconds = int(params.get("INCIDENT_TICKETING_TIMEOUT_SECONDS", 3))
+    except (TypeError, ValueError):
+        timeout_seconds = 3
+    timeout_seconds = min(max(timeout_seconds, 1), 30)
+
+    return WebhookIncidentTicketNotifier(
+        webhook_url=webhook_url,
+        timeout_seconds=timeout_seconds,
+        source=source,
+    )
+

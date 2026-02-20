@@ -1,6 +1,6 @@
 # 🤖 Professional Trading Bot
 
-**Production-ready algorithmic trading system with advanced strategies, real-time monitoring, and comprehensive risk management.**
+**Paper-trading-ready algorithmic trading system with advanced strategies, real-time monitoring, and comprehensive risk management.**
 
 Built for serious traders who want systematic, data-driven trading with institutional-grade features.
 
@@ -22,7 +22,16 @@ python quickstart.py
 # (The quickstart script will guide you through strategy selection)
 ```
 
-**Status**: ✅ Fully functional with $100,000 paper trading account
+### Low-Hardware Paper Profile (Raspberry Pi class)
+
+```bash
+python scripts/run_low_resource_profile.py --dry-run
+python scripts/run_low_resource_profile.py
+```
+
+See `docs/LOW_HARDWARE_PROFILE.md` for details and constraints.
+
+**Status**: ✅ Designed for paper trading with staged promotion gates before live capital
 
 ---
 

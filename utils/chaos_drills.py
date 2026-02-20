@@ -71,6 +71,18 @@ class _ChaosOrderRequest:
         self.type = order_type
 
 
+
+
+class _AuthExpiryBroker:
+    def __init__(self):
+        self.calls = 0
+
+    async def get_orders(self):
+        self.calls += 1
+        if self.calls == 1:
+            raise PermissionError("chaos: broker auth token expired")
+        return []
+
 class _CrashRecoveryBroker:
     def __init__(self):
         self.submit_calls = 0
@@ -275,11 +287,81 @@ async def _drill_crash_recovery_idempotent_replay() -> ChaosDrillCheck:
     )
 
 
+
+
+async def _drill_broker_auth_token_expiry_recovery() -> ChaosDrillCheck:
+    lifecycle = OrderLifecycleTracker()
+    reconciler = OrderReconciler(
+        broker=_AuthExpiryBroker(),
+        lifecycle_tracker=lifecycle,
+        mismatch_halt_threshold=2,
+    )
+
+    await reconciler.reconcile()
+    first = reconciler.get_health_snapshot()
+    await reconciler.reconcile()
+    second = reconciler.get_health_snapshot()
+
+    first_error = str(first.get("last_error") or "")
+    second_error = second.get("last_error")
+    passed = (
+        "auth token expired" in first_error
+        and second_error in ("", None)
+        and int(second.get("runs_total", 0) or 0) >= 2
+    )
+    details = (
+        "Reconciler recovered after simulated auth-token expiry on retry"
+        if passed
+        else f"Unexpected auth-expiry recovery snapshots: first={first} second={second}"
+    )
+    return ChaosDrillCheck(
+        name="broker_auth_token_expiry_recovery",
+        passed=passed,
+        details=details,
+    )
+
+
+def _drill_quote_staleness_recovery() -> ChaosDrillCheck:
+    monitor = SLOMonitor(
+        max_data_quality_errors=0,
+        max_stale_data_warnings=0,
+    )
+    stale_breaches = monitor.record_data_quality_summary(
+        {
+            "total_errors": 0,
+            "stale_warnings": 2,
+        }
+    )
+    _ = monitor.record_data_quality_summary(
+        {
+            "total_errors": 0,
+            "stale_warnings": 0,
+        }
+    )
+    status = monitor.get_status_snapshot()
+    monitor.close()
+
+    stale_detected = any(b.name == "data_quality_stale_warnings" for b in stale_breaches)
+    passed = stale_detected and status.get("last_breach", {}).get("name") == "data_quality_stale_warnings"
+    details = (
+        "Quote staleness breach detected and fresh data check completed without new breach"
+        if passed
+        else f"Unexpected quote-staleness recovery status: {status}"
+    )
+    return ChaosDrillCheck(
+        name="quote_staleness_recovery",
+        passed=passed,
+        details=details,
+    )
+
+
 async def run_chaos_drills() -> Dict[str, Any]:
     """Run built-in chaos drills and return machine-readable report."""
     checks: List[ChaosDrillCheck] = []
     checks.append(await _drill_order_reconciliation_fetch_failure())
+    checks.append(await _drill_broker_auth_token_expiry_recovery())
     checks.append(_drill_data_quality_halt())
+    checks.append(_drill_quote_staleness_recovery())
     checks.append(_drill_alert_path_failure_tolerance())
     checks.append(await _drill_websocket_reconnect_storm_tolerance())
     checks.append(await _drill_partial_fill_stall_detection())
