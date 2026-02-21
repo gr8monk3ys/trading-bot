@@ -422,6 +422,28 @@ class TestEmergencyClosePositions:
         ), "Should submit orders for both positions"
 
     @pytest.mark.asyncio
+    async def test_close_positions_uses_order_gateway_when_available(self, cb_for_close):
+        """Test emergency close routes through order gateway when configured."""
+        pos1 = create_mock_position(TEST_SYMBOL_1, TEST_POSITION_QTY_1)
+        cb_for_close.broker.get_positions.return_value = [pos1]
+        cb_for_close.order_gateway = AsyncMock()
+        cb_for_close.order_gateway.submit_exit_order = AsyncMock(
+            return_value=MagicMock(success=True, order_id="exit-1")
+        )
+
+        with patch("brokers.order_builder.OrderBuilder") as MockOrderBuilder:
+            mock_builder = MagicMock()
+            mock_builder.market.return_value = mock_builder
+            mock_builder.day.return_value = mock_builder
+            mock_builder.build.return_value = MagicMock()
+            MockOrderBuilder.return_value = mock_builder
+
+            await cb_for_close._emergency_close_positions()
+
+        cb_for_close.order_gateway.submit_exit_order.assert_called_once()
+        cb_for_close.broker.submit_order_advanced.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_close_positions_handles_order_error(self, cb_for_close):
         """Test close positions handles error for individual position."""
         pos1 = create_mock_position(TEST_SYMBOL_1, TEST_POSITION_QTY_1)

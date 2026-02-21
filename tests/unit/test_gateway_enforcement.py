@@ -131,6 +131,26 @@ class TestSubmitOrderAdvancedEnforcement:
         assert "OrderGateway" in str(exc_info.value)
 
 
+class TestSubmitOrderEnforcement:
+    """Tests for submit_order gateway enforcement."""
+
+    async def test_submit_order_blocked_when_gateway_required(self):
+        """submit_order should raise GatewayBypassError when enforcement enabled."""
+        from brokers.alpaca_broker import AlpacaBroker, GatewayBypassError
+
+        broker = MagicMock()
+        broker._gateway_required = True
+
+        with pytest.raises(GatewayBypassError) as exc_info:
+            await AlpacaBroker.submit_order(
+                broker,
+                {"symbol": "AAPL", "side": "buy", "quantity": 1, "type": "market"},
+            )
+
+        assert "Direct order submission is disabled" in str(exc_info.value)
+        assert "OrderGateway" in str(exc_info.value)
+
+
 # Test _internal_submit_order
 class TestInternalSubmitOrder:
     """Tests for _internal_submit_order method."""

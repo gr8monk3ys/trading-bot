@@ -105,6 +105,11 @@ class StrategyManager:
             ),
             kill_switch_cooldown_minutes=kill_switch_cooldown_minutes,
         )
+        if self.circuit_breaker and hasattr(self.circuit_breaker, "set_order_gateway"):
+            try:
+                self.circuit_breaker.set_order_gateway(self.order_gateway)
+            except Exception as e:
+                logger.warning(f"Failed to link circuit breaker to order gateway: {e}")
 
         # Runtime state persistence
         self.state_store = RuntimeStateStore("data/runtime_state.json")
@@ -634,12 +639,11 @@ class StrategyManager:
                     order_gateway=self.order_gateway,
                 )
             except TypeError:
-                # Fallback for strategies that don't accept order_gateway yet
-                logger.warning(
-                    f"Strategy {strategy_name} does not accept order_gateway; "
-                    "starting without gateway (not recommended)."
+                logger.error(
+                    f"Strategy {strategy_name} does not accept order_gateway. "
+                    "Refusing to start without mandatory order routing."
                 )
-                strategy = strategy_class(broker=self.broker, parameters=merged_params)
+                return False
 
             # Initialize the strategy
             logger.info(f"Initializing strategy {strategy_name} with allocation {allocation:.2%}")

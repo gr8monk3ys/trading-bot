@@ -1165,6 +1165,12 @@ class AlpacaBroker:
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def submit_order(self, order):
         """Submit an order."""
+        if self._gateway_required:
+            raise GatewayBypassError(
+                "Direct order submission is disabled. "
+                "All orders must route through OrderGateway for safety checks. "
+                "Use order_gateway.submit_order() instead of broker.submit_order()."
+            )
         try:
             # Convert order to alpaca-py format
             side = OrderSide.BUY if order["side"].lower() == "buy" else OrderSide.SELL

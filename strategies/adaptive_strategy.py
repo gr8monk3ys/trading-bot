@@ -190,7 +190,9 @@ class AdaptiveStrategy(BaseStrategy):
                 "enable_short_selling": True,  # Enable for bear markets
             }
             self.momentum_strategy = MomentumStrategy(
-                broker=self.broker, parameters=momentum_params
+                broker=self.broker,
+                parameters=momentum_params,
+                order_gateway=self.order_gateway,
             )
 
             # Mean reversion strategy for sideways markets
@@ -204,7 +206,9 @@ class AdaptiveStrategy(BaseStrategy):
                 "enable_short_selling": True,
             }
             self.mean_reversion_strategy = MeanReversionStrategy(
-                broker=self.broker, parameters=mean_rev_params
+                broker=self.broker,
+                parameters=mean_rev_params,
+                order_gateway=self.order_gateway,
             )
 
             # Performance optimization: Initialize sub-strategies in parallel

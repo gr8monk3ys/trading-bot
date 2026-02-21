@@ -113,6 +113,7 @@ class CircuitBreaker:
         self.halt_triggered_at = None
         self.last_reset_date = None
         self.broker = None
+        self.order_gateway = None
         self._last_logged_loss_pct = 0  # Track last logged loss for throttling
         self._halt_reason = None  # Track why we halted
         self._halt_loss_pct = None  # Track loss at halt time
@@ -166,6 +167,15 @@ class CircuitBreaker:
         except Exception as e:
             logger.error(f"Failed to initialize circuit breaker: {e}")
             raise
+
+    def set_order_gateway(self, order_gateway) -> None:
+        """
+        Attach an OrderGateway for emergency liquidation routing.
+
+        When configured, emergency close orders are submitted via gateway exit
+        path to preserve safety and audit guarantees while reducing exposure.
+        """
+        self.order_gateway = order_gateway
 
     def _init_economic_calendar(self):
         """Lazy-load and initialize economic calendar."""
@@ -325,15 +335,47 @@ class CircuitBreaker:
             for position in positions:
                 try:
                     symbol = position.symbol
-                    quantity = abs(float(position.qty))
+                    raw_qty = float(position.qty)
+                    quantity = abs(raw_qty)
+                    side = "sell" if raw_qty > 0 else "buy"
 
                     logger.warning(f"Emergency closing {quantity} shares of {symbol}")
 
                     # Market order to close immediately
-                    order = OrderBuilder(symbol, "sell", quantity).market().day().build()
+                    order = OrderBuilder(symbol, side, quantity).market().day().build()
+                    result = None
 
-                    result = await self.broker.submit_order_advanced(order)
-                    logger.info(f"Emergency sell order submitted for {symbol}: {result.id}")
+                    if self.order_gateway:
+                        result = await self.order_gateway.submit_exit_order(
+                            symbol=symbol,
+                            quantity=quantity,
+                            strategy_name="circuit_breaker",
+                            side=side,
+                            reason="circuit_breaker_emergency_close",
+                        )
+                        if not getattr(result, "success", False):
+                            logger.error(
+                                "Emergency close rejected for %s: %s",
+                                symbol,
+                                getattr(result, "rejection_reason", "unknown"),
+                            )
+                            continue
+                        logger.info("Emergency exit submitted for %s: %s", symbol, result.order_id)
+                        continue
+
+                    # Fallback path when gateway isn't attached (legacy/test setups).
+                    if (
+                        getattr(self.broker, "_gateway_required", False) is True
+                        and hasattr(self.broker, "_internal_submit_order")
+                    ):
+                        result = await self.broker._internal_submit_order(
+                            order,
+                            gateway_token=getattr(self.broker, "_gateway_caller_token", None),
+                        )
+                    else:
+                        result = await self.broker.submit_order_advanced(order)
+
+                    logger.info(f"Emergency close order submitted for {symbol}: {result.id}")
 
                 except Exception as e:
                     logger.error(f"Failed to close position {position.symbol}: {e}")

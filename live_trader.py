@@ -176,6 +176,8 @@ class LiveTrader:
                 audit_log=self.audit_log,
                 enforce_gateway=True,
             )
+            if hasattr(self.circuit_breaker, "set_order_gateway"):
+                self.circuit_breaker.set_order_gateway(self.order_gateway)
             logger.info("✅ OrderGateway initialized (mandatory routing enabled)\n")
             if hasattr(self.broker, "set_position_manager"):
                 self.broker.set_position_manager(self.position_manager)

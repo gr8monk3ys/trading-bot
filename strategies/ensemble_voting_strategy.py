@@ -136,20 +136,20 @@ class EnsembleVotingStrategy(BaseStrategy):
         # Initialize sub-strategies
         for strategy_class in self.sub_strategy_classes:
             try:
-                try:
-                    strategy = strategy_class(
-                        broker=self.broker,
-                        parameters=self.parameters,
-                        order_gateway=self.order_gateway,
-                    )
-                except TypeError:
-                    strategy = strategy_class(
-                        broker=self.broker,
-                        parameters=self.parameters,
-                    )
+                strategy = strategy_class(
+                    broker=self.broker,
+                    parameters=self.parameters,
+                    order_gateway=self.order_gateway,
+                )
                 await strategy.initialize(**kwargs)
                 self.sub_strategies.append(strategy)
                 logger.info(f"Initialized sub-strategy: {strategy.name}")
+            except TypeError as e:
+                logger.error(
+                    "Sub-strategy %s does not support mandatory order_gateway wiring: %s",
+                    strategy_class.__name__,
+                    e,
+                )
             except Exception as e:
                 logger.error(f"Failed to initialize {strategy_class.__name__}: {e}")
 

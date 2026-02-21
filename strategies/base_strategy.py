@@ -850,6 +850,12 @@ class BaseStrategy(ABC):
                     )
                     return None
             else:
+                if getattr(self.broker, "_gateway_required", False) is True:
+                    strategy_logger.error(
+                        "No OrderGateway configured while broker enforces gateway routing. "
+                        "Exit order blocked."
+                    )
+                    return None
                 # Fallback for backwards compatibility (will fail if gateway enforcement enabled)
                 from brokers.order_builder import OrderBuilder
 
@@ -902,6 +908,12 @@ class BaseStrategy(ABC):
         strategy_logger = getattr(self, "logger", logger)
 
         if not order_gateway:
+            if getattr(self.broker, "_gateway_required", False) is True:
+                strategy_logger.error(
+                    "No OrderGateway configured while broker enforces gateway routing. "
+                    "Entry order blocked."
+                )
+                return None
             # No gateway configured - try direct submission (will fail if enforcement enabled)
             strategy_logger.warning(
                 "⚠️ No OrderGateway configured - attempting direct broker access. "

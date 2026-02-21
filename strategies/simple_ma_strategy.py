@@ -185,9 +185,7 @@ class SimpleMACrossoverStrategy(BaseStrategy):
                     self.type = "market"
 
             order = SimpleOrder(symbol, qty, side)
-            if hasattr(self.broker, "submit_order_advanced"):
-                await self.broker.submit_order_advanced(order)
-            elif side == "buy":
+            if side == "buy":
                 await self.submit_entry_order(order, reason="simple_ma_entry")
             else:
                 await self.submit_exit_order(

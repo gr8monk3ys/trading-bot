@@ -93,6 +93,16 @@ class TestStrategyManagerInitialization:
             assert manager.strategy_allocations == {}
             assert manager.strategy_status == {}
 
+    def test_init_links_circuit_breaker_to_gateway(self, mock_broker):
+        """Test circuit breaker receives gateway reference when supported."""
+        with patch("engine.strategy_manager.StrategyManager._load_available_strategies"):
+            from engine.strategy_manager import StrategyManager
+
+            circuit_breaker = Mock()
+            manager = StrategyManager(broker=mock_broker, circuit_breaker=circuit_breaker)
+
+            circuit_breaker.set_order_gateway.assert_called_once_with(manager.order_gateway)
+
 
 class TestLoadAvailableStrategies:
     """Tests for _load_available_strategies method."""
@@ -453,6 +463,19 @@ class TestStartStrategy:
     async def test_start_strategy_handles_exception(self, manager_for_start):
         """Test exception handling during start."""
         manager_for_start.available_strategies["TestStrategy"].side_effect = Exception("Failed")
+
+        result = await manager_for_start.start_strategy("TestStrategy")
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_start_strategy_rejects_missing_gateway_wiring(self, manager_for_start):
+        """Test strategy start fails when strategy does not accept order_gateway."""
+
+        def _raise_type_error(**_kwargs):
+            raise TypeError("unexpected keyword argument 'order_gateway'")
+
+        manager_for_start.available_strategies["TestStrategy"].side_effect = _raise_type_error
 
         result = await manager_for_start.start_strategy("TestStrategy")
 

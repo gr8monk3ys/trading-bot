@@ -314,6 +314,7 @@ class TestExecuteTrade:
 
         mock_broker = AsyncMock()
         mock_broker.get_all_positions.return_value = [mock_position]
+        mock_broker.get_positions.return_value = [mock_position]
         mock_account = MagicMock()
         mock_account.cash = "100000"
         mock_broker.get_account.return_value = mock_account
@@ -340,6 +341,7 @@ class TestExecuteTrade:
 
         mock_broker = AsyncMock()
         mock_broker.get_all_positions.return_value = [mock_position]
+        mock_broker.get_positions.return_value = [mock_position]
         mock_account = MagicMock()
         mock_account.cash = "100000"
         mock_broker.get_account.return_value = mock_account
@@ -384,6 +386,10 @@ class TestExecuteTrade:
 
         mock_broker = AsyncMock()
         mock_broker.get_all_positions.return_value = [{"symbol": "AAPL", "quantity": 50}]
+        broker_position = MagicMock()
+        broker_position.symbol = "AAPL"
+        broker_position.qty = "50"
+        mock_broker.get_positions.return_value = [broker_position]
         mock_account = MagicMock()
         mock_account.cash = "100000"
         mock_broker.get_account.return_value = mock_account
@@ -463,6 +469,10 @@ class TestPlaceOrder:
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
         mock_broker = AsyncMock()
+        broker_position = MagicMock()
+        broker_position.symbol = "MSFT"
+        broker_position.qty = "50"
+        mock_broker.get_positions.return_value = [broker_position]
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
 
         await strategy._place_order("MSFT", 50, "sell")

@@ -35,6 +35,7 @@ from typing import Dict, List, Optional
 import numpy as np
 import pytz
 
+from brokers.order_builder import OrderBuilder
 from strategies.base_strategy import BaseStrategy
 
 logger = logging.getLogger(__name__)
@@ -300,22 +301,20 @@ class GapTradingStrategy(BaseStrategy):
 
             # Create order
             side = "buy" if signal == "long" else "sell"
+            order_request = OrderBuilder(symbol, side, shares).market().day().build()
+            order = await self.submit_entry_order(order_request, reason="gap_entry")
 
-            order = await self.broker.submit_order(
-                symbol=symbol, qty=shares, side=side, type="market", time_in_force="day"
-            )
-
-            if order:
+            if order and (not hasattr(order, "success") or order.success):
                 # Get actual fill price to avoid race condition with price changes
+                actual_fill_price = (
+                    float(getattr(order, "filled_price", 0.0)) if hasattr(order, "filled_price") else 0.0
+                )
                 try:
-                    await asyncio.sleep(0.5)  # Brief wait for fill
-                    filled_order = await self.broker.get_order(order.id)
-                    actual_fill_price = (
-                        float(filled_order.filled_avg_price)
-                        if filled_order and filled_order.filled_avg_price
-                        else current_price
-                    )
+                    if actual_fill_price <= 0:
+                        actual_fill_price = float(getattr(order, "filled_avg_price", 0.0) or 0.0)
                 except Exception:
+                    actual_fill_price = 0.0
+                if actual_fill_price <= 0:
                     actual_fill_price = current_price
 
                 # Track the gap trade
@@ -400,12 +399,14 @@ class GapTradingStrategy(BaseStrategy):
         try:
             # Close position
             side = "sell" if trade["direction"] == "long" else "buy"
-
-            order = await self.broker.submit_order(
-                symbol=symbol, qty=trade["shares"], side=side, type="market", time_in_force="day"
+            order = await self.submit_exit_order(
+                symbol=symbol,
+                qty=trade["shares"],
+                side=side,
+                reason=reason,
             )
 
-            if order:
+            if order and (not hasattr(order, "success") or order.success):
                 # Calculate P&L
                 entry_price = trade["entry_price"]
                 if trade["direction"] == "long":
