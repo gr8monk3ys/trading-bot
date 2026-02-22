@@ -796,9 +796,8 @@ class BaseStrategy(ABC):
         """
         Submit an exit order with appropriate safety checks.
 
-        INSTITUTIONAL SAFETY: Uses OrderGateway when available for proper
-        audit trail and safety checks. Exit orders have relaxed checks
-        because they REDUCE risk (closing positions).
+        INSTITUTIONAL SAFETY: Exit orders MUST route through OrderGateway for
+        audit trail, consistent controls, and kill-switch behavior.
 
         Args:
             symbol: Stock symbol
@@ -829,51 +828,29 @@ class BaseStrategy(ABC):
                 )
                 qty = actual_qty
 
-            # INSTITUTIONAL SAFETY: Route through OrderGateway if available
-            if order_gateway:
-                result = await order_gateway.submit_exit_order(
-                    symbol=symbol,
-                    quantity=qty,
-                    strategy_name=strategy_name,
-                    side=side,
-                    reason=reason,
+            if not order_gateway:
+                strategy_logger.error(
+                    "No OrderGateway configured. Exit order blocked; "
+                    "gateway-only routing is mandatory."
                 )
-                if result.success:
-                    strategy_logger.info(
-                        f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
-                        f"(Order ID: {result.order_id})"
-                    )
-                    return result
-                else:
-                    strategy_logger.warning(
-                        f"EXIT ORDER FAILED for {symbol}: {result.rejection_reason}"
-                    )
-                    return None
-            else:
-                if getattr(self.broker, "_gateway_required", False) is True:
-                    strategy_logger.error(
-                        "No OrderGateway configured while broker enforces gateway routing. "
-                        "Exit order blocked."
-                    )
-                    return None
-                # Fallback for backwards compatibility (will fail if gateway enforcement enabled)
-                from brokers.order_builder import OrderBuilder
+                return None
 
-                strategy_logger.warning(
-                    f"⚠️ No OrderGateway configured - using direct broker access for {symbol}"
+            result = await order_gateway.submit_exit_order(
+                symbol=symbol,
+                quantity=qty,
+                strategy_name=strategy_name,
+                side=side,
+                reason=reason,
+            )
+            if result.success:
+                strategy_logger.info(
+                    f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
+                    f"(Order ID: {result.order_id})"
                 )
-                order = OrderBuilder(symbol, side, qty).market().day().build()
-                result = await self.broker.submit_order_advanced(order)
-
-                if result:
-                    strategy_logger.info(
-                        f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
-                        f"(Order ID: {result.id})"
-                    )
-                else:
-                    strategy_logger.warning(f"EXIT ORDER FAILED for {symbol}")
-
                 return result
+
+            strategy_logger.warning(f"EXIT ORDER FAILED for {symbol}: {result.rejection_reason}")
+            return None
 
         except Exception as e:
             strategy_logger = getattr(self, "logger", logger)
@@ -908,23 +885,11 @@ class BaseStrategy(ABC):
         strategy_logger = getattr(self, "logger", logger)
 
         if not order_gateway:
-            if getattr(self.broker, "_gateway_required", False) is True:
-                strategy_logger.error(
-                    "No OrderGateway configured while broker enforces gateway routing. "
-                    "Entry order blocked."
-                )
-                return None
-            # No gateway configured - try direct submission (will fail if enforcement enabled)
-            strategy_logger.warning(
-                "⚠️ No OrderGateway configured - attempting direct broker access. "
-                "This will fail if gateway enforcement is enabled."
+            strategy_logger.error(
+                "No OrderGateway configured. Entry order blocked; "
+                "gateway-only routing is mandatory."
             )
-            try:
-                result = await self.broker.submit_order_advanced(order_request)
-                return result
-            except Exception as e:
-                strategy_logger.error(f"Entry order failed: {e}")
-                return None
+            return None
 
         try:
             # Extract symbol for logging
@@ -933,11 +898,13 @@ class BaseStrategy(ABC):
                 built = order_request.build()
                 symbol = getattr(built, "symbol", symbol)
 
+            risk_price_history = self._extract_close_price_history(symbol)
+
             result = await order_gateway.submit_order(
                 order_request=order_request,
                 strategy_name=strategy_name,
                 max_positions=max_positions,
-                price_history=self.price_history.get(symbol, []),
+                price_history=risk_price_history,
                 is_exit_order=False,
             )
 
@@ -956,6 +923,33 @@ class BaseStrategy(ABC):
         except Exception as e:
             strategy_logger.error(f"Entry order error: {e}")
             return None
+
+    def _extract_close_price_history(self, symbol: str) -> list[float]:
+        """
+        Normalize symbol history into a close-price series for risk calculations.
+
+        Supports strategy histories stored as:
+        - list/deque of OHLCV dict bars (expects `close`)
+        - list/deque of numeric close prices
+        """
+        raw_history = self.price_history.get(symbol, [])
+        if raw_history is None:
+            return []
+
+        normalized_history = list(raw_history)
+        closes: list[float] = []
+        for item in normalized_history:
+            if isinstance(item, dict):
+                close = item.get("close")
+            else:
+                close = item
+            if close is None:
+                continue
+            try:
+                closes.append(float(close))
+            except (TypeError, ValueError):
+                continue
+        return closes
 
     async def run(self):
         """Run the strategy."""

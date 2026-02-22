@@ -706,6 +706,8 @@ class TestExecuteSignal:
         strategy.broker.get_positions = AsyncMock(return_value=[])
         strategy.broker.get_account = AsyncMock(return_value=Mock(buying_power="100000"))
         strategy.broker.submit_order_advanced = AsyncMock(return_value=Mock(id="order123"))
+        strategy.submit_entry_order = AsyncMock(return_value=Mock(success=True, order_id="order123"))
+        strategy.submit_exit_order = AsyncMock(return_value=Mock(success=True, order_id="exit123"))
 
         # Mock risk manager
         strategy.risk_manager = Mock()
@@ -721,9 +723,9 @@ class TestExecuteSignal:
         """Test that buy signal creates bracket order."""
         await strategy_for_execution._execute_signal("AAPL", "buy")
 
-        strategy_for_execution.broker.submit_order_advanced.assert_called_once()
+        strategy_for_execution.submit_entry_order.assert_called_once()
         # Verify the order was submitted (implementation details vary by Alpaca SDK version)
-        call_args = strategy_for_execution.broker.submit_order_advanced.call_args[0][0]
+        call_args = strategy_for_execution.submit_entry_order.call_args[0][0]
         assert hasattr(call_args, "symbol") or isinstance(call_args, dict)
         # Verify entry was tracked
         assert "AAPL" in strategy_for_execution.position_entries
@@ -751,7 +753,7 @@ class TestExecuteSignal:
 
         await strategy_for_execution._execute_signal("AAPL", "buy")
 
-        strategy_for_execution.broker.submit_order_advanced.assert_not_called()
+        strategy_for_execution.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_respects_max_positions(self, strategy_for_execution):
@@ -762,7 +764,7 @@ class TestExecuteSignal:
 
         await strategy_for_execution._execute_signal("AAPL", "buy")
 
-        strategy_for_execution.broker.submit_order_advanced.assert_not_called()
+        strategy_for_execution.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_skips_if_already_positioned(self, strategy_for_execution):
@@ -772,14 +774,14 @@ class TestExecuteSignal:
 
         await strategy_for_execution._execute_signal("AAPL", "buy")
 
-        strategy_for_execution.broker.submit_order_advanced.assert_not_called()
+        strategy_for_execution.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_short_creates_order(self, strategy_for_execution):
         """Test that short signal creates short order."""
         await strategy_for_execution._execute_signal("AAPL", "short")
 
-        strategy_for_execution.broker.submit_order_advanced.assert_called_once()
+        strategy_for_execution.submit_entry_order.assert_called_once()
         # Verify the order was submitted and entry was tracked
         assert "AAPL" in strategy_for_execution.position_entries
         assert strategy_for_execution.position_entries["AAPL"].get("is_short") is True
@@ -809,7 +811,7 @@ class TestExecuteSignal:
 
         await strategy_for_execution._execute_signal("AAPL", "sell")
 
-        strategy_for_execution.broker.submit_order_advanced.assert_called_once()
+        strategy_for_execution.submit_exit_order.assert_called_once()
         # Verify position tracking was cleared
         assert "AAPL" not in strategy_for_execution.position_entries
         assert "AAPL" not in strategy_for_execution.highest_prices
@@ -822,7 +824,7 @@ class TestExecuteSignal:
 
         await strategy_for_execution._execute_signal("AAPL", "buy")
 
-        strategy_for_execution.broker.submit_order_advanced.assert_not_called()
+        strategy_for_execution.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_skips_small_quantity(self, strategy_for_execution):
@@ -831,7 +833,7 @@ class TestExecuteSignal:
 
         await strategy_for_execution._execute_signal("AAPL", "buy")
 
-        strategy_for_execution.broker.submit_order_advanced.assert_not_called()
+        strategy_for_execution.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_handles_exception(self, strategy_for_execution):
@@ -876,6 +878,7 @@ class TestCheckExitConditions:
         mock_position = Mock(symbol="AAPL", qty="10")
         strategy.broker.get_positions = AsyncMock(return_value=[mock_position])
         strategy.broker.submit_order_advanced = AsyncMock(return_value=Mock(id="order123"))
+        strategy.submit_exit_order = AsyncMock(return_value=Mock(success=True, order_id="exit123"))
 
         return strategy
 
@@ -896,7 +899,7 @@ class TestCheckExitConditions:
 
         await strategy_with_position._check_exit_conditions("AAPL")
 
-        strategy_with_position.broker.submit_order_advanced.assert_called_once()
+        strategy_with_position.submit_exit_order.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_check_exit_mean_reversion_target_long(self, strategy_with_position):
@@ -907,7 +910,7 @@ class TestCheckExitConditions:
 
         await strategy_with_position._check_exit_conditions("AAPL")
 
-        strategy_with_position.broker.submit_order_advanced.assert_called_once()
+        strategy_with_position.submit_exit_order.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_check_exit_trailing_stop_triggers(self, strategy_with_position):
@@ -936,7 +939,7 @@ class TestCheckExitConditions:
 
         await strategy_with_position._check_exit_conditions("AAPL")
 
-        strategy_with_position.broker.submit_order_advanced.assert_called_once()
+        strategy_with_position.submit_exit_order.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_check_exit_no_current_price(self, strategy_with_position):
@@ -945,7 +948,7 @@ class TestCheckExitConditions:
 
         await strategy_with_position._check_exit_conditions("AAPL")
 
-        strategy_with_position.broker.submit_order_advanced.assert_not_called()
+        strategy_with_position.submit_exit_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_check_exit_no_entry_details(self, strategy_with_position):
@@ -954,7 +957,7 @@ class TestCheckExitConditions:
 
         await strategy_with_position._check_exit_conditions("AAPL")
 
-        strategy_with_position.broker.submit_order_advanced.assert_not_called()
+        strategy_with_position.submit_exit_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_check_exit_handles_exception(self, strategy_with_position):
@@ -1268,6 +1271,7 @@ class TestRiskManagerIntegration:
         strategy.broker.get_positions = AsyncMock(return_value=[])
         strategy.broker.get_account = AsyncMock(return_value=Mock(buying_power="100000"))
         strategy.broker.submit_order_advanced = AsyncMock(return_value=Mock(id="order123"))
+        strategy.submit_entry_order = AsyncMock(return_value=Mock(success=True, order_id="order123"))
 
         # Real risk manager (not mocked)
         from strategies.risk_manager import RiskManager
@@ -1326,6 +1330,7 @@ class TestShortSellingIntegration:
         strategy.broker.get_positions = AsyncMock(return_value=[])
         strategy.broker.get_account = AsyncMock(return_value=Mock(buying_power="100000"))
         strategy.broker.submit_order_advanced = AsyncMock(return_value=Mock(id="order123"))
+        strategy.submit_entry_order = AsyncMock(return_value=Mock(success=True, order_id="order123"))
 
         # Mock risk manager
         strategy.risk_manager = Mock()
@@ -1342,7 +1347,7 @@ class TestShortSellingIntegration:
         await short_strategy._execute_signal("AAPL", "short")
 
         # Verify order was submitted
-        short_strategy.broker.submit_order_advanced.assert_called_once()
+        short_strategy.submit_entry_order.assert_called_once()
 
         # Verify short position was stored with correct metadata
         # For shorts: take-profit should be BELOW entry, stop-loss ABOVE entry

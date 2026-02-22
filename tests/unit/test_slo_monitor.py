@@ -3,7 +3,7 @@
 Unit tests for operational SLO monitor.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from utils.incident_tracker import IncidentTracker
 from utils.run_artifacts import read_jsonl
@@ -23,6 +23,23 @@ def test_order_reconciliation_health_critical_breach(tmp_path):
     )
     assert any(b.severity == "critical" for b in breaches)
     assert monitor.has_critical_breach(breaches) is True
+    monitor.close()
+
+
+def test_order_reconciliation_health_ignores_historical_totals_when_run_is_clean(tmp_path):
+    monitor = SLOMonitor(
+        events_path=tmp_path / "slo_events.jsonl",
+        recon_mismatch_halt_runs=2,
+    )
+    breaches = monitor.record_order_reconciliation_health(
+        {
+            "consecutive_mismatch_runs": 0,
+            "total_mismatches": 7,
+            "mismatch_count": 0,
+            "last_run_mismatches": [],
+        }
+    )
+    assert breaches == []
     monitor.close()
 
 
@@ -267,3 +284,158 @@ def test_slo_monitor_creates_ticket_for_incident_ack_sla_breach(tmp_path):
     assert status["ticketing"]["failures"] == 0
     monitor.close()
 
+
+def test_slo_monitor_queues_dead_letter_on_alert_failure(tmp_path):
+    class FailingAlertNotifier:
+        def notify(self, breach):
+            return False
+
+    dead_letter_path = tmp_path / "notification_dead_letters.jsonl"
+    monitor = SLOMonitor(
+        alert_notifier=FailingAlertNotifier(),
+        notification_dead_letter_path=dead_letter_path,
+        max_data_quality_errors=0,
+        max_stale_data_warnings=0,
+    )
+
+    monitor.record_data_quality_summary({"total_errors": 1, "stale_warnings": 0})
+    status = monitor.get_status_snapshot()
+    monitor.close()
+
+    assert status["dead_letters"]["queued"] == 1
+    assert status["dead_letters"]["slo_alert"] == 1
+    assert status["dead_letters"]["incident_ticket"] == 0
+    rows = read_jsonl(dead_letter_path)
+    assert len(rows) == 1
+    assert rows[0]["channel"] == "slo_alert"
+    assert rows[0]["event_type"] == "notification_dead_letter"
+
+
+def test_slo_monitor_queues_dead_letter_on_ticket_failure(tmp_path):
+    class FailingTicketNotifier:
+        def notify(self, breach):
+            return False
+
+    incident_tracker = IncidentTracker(
+        events_path=tmp_path / "incident_events.jsonl",
+        run_id="run_dead_letter",
+        ack_sla_minutes=1,
+    )
+    dead_letter_path = tmp_path / "notification_dead_letters.jsonl"
+    monitor = SLOMonitor(
+        incident_tracker=incident_tracker,
+        incident_ticket_notifier=FailingTicketNotifier(),
+        notification_dead_letter_path=dead_letter_path,
+        max_data_quality_errors=0,
+        max_stale_data_warnings=0,
+    )
+
+    monitor.record_data_quality_summary({"total_errors": 1, "stale_warnings": 0})
+    incident_id = next(iter(incident_tracker._incidents.keys()))
+    created_at = incident_tracker._incidents[incident_id].created_at
+    monitor.check_incident_ack_sla(now=created_at + timedelta(minutes=2))
+    status = monitor.get_status_snapshot()
+    monitor.close()
+
+    assert status["dead_letters"]["queued"] == 1
+    assert status["dead_letters"]["slo_alert"] == 0
+    assert status["dead_letters"]["incident_ticket"] == 1
+    rows = read_jsonl(dead_letter_path)
+    assert len(rows) == 1
+    assert rows[0]["channel"] == "incident_ticket"
+    assert rows[0]["event_type"] == "notification_dead_letter"
+
+
+def test_slo_monitor_emits_dead_letter_backlog_warning_after_persist_window(tmp_path):
+    monitor = SLOMonitor(
+        notification_dead_letter_warning_threshold=2,
+        notification_dead_letter_critical_threshold=5,
+        notification_dead_letter_persist_minutes=2,
+    )
+    base_time = datetime(2026, 1, 1, 10, 0, 0)
+
+    first = monitor.record_notification_dead_letter_backlog(2, now=base_time)
+    second = monitor.record_notification_dead_letter_backlog(
+        2,
+        now=base_time + timedelta(minutes=1),
+    )
+    third = monitor.record_notification_dead_letter_backlog(
+        2,
+        now=base_time + timedelta(minutes=2),
+    )
+
+    assert first == []
+    assert second == []
+    assert len(third) == 1
+    assert third[0].name == "notification_dead_letter_backlog_warning"
+    assert third[0].severity == "warning"
+    monitor.close()
+
+
+def test_slo_monitor_dead_letter_backlog_alert_is_edge_triggered():
+    monitor = SLOMonitor(
+        notification_dead_letter_warning_threshold=1,
+        notification_dead_letter_critical_threshold=3,
+        notification_dead_letter_persist_minutes=1,
+    )
+    base_time = datetime(2026, 1, 1, 10, 0, 0)
+
+    first = monitor.record_notification_dead_letter_backlog(1, now=base_time)
+    second = monitor.record_notification_dead_letter_backlog(
+        1,
+        now=base_time + timedelta(minutes=1),
+    )
+    third = monitor.record_notification_dead_letter_backlog(
+        1,
+        now=base_time + timedelta(minutes=3),
+    )
+    reset = monitor.record_notification_dead_letter_backlog(0, now=base_time + timedelta(minutes=4))
+    fourth = monitor.record_notification_dead_letter_backlog(
+        1,
+        now=base_time + timedelta(minutes=5),
+    )
+    fifth = monitor.record_notification_dead_letter_backlog(
+        1,
+        now=base_time + timedelta(minutes=6),
+    )
+
+    assert first == []
+    assert len(second) == 1
+    assert third == []
+    assert reset == []
+    assert fourth == []
+    assert len(fifth) == 1
+    monitor.close()
+
+
+def test_slo_monitor_backlog_alert_failure_does_not_requeue_dead_letter(tmp_path):
+    class FailingAlertNotifier:
+        def notify(self, breach):
+            return False
+
+    dead_letter_path = tmp_path / "notification_dead_letters.jsonl"
+    monitor = SLOMonitor(
+        alert_notifier=FailingAlertNotifier(),
+        notification_dead_letter_path=dead_letter_path,
+        max_data_quality_errors=0,
+        max_stale_data_warnings=0,
+        notification_dead_letter_warning_threshold=1,
+        notification_dead_letter_critical_threshold=2,
+        notification_dead_letter_persist_minutes=1,
+    )
+
+    monitor.record_data_quality_summary({"total_errors": 1, "stale_warnings": 0})
+    base_time = datetime(2026, 1, 1, 10, 0, 0)
+    monitor.record_notification_dead_letter_backlog(1, now=base_time)
+    breaches = monitor.record_notification_dead_letter_backlog(
+        1,
+        now=base_time + timedelta(minutes=1),
+    )
+    status = monitor.get_status_snapshot()
+    monitor.close()
+
+    assert len(breaches) == 1
+    assert breaches[0].name == "notification_dead_letter_backlog_warning"
+    assert status["dead_letters"]["queued"] == 1
+    rows = read_jsonl(dead_letter_path)
+    assert len(rows) == 1

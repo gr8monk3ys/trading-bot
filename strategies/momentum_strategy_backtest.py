@@ -7,6 +7,7 @@ less strict parameters to generate realistic trade signals.
 
 import logging
 
+from brokers.order_builder import OrderBuilder
 from strategies.momentum_strategy import MomentumStrategy
 
 logger = logging.getLogger(__name__)
@@ -122,12 +123,12 @@ class MomentumStrategyBacktest(MomentumStrategy):
             # Execute based on action
             if action == "buy" and current_position is None:
                 # Open long position
-                await self._place_backtest_order(symbol, qty, "buy")
+                await self._place_backtest_order(symbol, qty, "buy", is_exit=False)
                 logger.info(f"BUY {qty} shares of {symbol} @ ${price:.2f}")
 
             elif action == "short" and current_position is None:
                 # Open short position (simulate with sell)
-                await self._place_backtest_order(symbol, qty, "sell")
+                await self._place_backtest_order(symbol, qty, "sell", is_exit=False)
                 logger.info(f"SHORT {qty} shares of {symbol} @ ${price:.2f}")
 
             elif action == "sell" and current_position is not None:
@@ -137,25 +138,34 @@ class MomentumStrategyBacktest(MomentumStrategy):
                     or float(getattr(current_position, "qty", 0))
                 )
                 if pos_qty > 0:
-                    await self._place_backtest_order(symbol, pos_qty, "sell")
+                    await self._place_backtest_order(symbol, pos_qty, "sell", is_exit=True)
                     logger.info(f"SELL {pos_qty} shares of {symbol} @ ${price:.2f}")
 
         except Exception as e:
             logger.error(f"Error executing trade for {symbol}: {e}")
 
-    async def _place_backtest_order(self, symbol, qty, side):
-        """Place an order through the backtest broker."""
+    async def _place_backtest_order(self, symbol, qty, side, *, is_exit=False):
+        """Place a backtest order through BaseStrategy gateway-safe helpers."""
         try:
+            qty = int(qty)
+            if qty <= 0:
+                return
 
-            class SimpleOrder:
-                def __init__(self, sym, q, s):
-                    self.symbol = sym
-                    self.qty = q
-                    self.side = s
-                    self.type = "market"
+            if is_exit:
+                await self.submit_exit_order(
+                    symbol=symbol,
+                    qty=qty,
+                    side=side,
+                    reason="backtest_exit",
+                )
+                return
 
-            order = SimpleOrder(symbol, qty, side)
-            await self.broker.submit_order_advanced(order)
+            order_request = OrderBuilder(symbol, side, qty).market().day().build()
+            await self.submit_entry_order(
+                order_request=order_request,
+                reason="backtest_entry",
+                max_positions=self.parameters.get("max_positions"),
+            )
 
         except Exception as e:
             logger.error(f"Error placing order: {e}")

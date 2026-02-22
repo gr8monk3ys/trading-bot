@@ -5,6 +5,7 @@ Tests for restart-safe OrderGateway runtime state recovery.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -60,3 +61,22 @@ async def test_kill_switch_persists_across_gateway_restart():
     stats = restored.get_statistics()
     assert stats["guardrails"]["halt_reason"] == "Critical reconciliation drift"
     assert stats["guardrails"]["trading_halted_until"] is not None
+
+
+def test_import_runtime_state_clears_expired_kill_switch():
+    broker = _Broker()
+    gateway = OrderGateway(
+        broker=broker,
+        enforce_gateway=False,
+        kill_switch_cooldown_minutes=30,
+    )
+    state = {
+        "halt_reason": "Stale halt",
+        "trading_halted_until": (datetime.now() - timedelta(minutes=5)).isoformat(),
+    }
+
+    gateway.import_runtime_state(state)
+    stats = gateway.get_statistics()
+
+    assert stats["guardrails"]["halt_reason"] is None
+    assert stats["guardrails"]["trading_halted_until"] is None

@@ -3,6 +3,7 @@
 Unit tests for order lifecycle reconciliation against broker state.
 """
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -24,9 +25,9 @@ def _make_order(order_id: str, status=None, filled_qty=None):
 
 
 def _last_mismatch_type(audit_log: MagicMock) -> str:
-    args, _ = audit_log.log.call_args
-    assert args[0] == AuditEventType.RISK_WARNING
-    return args[1]["mismatch_type"]
+    risk_calls = [call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING]
+    assert risk_calls
+    return risk_calls[-1].args[1]["mismatch_type"]
 
 
 @pytest.mark.asyncio
@@ -62,7 +63,13 @@ async def test_lookup_filled_order_updates_state_to_filled():
     await reconciler.reconcile()
 
     assert tracker.get_state("ord-2") == OrderState.FILLED
-    assert _last_mismatch_type(audit_log) == "filled_qty_complete"
+    risk_calls = [call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING]
+    assert risk_calls == []
+    assert any(
+        call.args[0] == AuditEventType.ORDER_MODIFIED
+        and call.args[1].get("type") == "order_reconciliation_update"
+        for call in audit_log.log.call_args_list
+    )
 
 
 @pytest.mark.asyncio
@@ -81,7 +88,13 @@ async def test_open_order_partial_fill_updates_state_to_partial():
     await reconciler.reconcile()
 
     assert tracker.get_state("ord-3") == OrderState.PARTIAL
-    assert _last_mismatch_type(audit_log) == "filled_qty_partial"
+    risk_calls = [call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING]
+    assert risk_calls == []
+    assert any(
+        call.args[0] == AuditEventType.ORDER_MODIFIED
+        and call.args[1].get("type") == "order_reconciliation_update"
+        for call in audit_log.log.call_args_list
+    )
     broker.get_order_by_id.assert_not_called()
 
 
@@ -199,3 +212,6 @@ async def test_persists_reconciliation_health_snapshot(tmp_path):
     assert len(lines) == 1
     assert '"event_type":"order_reconciliation_snapshot"' in lines[0]
     assert '"run_id":"test_run"' in lines[0]
+    snapshot = json.loads(lines[0])
+    assert snapshot["mismatch_count"] == 1
+    assert snapshot["has_mismatch"] is True

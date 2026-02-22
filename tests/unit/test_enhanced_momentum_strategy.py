@@ -317,6 +317,11 @@ class TestTradeExecution:
         )
         await strategy.initialize()
 
+        async def _submit_entry(order_request, **_kwargs):
+            return await broker.submit_order_advanced(order_request)
+
+        strategy.submit_entry_order = _submit_entry
+
         # Analyze first to get current price
         await strategy.analyze_symbol("AAPL")
 
@@ -344,6 +349,11 @@ class TestTradeExecution:
         )
         await strategy.initialize()
 
+        async def _submit_entry(order_request, **_kwargs):
+            return await broker.submit_order_advanced(order_request)
+
+        strategy.submit_entry_order = _submit_entry
+
         await strategy.analyze_symbol("AAPL")
         result = await strategy.execute_trade("AAPL", "buy")
 
@@ -369,6 +379,11 @@ class TestTradeExecution:
             },
         )
         await strategy.initialize()
+
+        async def _submit_entry(order_request, **_kwargs):
+            return await broker.submit_order_advanced(order_request)
+
+        strategy.submit_entry_order = _submit_entry
 
         await strategy.analyze_symbol("AAPL")
         result = await strategy.execute_trade("AAPL", "buy")
@@ -550,6 +565,11 @@ class TestATRStops:
             },
         )
         await strategy.initialize()
+
+        async def _submit_entry(order_request, **_kwargs):
+            return await broker.submit_order_advanced(order_request)
+
+        strategy.submit_entry_order = _submit_entry
 
         await strategy.analyze_symbol("AAPL")
 

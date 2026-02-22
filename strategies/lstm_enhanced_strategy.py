@@ -93,17 +93,39 @@ class LSTMEnhancedStrategy(MomentumStrategy):
         params.update(lstm_params)
         return params
 
-    def __init__(self, broker, symbols, config=None):
+    def __init__(
+        self,
+        broker=None,
+        symbols=None,
+        config=None,
+        parameters=None,
+        order_gateway=None,
+    ):
         """
         Initialize LSTM Enhanced Strategy.
 
         Args:
             broker: Broker instance
-            symbols: List of symbols to trade
-            config: Configuration dict (overrides defaults)
+            symbols: Legacy list of symbols to trade (prefer parameters["symbols"])
+            config: Legacy configuration dict alias
+            parameters: Strategy parameters dict (preferred)
+            order_gateway: Shared OrderGateway for enforced order routing
         """
+        # Support both legacy (symbols/config) and modern (parameters) construction styles.
+        merged_parameters = {}
+        if config:
+            merged_parameters.update(config)
+        if parameters:
+            merged_parameters.update(parameters)
+        if symbols is not None and "symbols" not in merged_parameters:
+            merged_parameters["symbols"] = symbols
+
         # Initialize parent MomentumStrategy
-        super().__init__(broker, symbols, config)
+        super().__init__(
+            broker=broker,
+            parameters=merged_parameters,
+            order_gateway=order_gateway,
+        )
 
         # Create LSTM predictor
         self.lstm = LSTMPredictor(
@@ -125,9 +147,13 @@ class LSTMEnhancedStrategy(MomentumStrategy):
         self._signals_confirmed = 0
         self._signals_rejected = 0
 
+        configured_symbols = self.parameters.get("symbols") or []
+        if not isinstance(configured_symbols, (list, tuple, set)):
+            configured_symbols = [configured_symbols]
+
         logger.info(
             f"LSTMEnhancedStrategy initialized: "
-            f"{len(symbols)} symbols, "
+            f"{len(configured_symbols)} symbols, "
             f"sequence_length={self.lstm.sequence_length}, "
             f"confidence_threshold={self.parameters.get('lstm_confidence_threshold', 0.6)}"
         )

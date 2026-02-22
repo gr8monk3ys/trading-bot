@@ -39,6 +39,19 @@ def mock_broker():
     return broker
 
 
+def _mock_gateway_submission(strategy) -> None:
+    """Mock gateway-routed order submissions."""
+    entry = MagicMock()
+    entry.success = True
+    entry.order_id = "test-order-123"
+    strategy.submit_entry_order = AsyncMock(return_value=entry)
+
+    exit_order = MagicMock()
+    exit_order.success = True
+    exit_order.order_id = "test-exit-123"
+    strategy.submit_exit_order = AsyncMock(return_value=exit_order)
+
+
 @pytest.fixture
 def sample_price_history():
     """Generate realistic OHLCV price data for testing (minimum 50 bars needed)."""
@@ -275,6 +288,8 @@ class TestEnsembleStrategyInit:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
+        _mock_gateway_submission(strategy)
 
         # Check tracking structures
         for symbol in symbols:
@@ -666,6 +681,7 @@ class TestSignalExecution:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         strategy.current_prices["AAPL"] = 150.0
         strategy.price_history["AAPL"] = [{"close": 150.0}] * 25  # Enough history
@@ -676,7 +692,7 @@ class TestSignalExecution:
 
         await strategy._execute_signal("AAPL", "buy")
 
-        mock_broker.submit_order_advanced.assert_called_once()
+        strategy.submit_entry_order.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_skips_buy_when_max_positions_reached(self, mock_broker):
@@ -701,12 +717,13 @@ class TestSignalExecution:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         strategy.current_prices["AAPL"] = 150.0
 
         await strategy._execute_signal("AAPL", "buy")
 
-        mock_broker.submit_order_advanced.assert_not_called()
+        strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_executes_sell_signal_with_existing_position(self, mock_broker):
@@ -721,12 +738,13 @@ class TestSignalExecution:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         strategy.current_prices["AAPL"] = 150.0
 
         await strategy._execute_signal("AAPL", "sell")
 
-        mock_broker.submit_order_advanced.assert_called_once()
+        strategy.submit_exit_order.assert_called_once()
 
 
 # =============================================================================
@@ -750,6 +768,7 @@ class TestTrailingStop:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         # Set up position entry and prices
         strategy.position_entries["AAPL"] = {"price": 100.0, "quantity": 10}
@@ -780,6 +799,7 @@ class TestTrailingStop:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         # Set up position that's profitable
         entry_price = 100.0
@@ -793,7 +813,7 @@ class TestTrailingStop:
         await strategy._check_exit_conditions("AAPL")
 
         # Trailing stop should be triggered (sell order submitted)
-        mock_broker.submit_order_advanced.assert_called_once()
+        strategy.submit_exit_order.assert_called_once()
 
 
 # =============================================================================

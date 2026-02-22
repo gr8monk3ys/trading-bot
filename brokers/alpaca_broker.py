@@ -294,8 +294,10 @@ class AlpacaBroker:
             self.stream = StockDataStream(
                 api_key=_api_key,
                 secret_key=_api_secret,
-                url_override="https://paper-api.alpaca.markets/stream" if self.paper else None,
             )
+            self._active_stream: Any = self.stream
+            self._ws_asset_class: str = "stock"  # "stock" | "crypto"
+            self._ws_symbols: List[str] = list(SYMBOLS)
 
             self._subscribed_symbols: set[str] = set()  # Keep track of subscribed symbols
 
@@ -403,6 +405,51 @@ class AlpacaBroker:
         """Thread-safe check if websocket is connected."""
         async with self._ws_lock:
             return self._connected
+
+    def _get_or_create_crypto_stream(self) -> CryptoDataStream:
+        """Return a live crypto stream, creating one lazily when needed."""
+        if self._crypto_stream is None:
+            self._crypto_stream = CryptoDataStream(
+                api_key=self._api_key,
+                secret_key=self._api_secret,
+            )
+        return self._crypto_stream
+
+    def _resolve_websocket_configuration(self, symbols: Optional[List[str]]) -> tuple[str, List[str]]:
+        """
+        Resolve websocket stream mode and normalized symbol list.
+
+        Returns:
+            Tuple of (asset_class, normalized_symbols) where asset_class is
+            either "stock" or "crypto".
+
+        Raises:
+            ValueError: When symbols are empty or mix stock + crypto assets.
+        """
+        requested_symbols = symbols if symbols is not None else self._ws_symbols
+        cleaned = [str(symbol).strip() for symbol in requested_symbols if str(symbol).strip()]
+        if not cleaned:
+            raise ValueError("At least one symbol is required to start websocket streaming")
+
+        stock_symbols: List[str] = []
+        crypto_symbols: List[str] = []
+
+        for symbol in cleaned:
+            if self.is_crypto(symbol):
+                crypto_symbols.append(self.normalize_crypto_symbol(symbol))
+            else:
+                stock_symbols.append(self._validate_symbol(symbol))
+
+        if stock_symbols and crypto_symbols:
+            raise ValueError(
+                "Mixed stock and crypto symbols are not supported in a single websocket session. "
+                "Run separate sessions for each asset class."
+            )
+
+        # Keep order while removing duplicates.
+        normalized = list(dict.fromkeys(crypto_symbols if crypto_symbols else stock_symbols))
+        asset_class = "crypto" if crypto_symbols else "stock"
+        return asset_class, normalized
 
     @staticmethod
     def _validate_symbol(symbol: str) -> str:
@@ -608,14 +655,36 @@ class AlpacaBroker:
     async def _handle_bars(self, data):
         """Handle bar data from websocket."""
         try:
-            # Extract bar data
-            symbol = data.get("S")
-            open_price = float(data.get("o", 0))
-            high_price = float(data.get("h", 0))
-            low_price = float(data.get("l", 0))
-            close_price = float(data.get("c", 0))
-            volume = int(data.get("v", 0))
-            timestamp = datetime.fromtimestamp(data.get("t", 0) / 1000.0)
+            # Extract bar data (supports both dict payloads and alpaca-py model objects)
+            if isinstance(data, dict):
+                symbol = data.get("S") or data.get("symbol")
+                open_price = float(data.get("o", data.get("open", 0)) or 0)
+                high_price = float(data.get("h", data.get("high", 0)) or 0)
+                low_price = float(data.get("l", data.get("low", 0)) or 0)
+                close_price = float(data.get("c", data.get("close", 0)) or 0)
+                volume = int(data.get("v", data.get("volume", 0)) or 0)
+                ts_raw = data.get("t", data.get("timestamp"))
+            else:
+                symbol = getattr(data, "symbol", None)
+                open_price = float(getattr(data, "open", 0) or 0)
+                high_price = float(getattr(data, "high", 0) or 0)
+                low_price = float(getattr(data, "low", 0) or 0)
+                close_price = float(getattr(data, "close", 0) or 0)
+                volume = int(getattr(data, "volume", 0) or 0)
+                ts_raw = getattr(data, "timestamp", None)
+
+            if isinstance(ts_raw, datetime):
+                timestamp = ts_raw
+            elif isinstance(ts_raw, (int, float)):
+                ts_float = float(ts_raw)
+                if ts_float > 1e14:  # nanoseconds
+                    timestamp = datetime.fromtimestamp(ts_float / 1_000_000_000.0)
+                elif ts_float > 1e11:  # milliseconds
+                    timestamp = datetime.fromtimestamp(ts_float / 1000.0)
+                else:  # seconds
+                    timestamp = datetime.fromtimestamp(ts_float)
+            else:
+                timestamp = datetime.utcnow()
 
             # Notify subscribers
             for subscriber in self._subscribers:
@@ -630,13 +699,34 @@ class AlpacaBroker:
     async def _handle_quotes(self, data):
         """Handle quote data from websocket."""
         try:
-            # Extract quote data
-            symbol = data.get("S")
-            bid_price = float(data.get("bp", 0))
-            ask_price = float(data.get("ap", 0))
-            bid_size = int(data.get("bs", 0))
-            ask_size = int(data.get("as", 0))
-            timestamp = datetime.fromtimestamp(data.get("t", 0) / 1000.0)
+            # Extract quote data (supports both dict payloads and alpaca-py model objects)
+            if isinstance(data, dict):
+                symbol = data.get("S") or data.get("symbol")
+                bid_price = float(data.get("bp", data.get("bid_price", 0)) or 0)
+                ask_price = float(data.get("ap", data.get("ask_price", 0)) or 0)
+                bid_size = int(data.get("bs", data.get("bid_size", 0)) or 0)
+                ask_size = int(data.get("as", data.get("ask_size", 0)) or 0)
+                ts_raw = data.get("t", data.get("timestamp"))
+            else:
+                symbol = getattr(data, "symbol", None)
+                bid_price = float(getattr(data, "bid_price", 0) or 0)
+                ask_price = float(getattr(data, "ask_price", 0) or 0)
+                bid_size = int(getattr(data, "bid_size", 0) or 0)
+                ask_size = int(getattr(data, "ask_size", 0) or 0)
+                ts_raw = getattr(data, "timestamp", None)
+
+            if isinstance(ts_raw, datetime):
+                timestamp = ts_raw
+            elif isinstance(ts_raw, (int, float)):
+                ts_float = float(ts_raw)
+                if ts_float > 1e14:
+                    timestamp = datetime.fromtimestamp(ts_float / 1_000_000_000.0)
+                elif ts_float > 1e11:
+                    timestamp = datetime.fromtimestamp(ts_float / 1000.0)
+                else:
+                    timestamp = datetime.fromtimestamp(ts_float)
+            else:
+                timestamp = datetime.utcnow()
 
             # Notify subscribers
             for subscriber in self._subscribers:
@@ -651,11 +741,30 @@ class AlpacaBroker:
     async def _handle_trades(self, data):
         """Handle trade data from websocket."""
         try:
-            # Extract trade data
-            symbol = data.get("S")
-            price = float(data.get("p", 0))
-            size = int(data.get("s", 0))
-            timestamp = datetime.fromtimestamp(data.get("t", 0) / 1000.0)
+            # Extract trade data (supports both dict payloads and alpaca-py model objects)
+            if isinstance(data, dict):
+                symbol = data.get("S") or data.get("symbol")
+                price = float(data.get("p", data.get("price", 0)) or 0)
+                size = int(data.get("s", data.get("size", 0)) or 0)
+                ts_raw = data.get("t", data.get("timestamp"))
+            else:
+                symbol = getattr(data, "symbol", None)
+                price = float(getattr(data, "price", 0) or 0)
+                size = int(getattr(data, "size", 0) or 0)
+                ts_raw = getattr(data, "timestamp", None)
+
+            if isinstance(ts_raw, datetime):
+                timestamp = ts_raw
+            elif isinstance(ts_raw, (int, float)):
+                ts_float = float(ts_raw)
+                if ts_float > 1e14:
+                    timestamp = datetime.fromtimestamp(ts_float / 1_000_000_000.0)
+                elif ts_float > 1e11:
+                    timestamp = datetime.fromtimestamp(ts_float / 1000.0)
+                else:
+                    timestamp = datetime.fromtimestamp(ts_float)
+            else:
+                timestamp = datetime.utcnow()
 
             # Notify subscribers
             for subscriber in self._subscribers:
@@ -668,6 +777,9 @@ class AlpacaBroker:
     async def _websocket_handler(self):
         """Main websocket handler with proper locking for thread safety."""
         while True:
+            active_stream = None
+            stream_mode = "stock"
+            symbols_to_subscribe: List[str] = []
             try:
                 logger.info("Starting websocket connection...")
 
@@ -675,44 +787,51 @@ class AlpacaBroker:
                 async with self._ws_lock:
                     self._connected = False
                     self._subscribed_symbols.clear()
+                    stream_mode = self._ws_asset_class
+                    symbols_to_subscribe = list(self._ws_symbols)
+                    if stream_mode == "crypto":
+                        active_stream = self._get_or_create_crypto_stream()
+                    else:
+                        active_stream = self.stream
+                    self._active_stream = active_stream
 
-                # Initialize and connect
-                self.stream.connect()
-
-                # Register handlers
-                self.stream.add_trade_update_handler(self._handle_trade_updates)
-                self.stream.add_bars_handler(self._handle_bars)
-                self.stream.add_quotes_handler(self._handle_quotes)
-                self.stream.add_trades_handler(self._handle_trades)
-
-                # Subscribe to trade updates (account activity)
-                self.stream.subscribe_trade_updates()
-
-                # Mark as connected (with lock for thread safety)
+                # Mark as connected before subscriptions; alpaca-py allows
+                # subscriptions to be registered before run().
                 async with self._ws_lock:
                     self._connected = True
                     self._reconnect_attempts = 0
                     self._reconnect_delay = 1  # Reset delay
 
-                logger.info("Websocket connected successfully")
+                logger.info("Websocket connected successfully (%s mode)", stream_mode)
 
                 # Subscribe to market data for all tracked symbols
-                await self._subscribe_to_symbols(SYMBOLS)
+                if stream_mode == "crypto":
+                    subscribed = await self._subscribe_to_crypto_symbols(symbols_to_subscribe)
+                else:
+                    subscribed = await self._subscribe_to_symbols(symbols_to_subscribe)
+                if not subscribed:
+                    raise RuntimeError(f"Failed to subscribe symbols for {stream_mode} stream")
 
-                # Keep connection alive
-                while True:
-                    async with self._ws_lock:
-                        if not self._connected:
-                            break
-                    await asyncio.sleep(1)
+                # alpaca-py stream run() is blocking; execute in worker thread.
+                await asyncio.to_thread(active_stream.run)
+                raise RuntimeError(f"{stream_mode} stream.run() exited unexpectedly")
 
             except asyncio.CancelledError:
                 logger.info("Websocket handler cancelled")
                 async with self._ws_lock:
                     self._connected = False
+                try:
+                    (active_stream or self._active_stream).stop()
+                except Exception:
+                    pass
                 raise
             except Exception as e:
                 logger.error(f"Websocket error: {e}", exc_info=DEBUG_MODE)
+                try:
+                    if active_stream is not None:
+                        active_stream.stop()
+                except Exception:
+                    pass
 
                 async with self._ws_lock:
                     self._connected = False
@@ -737,35 +856,85 @@ class AlpacaBroker:
                 return False
 
             try:
+                symbol_list = [str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()]
+                if not symbol_list:
+                    logger.warning("No symbols provided for market-data subscription")
+                    return False
+
                 # Subscribe to bars (1-minute timeframe)
-                self.stream.subscribe_bars(symbols)
+                self.stream.subscribe_bars(self._handle_bars, *symbol_list)
 
                 # Subscribe to quotes
-                self.stream.subscribe_quotes(symbols)
+                self.stream.subscribe_quotes(self._handle_quotes, *symbol_list)
 
                 # Subscribe to trades
-                self.stream.subscribe_trades(symbols)
+                self.stream.subscribe_trades(self._handle_trades, *symbol_list)
 
                 # Add symbols to subscribed set (still within the same lock)
-                for symbol in symbols:
+                for symbol in symbol_list:
                     self._subscribed_symbols.add(symbol)
 
-                logger.info(f"Subscribed to market data for: {', '.join(symbols)}")
+                logger.info(f"Subscribed to market data for: {', '.join(symbol_list)}")
                 return True
 
             except Exception as e:
                 logger.error(f"Error subscribing to symbols: {e}", exc_info=DEBUG_MODE)
                 return False
 
-    async def start_websocket(self):
+    async def _subscribe_to_crypto_symbols(self, symbols: List[str]):
+        """Subscribe to crypto market data for multiple symbols."""
+        async with self._ws_lock:
+            if not self._connected:
+                logger.warning("Cannot subscribe to crypto symbols: websocket not connected")
+                return False
+
+            try:
+                stream = self._get_or_create_crypto_stream()
+                symbol_list = [
+                    self.normalize_crypto_symbol(symbol)
+                    for symbol in symbols
+                    if str(symbol).strip()
+                ]
+                symbol_list = list(dict.fromkeys(symbol_list))
+                if not symbol_list:
+                    logger.warning("No crypto symbols provided for market-data subscription")
+                    return False
+
+                stream.subscribe_bars(self._handle_bars, *symbol_list)
+                stream.subscribe_quotes(self._handle_quotes, *symbol_list)
+                stream.subscribe_trades(self._handle_trades, *symbol_list)
+
+                for symbol in symbol_list:
+                    self._subscribed_symbols.add(symbol)
+
+                logger.info(f"Subscribed to crypto market data for: {', '.join(symbol_list)}")
+                return True
+
+            except Exception as e:
+                logger.error(f"Error subscribing to crypto symbols: {e}", exc_info=DEBUG_MODE)
+                return False
+
+    async def start_websocket(self, symbols: Optional[List[str]] = None):
         """Start the websocket connection with proper locking."""
+        stream_mode, normalized_symbols = self._resolve_websocket_configuration(symbols)
+
         async with self._ws_lock:
             if self._ws_task is not None:
                 logger.info("Websocket already running")
                 return
 
+            self._ws_asset_class = stream_mode
+            self._ws_symbols = normalized_symbols
+            if stream_mode == "crypto":
+                self._active_stream = self._get_or_create_crypto_stream()
+            else:
+                self._active_stream = self.stream
             self._ws_task = asyncio.create_task(self._websocket_handler())
-            logger.info("Started websocket handler task")
+            logger.info(
+                "Started websocket handler task (%s mode): %s",
+                stream_mode,
+                ", ".join(normalized_symbols),
+            )
 
     async def stop_websocket(self):
         """Stop the websocket connection with proper locking."""
@@ -778,10 +947,17 @@ class AlpacaBroker:
                 self._connected = False
                 task = self._ws_task
                 self._ws_task = None
+                stream_to_stop = self._active_stream
             else:
                 self._ws_task = None
                 logger.info("Websocket task already completed")
                 return
+
+        try:
+            if stream_to_stop is not None:
+                stream_to_stop.stop()
+        except Exception:
+            pass
 
         # Cancel outside the lock to avoid deadlock
         task.cancel()
@@ -883,6 +1059,26 @@ class AlpacaBroker:
             logger.error(f"Error getting market status: {e}", exc_info=DEBUG_MODE)
             # Return safe default if error
             return {"is_open": False}
+
+    @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
+    async def get_clock(self):
+        """
+        Return Alpaca market clock object.
+
+        LiveTrader expects this interface to expose `is_open`, `next_open`,
+        and `next_close` attributes.
+        """
+        try:
+            return await self._async_call_with_timeout(
+                self.trading_client.get_clock,
+                timeout=self.DEFAULT_API_TIMEOUT,
+                operation_name="get_clock",
+            )
+        except asyncio.TimeoutError:
+            raise BrokerConnectionError("Clock fetch timed out - broker may be unreachable") from None
+        except Exception as e:
+            logger.error(f"Error getting clock: {e}", exc_info=DEBUG_MODE)
+            raise
 
     @retry_with_backoff(max_retries=3, initial_delay=1, max_delay=10)
     async def get_positions(self):
@@ -1062,7 +1258,10 @@ class AlpacaBroker:
         """
         try:
             # Get historical bars for volume and volatility calculation
-            bars = await self.get_bars(symbol, timeframe="1Day", limit=20)
+            if self.is_crypto(symbol):
+                bars = await self.get_crypto_bars(symbol, timeframe="1Day", limit=20)
+            else:
+                bars = await self.get_bars(symbol, timeframe="1Day", limit=20)
 
             if not bars or len(bars) < 5:
                 logger.warning(f"Insufficient data for {symbol}, using conservative defaults")
@@ -1918,21 +2117,36 @@ class AlpacaBroker:
                 operation_name=f"get_crypto_bars({symbol})",
             )
 
-            result = []
-            if symbol in bars:
-                for bar in bars[symbol]:
-                    result.append(
-                        {
-                            "timestamp": bar.timestamp,
-                            "open": float(bar.open),
-                            "high": float(bar.high),
-                            "low": float(bar.low),
-                            "close": float(bar.close),
-                            "volume": float(bar.volume),
-                            "vwap": float(bar.vwap) if bar.vwap else None,
-                            "trade_count": int(bar.trade_count) if bar.trade_count else None,
-                        }
-                    )
+            result: List[dict] = []
+
+            # alpaca-py returns a BarSet where `symbol in bars` can be False even when
+            # the symbol exists in bars.data. Always resolve from .data first.
+            bars_by_symbol: dict = {}
+            if hasattr(bars, "data") and isinstance(getattr(bars, "data"), dict):
+                bars_by_symbol = getattr(bars, "data")
+            elif isinstance(bars, dict):
+                bars_by_symbol = bars
+
+            symbol_compact = symbol.replace("/", "").upper()
+            bars_for_symbol = []
+            for key, value in bars_by_symbol.items():
+                if str(key).replace("/", "").upper() == symbol_compact:
+                    bars_for_symbol = list(value or [])
+                    break
+
+            for bar in bars_for_symbol:
+                result.append(
+                    {
+                        "timestamp": bar.timestamp,
+                        "open": float(bar.open),
+                        "high": float(bar.high),
+                        "low": float(bar.low),
+                        "close": float(bar.close),
+                        "volume": float(bar.volume),
+                        "vwap": float(bar.vwap) if bar.vwap else None,
+                        "trade_count": int(bar.trade_count) if bar.trade_count else None,
+                    }
+                )
 
             logger.debug(f"Fetched {len(result)} crypto bars for {symbol}")
             return result

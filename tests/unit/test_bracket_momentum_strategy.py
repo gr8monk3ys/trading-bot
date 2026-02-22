@@ -39,6 +39,15 @@ def mock_broker():
     return broker
 
 
+def _mock_entry_submission(strategy, order_id: str = "test-order-123") -> None:
+    """Mock gateway-routed entry submission for strategy tests."""
+    result = MagicMock()
+    result.success = True
+    result.order_id = order_id
+    result.id = order_id
+    strategy.submit_entry_order = AsyncMock(return_value=result)
+
+
 @pytest.fixture
 def sample_price_history():
     """Generate realistic OHLCV price data for testing."""
@@ -166,6 +175,7 @@ class TestBracketMomentumStrategyInit:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_entry_submission(strategy)
 
         assert strategy.position_size == 0.05
         assert strategy.max_positions == 5
@@ -310,6 +320,7 @@ class TestBracketOrderCreation:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_entry_submission(strategy)
 
         # Set up current price and indicators
         current_price = 150.0
@@ -321,10 +332,10 @@ class TestBracketOrderCreation:
         await strategy._execute_bracket_buy("AAPL")
 
         # Verify order was submitted
-        mock_broker.submit_order_advanced.assert_called_once()
+        strategy.submit_entry_order.assert_called_once()
 
         # Get the order that was submitted
-        order_call = mock_broker.submit_order_advanced.call_args
+        order_call = strategy.submit_entry_order.call_args
         order = order_call[0][0]  # First positional argument
 
         # Verify it's a bracket order for AAPL
@@ -346,6 +357,7 @@ class TestBracketOrderCreation:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_entry_submission(strategy)
 
         current_price = 100.0
         strategy.current_prices["AAPL"] = current_price
@@ -354,7 +366,7 @@ class TestBracketOrderCreation:
         await strategy._execute_bracket_buy("AAPL")
 
         # Verify order was submitted
-        mock_broker.submit_order_advanced.assert_called_once()
+        strategy.submit_entry_order.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_skips_order_when_already_have_position(self, mock_broker):
@@ -369,6 +381,7 @@ class TestBracketOrderCreation:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_entry_submission(strategy)
 
         strategy.current_prices["AAPL"] = 150.0
         strategy.indicators["AAPL"] = {"atr": 2.5}
@@ -376,7 +389,7 @@ class TestBracketOrderCreation:
         await strategy._execute_bracket_buy("AAPL")
 
         # Verify no order was submitted
-        mock_broker.submit_order_advanced.assert_not_called()
+        strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skips_order_when_max_positions_reached(self, mock_broker):
@@ -400,6 +413,7 @@ class TestBracketOrderCreation:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_entry_submission(strategy)
 
         strategy.current_prices["AAPL"] = 150.0
         strategy.indicators["AAPL"] = {"atr": 2.5}
@@ -407,7 +421,7 @@ class TestBracketOrderCreation:
         await strategy._execute_bracket_buy("AAPL")
 
         # Verify no order was submitted
-        mock_broker.submit_order_advanced.assert_not_called()
+        strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_tracks_bracket_order_after_submission(self, mock_broker):
@@ -417,6 +431,7 @@ class TestBracketOrderCreation:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_entry_submission(strategy)
 
         strategy.current_prices["AAPL"] = 150.0
         strategy.indicators["AAPL"] = {"atr": 2.5}
@@ -459,6 +474,7 @@ class TestPositionSizing:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_entry_submission(strategy)
 
         strategy.current_prices["AAPL"] = 150.0
         strategy.indicators["AAPL"] = {"atr": 2.5}
@@ -466,7 +482,7 @@ class TestPositionSizing:
         await strategy._execute_bracket_buy("AAPL")
 
         # Order should have been submitted with capped size
-        mock_broker.submit_order_advanced.assert_called_once()
+        strategy.submit_entry_order.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_skips_order_when_quantity_too_small(self, mock_broker):
@@ -488,6 +504,7 @@ class TestPositionSizing:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_entry_submission(strategy)
 
         # Price too high for tiny account
         strategy.current_prices["AAPL"] = 150.0
@@ -496,7 +513,7 @@ class TestPositionSizing:
         await strategy._execute_bracket_buy("AAPL")
 
         # Order should not have been submitted (quantity < 0.01)
-        mock_broker.submit_order_advanced.assert_not_called()
+        strategy.submit_entry_order.assert_not_called()
 
 
 # =============================================================================

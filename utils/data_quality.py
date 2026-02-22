@@ -213,7 +213,16 @@ def validate_ohlcv_frame(
 
     if stale_after_days is not None and report.end is not None:
         ref = reference_time or datetime.now()
-        age_days = (ref - report.end).days
+        ref_ts = pd.Timestamp(ref)
+        end_ts = pd.Timestamp(report.end)
+
+        # Normalize mixed tz-aware/naive timestamps to the same timezone.
+        if ref_ts.tz is None and end_ts.tz is not None:
+            ref_ts = ref_ts.tz_localize(end_ts.tz)
+        elif ref_ts.tz is not None and end_ts.tz is None:
+            end_ts = end_ts.tz_localize(ref_ts.tz)
+
+        age_days = int((ref_ts - end_ts).days)
         if age_days > stale_after_days:
             report.issues.append(
                 DataQualityIssue(

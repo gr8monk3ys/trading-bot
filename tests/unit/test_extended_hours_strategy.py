@@ -51,6 +51,14 @@ def mock_broker():
     return broker
 
 
+def _mock_gateway_submission(strategy) -> None:
+    """Mock gateway-routed entry submission."""
+    entry = MagicMock()
+    entry.success = True
+    entry.order_id = "test-order-123"
+    strategy.submit_entry_order = AsyncMock(return_value=entry)
+
+
 @pytest.fixture
 def mock_ext_hours_manager():
     """Create a mock ExtendedHoursManager."""
@@ -148,6 +156,7 @@ class TestExtendedHoursStrategyInit:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         assert strategy.enable_pre_market is False
         assert strategy.enable_after_hours is True
@@ -550,6 +559,7 @@ class TestExtendedHoursOrderTypes:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         strategy.ext_hours = mock_ext_hours_manager
 
@@ -571,7 +581,8 @@ class TestExtendedHoursOrderTypes:
             await strategy.execute_trade("AAPL", "buy", "pre_market")
 
             # Verify order was submitted
-            mock_broker.submit_order_advanced.assert_called_once_with(mock_order)
+            strategy.submit_entry_order.assert_called_once()
+            assert strategy.submit_entry_order.call_args.args[0] == mock_order
 
             # Verify limit was called (proving it's a limit order)
             mock_builder.limit.assert_called_once()
@@ -597,6 +608,7 @@ class TestExtendedHoursOrderTypes:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         strategy.ext_hours = mock_ext_hours_manager
 
@@ -617,7 +629,7 @@ class TestExtendedHoursOrderTypes:
             await strategy.execute_trade("AAPL", "buy", "pre_market")
 
             # Order should be submitted
-            mock_broker.submit_order_advanced.assert_called_once()
+            strategy.submit_entry_order.assert_called_once()
 
             # Verify bracket was called with stop-loss and take-profit
             mock_builder.bracket.assert_called_once()
@@ -655,6 +667,7 @@ class TestExtendedHoursPositionSizing:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         strategy.ext_hours = mock_ext_hours_manager
 
@@ -672,7 +685,7 @@ class TestExtendedHoursPositionSizing:
             await strategy.execute_trade("AAPL", "buy", "pre_market")
 
             # Verify order was submitted
-            mock_broker.submit_order_advanced.assert_called_once()
+            strategy.submit_entry_order.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_enforces_position_size_limit(self, mock_broker, mock_ext_hours_manager):
@@ -701,6 +714,7 @@ class TestExtendedHoursPositionSizing:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             await strategy.initialize()
+        _mock_gateway_submission(strategy)
 
         strategy.ext_hours = mock_ext_hours_manager
 
@@ -718,7 +732,7 @@ class TestExtendedHoursPositionSizing:
             await strategy.execute_trade("AAPL", "buy", "pre_market")
 
             # Order should still be submitted (with capped size)
-            mock_broker.submit_order_advanced.assert_called_once()
+            strategy.submit_entry_order.assert_called_once()
 
 
 # =============================================================================
@@ -872,6 +886,7 @@ class TestPositionManagement:
             await strategy.initialize()
 
         strategy.ext_hours = mock_ext_hours_manager
+        strategy.submit_entry_order = AsyncMock()
 
         # Mock circuit breaker check
         strategy.circuit_breaker = MagicMock()
@@ -881,7 +896,7 @@ class TestPositionManagement:
         await strategy.on_trading_iteration()
 
         # New order should not be submitted (we have a position)
-        mock_broker.submit_order_advanced.assert_not_called()
+        strategy.submit_entry_order.assert_not_called()
 
 
 # =============================================================================

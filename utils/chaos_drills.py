@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
+from brokers.multi_broker import FailoverEvent, MultiBrokerManager
 from utils.data_quality import should_halt_trading_for_data_quality
 from utils.order_gateway import OrderGateway
 from utils.order_lifecycle import OrderLifecycleTracker
@@ -112,6 +113,29 @@ class _CrashRecoveryBroker:
                 self.id = oid
 
         return _ExistingOrder(order_id)
+
+
+class _FailoverChaosBroker:
+    def __init__(self, name: str, *, healthy: bool) -> None:
+        self.name = name
+        self.is_paper = True
+        self._healthy = healthy
+
+    def set_healthy(self, healthy: bool) -> None:
+        self._healthy = healthy
+
+    async def health_check(self) -> bool:
+        return self._healthy
+
+    async def get_account(self):
+        if not self._healthy:
+            raise RuntimeError(f"chaos: {self.name} unavailable")
+        return {
+            "account_id": f"{self.name}-acct",
+            "equity": 100000,
+            "cash": 50000,
+            "buying_power": 150000,
+        }
 
 
 async def _drill_order_reconciliation_fetch_failure() -> ChaosDrillCheck:
@@ -289,6 +313,60 @@ async def _drill_crash_recovery_idempotent_replay() -> ChaosDrillCheck:
 
 
 
+async def _drill_multi_broker_failover_failback() -> ChaosDrillCheck:
+    primary = _FailoverChaosBroker("primary", healthy=False)
+    backup = _FailoverChaosBroker("backup", healthy=True)
+    manager = MultiBrokerManager(
+        primary=primary,
+        backups=[backup],
+        failure_threshold=2,
+        recovery_threshold=2,
+        auto_start_monitoring=False,
+    )
+
+    for _ in range(manager.failure_threshold):
+        await manager._check_broker_health(primary)
+    await manager._check_broker_health(backup)
+    await manager._evaluate_failover()
+    failed_over = manager.is_failed_over and manager.active_broker is backup
+
+    account = await manager.get_account()
+    backup_account_id = str(getattr(account, "id", "") or "").strip()
+    routed_to_backup = backup_account_id == "backup-acct"
+
+    primary.set_healthy(True)
+    for _ in range(manager.recovery_threshold):
+        await manager._check_broker_health(primary)
+        await manager._evaluate_failover()
+    failed_back = (not manager.is_failed_over) and manager.active_broker is primary
+
+    events = [entry.event for entry in manager.get_failover_log(limit=10)]
+    has_failover_event = FailoverEvent.FAILOVER_TO_BACKUP in events
+    has_failback_event = FailoverEvent.FAILBACK_TO_PRIMARY in events
+
+    passed = (
+        failed_over
+        and routed_to_backup
+        and failed_back
+        and has_failover_event
+        and has_failback_event
+    )
+    details = (
+        "Primary outage triggered failover, backup served traffic, and failback completed"
+        if passed
+        else (
+            "Unexpected failover/failback state: "
+            f"failed_over={failed_over}, routed_to_backup={routed_to_backup}, "
+            f"failed_back={failed_back}, events={[event.value for event in events]}"
+        )
+    )
+    return ChaosDrillCheck(
+        name="multi_broker_failover_failback",
+        passed=passed,
+        details=details,
+    )
+
+
 async def _drill_broker_auth_token_expiry_recovery() -> ChaosDrillCheck:
     lifecycle = OrderLifecycleTracker()
     reconciler = OrderReconciler(
@@ -366,6 +444,7 @@ async def run_chaos_drills() -> Dict[str, Any]:
     checks.append(await _drill_websocket_reconnect_storm_tolerance())
     checks.append(await _drill_partial_fill_stall_detection())
     checks.append(await _drill_crash_recovery_idempotent_replay())
+    checks.append(await _drill_multi_broker_failover_failback())
 
     passed = all(check.passed for check in checks)
     return {

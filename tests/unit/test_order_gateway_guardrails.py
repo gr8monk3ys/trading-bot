@@ -45,6 +45,25 @@ async def test_guardrail_rejects_new_entries_after_drawdown_breach():
 
 
 @pytest.mark.asyncio
+async def test_submit_order_succeeds_when_filled_avg_price_is_none():
+    """Submitted orders should not be rejected just because fill price is not ready yet."""
+    broker = AsyncMock()
+    broker.get_positions.return_value = []
+    broker.submit_order_advanced.return_value = MagicMock(id="ord-pending", filled_avg_price=None)
+
+    gateway = OrderGateway(
+        broker=broker,
+        enforce_gateway=False,
+    )
+
+    result = await gateway.submit_order(_OrderRequest(symbol="BTC/USD", qty=0.01), strategy_name="T")
+
+    assert result.success is True
+    assert result.order_id == "ord-pending"
+    assert result.filled_price is None
+
+
+@pytest.mark.asyncio
 async def test_guardrail_does_not_block_exit_orders():
     broker = AsyncMock()
     broker.get_positions.return_value = [MagicMock(symbol="AAPL", qty="10")]

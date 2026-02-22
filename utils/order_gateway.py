@@ -31,6 +31,16 @@ def _has_real_method(obj: Any, method_name: str) -> bool:
     return callable(getattr(type(obj), method_name, None))
 
 
+def _safe_optional_float(value: Any) -> Optional[float]:
+    """Best-effort float conversion that tolerates None/non-numeric values."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass
 class OrderResult:
     """Result of an order submission attempt."""
@@ -366,11 +376,7 @@ class OrderGateway:
                     symbol=symbol,
                     side=side,
                     quantity=qty,
-                    price=(
-                        float(result.filled_avg_price)
-                        if hasattr(result, "filled_avg_price")
-                        else None
-                    ),
+                    price=_safe_optional_float(getattr(result, "filled_avg_price", None)),
                     strategy_name=strategy_name,
                 )
 
@@ -380,9 +386,7 @@ class OrderGateway:
                 symbol=symbol,
                 side=side,
                 quantity=qty,
-                filled_price=(
-                    float(result.filled_avg_price) if hasattr(result, "filled_avg_price") else None
-                ),
+                filled_price=_safe_optional_float(getattr(result, "filled_avg_price", None)),
             )
 
         except Exception as e:
@@ -838,6 +842,17 @@ class OrderGateway:
                 self._trading_halted_until = None
         else:
             self._trading_halted_until = None
+
+        # Drop stale kill-switch state restored from previous runs.
+        if self._trading_halted_until is not None:
+            now = (
+                datetime.now(self._trading_halted_until.tzinfo)
+                if self._trading_halted_until.tzinfo is not None
+                else datetime.now()
+            )
+            if self._trading_halted_until <= now:
+                self._trading_halted_until = None
+                self._halt_reason = None
 
         try:
             self._orders_submitted = int(state.get("orders_submitted", self._orders_submitted))

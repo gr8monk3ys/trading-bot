@@ -444,6 +444,31 @@ class TestEmergencyClosePositions:
         cb_for_close.broker.submit_order_advanced.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_close_positions_does_not_bypass_gateway_when_rejected(self, cb_for_close):
+        """Gateway rejection must not fall back to direct broker submission."""
+        pos1 = create_mock_position(TEST_SYMBOL_1, TEST_POSITION_QTY_1)
+        cb_for_close.broker.get_positions.return_value = [pos1]
+        cb_for_close.broker._gateway_required = True
+        cb_for_close.broker._internal_submit_order = AsyncMock()
+        cb_for_close.order_gateway = AsyncMock()
+        cb_for_close.order_gateway.submit_exit_order = AsyncMock(
+            return_value=MagicMock(success=False, rejection_reason="risk_limit")
+        )
+
+        with patch("brokers.order_builder.OrderBuilder") as MockOrderBuilder:
+            mock_builder = MagicMock()
+            mock_builder.market.return_value = mock_builder
+            mock_builder.day.return_value = mock_builder
+            mock_builder.build.return_value = MagicMock()
+            MockOrderBuilder.return_value = mock_builder
+
+            await cb_for_close._emergency_close_positions()
+
+        cb_for_close.order_gateway.submit_exit_order.assert_called_once()
+        cb_for_close.broker.submit_order_advanced.assert_not_called()
+        cb_for_close.broker._internal_submit_order.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_close_positions_handles_order_error(self, cb_for_close):
         """Test close positions handles error for individual position."""
         pos1 = create_mock_position(TEST_SYMBOL_1, TEST_POSITION_QTY_1)

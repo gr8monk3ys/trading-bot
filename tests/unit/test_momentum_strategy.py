@@ -530,6 +530,14 @@ class TestGenerateSignal:
         strategy.use_bollinger_filter = False
         strategy.use_multi_timeframe = False
         strategy.enable_short_selling = False
+        strategy.crypto_long_only_relaxed_entry = True
+        strategy.crypto_long_only_buy_score_threshold = 1.0
+        strategy.crypto_long_only_dip_buy_enabled = True
+        strategy.crypto_long_only_dip_rsi_max = 35.0
+        strategy.crypto_long_only_dip_min_macd_hist_delta = 0.02
+        strategy.crypto_long_only_dip_min_rebound_pct = 0.001
+        strategy._last_macd_hist = {}
+        strategy.price_history = {}
         strategy.parameters = {}
         strategy.mtf_analyzer = None
 
@@ -620,6 +628,28 @@ class TestGenerateSignal:
         assert signal == "neutral"
 
     @pytest.mark.asyncio
+    async def test_generate_signal_buy_when_volume_unavailable(self, strategy_with_indicators):
+        """Allow entries when volume feed is unavailable (volume and volume_ma <= 0)."""
+        strategy_with_indicators.indicators = {
+            "AAPL": {
+                "rsi": 25,
+                "macd": 1.0,
+                "macd_signal": 0.5,
+                "macd_hist": 0.5,
+                "adx": 30,
+                "fast_ma": 155,
+                "medium_ma": 153,
+                "slow_ma": 150,
+                "volume": 0.0,
+                "volume_ma": 0.0,
+            }
+        }
+
+        signal = await strategy_with_indicators._generate_signal("AAPL")
+
+        assert signal == "buy"
+
+    @pytest.mark.asyncio
     async def test_generate_signal_short_when_enabled(self, strategy_with_indicators):
         """Test short signal when short selling is enabled."""
         strategy_with_indicators.enable_short_selling = True
@@ -662,6 +692,123 @@ class TestGenerateSignal:
         }
 
         signal = await strategy_with_indicators._generate_signal("AAPL")
+
+        assert signal == "neutral"
+
+    @pytest.mark.asyncio
+    async def test_generate_signal_crypto_long_only_relaxed_entry(self, strategy_with_indicators):
+        """Allow moderately bullish crypto entries in long-only mode."""
+        strategy_with_indicators.enable_short_selling = False
+        strategy_with_indicators.crypto_long_only_relaxed_entry = True
+        strategy_with_indicators.crypto_long_only_buy_score_threshold = 1.0
+        strategy_with_indicators.indicators = {
+            "BTC/USD": {
+                "rsi": 50,  # Neutral RSI
+                "macd": 1.0,
+                "macd_signal": 0.5,
+                "macd_hist": 0.5,  # +1 momentum factor
+                "adx": 30,
+                "fast_ma": 150,
+                "medium_ma": 149,
+                "slow_ma": 151,  # No MA alignment bonus
+                "volume": 2000000,
+                "volume_ma": 1000000,
+            }
+        }
+
+        signal = await strategy_with_indicators._generate_signal("BTC/USD")
+
+        assert signal == "buy"
+
+    @pytest.mark.asyncio
+    async def test_generate_signal_crypto_long_only_relaxed_entry_disabled(
+        self, strategy_with_indicators
+    ):
+        """Require full momentum score when relaxed crypto mode is disabled."""
+        strategy_with_indicators.enable_short_selling = False
+        strategy_with_indicators.crypto_long_only_relaxed_entry = False
+        strategy_with_indicators.indicators = {
+            "BTC/USD": {
+                "rsi": 50,
+                "macd": 1.0,
+                "macd_signal": 0.5,
+                "macd_hist": 0.5,  # +1 momentum factor
+                "adx": 30,
+                "fast_ma": 150,
+                "medium_ma": 149,
+                "slow_ma": 151,
+                "volume": 2000000,
+                "volume_ma": 1000000,
+            }
+        }
+
+        signal = await strategy_with_indicators._generate_signal("BTC/USD")
+
+        assert signal == "neutral"
+
+    @pytest.mark.asyncio
+    async def test_generate_signal_crypto_dip_buy_reversal(self, strategy_with_indicators):
+        """Allow controlled dip-buy entries on improving crypto reversals."""
+        strategy_with_indicators.enable_short_selling = False
+        strategy_with_indicators.crypto_long_only_dip_buy_enabled = True
+        strategy_with_indicators.crypto_long_only_dip_rsi_max = 35.0
+        strategy_with_indicators.crypto_long_only_dip_min_macd_hist_delta = 0.02
+        strategy_with_indicators.crypto_long_only_dip_min_rebound_pct = 0.001
+        strategy_with_indicators._last_macd_hist = {"BTC/USD": -0.30}
+        strategy_with_indicators.price_history = {
+            "BTC/USD": [{"close": 100.0}, {"close": 100.2}],
+        }
+        strategy_with_indicators.indicators = {
+            "BTC/USD": {
+                "rsi": 33.0,
+                "macd": -0.90,
+                "macd_signal": -0.70,
+                "macd_hist": -0.20,  # Improving by +0.10 vs previous
+                "adx": 30.0,
+                "fast_ma": 98.0,
+                "medium_ma": 99.0,
+                "slow_ma": 100.0,  # Bearish MA stack
+                "volume": 2_000_000.0,
+                "volume_ma": 1_000_000.0,
+                "close": 100.2,
+            }
+        }
+
+        signal = await strategy_with_indicators._generate_signal("BTC/USD")
+
+        assert signal == "buy"
+
+    @pytest.mark.asyncio
+    async def test_generate_signal_crypto_dip_buy_reversal_requires_rebound(
+        self, strategy_with_indicators
+    ):
+        """Reject dip-buy when price has not started to rebound."""
+        strategy_with_indicators.enable_short_selling = False
+        strategy_with_indicators.crypto_long_only_dip_buy_enabled = True
+        strategy_with_indicators.crypto_long_only_dip_rsi_max = 35.0
+        strategy_with_indicators.crypto_long_only_dip_min_macd_hist_delta = 0.02
+        strategy_with_indicators.crypto_long_only_dip_min_rebound_pct = 0.001
+        strategy_with_indicators._last_macd_hist = {"BTC/USD": -0.30}
+        strategy_with_indicators.price_history = {
+            "BTC/USD": [{"close": 100.0}, {"close": 99.9}],
+        }
+        strategy_with_indicators.indicators = {
+            "BTC/USD": {
+                "rsi": 33.0,
+                "macd": -0.90,
+                "macd_signal": -0.70,
+                "macd_hist": -0.20,  # Improving but no rebound in price
+                "adx": 30.0,
+                "fast_ma": 98.0,
+                "medium_ma": 99.0,
+                "slow_ma": 100.0,
+                "volume": 2_000_000.0,
+                "volume_ma": 1_000_000.0,
+                "close": 99.9,
+            }
+        }
+
+        signal = await strategy_with_indicators._generate_signal("BTC/USD")
 
         assert signal == "neutral"
 
@@ -1153,7 +1300,8 @@ class TestExecuteSignal:
         strategy.broker = Mock()
         strategy.broker.get_positions = AsyncMock(return_value=[])
         strategy.broker.get_account = AsyncMock(return_value=Mock(buying_power="100000"))
-        strategy.broker.submit_order_advanced = AsyncMock(return_value=Mock(id="order123"))
+        strategy.submit_entry_order = AsyncMock(return_value=Mock(success=True, order_id="order123"))
+        strategy.submit_exit_order = AsyncMock(return_value=Mock(success=True, order_id="exit123"))
 
         strategy.enforce_position_size_limit = AsyncMock(return_value=(10000, 66.67))
 
@@ -1164,7 +1312,32 @@ class TestExecuteSignal:
         """Test that execute_signal creates a buy order."""
         await trading_strategy._execute_signal("AAPL", "buy")
 
-        trading_strategy.broker.submit_order_advanced.assert_called_once()
+        trading_strategy.submit_entry_order.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_execute_signal_buy_stock_uses_bracket_order(self, trading_strategy):
+        """Stock entries should keep bracket order protection at broker level."""
+        await trading_strategy._execute_signal("AAPL", "buy")
+
+        order = trading_strategy.submit_entry_order.call_args.args[0]
+        assert str(getattr(order, "order_class", "")).lower().endswith("bracket")
+        assert getattr(order, "take_profit", None) is not None
+        assert getattr(order, "stop_loss", None) is not None
+
+    @pytest.mark.asyncio
+    async def test_execute_signal_buy_crypto_uses_market_order(self, trading_strategy):
+        """Crypto entries should avoid unsupported advanced order classes."""
+        trading_strategy.symbols = ["BTC/USD"]
+        trading_strategy.current_prices = {"BTC/USD": 68000.0}
+        trading_strategy.last_signal_time = {"BTC/USD": None}
+        trading_strategy.price_history = {"BTC/USD": []}
+
+        await trading_strategy._execute_signal("BTC/USD", "buy")
+
+        order = trading_strategy.submit_entry_order.call_args.args[0]
+        assert getattr(order, "order_class", None) is None
+        assert getattr(order, "take_profit", None) is None
+        assert getattr(order, "stop_loss", None) is None
 
     @pytest.mark.asyncio
     async def test_execute_signal_buy_stores_stop_and_target(self, trading_strategy):
@@ -1190,7 +1363,7 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("AAPL", "buy")
 
-        trading_strategy.broker.submit_order_advanced.assert_not_called()
+        trading_strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_respects_max_positions(self, trading_strategy):
@@ -1200,7 +1373,7 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("AAPL", "buy")
 
-        trading_strategy.broker.submit_order_advanced.assert_not_called()
+        trading_strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_skips_if_already_positioned(self, trading_strategy):
@@ -1211,7 +1384,7 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("AAPL", "buy")
 
-        trading_strategy.broker.submit_order_advanced.assert_not_called()
+        trading_strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_skips_small_quantity(self, trading_strategy):
@@ -1220,7 +1393,7 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("AAPL", "buy")
 
-        trading_strategy.broker.submit_order_advanced.assert_not_called()
+        trading_strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_short_when_enabled(self, trading_strategy):
@@ -1229,7 +1402,7 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("AAPL", "short")
 
-        trading_strategy.broker.submit_order_advanced.assert_called_once()
+        trading_strategy.submit_entry_order.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_execute_signal_short_skipped_when_disabled(self, trading_strategy):
@@ -1238,7 +1411,7 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("AAPL", "short")
 
-        trading_strategy.broker.submit_order_advanced.assert_not_called()
+        trading_strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_sell_closes_position(self, trading_strategy):
@@ -1252,7 +1425,7 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("AAPL", "sell")
 
-        trading_strategy.broker.submit_order_advanced.assert_called_once()
+        trading_strategy.submit_exit_order.assert_called_once()
         assert "AAPL" not in trading_strategy.stop_prices
         assert "AAPL" not in trading_strategy.target_prices
 
@@ -1288,7 +1461,7 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("AAPL", "buy")
 
-        trading_strategy.broker.submit_order_advanced.assert_not_called()
+        trading_strategy.submit_entry_order.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execute_signal_handles_exception(self, trading_strategy):
@@ -1505,6 +1678,15 @@ class TestGenerateSignals:
         await backtest_strategy.generate_signals()
 
         assert backtest_strategy.signals["AAPL"] in ["buy", "sell", "short", "neutral"]
+
+    @pytest.mark.asyncio
+    async def test_generate_signals_coerces_integer_volume_dtype(self, backtest_strategy):
+        """TA-Lib inputs should be coerced to float64 even if source volume is int64."""
+        backtest_strategy.current_data["AAPL"]["volume"] = np.random.randint(900000, 1100000, 100)
+
+        await backtest_strategy.generate_signals()
+
+        assert backtest_strategy.indicators["AAPL"]["volume_ma"] is not None
 
     @pytest.mark.asyncio
     async def test_generate_signals_skips_insufficient_data(self, backtest_strategy):

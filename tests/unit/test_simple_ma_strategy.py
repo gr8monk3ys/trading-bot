@@ -292,11 +292,13 @@ class TestExecuteTrade:
         mock_broker.get_latest_quote.return_value = mock_quote
 
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy.submit_entry_order = AsyncMock(return_value=MagicMock(success=True))
+        strategy.submit_exit_order = AsyncMock(return_value=MagicMock(success=True))
 
         await strategy.execute_trade("AAPL", {"action": "buy"})
 
-        mock_broker.submit_order_advanced.assert_called_once()
-        order = mock_broker.submit_order_advanced.call_args[0][0]
+        strategy.submit_entry_order.assert_awaited_once()
+        order = strategy.submit_entry_order.await_args.args[0]
         assert order.symbol == "AAPL"
         assert order.side == "buy"
         # 20% of 100000 / 150 = 133 shares
@@ -323,10 +325,11 @@ class TestExecuteTrade:
         mock_broker.get_latest_quote.return_value = mock_quote
 
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy.submit_entry_order = AsyncMock(return_value=MagicMock(success=True))
 
         await strategy.execute_trade("AAPL", {"action": "buy"})
 
-        mock_broker.submit_order_advanced.assert_not_called()
+        strategy.submit_entry_order.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_execute_trade_sell_closes_position(self):
@@ -350,14 +353,16 @@ class TestExecuteTrade:
         mock_broker.get_latest_quote.return_value = mock_quote
 
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy.submit_exit_order = AsyncMock(return_value=MagicMock(success=True))
 
         await strategy.execute_trade("AAPL", {"action": "sell"})
 
-        mock_broker.submit_order_advanced.assert_called_once()
-        order = mock_broker.submit_order_advanced.call_args[0][0]
-        assert order.symbol == "AAPL"
-        assert order.side == "sell"
-        assert order.qty == 100
+        strategy.submit_exit_order.assert_awaited_once_with(
+            symbol="AAPL",
+            qty=100,
+            side="sell",
+            reason="simple_ma_exit",
+        )
 
     @pytest.mark.asyncio
     async def test_execute_trade_sell_no_position(self):
@@ -374,10 +379,11 @@ class TestExecuteTrade:
         mock_broker.get_latest_quote.return_value = mock_quote
 
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy.submit_exit_order = AsyncMock(return_value=MagicMock(success=True))
 
         await strategy.execute_trade("AAPL", {"action": "sell"})
 
-        mock_broker.submit_order_advanced.assert_not_called()
+        strategy.submit_exit_order.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_execute_trade_with_dict_position(self):
@@ -398,12 +404,16 @@ class TestExecuteTrade:
         mock_broker.get_latest_quote.return_value = mock_quote
 
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy.submit_exit_order = AsyncMock(return_value=MagicMock(success=True))
 
         await strategy.execute_trade("AAPL", {"action": "sell"})
 
-        mock_broker.submit_order_advanced.assert_called_once()
-        order = mock_broker.submit_order_advanced.call_args[0][0]
-        assert order.qty == 50
+        strategy.submit_exit_order.assert_awaited_once_with(
+            symbol="AAPL",
+            qty=50,
+            side="sell",
+            reason="simple_ma_exit",
+        )
 
     @pytest.mark.asyncio
     async def test_execute_trade_uses_get_positions_fallback(self):
@@ -420,14 +430,14 @@ class TestExecuteTrade:
         mock_quote = MagicMock()
         mock_quote.ask_price = "150.00"
         mock_broker.get_latest_quote = AsyncMock(return_value=mock_quote)
-        mock_broker.submit_order_advanced = AsyncMock()
 
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy.submit_entry_order = AsyncMock(return_value=MagicMock(success=True))
 
         await strategy.execute_trade("AAPL", {"action": "buy"})
 
         mock_broker.get_positions.assert_called_once()
-        mock_broker.submit_order_advanced.assert_called_once()
+        strategy.submit_entry_order.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_execute_trade_handles_exception(self):
@@ -453,11 +463,12 @@ class TestPlaceOrder:
 
         mock_broker = AsyncMock()
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy.submit_entry_order = AsyncMock(return_value=MagicMock(success=True))
 
         await strategy._place_order("AAPL", 100, "buy")
 
-        mock_broker.submit_order_advanced.assert_called_once()
-        order = mock_broker.submit_order_advanced.call_args[0][0]
+        strategy.submit_entry_order.assert_awaited_once()
+        order = strategy.submit_entry_order.await_args.args[0]
         assert order.symbol == "AAPL"
         assert order.qty == 100
         assert order.side == "buy"
@@ -474,24 +485,24 @@ class TestPlaceOrder:
         broker_position.qty = "50"
         mock_broker.get_positions.return_value = [broker_position]
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy.submit_exit_order = AsyncMock(return_value=MagicMock(success=True))
 
         await strategy._place_order("MSFT", 50, "sell")
 
-        mock_broker.submit_order_advanced.assert_called_once()
-        order = mock_broker.submit_order_advanced.call_args[0][0]
-        assert order.symbol == "MSFT"
-        assert order.qty == 50
-        assert order.side == "sell"
+        strategy.submit_exit_order.assert_awaited_once_with(
+            symbol="MSFT",
+            qty=50,
+            side="sell",
+            reason="simple_ma_exit",
+        )
 
     @pytest.mark.asyncio
     async def test_place_order_handles_exception(self):
         """Test error handling in order placement."""
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
-        mock_broker = AsyncMock()
-        mock_broker.submit_order_advanced.side_effect = Exception("Order Error")
-
-        strategy = SimpleMACrossoverStrategy(broker=mock_broker)
+        strategy = SimpleMACrossoverStrategy(broker=AsyncMock())
+        strategy.submit_entry_order = AsyncMock(side_effect=Exception("Order Error"))
 
         # Should not raise
         await strategy._place_order("AAPL", 100, "buy")

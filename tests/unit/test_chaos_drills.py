@@ -28,6 +28,7 @@ async def test_run_chaos_drills_returns_passing_report():
     assert "websocket_reconnect_storm_tolerance" in names
     assert "partial_fill_stall_detection" in names
     assert "crash_recovery_idempotent_replay" in names
+    assert "multi_broker_failover_failback" in names
     assert all(c["passed"] is True for c in report["checks"])
 
 

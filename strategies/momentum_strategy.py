@@ -100,6 +100,16 @@ class MomentumStrategy(BaseStrategy):
             "mtf_timeframes": ["5Min", "15Min", "1Hour"],
             "mtf_require_alignment": True,
             "enable_short_selling": False,  # DISABLED - requires separate validation
+            # In long-only spot crypto sessions, allow moderately bullish setups
+            # (score >= 1) to avoid remaining neutral for extended bearish regimes.
+            "crypto_long_only_relaxed_entry": True,
+            "crypto_long_only_buy_score_threshold": 1.0,
+            # Controlled dip-buy mode for long-only crypto:
+            # require oversold RSI + improving MACD histogram + price rebound.
+            "crypto_long_only_dip_buy_enabled": True,
+            "crypto_long_only_dip_rsi_max": 35.0,
+            "crypto_long_only_dip_min_macd_hist_delta": 0.02,
+            "crypto_long_only_dip_min_rebound_pct": 0.001,
             "short_position_size": 0.08,
             "short_stop_loss": 0.04,
             "use_kelly_criterion": False,  # DISABLED - requires 100+ trades for win rate data
@@ -164,6 +174,7 @@ class MomentumStrategy(BaseStrategy):
             self.signals = dict.fromkeys(self.symbols, "neutral")
             self.last_signal_time = dict.fromkeys(self.symbols)
             self.stop_prices = {}
+            self._last_macd_hist = {}
 
             # Trailing stop parameters (NEW FEATURE - let winners run)
             self.use_trailing_stop = self.parameters.get("use_trailing_stop", True)
@@ -184,9 +195,39 @@ class MomentumStrategy(BaseStrategy):
             self.enable_short_selling = self.parameters.get("enable_short_selling", True)
             self.short_position_size = self.parameters.get("short_position_size", 0.08)
             self.short_stop_loss = self.parameters.get("short_stop_loss", 0.04)
+            self.crypto_long_only_relaxed_entry = bool(
+                self.parameters.get("crypto_long_only_relaxed_entry", True)
+            )
+            self.crypto_long_only_buy_score_threshold = float(
+                self.parameters.get("crypto_long_only_buy_score_threshold", 1.0)
+            )
+            self.crypto_long_only_dip_buy_enabled = bool(
+                self.parameters.get("crypto_long_only_dip_buy_enabled", True)
+            )
+            self.crypto_long_only_dip_rsi_max = float(
+                self.parameters.get("crypto_long_only_dip_rsi_max", 35.0)
+            )
+            self.crypto_long_only_dip_min_macd_hist_delta = float(
+                self.parameters.get("crypto_long_only_dip_min_macd_hist_delta", 0.02)
+            )
+            self.crypto_long_only_dip_min_rebound_pct = float(
+                self.parameters.get("crypto_long_only_dip_min_rebound_pct", 0.001)
+            )
 
             if self.enable_short_selling:
                 logger.info("✅ Short selling enabled - can profit from bear markets!")
+            elif self.crypto_long_only_relaxed_entry:
+                logger.info(
+                    "Crypto long-only relaxed entry enabled: buy threshold score >= %.2f",
+                    self.crypto_long_only_buy_score_threshold,
+                )
+            if not self.enable_short_selling and self.crypto_long_only_dip_buy_enabled:
+                logger.info(
+                    "Crypto long-only dip-buy enabled: RSI<=%.1f, MACD-hist delta>=%.3f, rebound>=%.2f%%",
+                    self.crypto_long_only_dip_rsi_max,
+                    self.crypto_long_only_dip_min_macd_hist_delta,
+                    self.crypto_long_only_dip_min_rebound_pct * 100.0,
+                )
 
             # Multi-timeframe analysis (NEW FEATURE)
             # Default matches default_parameters() which has True for maximum profit mode
@@ -350,6 +391,12 @@ class MomentumStrategy(BaseStrategy):
         Returns:
             dict: Dictionary of calculated indicator values
         """
+        # TA-Lib expects contiguous float64 ("double") arrays.
+        closes = np.asarray(closes, dtype=np.float64)
+        highs = np.asarray(highs, dtype=np.float64)
+        lows = np.asarray(lows, dtype=np.float64)
+        volumes = np.asarray(volumes, dtype=np.float64)
+
         # Calculate RSI
         rsi = talib.RSI(closes, timeperiod=self.rsi_period)
 
@@ -438,6 +485,7 @@ class MomentumStrategy(BaseStrategy):
 
     async def _generate_signal(self, symbol):
         """Generate trading signal based on indicators."""
+        macd_hist = None
         try:
             # Check if indicators are available
             if not self.indicators.get(symbol) or self.indicators[symbol]["rsi"] is None:
@@ -495,7 +543,15 @@ class MomentumStrategy(BaseStrategy):
                 momentum_score -= 1
 
             # Volume confirmation
-            volume_confirmation = volume > (volume_ma * self.volume_factor)
+            # Some live crypto feeds may emit bars with zero/absent volume.
+            # Treat non-positive baselines as "volume unavailable" and avoid
+            # hard-blocking otherwise valid momentum entries.
+            if volume is None or volume_ma is None:
+                volume_confirmation = False
+            elif volume_ma <= 0:
+                volume_confirmation = True
+            else:
+                volume_confirmation = volume > (volume_ma * self.volume_factor)
 
             # BOLLINGER BAND MEAN REVERSION FILTER (NEW FEATURE)
             # Research shows combining momentum with mean reversion achieves 73% win rate
@@ -581,7 +637,55 @@ class MomentumStrategy(BaseStrategy):
                         )
 
             # Determine final signal
-            if momentum_score >= 2 and trend_strength and volume_confirmation:
+            buy_score_threshold = 2.0
+            is_crypto_long_only = not self.enable_short_selling and self._is_crypto_symbol(symbol)
+            if is_crypto_long_only and bool(
+                getattr(self, "crypto_long_only_relaxed_entry", True)
+            ):
+                buy_score_threshold = float(
+                    getattr(self, "crypto_long_only_buy_score_threshold", 1.0)
+                )
+
+            macd_hist_cache = getattr(self, "_last_macd_hist", {})
+            if not isinstance(macd_hist_cache, dict):
+                macd_hist_cache = {}
+            previous_macd_hist = macd_hist_cache.get(symbol)
+            previous_close = self._get_previous_close(symbol)
+            close_price = ind.get("close")
+            dip_buy_eligible = False
+            if is_crypto_long_only and bool(
+                getattr(self, "crypto_long_only_dip_buy_enabled", True)
+            ):
+                rebound_ok = (
+                    previous_close is not None
+                    and close_price is not None
+                    and close_price
+                    >= previous_close
+                    * (1.0 + float(getattr(self, "crypto_long_only_dip_min_rebound_pct", 0.001)))
+                )
+                macd_hist_delta_ok = (
+                    previous_macd_hist is not None
+                    and (macd_hist - previous_macd_hist)
+                    >= float(getattr(self, "crypto_long_only_dip_min_macd_hist_delta", 0.02))
+                )
+                dip_buy_eligible = (
+                    trend_strength
+                    and volume_confirmation
+                    and rsi <= float(getattr(self, "crypto_long_only_dip_rsi_max", 35.0))
+                    and macd_hist_delta_ok
+                    and rebound_ok
+                )
+
+            if momentum_score >= buy_score_threshold and trend_strength and volume_confirmation:
+                return "buy"
+            if dip_buy_eligible:
+                logger.info(
+                    "CRYPTO DIP-BUY: %s buy triggered (rsi=%.2f, macd_hist=%.4f, prev_hist=%.4f)",
+                    symbol,
+                    rsi,
+                    macd_hist,
+                    previous_macd_hist,
+                )
                 return "buy"
             elif momentum_score <= -2 and trend_strength and volume_confirmation:
                 # SHORT SELLING FEATURE: Return 'short' instead of 'sell' for new positions
@@ -595,6 +699,33 @@ class MomentumStrategy(BaseStrategy):
         except Exception as e:
             logger.error(f"Error generating signal for {symbol}: {e}", exc_info=True)
             return "neutral"
+        finally:
+            if macd_hist is not None:
+                if not isinstance(getattr(self, "_last_macd_hist", None), dict):
+                    self._last_macd_hist = {}
+                self._last_macd_hist[symbol] = macd_hist
+
+    @staticmethod
+    def _is_crypto_symbol(symbol: str) -> bool:
+        """Best-effort symbol classification for crypto pairs."""
+        if not symbol:
+            return False
+        normalized = str(symbol).upper().replace("-", "/")
+        if "/" in normalized:
+            base, quote = normalized.split("/", 1)
+            return bool(base) and quote in {"USD", "USDT", "USDC", "BTC", "ETH"}
+        return normalized.endswith(("USD", "USDT", "USDC")) and len(normalized) >= 6
+
+    def _get_previous_close(self, symbol: str):
+        """Return previous bar close from in-memory history when available."""
+        history = getattr(self, "price_history", {}).get(symbol)
+        if not history or len(history) < 2:
+            return None
+        previous_bar = history[-2]
+        if not isinstance(previous_bar, dict):
+            return None
+        previous_close = previous_bar.get("close")
+        return float(previous_close) if previous_close is not None else None
 
     def _build_current_positions_dict(self, positions):
         """Build a dictionary of current positions with price history for risk analysis."""
@@ -680,18 +811,25 @@ class MomentumStrategy(BaseStrategy):
         take_profit_price = price * (1 + self.take_profit)
         stop_loss_price = price * (1 - self.stop_loss)
 
-        logger.info(f"Creating bracket order for {symbol}:")
-        logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} shares")
-        logger.info(f"  Take-profit: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
-        logger.info(f"  Stop-loss: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
-
-        order = (
-            OrderBuilder(symbol, "buy", quantity)
-            .market()
-            .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-            .gtc()
-            .build()
-        )
+        if self._is_crypto_symbol(symbol):
+            # Alpaca crypto does not support advanced order classes (e.g. bracket/OTOCO).
+            logger.info(f"Creating market entry order for {symbol} (crypto):")
+            logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} units")
+            logger.info(f"  Managed TP: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
+            logger.info(f"  Managed SL: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
+            order = OrderBuilder(symbol, "buy", quantity).market().gtc().build()
+        else:
+            logger.info(f"Creating bracket order for {symbol}:")
+            logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} shares")
+            logger.info(f"  Take-profit: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
+            logger.info(f"  Stop-loss: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
+            order = (
+                OrderBuilder(symbol, "buy", quantity)
+                .market()
+                .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+                .gtc()
+                .build()
+            )
 
         result = await self.submit_entry_order(
             order,
@@ -740,22 +878,34 @@ class MomentumStrategy(BaseStrategy):
         take_profit_price = price * (1 - self.take_profit)
         stop_loss_price = price * (1 + self.short_stop_loss)
 
-        logger.info(f"🔻 Creating SHORT bracket order for {symbol}:")
-        logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
-        logger.info(
-            f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)"
-        )
-        logger.info(
-            f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)"
-        )
-
-        order = (
-            OrderBuilder(symbol, "sell", quantity)
-            .market()
-            .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-            .gtc()
-            .build()
-        )
+        if self._is_crypto_symbol(symbol):
+            logger.info(f"🔻 Creating SHORT market order for {symbol} (crypto):")
+            logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} units")
+            logger.info(
+                f"  Managed take-profit: BUY at ${take_profit_price:.2f} "
+                f"(-{self.take_profit:.1%} price drop)"
+            )
+            logger.info(
+                f"  Managed stop-loss: BUY at ${stop_loss_price:.2f} "
+                f"(+{self.short_stop_loss:.1%} price rise)"
+            )
+            order = OrderBuilder(symbol, "sell", quantity).market().gtc().build()
+        else:
+            logger.info(f"🔻 Creating SHORT bracket order for {symbol}:")
+            logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
+            logger.info(
+                f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)"
+            )
+            logger.info(
+                f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)"
+            )
+            order = (
+                OrderBuilder(symbol, "sell", quantity)
+                .market()
+                .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
+                .gtc()
+                .build()
+            )
 
         result = await self.submit_entry_order(
             order,

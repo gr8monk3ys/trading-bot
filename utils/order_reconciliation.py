@@ -38,6 +38,7 @@ class OrderReconciler:
         self._total_mismatches = 0
         self._consecutive_mismatch_runs = 0
         self._last_run_mismatches: list[dict[str, Any]] = []
+        self._last_run_mismatch_count = 0
         self._halt_recommended = False
         self._last_halt_reason: Optional[str] = None
         self._last_error: Optional[str] = None
@@ -273,6 +274,27 @@ class OrderReconciler:
         current_state = self.lifecycle_tracker.get_state(order_id)
 
         if current_state == target_state:
+            if self._is_expected_state_convergence(prior_state, target_state, reason):
+                logger.info(
+                    "Reconciled order %s state convergence: %s -> %s via %s (%s)",
+                    order_id,
+                    prior_state.value,
+                    target_state.value,
+                    source,
+                    reason,
+                )
+                self._emit_reconciliation_update_event(
+                    order_id=order_id,
+                    prior_state=prior_state.value,
+                    reconciled_state=target_state.value,
+                    broker_status=broker_status,
+                    broker_filled_qty=filled_qty,
+                    expected_qty=expected_qty,
+                    source=source,
+                    reason=reason or "state_convergence",
+                )
+                return
+
             logger.warning(
                 "Reconciled order %s: %s -> %s via %s (%s)",
                 order_id,
@@ -313,6 +335,31 @@ class OrderReconciler:
             source=source,
         )
 
+    @staticmethod
+    def _is_expected_state_convergence(
+        prior_state: OrderState,
+        target_state: OrderState,
+        reason: str | None,
+    ) -> bool:
+        """
+        A successful, forward lifecycle update is expected convergence, not drift.
+
+        Drift/mismatch should represent anomalous conditions that failed to reconcile
+        or indicate broker/internal inconsistency.
+        """
+        if reason in {"filled_qty_complete", "filled_qty_partial"}:
+            return True
+
+        if reason == "status_mismatch":
+            return target_state in {
+                OrderState.PARTIAL,
+                OrderState.FILLED,
+                OrderState.CANCELED,
+                OrderState.REJECTED,
+            }
+
+        return False
+
     def _record_mismatch(
         self,
         run_mismatches: list[dict[str, Any]],
@@ -330,6 +377,7 @@ class OrderReconciler:
         """Update reconciliation health metrics and halt recommendation."""
         mismatch_count = len(run_mismatches)
         self._last_run_mismatches = run_mismatches
+        self._last_run_mismatch_count = mismatch_count
         self._total_mismatches += mismatch_count
 
         if mismatch_count == 0:
@@ -357,6 +405,8 @@ class OrderReconciler:
         return {
             "runs_total": self._runs_total,
             "total_mismatches": self._total_mismatches,
+            "mismatch_count": self._last_run_mismatch_count,
+            "has_mismatch": self._last_run_mismatch_count > 0,
             "consecutive_mismatch_runs": self._consecutive_mismatch_runs,
             "mismatch_halt_threshold": self.mismatch_halt_threshold,
             "halt_recommended": self._halt_recommended,
@@ -399,3 +449,23 @@ class OrderReconciler:
             self.audit_log.log(AuditEventType.RISK_WARNING, payload)
         except Exception as e:
             logger.warning(f"Failed to write order reconciliation audit event for {order_id}: {e}")
+
+    def _emit_reconciliation_update_event(self, order_id: str, **data) -> None:
+        """Emit non-anomalous reconciliation update into immutable audit trail."""
+        if not self.audit_log:
+            return
+
+        payload = {
+            "type": "order_reconciliation_update",
+            "order_id": order_id,
+        }
+        payload.update(data)
+
+        try:
+            self.audit_log.log(AuditEventType.ORDER_MODIFIED, payload)
+        except Exception as e:
+            logger.warning(
+                "Failed to write order reconciliation update audit event for %s: %s",
+                order_id,
+                e,
+            )
