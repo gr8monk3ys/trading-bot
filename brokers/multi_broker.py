@@ -368,7 +368,9 @@ class MultiBrokerManager(BrokerInterface):
             try:
                 handler(order_id, metadata)
             except Exception as e:
-                logger.warning(f"Failed to register order metadata on {self._active_broker.name}: {e}")
+                logger.warning(
+                    f"Failed to register order metadata on {self._active_broker.name}: {e}"
+                )
 
     def track_order_for_fills(self, order_id: str, symbol: str, side: str, qty: float) -> None:
         handler = getattr(self._active_broker, "track_order_for_fills", None)
@@ -714,9 +716,10 @@ class MultiBrokerManager(BrokerInterface):
         order_class = cls._extract_value(getattr(order_request, "order_class", "simple"))
         if order_class not in {"", "simple"}:
             raise BrokerError(f"Backup failover does not support order_class={order_class}")
-        if getattr(order_request, "take_profit", None) is not None or getattr(
-            order_request, "stop_loss", None
-        ) is not None:
+        if (
+            getattr(order_request, "take_profit", None) is not None
+            or getattr(order_request, "stop_loss", None) is not None
+        ):
             raise BrokerError("Backup failover does not support bracket/OCO/OTO legs")
 
         return OrderRequest(
@@ -896,7 +899,9 @@ class MultiBrokerManager(BrokerInterface):
                     "next_close": str(getattr(result, "next_close", "")),
                 }
             except Exception as exc:
-                logger.warning("Primary get_market_status failed on %s: %s", self._active_broker.name, exc)
+                logger.warning(
+                    "Primary get_market_status failed on %s: %s", self._active_broker.name, exc
+                )
 
         clock = await self.get_clock()
         return {
@@ -914,7 +919,9 @@ class MultiBrokerManager(BrokerInterface):
                 if price is not None:
                     return float(price)
             except Exception as exc:
-                logger.warning("Primary get_last_price failed on %s: %s", self._active_broker.name, exc)
+                logger.warning(
+                    "Primary get_last_price failed on %s: %s", self._active_broker.name, exc
+                )
 
         quote = await self.get_latest_quote(symbol)
         if isinstance(quote, dict):

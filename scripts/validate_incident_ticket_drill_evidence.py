@@ -110,7 +110,11 @@ def _validate_report(report: dict[str, Any], args: argparse.Namespace) -> dict[s
     _record(
         "report_passed",
         bool(report.get("passed")),
-        "drill report indicates passed=true" if report.get("passed") else "drill report passed=false",
+        (
+            "drill report indicates passed=true"
+            if report.get("passed")
+            else "drill report passed=false"
+        ),
     )
 
     delivery = dict(report.get("delivery", {}) or {})

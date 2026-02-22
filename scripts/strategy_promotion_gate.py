@@ -97,9 +97,7 @@ def run_gate(args: argparse.Namespace) -> int:
             escalation_doc=args.incident_escalation_doc,
         )
         if not bool(incident_contacts_report.get("valid")):
-            blockers.append(
-                "Incident ownership/escalation docs contain unresolved placeholders"
-            )
+            blockers.append("Incident ownership/escalation docs contain unresolved placeholders")
             ready = False
 
     payload = {

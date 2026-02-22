@@ -12,9 +12,9 @@ def test_deploy_canary_script_dry_run(tmp_path):
             sys.executable,
             "scripts/deploy_canary.py",
             "--candidate-cmd",
-            f'{sys.executable} -c "print(\'candidate\')"',
+            f"{sys.executable} -c \"print('candidate')\"",
             "--health-check-cmd",
-            f'{sys.executable} -c "print(\'healthy\')"',
+            f"{sys.executable} -c \"print('healthy')\"",
             "--output",
             str(output),
             "--dry-run",
@@ -33,13 +33,13 @@ def test_deploy_canary_script_dry_run(tmp_path):
 def test_deploy_canary_script_rolls_back_on_health_failure(tmp_path):
     output = tmp_path / "canary.json"
     rollback_marker = tmp_path / "rollback_marker.txt"
-    rollback_cmd = f'{sys.executable} -c "from pathlib import Path; Path(r\'{rollback_marker}\').write_text(\'rolled\', encoding=\'utf-8\')"'
+    rollback_cmd = f"{sys.executable} -c \"from pathlib import Path; Path(r'{rollback_marker}').write_text('rolled', encoding='utf-8')\""
     proc = subprocess.run(
         [
             sys.executable,
             "scripts/deploy_canary.py",
             "--candidate-cmd",
-            f'{sys.executable} -c "print(\'candidate\')"',
+            f"{sys.executable} -c \"print('candidate')\"",
             "--health-check-cmd",
             f'{sys.executable} -c "import sys; sys.exit(2)"',
             "--rollback-cmd",

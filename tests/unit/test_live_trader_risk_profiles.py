@@ -132,7 +132,11 @@ def test_determine_position_scale_uses_ladder() -> None:
 
 class _DummyStrategy:
     def __init__(self) -> None:
-        self.parameters = {"position_size": 0.1, "max_position_size": 0.2, "short_position_size": 0.08}
+        self.parameters = {
+            "position_size": 0.1,
+            "max_position_size": 0.2,
+            "short_position_size": 0.08,
+        }
         self.position_size = 0.1
         self.max_position_size = 0.2
         self.short_position_size = 0.08

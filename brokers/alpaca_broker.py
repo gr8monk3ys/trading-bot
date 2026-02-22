@@ -415,7 +415,9 @@ class AlpacaBroker:
             )
         return self._crypto_stream
 
-    def _resolve_websocket_configuration(self, symbols: Optional[List[str]]) -> tuple[str, List[str]]:
+    def _resolve_websocket_configuration(
+        self, symbols: Optional[List[str]]
+    ) -> tuple[str, List[str]]:
         """
         Resolve websocket stream mode and normalized symbol list.
 
@@ -856,7 +858,9 @@ class AlpacaBroker:
                 return False
 
             try:
-                symbol_list = [str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()]
+                symbol_list = [
+                    str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()
+                ]
                 if not symbol_list:
                     logger.warning("No symbols provided for market-data subscription")
                     return False
@@ -1075,7 +1079,9 @@ class AlpacaBroker:
                 operation_name="get_clock",
             )
         except asyncio.TimeoutError:
-            raise BrokerConnectionError("Clock fetch timed out - broker may be unreachable") from None
+            raise BrokerConnectionError(
+                "Clock fetch timed out - broker may be unreachable"
+            ) from None
         except Exception as e:
             logger.error(f"Error getting clock: {e}", exc_info=DEBUG_MODE)
             raise

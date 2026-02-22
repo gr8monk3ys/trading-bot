@@ -56,7 +56,9 @@ async def test_submit_order_succeeds_when_filled_avg_price_is_none():
         enforce_gateway=False,
     )
 
-    result = await gateway.submit_order(_OrderRequest(symbol="BTC/USD", qty=0.01), strategy_name="T")
+    result = await gateway.submit_order(
+        _OrderRequest(symbol="BTC/USD", qty=0.01), strategy_name="T"
+    )
 
     assert result.success is True
     assert result.order_id == "ord-pending"

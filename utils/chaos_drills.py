@@ -72,8 +72,6 @@ class _ChaosOrderRequest:
         self.type = order_type
 
 
-
-
 class _AuthExpiryBroker:
     def __init__(self):
         self.calls = 0
@@ -83,6 +81,7 @@ class _AuthExpiryBroker:
         if self.calls == 1:
             raise PermissionError("chaos: broker auth token expired")
         return []
+
 
 class _CrashRecoveryBroker:
     def __init__(self):
@@ -311,8 +310,6 @@ async def _drill_crash_recovery_idempotent_replay() -> ChaosDrillCheck:
     )
 
 
-
-
 async def _drill_multi_broker_failover_failback() -> ChaosDrillCheck:
     primary = _FailoverChaosBroker("primary", healthy=False)
     backup = _FailoverChaosBroker("backup", healthy=True)
@@ -420,7 +417,10 @@ def _drill_quote_staleness_recovery() -> ChaosDrillCheck:
     monitor.close()
 
     stale_detected = any(b.name == "data_quality_stale_warnings" for b in stale_breaches)
-    passed = stale_detected and status.get("last_breach", {}).get("name") == "data_quality_stale_warnings"
+    passed = (
+        stale_detected
+        and status.get("last_breach", {}).get("name") == "data_quality_stale_warnings"
+    )
     details = (
         "Quote staleness breach detected and fresh data check completed without new breach"
         if passed

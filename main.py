@@ -446,10 +446,9 @@ async def run_live(args):
                 print("\n❌ Compliance governance gate failed. Blocking live-capital startup.")
                 print("Critical blockers:")
                 for check in governance_report.get("checks", []):
-                    if (
-                        str(check.get("severity", "critical")).strip().lower() == "critical"
-                        and not bool(check.get("passed"))
-                    ):
+                    if str(
+                        check.get("severity", "critical")
+                    ).strip().lower() == "critical" and not bool(check.get("passed")):
                         print(f"  - {check.get('name')}: {check.get('message')}")
                 logger.error(
                     "Governance gate failed for --real startup: %s",

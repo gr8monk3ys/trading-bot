@@ -307,7 +307,9 @@ class GapTradingStrategy(BaseStrategy):
             if order and (not hasattr(order, "success") or order.success):
                 # Get actual fill price to avoid race condition with price changes
                 actual_fill_price = (
-                    float(getattr(order, "filled_price", 0.0)) if hasattr(order, "filled_price") else 0.0
+                    float(getattr(order, "filled_price", 0.0))
+                    if hasattr(order, "filled_price")
+                    else 0.0
                 )
                 try:
                     if actual_fill_price <= 0:

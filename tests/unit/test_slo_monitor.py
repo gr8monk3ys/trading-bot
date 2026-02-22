@@ -248,6 +248,7 @@ def test_slo_monitor_shadow_drift_critical_breach():
     assert breaches[0].severity == "critical"
     monitor.close()
 
+
 def test_slo_monitor_creates_ticket_for_incident_ack_sla_breach(tmp_path):
     class RecordingTicketNotifier:
         def __init__(self):

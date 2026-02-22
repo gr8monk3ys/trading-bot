@@ -233,7 +233,9 @@ async def _check_multi_broker_failover_probe(
             await manager._check_broker_health(backup)
             health = manager.get_broker_health().get(backup.name)
             backup_health_ok = backup_health_ok and bool(
-                health and health.status == BrokerStatus.CONNECTED and health.consecutive_failures == 0
+                health
+                and health.status == BrokerStatus.CONNECTED
+                and health.consecutive_failures == 0
             )
 
         primary_health = manager._broker_health[manager._primary.name]

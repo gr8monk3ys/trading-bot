@@ -406,7 +406,9 @@ class TestPositionReconciler:
         mock_broker.get_positions = AsyncMock(
             return_value=[MagicMock(symbol="BTCUSD", qty="0.5", avg_entry_price="68000.0")]
         )
-        mock_tracker.get_positions = MagicMock(return_value=[MagicMock(symbol="BTC/USD", qty="0.5")])
+        mock_tracker.get_positions = MagicMock(
+            return_value=[MagicMock(symbol="BTC/USD", qty="0.5")]
+        )
 
         reconciler = PositionReconciler(
             broker=mock_broker,

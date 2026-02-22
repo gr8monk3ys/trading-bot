@@ -364,9 +364,8 @@ class CircuitBreaker:
                         continue
 
                     # Fallback path when gateway isn't attached (legacy/test setups).
-                    if (
-                        getattr(self.broker, "_gateway_required", False) is True
-                        and hasattr(self.broker, "_internal_submit_order")
+                    if getattr(self.broker, "_gateway_required", False) is True and hasattr(
+                        self.broker, "_internal_submit_order"
                     ):
                         result = await self.broker._internal_submit_order(
                             order,

@@ -8,7 +8,9 @@ import sys
 def test_export_ops_metrics_script_writes_json_and_prom(tmp_path):
     run_dir = tmp_path / "run"
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "incident_events.jsonl").write_text('{"event_type":"incident_open"}\n', encoding="utf-8")
+    (run_dir / "incident_events.jsonl").write_text(
+        '{"event_type":"incident_open"}\n', encoding="utf-8"
+    )
     (run_dir / "ops_slo_events.jsonl").write_text(
         '{"event_type":"slo_breach","severity":"critical"}\n',
         encoding="utf-8",

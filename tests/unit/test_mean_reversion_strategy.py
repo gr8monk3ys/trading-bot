@@ -706,7 +706,9 @@ class TestExecuteSignal:
         strategy.broker.get_positions = AsyncMock(return_value=[])
         strategy.broker.get_account = AsyncMock(return_value=Mock(buying_power="100000"))
         strategy.broker.submit_order_advanced = AsyncMock(return_value=Mock(id="order123"))
-        strategy.submit_entry_order = AsyncMock(return_value=Mock(success=True, order_id="order123"))
+        strategy.submit_entry_order = AsyncMock(
+            return_value=Mock(success=True, order_id="order123")
+        )
         strategy.submit_exit_order = AsyncMock(return_value=Mock(success=True, order_id="exit123"))
 
         # Mock risk manager
@@ -1271,7 +1273,9 @@ class TestRiskManagerIntegration:
         strategy.broker.get_positions = AsyncMock(return_value=[])
         strategy.broker.get_account = AsyncMock(return_value=Mock(buying_power="100000"))
         strategy.broker.submit_order_advanced = AsyncMock(return_value=Mock(id="order123"))
-        strategy.submit_entry_order = AsyncMock(return_value=Mock(success=True, order_id="order123"))
+        strategy.submit_entry_order = AsyncMock(
+            return_value=Mock(success=True, order_id="order123")
+        )
 
         # Real risk manager (not mocked)
         from strategies.risk_manager import RiskManager
@@ -1330,7 +1334,9 @@ class TestShortSellingIntegration:
         strategy.broker.get_positions = AsyncMock(return_value=[])
         strategy.broker.get_account = AsyncMock(return_value=Mock(buying_power="100000"))
         strategy.broker.submit_order_advanced = AsyncMock(return_value=Mock(id="order123"))
-        strategy.submit_entry_order = AsyncMock(return_value=Mock(success=True, order_id="order123"))
+        strategy.submit_entry_order = AsyncMock(
+            return_value=Mock(success=True, order_id="order123")
+        )
 
         # Mock risk manager
         strategy.risk_manager = Mock()

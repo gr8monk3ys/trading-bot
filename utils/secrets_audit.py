@@ -30,8 +30,7 @@ class SecretsAuditCheck:
         }
 
 
-_SECRET_VALUE_PATTERN = re.compile(
-    r"""(?ix)
+_SECRET_VALUE_PATTERN = re.compile(r"""(?ix)
     \b
     (?:alpaca[_-]?(?:api[_-]?key|secret[_-]?key)|api[_-]?key|api[_-]?secret|secret[_-]?key)
     \b
@@ -39,8 +38,7 @@ _SECRET_VALUE_PATTERN = re.compile(
     ["']?
     ([A-Za-z0-9][A-Za-z0-9_\-]{15,})
     ["']?
-    """
-)
+    """)
 
 
 def _looks_like_placeholder(line: str) -> bool:
@@ -78,14 +76,32 @@ def _scan_file_for_secret_hits(path: Path) -> list[dict[str, Any]]:
 
 
 def _iter_repo_files(repo_root: Path) -> list[Path]:
-    ignored = {".git", ".venv", ".pytest_cache", "__pycache__", "htmlcov", ".mypy_cache", ".ruff_cache"}
+    ignored = {
+        ".git",
+        ".venv",
+        ".pytest_cache",
+        "__pycache__",
+        "htmlcov",
+        ".mypy_cache",
+        ".ruff_cache",
+    }
     files: list[Path] = []
     for path in repo_root.rglob("*"):
         if not path.is_file():
             continue
         if any(part in ignored for part in path.parts):
             continue
-        if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".gz", ".pyc", ".so"}:
+        if path.suffix.lower() in {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".pdf",
+            ".zip",
+            ".gz",
+            ".pyc",
+            ".so",
+        }:
             continue
         if path.stat().st_size > 512_000:
             continue

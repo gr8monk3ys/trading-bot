@@ -1300,7 +1300,9 @@ class TestExecuteSignal:
         strategy.broker = Mock()
         strategy.broker.get_positions = AsyncMock(return_value=[])
         strategy.broker.get_account = AsyncMock(return_value=Mock(buying_power="100000"))
-        strategy.submit_entry_order = AsyncMock(return_value=Mock(success=True, order_id="order123"))
+        strategy.submit_entry_order = AsyncMock(
+            return_value=Mock(success=True, order_id="order123")
+        )
         strategy.submit_exit_order = AsyncMock(return_value=Mock(success=True, order_id="exit123"))
 
         strategy.enforce_position_size_limit = AsyncMock(return_value=(10000, 66.67))

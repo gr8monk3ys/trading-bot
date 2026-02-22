@@ -25,7 +25,9 @@ def _make_order(order_id: str, status=None, filled_qty=None):
 
 
 def _last_mismatch_type(audit_log: MagicMock) -> str:
-    risk_calls = [call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING]
+    risk_calls = [
+        call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING
+    ]
     assert risk_calls
     return risk_calls[-1].args[1]["mismatch_type"]
 
@@ -63,7 +65,9 @@ async def test_lookup_filled_order_updates_state_to_filled():
     await reconciler.reconcile()
 
     assert tracker.get_state("ord-2") == OrderState.FILLED
-    risk_calls = [call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING]
+    risk_calls = [
+        call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING
+    ]
     assert risk_calls == []
     assert any(
         call.args[0] == AuditEventType.ORDER_MODIFIED
@@ -88,7 +92,9 @@ async def test_open_order_partial_fill_updates_state_to_partial():
     await reconciler.reconcile()
 
     assert tracker.get_state("ord-3") == OrderState.PARTIAL
-    risk_calls = [call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING]
+    risk_calls = [
+        call for call in audit_log.log.call_args_list if call.args[0] == AuditEventType.RISK_WARNING
+    ]
     assert risk_calls == []
     assert any(
         call.args[0] == AuditEventType.ORDER_MODIFIED

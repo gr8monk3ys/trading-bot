@@ -1390,9 +1390,7 @@ class TestWebSocketConnection:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_subscribe_to_symbols_when_connected(
-        self, mock_trading, mock_data, mock_stream
-    ):
+    async def test_subscribe_to_symbols_when_connected(self, mock_trading, mock_data, mock_stream):
         """Should subscribe using alpaca-py handler-first signatures."""
         from brokers.alpaca_broker import AlpacaBroker
 
