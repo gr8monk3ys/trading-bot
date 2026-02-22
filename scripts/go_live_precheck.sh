@@ -11,8 +11,6 @@ LOCAL_ONLY=false
 RUN_CHAOS=false
 RUN_TICKET_DRILL=false
 RUN_FAILOVER_PROBE=false
-RUN_SECRETS_AUDIT=false
-RUN_GOVERNANCE_GATE=false
 
 SKIP_DEPLOYMENT_PREFLIGHT=false
 SKIP_RUNTIME_WATCHDOG=false
@@ -30,9 +28,6 @@ Options:
   --run-chaos                       Run chaos drills in runtime industrial gate
   --run-ticket-drill                Run ticket drill in runtime industrial gate (requires INCIDENT_TICKETING_WEBHOOK_URL)
   --run-failover-probe              Run live multi-broker failover probe in runtime industrial gate
-  --run-secrets-audit               Run secrets rotation/leak audit during deployment preflight
-  --run-governance-gate             Run compliance/governance gate (use --governance-mode live for live capital)
-  --governance-mode MODE            Governance mode: paper|live (default: paper)
   --skip-deployment-preflight       Skip deployment preflight stage
   --skip-runtime-watchdog           Skip runtime watchdog stage
   --skip-runtime-gate               Skip runtime industrial gate stage
@@ -67,18 +62,6 @@ while [[ $# -gt 0 ]]; do
       RUN_FAILOVER_PROBE=true
       shift
       ;;
-    --run-secrets-audit)
-      RUN_SECRETS_AUDIT=true
-      shift
-      ;;
-    --run-governance-gate)
-      RUN_GOVERNANCE_GATE=true
-      shift
-      ;;
-    --governance-mode)
-      GOVERNANCE_MODE="$2"
-      shift 2
-      ;;
     --skip-deployment-preflight)
       SKIP_DEPLOYMENT_PREFLIGHT=true
       shift
@@ -111,8 +94,6 @@ if [[ "${LOCAL_ONLY}" == "true" ]]; then
   RUN_CHAOS=false
   RUN_TICKET_DRILL=false
   RUN_FAILOVER_PROBE=false
-  RUN_SECRETS_AUDIT=false
-  RUN_GOVERNANCE_GATE=false
   ENFORCE_IB_API_GATE=false
 fi
 
@@ -123,12 +104,6 @@ if [[ "${ENFORCE_IB_API_GATE}" == "true" && "${SKIP_RUNTIME_WATCHDOG}" == "true"
 fi
 
 REPO_ROOT="$(cd "${REPO_ROOT}" && pwd)"
-GOVERNANCE_MODE="${GOVERNANCE_MODE:-paper}"
-if [[ "${GOVERNANCE_MODE}" != "paper" && "${GOVERNANCE_MODE}" != "live" ]]; then
-  echo "Invalid --governance-mode '${GOVERNANCE_MODE}'. Expected paper|live." >&2
-  exit 2
-fi
-
 if [[ "${OUTPUT_DIR}" != /* ]]; then
   OUTPUT_DIR="${REPO_ROOT}/${OUTPUT_DIR}"
 fi
@@ -160,14 +135,12 @@ INCIDENT_JSON="${OUTPUT_DIR}/incident_contacts.json"
 PREFLIGHT_JSON="${OUTPUT_DIR}/deployment_preflight.json"
 WATCHDOG_JSON="${OUTPUT_DIR}/runtime_watchdog.json"
 GATE_JSON="${OUTPUT_DIR}/runtime_industrial_gate.json"
-GOVERNANCE_JSON="${OUTPUT_DIR}/governance_gate.json"
 SUMMARY_JSON="${OUTPUT_DIR}/go_live_precheck_summary.json"
 
 INCIDENT_RC=0
 PREFLIGHT_RC=0
 WATCHDOG_RC=0
 GATE_RC=0
-GOVERNANCE_RC=0
 
 if run_step \
   "incident_contacts" \
@@ -185,16 +158,12 @@ if [[ "${SKIP_DEPLOYMENT_PREFLIGHT}" == "false" ]]; then
   if [[ "${LOCAL_ONLY}" == "true" ]]; then
     REQUIRED_ENV=""
   fi
-  PREFLIGHT_CMD=(
-    "${PYTHON_BIN}" "${REPO_ROOT}/scripts/deployment_preflight.py"
-    --repo-root "${REPO_ROOT}"
-    --required-env "${REQUIRED_ENV}"
-    --output "${PREFLIGHT_JSON}"
-  )
-  if [[ "${RUN_SECRETS_AUDIT}" == "true" ]]; then
-    PREFLIGHT_CMD+=(--run-secrets-audit)
-  fi
-  if run_step "deployment_preflight" "${PREFLIGHT_CMD[@]}"; then
+  if run_step \
+    "deployment_preflight" \
+    "${PYTHON_BIN}" "${REPO_ROOT}/scripts/deployment_preflight.py" \
+      --repo-root "${REPO_ROOT}" \
+      --required-env "${REQUIRED_ENV}" \
+      --output "${PREFLIGHT_JSON}"; then
     PREFLIGHT_RC=0
   else
     PREFLIGHT_RC=$?
@@ -254,24 +223,9 @@ if [[ "${SKIP_RUNTIME_GATE}" == "false" ]]; then
   fi
 fi
 
-if [[ "${RUN_GOVERNANCE_GATE}" == "true" ]]; then
-  if run_step \
-    "governance_gate" \
-    "${PYTHON_BIN}" "${REPO_ROOT}/scripts/governance_gate.py" \
-      --repo-root "${REPO_ROOT}" \
-      --mode "${GOVERNANCE_MODE}" \
-      --output "${GOVERNANCE_JSON}"; then
-    GOVERNANCE_RC=0
-  else
-    GOVERNANCE_RC=$?
-  fi
-fi
-
 export INCIDENT_RC PREFLIGHT_RC WATCHDOG_RC GATE_RC
-export GOVERNANCE_RC
-export INCIDENT_JSON PREFLIGHT_JSON WATCHDOG_JSON GATE_JSON GOVERNANCE_JSON SUMMARY_JSON
+export INCIDENT_JSON PREFLIGHT_JSON WATCHDOG_JSON GATE_JSON SUMMARY_JSON
 export SKIP_DEPLOYMENT_PREFLIGHT SKIP_RUNTIME_WATCHDOG SKIP_RUNTIME_GATE
-export RUN_GOVERNANCE_GATE
 
 "${PYTHON_BIN}" - <<'PY'
 import json
@@ -318,12 +272,6 @@ steps = [
         "GATE_JSON",
         skipped=os.environ.get("SKIP_RUNTIME_GATE", "false").lower() == "true",
     ),
-    step(
-        "governance_gate",
-        "GOVERNANCE_RC",
-        "GOVERNANCE_JSON",
-        skipped=os.environ.get("RUN_GOVERNANCE_GATE", "false").lower() != "true",
-    ),
 ]
 
 ready = all(step_data["passed"] for step_data in steps)
@@ -356,6 +304,5 @@ if [[ "${INCIDENT_RC}" -ne 0 ]]; then OVERALL_RC=1; fi
 if [[ "${PREFLIGHT_RC}" -ne 0 ]]; then OVERALL_RC=1; fi
 if [[ "${WATCHDOG_RC}" -ne 0 ]]; then OVERALL_RC=1; fi
 if [[ "${GATE_RC}" -ne 0 ]]; then OVERALL_RC=1; fi
-if [[ "${GOVERNANCE_RC}" -ne 0 ]]; then OVERALL_RC=1; fi
 
 exit "${OVERALL_RC}"

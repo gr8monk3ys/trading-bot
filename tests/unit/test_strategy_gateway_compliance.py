@@ -6,6 +6,7 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STRATEGY_DIR = REPO_ROOT / "strategies"
 BANNED_BROKER_ORDER_METHODS = {
@@ -121,9 +122,10 @@ def test_live_strategies_expose_order_gateway_constructor():
         if "order_gateway" not in arg_names and not has_kwargs:
             missing.append(f"{info.path.name}:{info.name}")
 
-    assert (
-        not missing
-    ), "Live strategy constructors missing gateway wiring support:\n- " + "\n- ".join(missing)
+    assert not missing, (
+        "Live strategy constructors missing gateway wiring support:\n- "
+        + "\n- ".join(missing)
+    )
 
 
 def test_live_strategies_do_not_submit_orders_directly_to_broker():
@@ -150,8 +152,7 @@ def test_live_strategies_do_not_submit_orders_directly_to_broker():
                 f"{info.path.name}:{info.name}:{node.lineno} uses self.broker.{node.func.attr}()"
             )
 
-    assert (
-        not violations
-    ), "Direct broker order submission found in live strategy classes:\n- " + "\n- ".join(
-        violations
+    assert not violations, (
+        "Direct broker order submission found in live strategy classes:\n- "
+        + "\n- ".join(violations)
     )

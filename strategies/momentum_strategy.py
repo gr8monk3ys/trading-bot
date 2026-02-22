@@ -639,7 +639,9 @@ class MomentumStrategy(BaseStrategy):
             # Determine final signal
             buy_score_threshold = 2.0
             is_crypto_long_only = not self.enable_short_selling and self._is_crypto_symbol(symbol)
-            if is_crypto_long_only and bool(getattr(self, "crypto_long_only_relaxed_entry", True)):
+            if is_crypto_long_only and bool(
+                getattr(self, "crypto_long_only_relaxed_entry", True)
+            ):
                 buy_score_threshold = float(
                     getattr(self, "crypto_long_only_buy_score_threshold", 1.0)
                 )
@@ -661,9 +663,11 @@ class MomentumStrategy(BaseStrategy):
                     >= previous_close
                     * (1.0 + float(getattr(self, "crypto_long_only_dip_min_rebound_pct", 0.001)))
                 )
-                macd_hist_delta_ok = previous_macd_hist is not None and (
-                    macd_hist - previous_macd_hist
-                ) >= float(getattr(self, "crypto_long_only_dip_min_macd_hist_delta", 0.02))
+                macd_hist_delta_ok = (
+                    previous_macd_hist is not None
+                    and (macd_hist - previous_macd_hist)
+                    >= float(getattr(self, "crypto_long_only_dip_min_macd_hist_delta", 0.02))
+                )
                 dip_buy_eligible = (
                     trend_strength
                     and volume_confirmation

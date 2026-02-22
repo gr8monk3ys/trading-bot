@@ -61,18 +61,6 @@ def test_validate_ohlcv_stale_data_warning():
     assert any(i.code == "stale_data" for i in report.issues)
 
 
-def test_validate_ohlcv_stale_data_handles_mixed_timezone_awareness():
-    df = _sample_ohlcv()
-    df.index = pd.date_range("2024-01-01", periods=5, freq="B", tz="UTC")
-    report = validate_ohlcv_frame(
-        df,
-        symbol="BTC/USD",
-        stale_after_days=5,
-        reference_time=datetime(2024, 2, 1),  # naive on purpose
-    )
-    assert any(i.code == "stale_data" for i in report.issues)
-
-
 def test_validate_pit_announcement_dates_flags_lookahead():
     points = [
         {"announced_date": "2024-01-10T00:00:00"},

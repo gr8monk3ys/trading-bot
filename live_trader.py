@@ -148,9 +148,7 @@ def _resolve_runtime_parameters(args: argparse.Namespace) -> dict[str, Any]:
     hard_drawdown = (
         float(args.max_intraday_drawdown)
         if args.max_intraday_drawdown is not None
-        else float(
-            profile.get("drawdown_hard_limit_pct", profile.get("max_intraday_drawdown_pct", 0.07))
-        )
+        else float(profile.get("drawdown_hard_limit_pct", profile.get("max_intraday_drawdown_pct", 0.07)))
     )
     soft_drawdown = (
         float(args.drawdown_soft_limit)
@@ -224,9 +222,7 @@ def _validate_runtime_risk_parameters(parameters: dict[str, Any]) -> None:
     crypto_dip_min_macd_hist_delta = float(
         parameters.get("crypto_long_only_dip_min_macd_hist_delta", 0.02)
     )
-    crypto_dip_min_rebound_pct = float(
-        parameters.get("crypto_long_only_dip_min_rebound_pct", 0.001)
-    )
+    crypto_dip_min_rebound_pct = float(parameters.get("crypto_long_only_dip_min_rebound_pct", 0.001))
 
     if position_size <= 0 or position_size > 1:
         raise ValueError(f"position_size must be between 0 and 1, got {position_size}")
@@ -253,7 +249,9 @@ def _validate_runtime_risk_parameters(parameters: dict[str, Any]) -> None:
             f"(got soft_scale={soft_scale}, medium_scale={medium_scale})"
         )
     if cooldown < 1 or cooldown > 1440:
-        raise ValueError(f"kill_switch_cooldown_minutes must be between 1 and 1440, got {cooldown}")
+        raise ValueError(
+            f"kill_switch_cooldown_minutes must be between 1 and 1440, got {cooldown}"
+        )
     if crypto_buy_score_threshold < 0 or crypto_buy_score_threshold > 5:
         raise ValueError(
             "crypto_long_only_buy_score_threshold must be between 0 and 5, "
@@ -379,16 +377,9 @@ class LiveTrader:
                     )
                 self._crypto_only = bool(crypto_flags) and all(crypto_flags)
                 if self._crypto_only and hasattr(self.broker, "normalize_crypto_symbol"):
-                    self.symbols = [
-                        self.broker.normalize_crypto_symbol(symbol) for symbol in self.symbols
-                    ]
-                    logger.info(
-                        "✅ Crypto-only session detected (24/7): %s", ", ".join(self.symbols)
-                    )
-                    if (
-                        self.strategy_name == "momentum"
-                        and "enable_short_selling" not in self.parameters
-                    ):
+                    self.symbols = [self.broker.normalize_crypto_symbol(symbol) for symbol in self.symbols]
+                    logger.info("✅ Crypto-only session detected (24/7): %s", ", ".join(self.symbols))
+                    if self.strategy_name == "momentum" and "enable_short_selling" not in self.parameters:
                         # Spot crypto shorting is generally unavailable; keep momentum strategy long-only.
                         self.parameters["enable_short_selling"] = False
                         logger.info("Configured momentum strategy as long-only for crypto session")
@@ -649,9 +640,7 @@ class LiveTrader:
             if params is not None:
                 params["position_size"] = scaled_position
 
-        if self._base_short_position_size is not None and hasattr(
-            self.strategy, "short_position_size"
-        ):
+        if self._base_short_position_size is not None and hasattr(self.strategy, "short_position_size"):
             scaled_short = self._base_short_position_size * target_scale
             self.strategy.short_position_size = scaled_short
             if params is not None:

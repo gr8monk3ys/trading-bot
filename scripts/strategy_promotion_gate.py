@@ -17,10 +17,10 @@ from pathlib import Path
 # Add project root to path for local execution
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from incident_contacts import validate_incident_contacts
 from research.research_registry import ResearchRegistry
 from utils.paper_burn_in import build_paper_burn_in_scorecard
 from utils.shadow_drift_dashboard import build_shadow_drift_dashboard
+from incident_contacts import validate_incident_contacts
 
 
 def _parse_args() -> argparse.Namespace:
@@ -97,7 +97,9 @@ def run_gate(args: argparse.Namespace) -> int:
             escalation_doc=args.incident_escalation_doc,
         )
         if not bool(incident_contacts_report.get("valid")):
-            blockers.append("Incident ownership/escalation docs contain unresolved placeholders")
+            blockers.append(
+                "Incident ownership/escalation docs contain unresolved placeholders"
+            )
             ready = False
 
     payload = {

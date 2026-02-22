@@ -1508,6 +1508,15 @@ class TestGenerateSignals:
         assert backtest_strategy.signals["AAPL"] in ["buy", "sell", "short", "neutral"]
 
     @pytest.mark.asyncio
+    async def test_generate_signals_coerces_integer_volume_dtype(self, backtest_strategy):
+        """TA-Lib inputs should be coerced to float64 even if source volume is int64."""
+        backtest_strategy.current_data["AAPL"]["volume"] = np.random.randint(900000, 1100000, 100)
+
+        await backtest_strategy.generate_signals()
+
+        assert backtest_strategy.indicators["AAPL"]["volume_ma"] is not None
+
+    @pytest.mark.asyncio
     async def test_generate_signals_skips_insufficient_data(self, backtest_strategy):
         """Test that generate_signals skips symbols with insufficient data."""
         import pandas as pd

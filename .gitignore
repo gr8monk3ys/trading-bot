@@ -54,7 +54,6 @@ bot.pid
 *.swp
 *.swo
 .DS_Store
-.mplconfig/
 
 # TA-Lib generated files
 ta-lib/*
@@ -102,3 +101,16 @@ api_keys.json
 secrets.yaml
 *.key
 *.secret
+
+# Pi runtime artifacts
+.live_pid
+.mplconfig/
+data_stock/
+results_stock/
+audit_logs_stock/
+data/live_trader_state.json
+data/live_trader_state.json.bak
+data/live_trader_state.replay.jsonl
+paper_trading_data/
+trading_bot_*.log
+:memory:

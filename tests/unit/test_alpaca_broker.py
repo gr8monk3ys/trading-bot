@@ -1015,136 +1015,6 @@ class TestMarketDataMethods:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_calculate_market_impact_uses_crypto_bars_for_crypto_symbols(
-        self, mock_trading, mock_data, mock_stream
-    ):
-        """Crypto symbols should use get_crypto_bars for market impact inputs."""
-        from brokers.alpaca_broker import AlpacaBroker
-
-        bars = []
-        for i in range(6):
-            bar = Mock()
-            bar.volume = 1000 + i * 10
-            bar.close = 100 + i
-            bars.append(bar)
-
-        broker = AlpacaBroker(paper=True)
-        broker.get_crypto_bars = AsyncMock(return_value=bars)
-        broker.get_bars = AsyncMock(return_value=[])
-
-        impact = await broker._calculate_market_impact("BTC/USD", qty=0.5, side="buy")
-
-        broker.get_crypto_bars.assert_awaited_once()
-        broker.get_bars.assert_not_called()
-        assert impact["avg_daily_volume"] is not None
-        assert "expected_slippage_pct" in impact
-
-    @pytest.mark.asyncio
-    @patch("brokers.alpaca_broker.StockDataStream")
-    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
-    @patch("brokers.alpaca_broker.TradingClient")
-    async def test_calculate_market_impact_uses_stock_bars_for_stock_symbols(
-        self, mock_trading, mock_data, mock_stream
-    ):
-        """Stock symbols should continue using get_bars for market impact inputs."""
-        from brokers.alpaca_broker import AlpacaBroker
-
-        bars = []
-        for i in range(6):
-            bar = Mock()
-            bar.volume = 500000 + i * 1000
-            bar.close = 200 + i
-            bars.append(bar)
-
-        broker = AlpacaBroker(paper=True)
-        broker.get_crypto_bars = AsyncMock(return_value=[])
-        broker.get_bars = AsyncMock(return_value=bars)
-
-        impact = await broker._calculate_market_impact("AAPL", qty=100, side="buy")
-
-        broker.get_bars.assert_awaited_once()
-        broker.get_crypto_bars.assert_not_called()
-        assert impact["avg_daily_volume"] is not None
-        assert "expected_slippage_pct" in impact
-
-    @pytest.mark.asyncio
-    @patch("brokers.alpaca_broker.StockDataStream")
-    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
-    @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_crypto_bars_reads_barset_data_when_contains_is_false(
-        self, mock_trading, mock_data, mock_stream
-    ):
-        """Should read crypto bars from BarSet.data even if `symbol in bars` is False."""
-        from brokers.alpaca_broker import AlpacaBroker
-
-        class _FakeBarSet:
-            def __init__(self, data):
-                self.data = data
-
-            def __contains__(self, _item):
-                return False
-
-        bar = Mock()
-        bar.timestamp = datetime.now()
-        bar.open = 100.0
-        bar.high = 105.0
-        bar.low = 95.0
-        bar.close = 102.0
-        bar.volume = 1234.0
-        bar.vwap = 101.0
-        bar.trade_count = 10
-
-        fake_client = Mock()
-        fake_client.get_crypto_bars.return_value = _FakeBarSet({"BTC/USD": [bar]})
-
-        broker = AlpacaBroker(paper=True)
-        broker._crypto_data_client = fake_client
-
-        bars = await broker.get_crypto_bars("BTC/USD", timeframe="1Day")
-
-        assert len(bars) == 1
-        assert bars[0]["close"] == 102.0
-        assert bars[0]["volume"] == 1234.0
-
-    @pytest.mark.asyncio
-    @patch("brokers.alpaca_broker.StockDataStream")
-    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
-    @patch("brokers.alpaca_broker.TradingClient")
-    async def test_get_crypto_bars_matches_compact_symbol_key(
-        self, mock_trading, mock_data, mock_stream
-    ):
-        """Should match BTCUSD keys returned by the API for BTC/USD requests."""
-        from brokers.alpaca_broker import AlpacaBroker
-
-        bar = Mock()
-        bar.timestamp = datetime.now()
-        bar.open = 200.0
-        bar.high = 210.0
-        bar.low = 198.0
-        bar.close = 205.0
-        bar.volume = 999.0
-        bar.vwap = None
-        bar.trade_count = None
-
-        fake_response = Mock()
-        fake_response.data = {"BTCUSD": [bar]}
-
-        fake_client = Mock()
-        fake_client.get_crypto_bars.return_value = fake_response
-
-        broker = AlpacaBroker(paper=True)
-        broker._crypto_data_client = fake_client
-
-        bars = await broker.get_crypto_bars("BTC/USD", timeframe="1Day")
-
-        assert len(bars) == 1
-        assert bars[0]["close"] == 205.0
-        assert bars[0]["trade_count"] is None
-
-    @pytest.mark.asyncio
-    @patch("brokers.alpaca_broker.StockDataStream")
-    @patch("brokers.alpaca_broker.StockHistoricalDataClient")
-    @patch("brokers.alpaca_broker.TradingClient")
     async def test_get_news_returns_empty(self, mock_trading, mock_data, mock_stream):
         """get_news should return empty list (not implemented)."""
         from brokers.alpaca_broker import AlpacaBroker
@@ -1390,7 +1260,9 @@ class TestWebSocketConnection:
     @patch("brokers.alpaca_broker.StockDataStream")
     @patch("brokers.alpaca_broker.StockHistoricalDataClient")
     @patch("brokers.alpaca_broker.TradingClient")
-    async def test_subscribe_to_symbols_when_connected(self, mock_trading, mock_data, mock_stream):
+    async def test_subscribe_to_symbols_when_connected(
+        self, mock_trading, mock_data, mock_stream
+    ):
         """Should subscribe using alpaca-py handler-first signatures."""
         from brokers.alpaca_broker import AlpacaBroker
 

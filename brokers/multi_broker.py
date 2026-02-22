@@ -150,7 +150,7 @@ class MultiBrokerManager(BrokerInterface):
             if not hasattr(broker, "name"):
                 derived_name = getattr(broker, "NAME", broker.__class__.__name__)
                 try:
-                    broker.name = str(derived_name)
+                    setattr(broker, "name", str(derived_name))
                 except Exception:
                     # Fallback: leave object unchanged; later attribute access may fail loudly.
                     pass
@@ -227,9 +227,9 @@ class MultiBrokerManager(BrokerInterface):
             payload.setdefault("buying_power", payload.get("buying_power", 0))
             return SimpleNamespace(**payload)
         if hasattr(account, "account_id") and not hasattr(account, "id"):
-            account.id = str(account.account_id)
+            setattr(account, "id", str(getattr(account, "account_id")))
         if not hasattr(account, "buying_power"):
-            account.buying_power = 0
+            setattr(account, "buying_power", 0)
         return account
 
     @staticmethod
@@ -247,13 +247,13 @@ class MultiBrokerManager(BrokerInterface):
             payload.setdefault("unrealized_plpc", payload.get("unrealized_pnl_pct", 0))
             return SimpleNamespace(**payload)
         if hasattr(position, "quantity") and not hasattr(position, "qty"):
-            position.qty = position.quantity
+            setattr(position, "qty", getattr(position, "quantity"))
         if hasattr(position, "unrealized_pnl") and not hasattr(position, "unrealized_pl"):
-            position.unrealized_pl = position.unrealized_pnl
+            setattr(position, "unrealized_pl", getattr(position, "unrealized_pnl"))
         if hasattr(position, "unrealized_pnl_pct") and not hasattr(position, "unrealized_plpc"):
-            position.unrealized_plpc = position.unrealized_pnl_pct
+            setattr(position, "unrealized_plpc", getattr(position, "unrealized_pnl_pct"))
         if not hasattr(position, "current_price"):
-            position.current_price = getattr(position, "avg_entry_price", 0)
+            setattr(position, "current_price", getattr(position, "avg_entry_price", 0))
         return position
 
     @staticmethod
@@ -271,11 +271,11 @@ class MultiBrokerManager(BrokerInterface):
             payload.setdefault("filled_qty", payload.get("filled_quantity", 0))
             return SimpleNamespace(**payload)
         if hasattr(order, "order_id") and not hasattr(order, "id"):
-            order.id = str(order.order_id)
+            setattr(order, "id", str(getattr(order, "order_id")))
         if hasattr(order, "quantity") and not hasattr(order, "qty"):
-            order.qty = order.quantity
+            setattr(order, "qty", getattr(order, "quantity"))
         if hasattr(order, "filled_quantity") and not hasattr(order, "filled_qty"):
-            order.filled_qty = order.filled_quantity
+            setattr(order, "filled_qty", getattr(order, "filled_quantity"))
         return order
 
     @staticmethod
@@ -368,9 +368,7 @@ class MultiBrokerManager(BrokerInterface):
             try:
                 handler(order_id, metadata)
             except Exception as e:
-                logger.warning(
-                    f"Failed to register order metadata on {self._active_broker.name}: {e}"
-                )
+                logger.warning(f"Failed to register order metadata on {self._active_broker.name}: {e}")
 
     def track_order_for_fills(self, order_id: str, symbol: str, side: str, qty: float) -> None:
         handler = getattr(self._active_broker, "track_order_for_fills", None)
@@ -716,10 +714,9 @@ class MultiBrokerManager(BrokerInterface):
         order_class = cls._extract_value(getattr(order_request, "order_class", "simple"))
         if order_class not in {"", "simple"}:
             raise BrokerError(f"Backup failover does not support order_class={order_class}")
-        if (
-            getattr(order_request, "take_profit", None) is not None
-            or getattr(order_request, "stop_loss", None) is not None
-        ):
+        if getattr(order_request, "take_profit", None) is not None or getattr(
+            order_request, "stop_loss", None
+        ) is not None:
             raise BrokerError("Backup failover does not support bracket/OCO/OTO legs")
 
         return OrderRequest(
@@ -899,9 +896,7 @@ class MultiBrokerManager(BrokerInterface):
                     "next_close": str(getattr(result, "next_close", "")),
                 }
             except Exception as exc:
-                logger.warning(
-                    "Primary get_market_status failed on %s: %s", self._active_broker.name, exc
-                )
+                logger.warning("Primary get_market_status failed on %s: %s", self._active_broker.name, exc)
 
         clock = await self.get_clock()
         return {
@@ -919,9 +914,7 @@ class MultiBrokerManager(BrokerInterface):
                 if price is not None:
                     return float(price)
             except Exception as exc:
-                logger.warning(
-                    "Primary get_last_price failed on %s: %s", self._active_broker.name, exc
-                )
+                logger.warning("Primary get_last_price failed on %s: %s", self._active_broker.name, exc)
 
         quote = await self.get_latest_quote(symbol)
         if isinstance(quote, dict):

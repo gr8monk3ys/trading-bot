@@ -194,7 +194,6 @@ class WebhookSLOAlertNotifier:
             authorization_header=authorization_header,
         )
 
-
 @dataclass
 class WebhookIncidentTicketNotifier:
     """Creates incident-ticket payloads for acknowledgment SLA breaches."""
@@ -215,9 +214,15 @@ class WebhookIncidentTicketNotifier:
 
         context = dict(breach.get("context", {}) or {})
         incident = dict(context.get("incident", {}) or {})
-        incident_id = str(incident.get("incident_id") or context.get("incident_id") or "").strip()
+        incident_id = str(
+            incident.get("incident_id") or context.get("incident_id") or ""
+        ).strip()
         incident_name = str(breach.get("name", "incident_ack_sla_breach")).strip()
-        idempotency_key = f"{self.source}:{incident_id}:{incident_name}" if incident_id else ""
+        idempotency_key = (
+            f"{self.source}:{incident_id}:{incident_name}"
+            if incident_id
+            else ""
+        )
 
         payload = {
             "event_type": "incident_ticket",

@@ -180,9 +180,7 @@ def _build_report(args: argparse.Namespace) -> dict:
     ticketing = status.get("ticketing", {})
     dead_letters = status.get("dead_letters", {})
     delivery_attempted = int(ticketing.get("attempts", 0)) > 0
-    delivery_succeeded = (
-        int(ticketing.get("created", 0)) > 0 and int(ticketing.get("failures", 0)) == 0
-    )
+    delivery_succeeded = int(ticketing.get("created", 0)) > 0 and int(ticketing.get("failures", 0)) == 0
     is_non_test_target = _is_non_test_webhook_target(args.webhook_url)
     passed = (
         "incident_ack_sla_breach" in breach_names
@@ -237,9 +235,7 @@ def main() -> int:
 
     output_path = Path(args.output) if args.output else None
     if output_path is None:
-        output_path = (
-            Path(args.artifact_dir) / f"incident_ticket_drill_report_{report['drill_id']}.json"
-        )
+        output_path = Path(args.artifact_dir) / f"incident_ticket_drill_report_{report['drill_id']}.json"
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")

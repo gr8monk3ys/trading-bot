@@ -43,22 +43,6 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Optional workdir for rollback drill artifacts",
     )
-    parser.add_argument(
-        "--run-secrets-audit",
-        action="store_true",
-        help="Run secrets leak/rotation audit as part of preflight",
-    )
-    parser.add_argument(
-        "--secrets-inventory-path",
-        default="docs/SECRETS_ROTATION_INVENTORY.json",
-        help="Path to secrets rotation inventory JSON",
-    )
-    parser.add_argument(
-        "--secrets-default-max-age-days",
-        type=int,
-        default=90,
-        help="Default max age when inventory entries omit max_age_days",
-    )
     return parser.parse_args()
 
 
@@ -70,9 +54,6 @@ def main() -> None:
         required_env_vars=required_env,
         run_rollback_drill=args.run_rollback_drill,
         rollback_drill_workdir=args.rollback_drill_workdir,
-        run_secrets_audit_check=args.run_secrets_audit,
-        secrets_inventory_path=args.secrets_inventory_path,
-        secrets_default_max_age_days=max(1, int(args.secrets_default_max_age_days)),
     )
 
     if args.output:

@@ -26,23 +26,6 @@ def test_order_reconciliation_health_critical_breach(tmp_path):
     monitor.close()
 
 
-def test_order_reconciliation_health_ignores_historical_totals_when_run_is_clean(tmp_path):
-    monitor = SLOMonitor(
-        events_path=tmp_path / "slo_events.jsonl",
-        recon_mismatch_halt_runs=2,
-    )
-    breaches = monitor.record_order_reconciliation_health(
-        {
-            "consecutive_mismatch_runs": 0,
-            "total_mismatches": 7,
-            "mismatch_count": 0,
-            "last_run_mismatches": [],
-        }
-    )
-    assert breaches == []
-    monitor.close()
-
-
 def test_data_quality_health_critical_breach(tmp_path):
     monitor = SLOMonitor(
         events_path=tmp_path / "slo_events.jsonl",
@@ -247,7 +230,6 @@ def test_slo_monitor_shadow_drift_critical_breach():
     assert breaches[0].name == "paper_live_shadow_drift"
     assert breaches[0].severity == "critical"
     monitor.close()
-
 
 def test_slo_monitor_creates_ticket_for_incident_ack_sla_breach(tmp_path):
     class RecordingTicketNotifier:

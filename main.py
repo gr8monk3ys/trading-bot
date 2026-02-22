@@ -30,7 +30,6 @@ from utils.data_quality import (
     summarize_quality_reports,
     validate_ohlcv_frame,
 )
-from utils.governance_gate import run_governance_gate
 from utils.incident_tracker import IncidentTracker
 from utils.live_broker_factory import create_live_broker, shutdown_live_broker_failover
 from utils.order_reconciliation import OrderReconciler
@@ -66,35 +65,6 @@ def configure_logging() -> None:
         ],
     )
     _LOGGING_CONFIGURED = True
-
-
-def _evaluate_live_governance_gate(
-    *,
-    enforce: bool,
-    repo_root: str | Path = ".",
-    mode: str = "live",
-    approval_path: str = "results/governance/live_approval.json",
-    policy_doc_path: str = "docs/COMPLIANCE_GOVERNANCE.md",
-) -> tuple[bool, dict[str, Any]]:
-    """
-    Evaluate live-capital governance controls before real-money startup.
-    """
-    if not enforce:
-        return True, {
-            "ready": True,
-            "skipped": True,
-            "mode": mode,
-            "checks": [],
-            "message": "Governance gate enforcement disabled by runtime flag",
-        }
-
-    report = run_governance_gate(
-        repo_root=repo_root,
-        mode=mode,
-        approval_path=approval_path,
-        policy_doc_path=policy_doc_path,
-    )
-    return bool(report.get("ready")), report
 
 
 async def run_walk_forward_validation(
@@ -433,34 +403,6 @@ async def run_live(args):
             logger.warning("=" * 40)
         else:
             logger.info("Paper trading mode - no real money at risk")
-
-        if not paper:
-            governance_ready, governance_report = _evaluate_live_governance_gate(
-                enforce=bool(args.enforce_governance_gate),
-                repo_root=".",
-                mode="live",
-                approval_path=args.governance_approval_path,
-                policy_doc_path=args.governance_policy_doc_path,
-            )
-            if not governance_ready:
-                print("\n❌ Compliance governance gate failed. Blocking live-capital startup.")
-                print("Critical blockers:")
-                for check in governance_report.get("checks", []):
-                    if str(
-                        check.get("severity", "critical")
-                    ).strip().lower() == "critical" and not bool(check.get("passed")):
-                        print(f"  - {check.get('name')}: {check.get('message')}")
-                logger.error(
-                    "Governance gate failed for --real startup: %s",
-                    governance_report,
-                )
-                return
-            if governance_report.get("skipped"):
-                logger.warning(
-                    "Governance gate skipped for --real startup via --no-enforce-governance-gate"
-                )
-            else:
-                logger.info("Governance gate passed for live-capital startup")
 
         # Initialize broker (optional multi-broker failover manager)
         broker, failover_manager = await create_live_broker(
@@ -1303,22 +1245,6 @@ def main():
     # Live trading options
     parser.add_argument(
         "--real", action="store_true", help="Use real trading instead of paper trading"
-    )
-    parser.add_argument(
-        "--enforce-governance-gate",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Require compliance governance gate to pass before --real startup",
-    )
-    parser.add_argument(
-        "--governance-approval-path",
-        default="results/governance/live_approval.json",
-        help="Path to live-approval artifact used by governance gate (live mode)",
-    )
-    parser.add_argument(
-        "--governance-policy-doc-path",
-        default="docs/COMPLIANCE_GOVERNANCE.md",
-        help="Path to compliance governance policy document",
     )
     parser.add_argument(
         "--force", action="store_true", help="Force execution even if market is closed"

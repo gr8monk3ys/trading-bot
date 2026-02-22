@@ -59,3 +59,4 @@ def test_validate_incident_contacts_script_passes_with_real_values(tmp_path):
 
     assert proc.returncode == 0
     assert "Valid: YES" in proc.stdout
+

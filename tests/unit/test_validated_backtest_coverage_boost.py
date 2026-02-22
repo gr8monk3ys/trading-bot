@@ -260,9 +260,7 @@ def test_sharpe_and_significance_fallbacks(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_validated_backtest_with_walk_forward(monkeypatch):
-    runner = ValidatedBacktestRunner(
-        broker=None, walk_forward_enabled=True, regime_analysis_enabled=True
-    )
+    runner = ValidatedBacktestRunner(broker=None, walk_forward_enabled=True, regime_analysis_enabled=True)
 
     async def _fake_run_backtest(*_args, **_kwargs):
         return {

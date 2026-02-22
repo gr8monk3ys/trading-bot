@@ -60,16 +60,16 @@ class TestRiskParamsValidation:
     """Test RISK_PARAMS validation."""
 
     def test_max_portfolio_risk_reasonable(self):
-        """Max portfolio risk should be a valid fraction."""
+        """Max portfolio risk should be <= 0.2 (20%)."""
         from config import RISK_PARAMS
 
-        assert 0 < RISK_PARAMS["MAX_PORTFOLIO_RISK"] <= 1
+        assert 0 < RISK_PARAMS["MAX_PORTFOLIO_RISK"] <= 0.2
 
     def test_max_position_risk_reasonable(self):
-        """Max position risk should be a valid fraction."""
+        """Max position risk should be <= 0.1 (10%)."""
         from config import RISK_PARAMS
 
-        assert 0 < RISK_PARAMS["MAX_POSITION_RISK"] <= 1
+        assert 0 < RISK_PARAMS["MAX_POSITION_RISK"] <= 0.1
 
     def test_var_confidence_valid(self):
         """VaR confidence should be between 0.5 and 1."""

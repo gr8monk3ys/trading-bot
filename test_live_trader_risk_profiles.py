@@ -26,10 +26,6 @@ def _args(**overrides):
         "drawdown_medium_limit": None,
         "drawdown_medium_scale": None,
         "kill_switch_cooldown_minutes": None,
-        "crypto_buy_score_threshold": None,
-        "crypto_dip_rsi_max": None,
-        "crypto_dip_min_macd_hist_delta": None,
-        "crypto_dip_min_rebound_pct": None,
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -59,23 +55,6 @@ def test_resolve_runtime_parameters_allows_cli_override_over_profile() -> None:
     assert parameters["max_daily_loss"] == pytest.approx(0.05)
 
 
-def test_resolve_runtime_parameters_accepts_crypto_momentum_overrides() -> None:
-    parameters = _resolve_runtime_parameters(
-        _args(
-            risk_profile="aggressive",
-            crypto_buy_score_threshold=0.7,
-            crypto_dip_rsi_max=48.0,
-            crypto_dip_min_macd_hist_delta=0.002,
-            crypto_dip_min_rebound_pct=0.0003,
-        )
-    )
-
-    assert parameters["crypto_long_only_buy_score_threshold"] == pytest.approx(0.7)
-    assert parameters["crypto_long_only_dip_rsi_max"] == pytest.approx(48.0)
-    assert parameters["crypto_long_only_dip_min_macd_hist_delta"] == pytest.approx(0.002)
-    assert parameters["crypto_long_only_dip_min_rebound_pct"] == pytest.approx(0.0003)
-
-
 def test_validate_runtime_risk_parameters_rejects_invalid_drawdown_ladder() -> None:
     with pytest.raises(ValueError):
         _validate_runtime_risk_parameters(
@@ -91,26 +70,6 @@ def test_validate_runtime_risk_parameters_rejects_invalid_drawdown_ladder() -> N
                 "drawdown_soft_scale": 0.75,
                 "drawdown_medium_scale": 0.5,
                 "kill_switch_cooldown_minutes": 60,
-            }
-        )
-
-
-def test_validate_runtime_risk_parameters_rejects_invalid_crypto_rsi() -> None:
-    with pytest.raises(ValueError):
-        _validate_runtime_risk_parameters(
-            {
-                "position_size": 0.1,
-                "max_position_size": 0.1,
-                "stop_loss": 0.02,
-                "take_profit": 0.05,
-                "max_daily_loss": 0.03,
-                "drawdown_soft_limit_pct": 0.03,
-                "drawdown_medium_limit_pct": 0.05,
-                "drawdown_hard_limit_pct": 0.07,
-                "drawdown_soft_scale": 0.75,
-                "drawdown_medium_scale": 0.5,
-                "kill_switch_cooldown_minutes": 60,
-                "crypto_long_only_dip_rsi_max": 120.0,
             }
         )
 
@@ -132,11 +91,7 @@ def test_determine_position_scale_uses_ladder() -> None:
 
 class _DummyStrategy:
     def __init__(self) -> None:
-        self.parameters = {
-            "position_size": 0.1,
-            "max_position_size": 0.2,
-            "short_position_size": 0.08,
-        }
+        self.parameters = {"position_size": 0.1, "max_position_size": 0.2, "short_position_size": 0.08}
         self.position_size = 0.1
         self.max_position_size = 0.2
         self.short_position_size = 0.08

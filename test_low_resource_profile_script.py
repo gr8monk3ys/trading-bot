@@ -23,6 +23,9 @@ def test_build_command_uses_small_defaults() -> None:
     assert "--strategy" in command
     assert "momentum" in command
     assert "--symbols" in command
+    assert "--risk-profile" in command
+    risk_profile_index = command.index("--risk-profile")
+    assert command[risk_profile_index + 1] == "conservative"
     symbol_index = command.index("--symbols")
     assert command[symbol_index + 1 : symbol_index + 3] == ["BTC/USD", "ETH/USD"]
 
@@ -35,6 +38,37 @@ def test_build_command_stock_profile_defaults() -> None:
 
     symbol_index = command.index("--symbols")
     assert command[symbol_index + 1 : symbol_index + 3] == ["AAPL", "MSFT"]
+
+
+def test_build_command_includes_explicit_risk_overrides() -> None:
+    module = _load_module()
+    args = module._parse_args(
+        [
+            "--risk-profile",
+            "aggressive",
+            "--position-size",
+            "0.12",
+            "--max-position-size",
+            "0.18",
+            "--max-daily-loss",
+            "0.04",
+            "--max-intraday-drawdown",
+            "0.07",
+        ]
+    )
+
+    command = module._build_command(args)
+
+    assert "--risk-profile" in command
+    assert command[command.index("--risk-profile") + 1] == "aggressive"
+    assert "--position-size" in command
+    assert command[command.index("--position-size") + 1] == "0.12"
+    assert "--max-position-size" in command
+    assert command[command.index("--max-position-size") + 1] == "0.18"
+    assert "--max-daily-loss" in command
+    assert command[command.index("--max-daily-loss") + 1] == "0.04"
+    assert "--max-intraday-drawdown" in command
+    assert command[command.index("--max-intraday-drawdown") + 1] == "0.07"
 
 
 def test_build_environment_sets_safe_defaults(monkeypatch) -> None:

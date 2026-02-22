@@ -177,9 +177,7 @@ def _build_command(args: argparse.Namespace) -> list[str]:
 
         dip_macd_delta = args.crypto_dip_min_macd_hist_delta
         if dip_macd_delta is None and args.risk_profile == "aggressive":
-            dip_macd_delta = _resolve_float_env_override(
-                "LOW_RESOURCE_CRYPTO_DIP_MIN_MACD_HIST_DELTA"
-            )
+            dip_macd_delta = _resolve_float_env_override("LOW_RESOURCE_CRYPTO_DIP_MIN_MACD_HIST_DELTA")
             if dip_macd_delta is None:
                 dip_macd_delta = 0.005
         if dip_macd_delta is not None:

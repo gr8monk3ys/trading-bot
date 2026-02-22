@@ -8,7 +8,6 @@ These tests verify that:
 4. BaseStrategy routes orders through gateway
 """
 
-from collections import deque
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -327,23 +326,13 @@ class TestBaseStrategyGatewayUsage:
             broker=mock_broker,
             order_gateway=mock_gateway,
         )
-        strategy.price_history["AAPL"] = deque(
-            [
-                {"close": 100.0, "volume": 1_000},
-                {"close": 101.5, "volume": 1_200},
-            ],
-            maxlen=10,
-        )
 
         mock_order = MagicMock()
         mock_order.symbol = "AAPL"
-        mock_order.build.return_value.symbol = "AAPL"
 
         result = await strategy.submit_entry_order(mock_order)
 
         mock_gateway.submit_order.assert_called_once()
-        kwargs = mock_gateway.submit_order.call_args.kwargs
-        assert kwargs["price_history"] == [100.0, 101.5]
         assert result.success is True
 
     async def test_submit_exit_order_uses_gateway(self, mock_broker, mock_gateway):

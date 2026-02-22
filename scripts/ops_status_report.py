@@ -16,9 +16,7 @@ from utils.run_artifacts import read_jsonl, write_json  # noqa: E402
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate operational status report")
-    parser.add_argument(
-        "--run-dir", required=True, help="Run artifact directory (results/runs/<run_id>)"
-    )
+    parser.add_argument("--run-dir", required=True, help="Run artifact directory (results/runs/<run_id>)")
     parser.add_argument("--json-output", default=None, help="Optional JSON output path")
     parser.add_argument("--md-output", default=None, help="Optional markdown output path")
     return parser.parse_args()

@@ -27,12 +27,6 @@ This directory contains various runner scripts and utilities for the trading bot
 - **`runtime_industrial_gate.py`** - Unified runtime readiness gate (incident docs + chaos drills + optional real webhook drill + optional live failover probe)
 - **`go_live_precheck.sh`** - One-command go-live precheck wrapper for incident docs, deployment preflight, runtime watchdog, and runtime industrial gate
 - **`ops_status_report.py`** - Generate compact daily ops status from run artifacts
-- **`export_ops_metrics.py`** - Export operational metrics snapshot to JSON + Prometheus text format
-- **`push_ops_metrics.py`** - Export + optionally push Prometheus metrics to external Pushgateway/webhook endpoint
-- **`incident_response_automation.py`** - Automate incident escalation and optional rollback actions from readiness/SLO metrics
-- **`deploy_canary.py`** - Command-driven canary rollout with health-check + rollback automation
-- **`secrets_audit.py`** - Secrets rotation/leak audit against inventory policy
-- **`governance_gate.py`** - Compliance/governance gate for live-capital promotion approval
 
 ## Backtesting
 

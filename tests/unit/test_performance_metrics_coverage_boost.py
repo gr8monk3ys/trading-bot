@@ -122,9 +122,7 @@ def test_validate_backtest_results_and_batch_significance_bonferroni(monkeypatch
         },
     )
 
-    validation = metrics_calc.validate_backtest_results(
-        {"trades": [{"pnl": 1.0}] * 60}, min_trades=50
-    )
+    validation = metrics_calc.validate_backtest_results({"trades": [{"pnl": 1.0}] * 60}, min_trades=50)
     warning_blob = " | ".join(validation["warnings"])
     assert "unusually high" in warning_blob
     assert "suspiciously high" in warning_blob
@@ -161,9 +159,7 @@ def test_calculate_comprehensive_significance_negligible_and_outlier_warnings(mo
     metrics_calc = PerformanceMetrics()
     trades = [{"pnl": 0.05}] * 60
 
-    monkeypatch.setattr(
-        "engine.performance_metrics.stats.ttest_1samp", lambda _r, _m: (5.0, 0.0002)
-    )
+    monkeypatch.setattr("engine.performance_metrics.stats.ttest_1samp", lambda _r, _m: (5.0, 0.0002))
     monkeypatch.setattr(
         "engine.performance_metrics.calculate_effect_size",
         lambda _returns, _population_mean=0.0, _confidence_level=0.95: EffectSizeResult(
@@ -191,9 +187,7 @@ def test_calculate_comprehensive_significance_large_effect_warning(monkeypatch):
     metrics_calc = PerformanceMetrics()
     trades = [{"pnl": 0.1}] * 60
 
-    monkeypatch.setattr(
-        "engine.performance_metrics.stats.ttest_1samp", lambda _r, _m: (5.0, 0.0002)
-    )
+    monkeypatch.setattr("engine.performance_metrics.stats.ttest_1samp", lambda _r, _m: (5.0, 0.0002))
     monkeypatch.setattr(
         "engine.performance_metrics.calculate_effect_size",
         lambda _returns, _population_mean=0.0, _confidence_level=0.95: EffectSizeResult(

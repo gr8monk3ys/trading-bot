@@ -51,7 +51,6 @@ class SLOMonitor:
     - optional audit trail entries
     - optional JSONL event emission for replay/incident analysis
     """
-
     _DEAD_LETTER_BACKLOG_BREACH_NAMES = {
         "notification_dead_letter_backlog_warning",
         "notification_dead_letter_backlog",
@@ -363,9 +362,7 @@ class SLOMonitor:
                             ),
                             value=current,
                             threshold=self.notification_dead_letter_critical_threshold,
-                            context={
-                                "persist_minutes": self.notification_dead_letter_persist_minutes
-                            },
+                            context={"persist_minutes": self.notification_dead_letter_persist_minutes},
                             timestamp=timestamp,
                         )
                     )
@@ -391,9 +388,7 @@ class SLOMonitor:
                             ),
                             value=current,
                             threshold=self.notification_dead_letter_warning_threshold,
-                            context={
-                                "persist_minutes": self.notification_dead_letter_persist_minutes
-                            },
+                            context={"persist_minutes": self.notification_dead_letter_persist_minutes},
                             timestamp=timestamp,
                         )
                     )
@@ -503,6 +498,7 @@ class SLOMonitor:
                         **breach_payload,
                     }
                 )
+
 
             if breach.name == "incident_ack_sla_breach" and self.incident_ticket_notifier:
                 try:

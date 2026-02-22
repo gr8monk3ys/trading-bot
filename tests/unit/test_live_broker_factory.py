@@ -88,9 +88,7 @@ async def test_create_live_broker_returns_manager_when_backup_connects(monkeypat
     monkeypatch.setitem(live_broker_factory.RISK_PARAMS, "MULTI_BROKER_HEALTH_CHECK_INTERVAL", 30)
     monkeypatch.setitem(live_broker_factory.RISK_PARAMS, "MULTI_BROKER_FAILURE_THRESHOLD", 3)
     monkeypatch.setitem(live_broker_factory.RISK_PARAMS, "MULTI_BROKER_RECOVERY_THRESHOLD", 5)
-    monkeypatch.setitem(
-        live_broker_factory.RISK_PARAMS, "MULTI_BROKER_OPERATION_TIMEOUT_SECONDS", 15.0
-    )
+    monkeypatch.setitem(live_broker_factory.RISK_PARAMS, "MULTI_BROKER_OPERATION_TIMEOUT_SECONDS", 15.0)
     monkeypatch.setattr(live_broker_factory, "InteractiveBrokersBroker", _Backup)
     monkeypatch.setattr(live_broker_factory, "MultiBrokerManager", _Manager)
 

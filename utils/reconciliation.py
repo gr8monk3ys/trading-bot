@@ -145,9 +145,7 @@ class PositionReconciler:
             f"sync_to_broker={sync_to_broker}, tolerance={self.tolerance_pct:.1%} or {self.tolerance_abs} shares"
         )
         if self.symbol_scope:
-            logger.info(
-                "PositionReconciler symbol scope enabled (%d symbols)", len(self.symbol_scope)
-            )
+            logger.info("PositionReconciler symbol scope enabled (%d symbols)", len(self.symbol_scope))
 
     async def reconcile(self) -> ReconciliationResult:
         """
@@ -294,9 +292,7 @@ class PositionReconciler:
                     continue
 
                 positions[normalized_symbol] = qty
-                logger.debug(
-                    "Internal position: %s (raw=%s) = %s shares", normalized_symbol, symbol, qty
-                )
+                logger.debug("Internal position: %s (raw=%s) = %s shares", normalized_symbol, symbol, qty)
 
         except Exception as e:
             logger.error(f"Failed to fetch internal positions: {e}")

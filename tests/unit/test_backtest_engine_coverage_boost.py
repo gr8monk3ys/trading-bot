@@ -76,20 +76,8 @@ class _FakeBacktestBroker:
         self._current_date = None
         self._portfolio_calls = 0
         self._trades = [
-            {
-                "symbol": "GOOD",
-                "side": "buy",
-                "quantity": 10,
-                "price": 100.0,
-                "timestamp": "2024-01-02",
-            },
-            {
-                "symbol": "GOOD",
-                "side": "sell",
-                "quantity": 10,
-                "price": 103.0,
-                "timestamp": "2024-01-03",
-            },
+            {"symbol": "GOOD", "side": "buy", "quantity": 10, "price": 100.0, "timestamp": "2024-01-02"},
+            {"symbol": "GOOD", "side": "sell", "quantity": 10, "price": 103.0, "timestamp": "2024-01-03"},
         ]
         self._orders = [{"id": "o1", "created_at": "2024-01-03", "symbol": "GOOD"}]
 
@@ -118,15 +106,7 @@ class _FakeBacktestBroker:
         return None
 
     def process_day_start_gaps(self, current_date):
-        return [
-            _GapEvent(
-                symbol="GOOD",
-                gap_pct=-0.06,
-                stop_triggered=True,
-                slippage_from_stop=2.0,
-                date=current_date,
-            )
-        ]
+        return [_GapEvent(symbol="GOOD", gap_pct=-0.06, stop_triggered=True, slippage_from_stop=2.0, date=current_date)]
 
     def get_gap_statistics(self):
         return SimpleNamespace(
@@ -140,13 +120,7 @@ class _FakeBacktestBroker:
 
     def get_gap_events(self):
         return [
-            _GapEvent(
-                symbol="GOOD",
-                gap_pct=-0.06,
-                stop_triggered=True,
-                slippage_from_stop=2.0,
-                date=datetime(2024, 1, 3),
-            )
+            _GapEvent(symbol="GOOD", gap_pct=-0.06, stop_triggered=True, slippage_from_stop=2.0, date=datetime(2024, 1, 3))
         ]
 
 
@@ -234,9 +208,7 @@ async def test_run_backtest_branch_coverage(monkeypatch, tmp_path):
 
     monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _FakeDataBroker)
     monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
-    monkeypatch.setattr(
-        "engine.backtest_engine.HistoricalUniverse", lambda broker=None: _FakeHistoricalUniverse()
-    )
+    monkeypatch.setattr("engine.backtest_engine.HistoricalUniverse", lambda broker=None: _FakeHistoricalUniverse())
     monkeypatch.setattr(
         "engine.backtest_engine.validate_ohlcv_frame",
         lambda data, symbol, stale_after_days, reference_time: _QualityReport(
