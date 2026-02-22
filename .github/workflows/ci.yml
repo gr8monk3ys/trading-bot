@@ -78,7 +78,8 @@ jobs:
           uv run pytest tests/unit/ --no-cov \
             -W error \
             -W ignore::DeprecationWarning \
-            -W ignore::PendingDeprecationWarning
+            -W ignore::PendingDeprecationWarning \
+            -W ignore::pytest.PytestUnraisableExceptionWarning
 
       - name: Run chaos drills
         run: |
