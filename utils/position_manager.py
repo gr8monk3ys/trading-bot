@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, Set
 
+from utils.symbol_scope import build_symbol_scope, symbol_in_scope
+
 logger = logging.getLogger(__name__)
 
 
@@ -442,7 +444,12 @@ class PositionManager:
             for name, symbols in state.get("strategy_positions", {}).items():
                 self._strategy_positions[name] = set(symbols)
 
-    async def sync_with_broker(self, broker, default_strategy: str = "unknown"):
+    async def sync_with_broker(
+        self,
+        broker,
+        default_strategy: str = "unknown",
+        symbol_scope: Optional[Set[str]] = None,
+    ):
         """
         Sync internal state with actual broker positions.
 
@@ -452,13 +459,19 @@ class PositionManager:
         Args:
             broker: Broker instance with get_positions() method
             default_strategy: Strategy name to assign to unowned positions
+            symbol_scope: Optional set of symbols to sync (normalized internally).
+                         If None, sync all broker positions.
         """
         try:
             positions = await broker.get_positions()
+            canonical_scope = build_symbol_scope(symbol_scope)
 
             async with self._lock:
                 for pos in positions:
                     symbol = pos.symbol
+                    if not symbol_in_scope(symbol, canonical_scope):
+                        logger.debug("Skipping out-of-scope position during sync: %s", symbol)
+                        continue
                     if symbol not in self._ownership:
                         # Assign to default strategy
                         self._ownership[symbol] = PositionOwnership(

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run trading bot ops metrics export/push every 5 minutes
+
+[Timer]
+OnBootSec=4min
+OnUnitActiveSec=5min
+Unit=trading-bot-ops-metrics.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

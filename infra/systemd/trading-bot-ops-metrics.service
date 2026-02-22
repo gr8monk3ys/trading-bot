@@ -1,0 +1,11 @@
+[Unit]
+Description=Trading Bot Ops Metrics Export/Push
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gr8monk3ys
+WorkingDirectory=/home/gr8monk3ys/trading-bot
+EnvironmentFile=/home/gr8monk3ys/trading-bot/.env
+ExecStart=/bin/bash -lc 'set -euo pipefail; cd /home/gr8monk3ys/trading-bot; latest_run="$$(ls -1dt results/runs/live_* 2>/dev/null | head -n1 || true)"; if [ -z "$$latest_run" ]; then echo "No live run directory found; skipping ops metrics push."; exit 0; fi; /home/gr8monk3ys/trading-bot/.venv/bin/python scripts/push_ops_metrics.py --run-dir "$$latest_run" --runtime-watchdog-json results/validation/runtime_watchdog_systemd.json --runtime-gate-json results/validation/runtime_industrial_gate_systemd.json --go-live-summary-json results/validation/precheck/go_live_precheck_summary.json --json-output results/metrics/ops_metrics_systemd.json --prom-output results/metrics/ops_metrics_systemd.prom --pushgateway-url "$${OPS_METRICS_PUSHGATEWAY_URL:-}" --push-job trading_bot --push-instance "$${OPS_METRICS_PUSH_INSTANCE:-raspberrypi}" --push-auth-token "$${OPS_METRICS_PUSH_AUTH_TOKEN:-}" --push-auth-scheme "$${OPS_METRICS_PUSH_AUTH_SCHEME:-Bearer}"'

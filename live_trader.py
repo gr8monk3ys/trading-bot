@@ -23,12 +23,12 @@ import logging
 import signal
 import sys
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
-from brokers.alpaca_broker import AlpacaBroker
 from config import RISK_PARAMS, SYMBOLS
 from strategies.bracket_momentum_strategy import BracketMomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
@@ -42,6 +42,7 @@ from utils.data_quality import (
     validate_ohlcv_frame,
 )
 from utils.incident_tracker import IncidentTracker
+from utils.live_broker_factory import create_live_broker, shutdown_live_broker_failover
 from utils.order_gateway import OrderGateway
 from utils.order_reconciliation import OrderReconciler
 from utils.position_manager import PositionManager
@@ -50,6 +51,7 @@ from utils.run_artifacts import JsonlWriter, ensure_run_directory, generate_run_
 from utils.runtime_state import RuntimeStateStore
 from utils.slo_alerting import build_incident_ticket_notifier, build_slo_alert_notifier
 from utils.slo_monitor import SLOMonitor
+from utils.symbol_scope import build_symbol_scope
 
 # Set up logging
 LOG_DIR = Path("logs")
@@ -65,6 +67,227 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+RISK_PROFILE_DEFAULTS: dict[str, dict[str, float]] = {
+    "custom": {},
+    "conservative": {
+        "position_size": 0.02,
+        "max_position_size": 0.03,
+        "stop_loss": 0.01,
+        "take_profit": 0.02,
+        "max_daily_loss": 0.025,
+        "max_intraday_drawdown_pct": 0.03,
+        "kill_switch_cooldown_minutes": 60,
+        "drawdown_soft_limit_pct": 0.015,
+        "drawdown_soft_scale": 0.8,
+        "drawdown_medium_limit_pct": 0.0225,
+        "drawdown_medium_scale": 0.6,
+        "drawdown_hard_limit_pct": 0.03,
+    },
+    "balanced": {
+        "position_size": 0.05,
+        "max_position_size": 0.08,
+        "stop_loss": 0.02,
+        "take_profit": 0.05,
+        "max_daily_loss": 0.03,
+        "max_intraday_drawdown_pct": 0.05,
+        "kill_switch_cooldown_minutes": 90,
+        "drawdown_soft_limit_pct": 0.03,
+        "drawdown_soft_scale": 0.75,
+        "drawdown_medium_limit_pct": 0.04,
+        "drawdown_medium_scale": 0.55,
+        "drawdown_hard_limit_pct": 0.05,
+    },
+    "aggressive": {
+        "position_size": 0.1,
+        "max_position_size": 0.15,
+        "stop_loss": 0.03,
+        "take_profit": 0.08,
+        "max_daily_loss": 0.04,
+        "max_intraday_drawdown_pct": 0.07,
+        "kill_switch_cooldown_minutes": 120,
+        "drawdown_soft_limit_pct": 0.04,
+        "drawdown_soft_scale": 0.7,
+        "drawdown_medium_limit_pct": 0.055,
+        "drawdown_medium_scale": 0.45,
+        "drawdown_hard_limit_pct": 0.07,
+    },
+}
+
+
+def _resolve_runtime_parameters(args: argparse.Namespace) -> dict[str, Any]:
+    """Build runtime parameters from CLI arguments and selected risk profile."""
+    profile_name = str(getattr(args, "risk_profile", "custom") or "custom").strip().lower()
+    profile = dict(RISK_PROFILE_DEFAULTS.get(profile_name, RISK_PROFILE_DEFAULTS["custom"]))
+
+    position_size = (
+        float(args.position_size)
+        if args.position_size is not None
+        else float(profile.get("position_size", 0.10))
+    )
+    stop_loss = (
+        float(args.stop_loss)
+        if args.stop_loss is not None
+        else float(profile.get("stop_loss", 0.02))
+    )
+    take_profit = (
+        float(args.take_profit)
+        if args.take_profit is not None
+        else float(profile.get("take_profit", 0.05))
+    )
+    max_position_size = (
+        float(args.max_position_size)
+        if args.max_position_size is not None
+        else float(profile.get("max_position_size", max(position_size, 0.05)))
+    )
+    max_daily_loss = (
+        float(args.max_daily_loss)
+        if args.max_daily_loss is not None
+        else float(profile.get("max_daily_loss", 0.03))
+    )
+    hard_drawdown = (
+        float(args.max_intraday_drawdown)
+        if args.max_intraday_drawdown is not None
+        else float(profile.get("drawdown_hard_limit_pct", profile.get("max_intraday_drawdown_pct", 0.07)))
+    )
+    soft_drawdown = (
+        float(args.drawdown_soft_limit)
+        if args.drawdown_soft_limit is not None
+        else float(profile.get("drawdown_soft_limit_pct", 0.03))
+    )
+    medium_drawdown = (
+        float(args.drawdown_medium_limit)
+        if args.drawdown_medium_limit is not None
+        else float(profile.get("drawdown_medium_limit_pct", 0.05))
+    )
+    soft_scale = (
+        float(args.drawdown_soft_scale)
+        if args.drawdown_soft_scale is not None
+        else float(profile.get("drawdown_soft_scale", 0.75))
+    )
+    medium_scale = (
+        float(args.drawdown_medium_scale)
+        if args.drawdown_medium_scale is not None
+        else float(profile.get("drawdown_medium_scale", 0.50))
+    )
+    cooldown_minutes = (
+        int(args.kill_switch_cooldown_minutes)
+        if args.kill_switch_cooldown_minutes is not None
+        else int(profile.get("kill_switch_cooldown_minutes", 60))
+    )
+
+    parameters: dict[str, Any] = {
+        "position_size": position_size,
+        "max_position_size": max_position_size,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit,
+        "max_daily_loss": max_daily_loss,
+        "max_intraday_drawdown_pct": hard_drawdown,
+        "kill_switch_cooldown_minutes": cooldown_minutes,
+        "drawdown_soft_limit_pct": soft_drawdown,
+        "drawdown_soft_scale": soft_scale,
+        "drawdown_medium_limit_pct": medium_drawdown,
+        "drawdown_medium_scale": medium_scale,
+        "drawdown_hard_limit_pct": hard_drawdown,
+    }
+    if args.crypto_buy_score_threshold is not None:
+        parameters["crypto_long_only_buy_score_threshold"] = float(args.crypto_buy_score_threshold)
+    if args.crypto_dip_rsi_max is not None:
+        parameters["crypto_long_only_dip_rsi_max"] = float(args.crypto_dip_rsi_max)
+    if args.crypto_dip_min_macd_hist_delta is not None:
+        parameters["crypto_long_only_dip_min_macd_hist_delta"] = float(
+            args.crypto_dip_min_macd_hist_delta
+        )
+    if args.crypto_dip_min_rebound_pct is not None:
+        parameters["crypto_long_only_dip_min_rebound_pct"] = float(args.crypto_dip_min_rebound_pct)
+    _validate_runtime_risk_parameters(parameters)
+    return parameters
+
+
+def _validate_runtime_risk_parameters(parameters: dict[str, Any]) -> None:
+    """Validate runtime risk controls for sane bounds and ordering."""
+    position_size = float(parameters.get("position_size", 0.10))
+    max_position_size = float(parameters.get("max_position_size", 0.10))
+    stop_loss = float(parameters.get("stop_loss", 0.02))
+    take_profit = float(parameters.get("take_profit", 0.05))
+    max_daily_loss = float(parameters.get("max_daily_loss", 0.03))
+    soft = float(parameters.get("drawdown_soft_limit_pct", 0.03))
+    medium = float(parameters.get("drawdown_medium_limit_pct", 0.05))
+    hard = float(parameters.get("drawdown_hard_limit_pct", 0.07))
+    soft_scale = float(parameters.get("drawdown_soft_scale", 0.75))
+    medium_scale = float(parameters.get("drawdown_medium_scale", 0.5))
+    cooldown = int(parameters.get("kill_switch_cooldown_minutes", 60))
+    crypto_buy_score_threshold = float(parameters.get("crypto_long_only_buy_score_threshold", 1.0))
+    crypto_dip_rsi_max = float(parameters.get("crypto_long_only_dip_rsi_max", 35.0))
+    crypto_dip_min_macd_hist_delta = float(
+        parameters.get("crypto_long_only_dip_min_macd_hist_delta", 0.02)
+    )
+    crypto_dip_min_rebound_pct = float(parameters.get("crypto_long_only_dip_min_rebound_pct", 0.001))
+
+    if position_size <= 0 or position_size > 1:
+        raise ValueError(f"position_size must be between 0 and 1, got {position_size}")
+    if max_position_size <= 0 or max_position_size > 1:
+        raise ValueError(f"max_position_size must be between 0 and 1, got {max_position_size}")
+    if max_position_size < position_size:
+        raise ValueError(
+            f"max_position_size ({max_position_size}) must be >= position_size ({position_size})"
+        )
+    if stop_loss <= 0 or stop_loss > 0.5:
+        raise ValueError(f"stop_loss must be between 0 and 0.5, got {stop_loss}")
+    if take_profit <= 0 or take_profit > 1:
+        raise ValueError(f"take_profit must be between 0 and 1, got {take_profit}")
+    if max_daily_loss <= 0 or max_daily_loss > 0.2:
+        raise ValueError(f"max_daily_loss must be between 0 and 0.2, got {max_daily_loss}")
+    if not (0 < soft < medium < hard < 1):
+        raise ValueError(
+            "drawdown ladder must satisfy 0 < soft < medium < hard < 1 "
+            f"(got soft={soft}, medium={medium}, hard={hard})"
+        )
+    if not (0 < medium_scale <= soft_scale <= 1):
+        raise ValueError(
+            "drawdown scales must satisfy 0 < medium_scale <= soft_scale <= 1 "
+            f"(got soft_scale={soft_scale}, medium_scale={medium_scale})"
+        )
+    if cooldown < 1 or cooldown > 1440:
+        raise ValueError(
+            f"kill_switch_cooldown_minutes must be between 1 and 1440, got {cooldown}"
+        )
+    if crypto_buy_score_threshold < 0 or crypto_buy_score_threshold > 5:
+        raise ValueError(
+            "crypto_long_only_buy_score_threshold must be between 0 and 5, "
+            f"got {crypto_buy_score_threshold}"
+        )
+    if crypto_dip_rsi_max <= 0 or crypto_dip_rsi_max > 100:
+        raise ValueError(
+            f"crypto_long_only_dip_rsi_max must be between 0 and 100, got {crypto_dip_rsi_max}"
+        )
+    if crypto_dip_min_macd_hist_delta < 0 or crypto_dip_min_macd_hist_delta > 5:
+        raise ValueError(
+            "crypto_long_only_dip_min_macd_hist_delta must be between 0 and 5, "
+            f"got {crypto_dip_min_macd_hist_delta}"
+        )
+    if crypto_dip_min_rebound_pct < 0 or crypto_dip_min_rebound_pct > 0.5:
+        raise ValueError(
+            "crypto_long_only_dip_min_rebound_pct must be between 0 and 0.5, "
+            f"got {crypto_dip_min_rebound_pct}"
+        )
+
+
+def _determine_position_scale(drawdown_pct: float, parameters: dict[str, Any]) -> float:
+    """Return target position scale (0-1) based on drawdown ladder."""
+    hard = float(parameters.get("drawdown_hard_limit_pct", 0.07))
+    medium = float(parameters.get("drawdown_medium_limit_pct", 0.05))
+    soft = float(parameters.get("drawdown_soft_limit_pct", 0.03))
+    medium_scale = float(parameters.get("drawdown_medium_scale", 0.5))
+    soft_scale = float(parameters.get("drawdown_soft_scale", 0.75))
+
+    if drawdown_pct >= hard:
+        return 0.0
+    if drawdown_pct >= medium:
+        return medium_scale
+    if drawdown_pct >= soft:
+        return soft_scale
+    return 1.0
 
 
 class LiveTrader:
@@ -93,6 +316,7 @@ class LiveTrader:
         self.parameters = parameters
 
         self.broker = None
+        self.failover_manager = None
         self.strategy = None
         self.circuit_breaker = None
         self.order_gateway = None
@@ -104,9 +328,18 @@ class LiveTrader:
         self._data_quality_writer = None
         self.state_store = RuntimeStateStore("data/live_trader_state.json")
         self._pending_strategy_state = {}
+        self._crypto_only = False
+        self._symbol_scope = build_symbol_scope(self.symbols)
         self.running = False
         self.session_run_id = generate_run_id("live")
         self.session_run_dir = ensure_run_directory("results/runs", self.session_run_id)
+
+        _validate_runtime_risk_parameters(self.parameters)
+        self._position_scale = 1.0
+        self._peak_equity = None
+        self._base_position_size = None
+        self._base_short_position_size = None
+        self._base_max_position_size = None
 
         # Performance tracking
         self.start_time = None
@@ -127,7 +360,30 @@ class LiveTrader:
 
             # Initialize broker
             logger.info("1. Connecting to Alpaca (Paper Trading)...")
-            self.broker = AlpacaBroker(paper=True)
+            self.broker, self.failover_manager = await create_live_broker(
+                paper=True,
+                source="live_trader.initialize",
+            )
+            if self.failover_manager:
+                logger.info("✅ Multi-broker failover manager enabled (Alpaca + IB backup)")
+
+            # Validate symbol universe for a single websocket session and normalize crypto pairs.
+            if hasattr(self.broker, "is_crypto"):
+                crypto_flags = [bool(self.broker.is_crypto(symbol)) for symbol in self.symbols]
+                if any(crypto_flags) and not all(crypto_flags):
+                    raise ValueError(
+                        "Mixed stock and crypto symbols are not supported in one live session. "
+                        "Run separate live processes per asset class."
+                    )
+                self._crypto_only = bool(crypto_flags) and all(crypto_flags)
+                if self._crypto_only and hasattr(self.broker, "normalize_crypto_symbol"):
+                    self.symbols = [self.broker.normalize_crypto_symbol(symbol) for symbol in self.symbols]
+                    logger.info("✅ Crypto-only session detected (24/7): %s", ", ".join(self.symbols))
+                    if self.strategy_name == "momentum" and "enable_short_selling" not in self.parameters:
+                        # Spot crypto shorting is generally unavailable; keep momentum strategy long-only.
+                        self.parameters["enable_short_selling"] = False
+                        logger.info("Configured momentum strategy as long-only for crypto session")
+            self._symbol_scope = build_symbol_scope(self.symbols)
 
             # Get account info
             account = await self.broker.get_account()
@@ -139,13 +395,14 @@ class LiveTrader:
 
             # Initialize circuit breaker (CRITICAL SAFETY FEATURE)
             logger.info("1.5. Initializing circuit breaker...")
+            configured_daily_loss = float(self.parameters.get("max_daily_loss", 0.03))
             self.circuit_breaker = CircuitBreaker(
-                max_daily_loss=0.03,  # 3% max daily loss
+                max_daily_loss=configured_daily_loss,
                 auto_close_positions=True,  # Automatically close positions on trigger
             )
             await self.circuit_breaker.initialize(self.broker)
             logger.info("✅ Circuit breaker armed")
-            logger.info("   Max Daily Loss: 3%")
+            logger.info("   Max Daily Loss: %.2f%%", configured_daily_loss * 100)
             logger.info("   Auto-close enabled: YES\n")
 
             # Initialize audit log
@@ -175,6 +432,12 @@ class LiveTrader:
                 risk_manager=risk_manager,
                 audit_log=self.audit_log,
                 enforce_gateway=True,
+                max_intraday_drawdown_pct=float(
+                    self.parameters.get("max_intraday_drawdown_pct", 0.07)
+                ),
+                kill_switch_cooldown_minutes=int(
+                    self.parameters.get("kill_switch_cooldown_minutes", 60)
+                ),
             )
             if hasattr(self.circuit_breaker, "set_order_gateway"):
                 self.circuit_breaker.set_order_gateway(self.order_gateway)
@@ -192,7 +455,11 @@ class LiveTrader:
                     self.order_gateway.import_runtime_state(state.gateway_state)
                 self._pending_strategy_state = state.strategy_states or {}
                 logger.info("Runtime state restored into PositionManager")
-            await self.position_manager.sync_with_broker(self.broker, default_strategy="recovered")
+            await self.position_manager.sync_with_broker(
+                self.broker,
+                default_strategy="recovered",
+                symbol_scope=self._symbol_scope,
+            )
 
             # Initialize reconciler
             self.reconciler = PositionReconciler(
@@ -200,6 +467,7 @@ class LiveTrader:
                 internal_tracker=self.position_manager,
                 halt_on_mismatch=False,
                 sync_to_broker=True,
+                symbol_scope=self.symbols,
                 audit_log=self.audit_log,
                 events_path=self.session_run_dir / "position_reconciliation_events.jsonl",
                 run_id=self.session_run_id,
@@ -232,6 +500,9 @@ class LiveTrader:
             self.slo_monitor = SLOMonitor(
                 audit_log=self.audit_log,
                 events_path=self.session_run_dir / "ops_slo_events.jsonl",
+                notification_dead_letter_path=(
+                    self.session_run_dir / "notification_dead_letters.jsonl"
+                ),
                 alert_notifier=slo_alert_notifier,
                 incident_ticket_notifier=incident_ticket_notifier,
                 incident_tracker=incident_tracker,
@@ -243,6 +514,18 @@ class LiveTrader:
                 ),
                 shadow_drift_critical_threshold=RISK_PARAMS.get(
                     "PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15
+                ),
+                notification_dead_letter_warning_threshold=RISK_PARAMS.get(
+                    "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD",
+                    10,
+                ),
+                notification_dead_letter_critical_threshold=RISK_PARAMS.get(
+                    "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD",
+                    25,
+                ),
+                notification_dead_letter_persist_minutes=RISK_PARAMS.get(
+                    "NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES",
+                    5,
                 ),
             )
 
@@ -267,16 +550,29 @@ class LiveTrader:
                 if saved:
                     await self._restore_strategy_state(self.strategy, saved)
 
+            self._capture_strategy_risk_baselines()
+
             logger.info("✅ Strategy initialized")
             logger.info(f"   Trading: {', '.join(self.symbols)}")
             logger.info(f"   Parameters: {self.parameters}\n")
+            logger.info(
+                "   Dynamic De-risk Ladder: soft>=%.2f%% (x%.2f), medium>=%.2f%% (x%.2f), hard>=%.2f%% (halt)",
+                float(self.parameters.get("drawdown_soft_limit_pct", 0.03)) * 100,
+                float(self.parameters.get("drawdown_soft_scale", 0.75)),
+                float(self.parameters.get("drawdown_medium_limit_pct", 0.05)) * 100,
+                float(self.parameters.get("drawdown_medium_scale", 0.5)),
+                float(self.parameters.get("drawdown_hard_limit_pct", 0.07)) * 100,
+            )
 
-            # Check market status
-            clock = await self.broker.get_clock()
             logger.info("3. Market Status:")
-            logger.info(f"   Market Open: {'YES ✅' if clock.is_open else 'NO ❌'}")
-            logger.info(f"   Next Open: {clock.next_open}")
-            logger.info(f"   Next Close: {clock.next_close}\n")
+            if self._crypto_only:
+                logger.info("   Session Type: Crypto 24/7 ✅")
+                logger.info("   Market-Open Gate: DISABLED (crypto trades around the clock)\n")
+            else:
+                clock = await self.broker.get_clock()
+                logger.info(f"   Market Open: {'YES ✅' if clock.is_open else 'NO ❌'}")
+                logger.info(f"   Next Open: {clock.next_open}")
+                logger.info(f"   Next Close: {clock.next_close}\n")
 
             logger.info("=" * 80)
             logger.info("✅ INITIALIZATION COMPLETE - READY TO TRADE")
@@ -303,6 +599,104 @@ class LiveTrader:
 
         return strategies[self.strategy_name]
 
+    def _capture_strategy_risk_baselines(self) -> None:
+        """Capture baseline strategy sizing used for dynamic de-risk scaling."""
+        if self.strategy is None:
+            return
+
+        if hasattr(self.strategy, "position_size"):
+            try:
+                self._base_position_size = float(self.strategy.position_size)
+            except (TypeError, ValueError):
+                self._base_position_size = None
+        if hasattr(self.strategy, "short_position_size"):
+            try:
+                self._base_short_position_size = float(self.strategy.short_position_size)
+            except (TypeError, ValueError):
+                self._base_short_position_size = None
+        if hasattr(self.strategy, "max_position_size"):
+            try:
+                self._base_max_position_size = float(self.strategy.max_position_size)
+            except (TypeError, ValueError):
+                self._base_max_position_size = None
+
+        self._apply_strategy_position_scale(1.0, reason="baseline")
+
+    def _apply_strategy_position_scale(self, target_scale: float, *, reason: str) -> None:
+        """Apply position-size multiplier to strategy sizing controls."""
+        if self.strategy is None:
+            return
+        if abs(target_scale - self._position_scale) < 1e-9:
+            return
+
+        self._position_scale = target_scale
+        params = getattr(self.strategy, "parameters", None)
+        if not isinstance(params, dict):
+            params = None
+
+        if self._base_position_size is not None and hasattr(self.strategy, "position_size"):
+            scaled_position = self._base_position_size * target_scale
+            self.strategy.position_size = scaled_position
+            if params is not None:
+                params["position_size"] = scaled_position
+
+        if self._base_short_position_size is not None and hasattr(self.strategy, "short_position_size"):
+            scaled_short = self._base_short_position_size * target_scale
+            self.strategy.short_position_size = scaled_short
+            if params is not None:
+                params["short_position_size"] = scaled_short
+
+        if self._base_max_position_size is not None and hasattr(self.strategy, "max_position_size"):
+            scaled_max = self._base_max_position_size * target_scale
+            if self._base_position_size is not None:
+                scaled_max = max(scaled_max, self._base_position_size * target_scale)
+            self.strategy.max_position_size = scaled_max
+            if params is not None:
+                params["max_position_size"] = scaled_max
+
+        logger.warning(
+            "Adjusted strategy risk scale to x%.2f (%s)",
+            target_scale,
+            reason,
+        )
+
+    def _apply_drawdown_controls(self, current_equity: float) -> float:
+        """Scale or halt based on peak-to-trough drawdown. Returns current drawdown."""
+        if current_equity <= 0:
+            return 0.0
+
+        if self._peak_equity is None or current_equity > self._peak_equity:
+            self._peak_equity = current_equity
+        if not self._peak_equity:
+            return 0.0
+
+        drawdown = (self._peak_equity - current_equity) / self._peak_equity
+        target_scale = _determine_position_scale(drawdown, self.parameters)
+
+        if target_scale <= 0:
+            reason = (
+                f"Dynamic drawdown hard stop breached: {drawdown:.2%} >= "
+                f"{float(self.parameters.get('drawdown_hard_limit_pct', 0.07)):.2%}"
+            )
+            if self.order_gateway:
+                self.order_gateway.activate_kill_switch(
+                    reason=reason,
+                    cooldown_minutes=int(self.parameters.get("kill_switch_cooldown_minutes", 60)),
+                    source="live_monitor",
+                )
+            logger.critical(reason)
+            self.running = False
+            self.shutdown_event.set()
+            return drawdown
+
+        if abs(target_scale - self._position_scale) > 1e-9:
+            self._apply_strategy_position_scale(
+                target_scale,
+                reason=f"drawdown={drawdown:.2%}",
+            )
+
+        return drawdown
+
     async def start_trading(self):
         """Start live trading."""
         try:
@@ -319,7 +713,7 @@ class LiveTrader:
             logger.info("=" * 80 + "\n")
 
             # Start WebSocket for real-time data
-            await self.broker.start_websocket()
+            await self.broker.start_websocket(self.symbols)
 
             # Start monitoring loop
             monitor_task = asyncio.create_task(self.monitor_performance())
@@ -360,6 +754,9 @@ class LiveTrader:
                 # Get current account state
                 account = await self.broker.get_account()
                 current_equity = float(account.equity)
+                drawdown_pct = self._apply_drawdown_controls(current_equity)
+                if not self.running:
+                    break
 
                 # Calculate P/L
                 pnl = current_equity - self.start_equity
@@ -375,6 +772,11 @@ class LiveTrader:
                 logger.info(f"📊 PERFORMANCE UPDATE - Runtime: {str(runtime).split('.')[0]}")
                 logger.info("-" * 80)
                 logger.info(f"Equity: ${current_equity:,.2f} (P/L: ${pnl:+,.2f} / {pnl_pct:+.2f}%)")
+                logger.info(
+                    "Peak Drawdown: %.2f%% | Risk Scale: x%.2f",
+                    drawdown_pct * 100,
+                    self._position_scale,
+                )
                 logger.info(f"Positions: {len(positions)}")
 
                 if positions:
@@ -465,6 +867,7 @@ class LiveTrader:
                 self.slo_monitor.close()
             if self._data_quality_writer:
                 self._data_quality_writer.close()
+            await shutdown_live_broker_failover(self.failover_manager)
 
         except Exception as e:
             logger.error(f"Error during shutdown: {e}", exc_info=True)
@@ -501,6 +904,12 @@ class LiveTrader:
                     )
                     if self.slo_monitor:
                         self.slo_monitor.check_incident_ack_sla()
+                        backlog = (
+                            self.slo_monitor.get_status_snapshot()
+                            .get("dead_letters", {})
+                            .get("queued", 0)
+                        )
+                        self.slo_monitor.record_notification_dead_letter_backlog(backlog)
                 if counter % reconciliation_interval == 0 and self.reconciler is not None:
                     try:
                         await self.reconciler.reconcile()
@@ -542,20 +951,33 @@ class LiveTrader:
         if not self.broker or not self.order_gateway:
             return
 
-        reference_time = datetime.utcnow()
-        start = (reference_time - timedelta(days=30)).strftime("%Y-%m-%d")
-        end = reference_time.strftime("%Y-%m-%d")
+        reference_time = datetime.now(timezone.utc)
+        stock_start = (reference_time - timedelta(days=30)).strftime("%Y-%m-%d")
+        stock_end = reference_time.strftime("%Y-%m-%d")
+        crypto_start = reference_time - timedelta(days=30)
+        crypto_end = reference_time
         stale_after_days = RISK_PARAMS.get("DATA_QUALITY_STALE_AFTER_DAYS", 3)
         reports = []
 
         for symbol in self.symbols:
             try:
-                bars = await self.broker.get_bars(
-                    symbol,
-                    start=start,
-                    end=end,
-                    timeframe="1Day",
+                is_crypto = bool(
+                    hasattr(self.broker, "is_crypto") and self.broker.is_crypto(symbol)
                 )
+                if is_crypto and hasattr(self.broker, "get_crypto_bars"):
+                    bars = await self.broker.get_crypto_bars(
+                        symbol,
+                        start=crypto_start,
+                        end=crypto_end,
+                        timeframe="1Day",
+                    )
+                else:
+                    bars = await self.broker.get_bars(
+                        symbol,
+                        start=stock_start,
+                        end=stock_end,
+                        timeframe="1Day",
+                    )
                 if not bars:
                     reports.append(
                         {
@@ -574,16 +996,28 @@ class LiveTrader:
                     )
                     continue
 
-                frame = pd.DataFrame(
-                    {
-                        "open": [float(b.open) for b in bars],
-                        "high": [float(b.high) for b in bars],
-                        "low": [float(b.low) for b in bars],
-                        "close": [float(b.close) for b in bars],
-                        "volume": [float(b.volume) for b in bars],
-                    },
-                    index=pd.DatetimeIndex([b.timestamp for b in bars]),
-                )
+                if is_crypto:
+                    frame = pd.DataFrame(
+                        {
+                            "open": [float(b["open"]) for b in bars],
+                            "high": [float(b["high"]) for b in bars],
+                            "low": [float(b["low"]) for b in bars],
+                            "close": [float(b["close"]) for b in bars],
+                            "volume": [float(b["volume"]) for b in bars],
+                        },
+                        index=pd.DatetimeIndex([b["timestamp"] for b in bars]),
+                    )
+                else:
+                    frame = pd.DataFrame(
+                        {
+                            "open": [float(b.open) for b in bars],
+                            "high": [float(b.high) for b in bars],
+                            "low": [float(b.low) for b in bars],
+                            "close": [float(b.close) for b in bars],
+                            "volume": [float(b.volume) for b in bars],
+                        },
+                        index=pd.DatetimeIndex([b.timestamp for b in bars]),
+                    )
                 reports.append(
                     validate_ohlcv_frame(
                         frame,
@@ -678,13 +1112,20 @@ class LiveTrader:
             restored = internal_state.get("price_history")
             if isinstance(current_history, dict) and isinstance(restored, dict):
                 normalized = {}
-                for symbol, rows in restored.items():
-                    template = current_history.get(symbol)
-                    maxlen = getattr(template, "maxlen", None) if template is not None else None
+                # Preserve the currently configured symbol universe first.
+                for symbol, template in current_history.items():
+                    rows = restored.get(symbol, [])
+                    maxlen = getattr(template, "maxlen", None)
                     if isinstance(rows, list):
                         normalized[symbol] = deque(rows, maxlen=maxlen)
                     else:
                         normalized[symbol] = deque([], maxlen=maxlen)
+                # Keep any legacy/restored-only symbols as best-effort extras.
+                for symbol, rows in restored.items():
+                    if symbol in normalized:
+                        continue
+                    if isinstance(rows, list):
+                        normalized[symbol] = deque(rows)
                 strategy.price_history = normalized
 
     async def _restore_strategy_state(self, strategy, saved) -> None:
@@ -791,19 +1232,104 @@ async def main():
         help="Strategy to run",
     )
     parser.add_argument(
+        "--risk-profile",
+        type=str,
+        default="custom",
+        choices=["custom", "conservative", "balanced", "aggressive"],
+        help="Runtime risk profile preset (custom uses only explicit CLI values)",
+    )
+    parser.add_argument(
         "--symbols", nargs="+", default=None, help="Symbols to trade (default: from config)"
     )
     parser.add_argument(
         "--position-size",
         type=float,
-        default=0.10,
-        help="Position size as fraction of capital (default: 0.10)",
+        default=None,
+        help="Position size as fraction of capital (overrides profile)",
     )
     parser.add_argument(
-        "--stop-loss", type=float, default=0.02, help="Stop loss percentage (default: 0.02)"
+        "--max-position-size",
+        type=float,
+        default=None,
+        help="Hard cap per-position as fraction of capital (overrides profile)",
     )
     parser.add_argument(
-        "--take-profit", type=float, default=0.05, help="Take profit percentage (default: 0.05)"
+        "--stop-loss",
+        type=float,
+        default=None,
+        help="Stop loss percentage (overrides profile)",
+    )
+    parser.add_argument(
+        "--take-profit",
+        type=float,
+        default=None,
+        help="Take profit percentage (overrides profile)",
+    )
+    parser.add_argument(
+        "--max-daily-loss",
+        type=float,
+        default=None,
+        help="Circuit-breaker daily loss threshold (decimal, overrides profile)",
+    )
+    parser.add_argument(
+        "--max-intraday-drawdown",
+        type=float,
+        default=None,
+        help="Hard intraday drawdown kill-switch threshold (decimal, overrides profile)",
+    )
+    parser.add_argument(
+        "--drawdown-soft-limit",
+        type=float,
+        default=None,
+        help="Soft drawdown threshold for first de-risk step (decimal)",
+    )
+    parser.add_argument(
+        "--drawdown-soft-scale",
+        type=float,
+        default=None,
+        help="Position multiplier at soft drawdown threshold",
+    )
+    parser.add_argument(
+        "--drawdown-medium-limit",
+        type=float,
+        default=None,
+        help="Medium drawdown threshold for second de-risk step (decimal)",
+    )
+    parser.add_argument(
+        "--drawdown-medium-scale",
+        type=float,
+        default=None,
+        help="Position multiplier at medium drawdown threshold",
+    )
+    parser.add_argument(
+        "--kill-switch-cooldown-minutes",
+        type=int,
+        default=None,
+        help="Minutes to keep kill-switch active once triggered",
+    )
+    parser.add_argument(
+        "--crypto-buy-score-threshold",
+        type=float,
+        default=None,
+        help="Momentum crypto long-only buy score threshold override",
+    )
+    parser.add_argument(
+        "--crypto-dip-rsi-max",
+        type=float,
+        default=None,
+        help="Momentum crypto dip-buy RSI ceiling override",
+    )
+    parser.add_argument(
+        "--crypto-dip-min-macd-hist-delta",
+        type=float,
+        default=None,
+        help="Momentum crypto dip-buy minimum MACD histogram delta override",
+    )
+    parser.add_argument(
+        "--crypto-dip-min-rebound-pct",
+        type=float,
+        default=None,
+        help="Momentum crypto dip-buy minimum rebound percent override (decimal)",
     )
 
     args = parser.parse_args()
@@ -811,12 +1337,8 @@ async def main():
     # Use provided symbols or default from config
     symbols = args.symbols if args.symbols else SYMBOLS[:3]  # Default to first 3
 
-    # Strategy parameters
-    parameters = {
-        "position_size": args.position_size,
-        "stop_loss": args.stop_loss,
-        "take_profit": args.take_profit,
-    }
+    # Strategy + runtime risk parameters
+    parameters = _resolve_runtime_parameters(args)
 
     # Create live trader
     trader = LiveTrader(strategy_name=args.strategy, symbols=symbols, parameters=parameters)

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run trading bot incident automation every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=trading-bot-incident-automation.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

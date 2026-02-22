@@ -20,6 +20,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from research.research_registry import ResearchRegistry
 from utils.paper_burn_in import build_paper_burn_in_scorecard
 from utils.shadow_drift_dashboard import build_shadow_drift_dashboard
+from incident_contacts import validate_incident_contacts
 
 
 def _parse_args() -> argparse.Namespace:
@@ -55,6 +56,16 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Optional JSON output path for checklist",
     )
+    parser.add_argument(
+        "--incident-ownership-doc",
+        default="docs/INCIDENT_RESPONSE_OWNERSHIP.md",
+        help="Incident response ownership document path",
+    )
+    parser.add_argument(
+        "--incident-escalation-doc",
+        default="docs/INCIDENT_ESCALATION_ROSTER.md",
+        help="Incident escalation roster document path",
+    )
     return parser.parse_args()
 
 
@@ -68,16 +79,28 @@ def run_gate(args: argparse.Namespace) -> int:
 
     checklist = registry.generate_promotion_checklist(args.experiment_id)
     ready = registry.is_promotion_ready(args.experiment_id, strict=args.strict)
-    blockers = registry.get_promotion_blockers(args.experiment_id, strict=args.strict)
+    blockers = list(registry.get_promotion_blockers(args.experiment_id, strict=args.strict))
     experiment = registry.experiments.get(args.experiment_id)
     shadow_dashboard = None
     burn_in_scorecard = None
+    incident_contacts_report = None
     if experiment and isinstance(experiment.paper_results, dict):
         shadow_dashboard = build_shadow_drift_dashboard(
             experiment.paper_results,
             critical_threshold=registry.DEFAULT_GATES["paper_live_shadow_drift"]["threshold"],
         )
         burn_in_scorecard = build_paper_burn_in_scorecard(experiment.paper_results)
+
+    if args.strict:
+        incident_contacts_report = validate_incident_contacts(
+            ownership_doc=args.incident_ownership_doc,
+            escalation_doc=args.incident_escalation_doc,
+        )
+        if not bool(incident_contacts_report.get("valid")):
+            blockers.append(
+                "Incident ownership/escalation docs contain unresolved placeholders"
+            )
+            ready = False
 
     payload = {
         "experiment_id": args.experiment_id,
@@ -87,6 +110,7 @@ def run_gate(args: argparse.Namespace) -> int:
         "checklist": checklist,
         "shadow_drift_dashboard": shadow_dashboard,
         "burn_in_scorecard": burn_in_scorecard,
+        "incident_contacts": incident_contacts_report,
     }
 
     if args.output:
@@ -112,6 +136,12 @@ def run_gate(args: argparse.Namespace) -> int:
             "Burn-In Signoff: "
             f"{'READY' if burn_in_scorecard.get('ready_for_signoff') else 'NOT READY'} "
             f"(score={float(burn_in_scorecard.get('score', 0.0)):.2%})"
+        )
+    if incident_contacts_report is not None:
+        print(
+            "Incident Contacts: "
+            f"{'VALID' if incident_contacts_report.get('valid') else 'INVALID'} "
+            f"(findings={int(incident_contacts_report.get('placeholder_count', 0))})"
         )
 
     return 0 if ready else 1

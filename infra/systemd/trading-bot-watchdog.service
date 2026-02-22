@@ -1,0 +1,11 @@
+[Unit]
+Description=Trading Bot Runtime Watchdog Probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gr8monk3ys
+WorkingDirectory=/home/gr8monk3ys/trading-bot
+EnvironmentFile=/home/gr8monk3ys/trading-bot/.env
+ExecStart=/home/gr8monk3ys/trading-bot/.venv/bin/python scripts/runtime_watchdog.py --output results/validation/runtime_watchdog_systemd.json

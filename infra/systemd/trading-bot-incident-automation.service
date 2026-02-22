@@ -1,0 +1,11 @@
+[Unit]
+Description=Trading Bot Incident Response Automation Probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gr8monk3ys
+WorkingDirectory=/home/gr8monk3ys/trading-bot
+EnvironmentFile=/home/gr8monk3ys/trading-bot/.env
+ExecStart=/bin/bash -lc 'set -euo pipefail; cd /home/gr8monk3ys/trading-bot; latest_run="$$(ls -1dt results/runs/live_* 2>/dev/null | head -n1 || true)"; if [ -z "$$latest_run" ]; then echo "No live run directory found; skipping incident automation."; exit 0; fi; /home/gr8monk3ys/trading-bot/.venv/bin/python scripts/incident_response_automation.py --run-dir "$$latest_run" --runtime-watchdog-json results/validation/runtime_watchdog_systemd.json --runtime-gate-json results/validation/runtime_industrial_gate_systemd.json --go-live-summary-json results/validation/precheck/go_live_precheck_summary.json --webhook-url "$${INCIDENT_RESPONSE_AUTOMATION_WEBHOOK_URL:-}" --webhook-auth-token "$${INCIDENT_RESPONSE_AUTOMATION_AUTH_TOKEN:-}" --webhook-auth-scheme "$${INCIDENT_RESPONSE_AUTOMATION_AUTH_SCHEME:-Bearer}" --rollback-cmd "$${INCIDENT_RESPONSE_AUTOMATION_ROLLBACK_CMD:-}" --output results/validation/incident_response_automation_systemd.json'

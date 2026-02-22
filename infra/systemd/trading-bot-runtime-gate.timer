@@ -1,0 +1,11 @@
+[Unit]
+Description=Run trading bot runtime industrial gate every 10 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=10min
+Unit=trading-bot-runtime-gate.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

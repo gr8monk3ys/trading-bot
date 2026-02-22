@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 
 from utils.audit_log import AuditEventType, AuditLog
 from utils.run_artifacts import JsonlWriter
+from utils.symbol_scope import build_symbol_scope, canonical_symbol, symbol_in_scope
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,7 @@ class PositionReconciler:
         sync_to_broker: bool = False,
         tolerance_pct: float = None,
         tolerance_abs: float = None,
+        symbol_scope: Optional[List[str]] = None,
         audit_log: Optional[AuditLog] = None,
         events_path: str | Path | None = None,
         run_id: Optional[str] = None,
@@ -120,11 +122,13 @@ class PositionReconciler:
             sync_to_broker: If True, update internal tracker to match broker on mismatch
             tolerance_pct: Quantity tolerance as percentage (default 1%)
             tolerance_abs: Absolute quantity tolerance (default 1 share)
+            symbol_scope: Optional symbols this reconciler should track.
         """
         self.broker = broker
         self.internal_tracker = internal_tracker
         self.halt_on_mismatch = halt_on_mismatch
         self.sync_to_broker = sync_to_broker
+        self.symbol_scope = build_symbol_scope(symbol_scope)
         self.audit_log = audit_log
         self.run_id = run_id
         self._events_writer = JsonlWriter(events_path) if events_path else None
@@ -140,6 +144,8 @@ class PositionReconciler:
             f"PositionReconciler initialized: halt_on_mismatch={halt_on_mismatch}, "
             f"sync_to_broker={sync_to_broker}, tolerance={self.tolerance_pct:.1%} or {self.tolerance_abs} shares"
         )
+        if self.symbol_scope:
+            logger.info("PositionReconciler symbol scope enabled (%d symbols)", len(self.symbol_scope))
 
     async def reconcile(self) -> ReconciliationResult:
         """
@@ -219,11 +225,21 @@ class PositionReconciler:
 
             for pos in broker_positions:
                 symbol = pos.symbol
+                if not symbol_in_scope(symbol, self.symbol_scope):
+                    logger.debug("Skipping out-of-scope broker position: %s", symbol)
+                    continue
                 qty = float(pos.qty)
-                positions[symbol] = qty
+                normalized_symbol = canonical_symbol(symbol)
+                if not normalized_symbol:
+                    continue
+                positions[normalized_symbol] = qty
 
                 logger.debug(
-                    f"Broker position: {symbol} = {qty} shares @ ${float(pos.avg_entry_price):,.2f}"
+                    "Broker position: %s (raw=%s) = %s shares @ $%s",
+                    normalized_symbol,
+                    symbol,
+                    qty,
+                    f"{float(pos.avg_entry_price):,.2f}",
                 )
 
         except Exception as e:
@@ -264,8 +280,19 @@ class PositionReconciler:
                 else:
                     continue
 
-                positions[symbol] = qty
-                logger.debug(f"Internal position: {symbol} = {qty} shares")
+                if not symbol:
+                    continue
+
+                if not symbol_in_scope(symbol, self.symbol_scope):
+                    logger.debug("Skipping out-of-scope internal position: %s", symbol)
+                    continue
+
+                normalized_symbol = canonical_symbol(symbol)
+                if not normalized_symbol:
+                    continue
+
+                positions[normalized_symbol] = qty
+                logger.debug("Internal position: %s (raw=%s) = %s shares", normalized_symbol, symbol, qty)
 
         except Exception as e:
             logger.error(f"Failed to fetch internal positions: {e}")
@@ -359,11 +386,19 @@ class PositionReconciler:
                     },
                 )
         else:
-            logger.critical("=" * 80)
-            logger.critical("❌ RECONCILIATION FAILED: Position mismatch detected!")
-            logger.critical(f"   Mismatches: {len(result.mismatches)}")
-            logger.critical(f"   Total discrepancy value: ${result.total_discrepancy_value:,.2f}")
-            logger.critical("=" * 80)
+            auto_recovering = self.sync_to_broker and not self.halt_on_mismatch
+            log_fn = logger.warning if auto_recovering else logger.critical
+            banner = (
+                "⚠️ RECONCILIATION DRIFT DETECTED: Auto-sync will restore broker state"
+                if auto_recovering
+                else "❌ RECONCILIATION FAILED: Position mismatch detected!"
+            )
+
+            log_fn("=" * 80)
+            log_fn(banner)
+            log_fn(f"   Mismatches: {len(result.mismatches)}")
+            log_fn(f"   Total discrepancy value: ${result.total_discrepancy_value:,.2f}")
+            log_fn("=" * 80)
             if self.audit_log:
                 self.audit_log.log(
                     AuditEventType.POSITION_RECONCILIATION,
@@ -391,7 +426,7 @@ class PositionReconciler:
                 )
 
             for mismatch in result.mismatches:
-                logger.critical(
+                log_fn(
                     f"   {mismatch.symbol}: "
                     f"Broker={mismatch.broker_qty:.4f}, "
                     f"Internal={mismatch.internal_qty:.4f}, "

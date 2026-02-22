@@ -54,6 +54,7 @@ bot.pid
 *.swp
 *.swo
 .DS_Store
+.mplconfig/
 
 # TA-Lib generated files
 ta-lib/*

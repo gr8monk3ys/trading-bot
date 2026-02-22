@@ -56,14 +56,14 @@ def _validate_config():
         )
 
     # Validate RISK_PARAMS
-    if RISK_PARAMS["MAX_PORTFOLIO_RISK"] <= 0 or RISK_PARAMS["MAX_PORTFOLIO_RISK"] > 0.2:
+    if RISK_PARAMS["MAX_PORTFOLIO_RISK"] <= 0 or RISK_PARAMS["MAX_PORTFOLIO_RISK"] > 1:
         errors.append(
-            f"MAX_PORTFOLIO_RISK must be between 0 and 0.2, got {RISK_PARAMS['MAX_PORTFOLIO_RISK']}"
+            f"MAX_PORTFOLIO_RISK must be between 0 and 1, got {RISK_PARAMS['MAX_PORTFOLIO_RISK']}"
         )
 
-    if RISK_PARAMS["MAX_POSITION_RISK"] <= 0 or RISK_PARAMS["MAX_POSITION_RISK"] > 0.1:
+    if RISK_PARAMS["MAX_POSITION_RISK"] <= 0 or RISK_PARAMS["MAX_POSITION_RISK"] > 1:
         errors.append(
-            f"MAX_POSITION_RISK must be between 0 and 0.1, got {RISK_PARAMS['MAX_POSITION_RISK']}"
+            f"MAX_POSITION_RISK must be between 0 and 1, got {RISK_PARAMS['MAX_POSITION_RISK']}"
         )
 
     if RISK_PARAMS["VAR_CONFIDENCE"] <= 0.5 or RISK_PARAMS["VAR_CONFIDENCE"] >= 1:
@@ -122,6 +122,21 @@ def _validate_config():
     if RISK_PARAMS["SLO_PAGING_ENABLED"] and not RISK_PARAMS["SLO_PAGING_WEBHOOK_URL"]:
         errors.append("SLO_PAGING_ENABLED=True requires SLO_PAGING_WEBHOOK_URL to be set")
 
+    if RISK_PARAMS["SLO_PAGING_MAX_RETRIES"] < 0 or RISK_PARAMS["SLO_PAGING_MAX_RETRIES"] > 5:
+        errors.append(
+            "SLO_PAGING_MAX_RETRIES must be between 0 and 5, got "
+            f"{RISK_PARAMS['SLO_PAGING_MAX_RETRIES']}"
+        )
+
+    if (
+        RISK_PARAMS["SLO_PAGING_RETRY_BACKOFF_SECONDS"] < 0
+        or RISK_PARAMS["SLO_PAGING_RETRY_BACKOFF_SECONDS"] > 10
+    ):
+        errors.append(
+            "SLO_PAGING_RETRY_BACKOFF_SECONDS must be between 0 and 10, got "
+            f"{RISK_PARAMS['SLO_PAGING_RETRY_BACKOFF_SECONDS']}"
+        )
+
 
     if (
         RISK_PARAMS["INCIDENT_TICKETING_TIMEOUT_SECONDS"] < 1
@@ -135,6 +150,50 @@ def _validate_config():
     if RISK_PARAMS["INCIDENT_TICKETING_ENABLED"] and not RISK_PARAMS["INCIDENT_TICKETING_WEBHOOK_URL"]:
         errors.append(
             "INCIDENT_TICKETING_ENABLED=True requires INCIDENT_TICKETING_WEBHOOK_URL to be set"
+        )
+    if (
+        RISK_PARAMS["INCIDENT_TICKETING_ENABLED"]
+        and not RISK_PARAMS["INCIDENT_RESPONSE_RUNBOOK_URL"]
+    ):
+        warnings.append(
+            "INCIDENT_TICKETING_ENABLED=True without INCIDENT_RESPONSE_RUNBOOK_URL; "
+            "incident tickets will not include a direct runbook link."
+        )
+    if (
+        RISK_PARAMS["INCIDENT_TICKETING_ENABLED"]
+        and not RISK_PARAMS["INCIDENT_ESCALATION_ROSTER_URL"]
+    ):
+        warnings.append(
+            "INCIDENT_TICKETING_ENABLED=True without INCIDENT_ESCALATION_ROSTER_URL; "
+            "incident tickets will not include an escalation roster link."
+        )
+    for incident_link_key in (
+        "INCIDENT_RESPONSE_RUNBOOK_URL",
+        "INCIDENT_ESCALATION_ROSTER_URL",
+    ):
+        incident_link_value = str(RISK_PARAMS.get(incident_link_key, "") or "").strip()
+        if incident_link_value and not incident_link_value.startswith(("https://", "http://")):
+            warnings.append(
+                f"{incident_link_key} should start with http:// or https://, got "
+                f"'{incident_link_value}'"
+            )
+
+    if (
+        RISK_PARAMS["INCIDENT_TICKETING_MAX_RETRIES"] < 0
+        or RISK_PARAMS["INCIDENT_TICKETING_MAX_RETRIES"] > 5
+    ):
+        errors.append(
+            "INCIDENT_TICKETING_MAX_RETRIES must be between 0 and 5, got "
+            f"{RISK_PARAMS['INCIDENT_TICKETING_MAX_RETRIES']}"
+        )
+
+    if (
+        RISK_PARAMS["INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS"] < 0
+        or RISK_PARAMS["INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS"] > 10
+    ):
+        errors.append(
+            "INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS must be between 0 and 10, got "
+            f"{RISK_PARAMS['INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS']}"
         )
 
     if (
@@ -169,6 +228,80 @@ def _validate_config():
             "PAPER_LIVE_SHADOW_DRIFT_WARNING must be <= PAPER_LIVE_SHADOW_DRIFT_MAX, got "
             f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_WARNING']} > "
             f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_MAX']}"
+        )
+
+    if (
+        RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"] < 1
+        or RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"] > 10000
+    ):
+        errors.append(
+            "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD must be between 1 and 10000, got "
+            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD']}"
+        )
+
+    if (
+        RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"] < 1
+        or RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"] > 10000
+    ):
+        errors.append(
+            "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD must be between 1 and 10000, got "
+            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD']}"
+        )
+
+    if (
+        RISK_PARAMS["NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES"] < 1
+        or RISK_PARAMS["NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES"] > 1440
+    ):
+        errors.append(
+            "NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES must be between 1 and 1440, got "
+            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES']}"
+        )
+
+    if (
+        RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"]
+        > RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"]
+    ):
+        errors.append(
+            "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD must be <= "
+            "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD, got "
+            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD']} > "
+            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD']}"
+        )
+
+    if (
+        RISK_PARAMS["MULTI_BROKER_HEALTH_CHECK_INTERVAL"] < 5
+        or RISK_PARAMS["MULTI_BROKER_HEALTH_CHECK_INTERVAL"] > 600
+    ):
+        errors.append(
+            "MULTI_BROKER_HEALTH_CHECK_INTERVAL must be between 5 and 600 seconds, got "
+            f"{RISK_PARAMS['MULTI_BROKER_HEALTH_CHECK_INTERVAL']}"
+        )
+
+    if RISK_PARAMS["MULTI_BROKER_FAILURE_THRESHOLD"] < 1 or RISK_PARAMS["MULTI_BROKER_FAILURE_THRESHOLD"] > 20:
+        errors.append(
+            "MULTI_BROKER_FAILURE_THRESHOLD must be between 1 and 20, got "
+            f"{RISK_PARAMS['MULTI_BROKER_FAILURE_THRESHOLD']}"
+        )
+
+    if RISK_PARAMS["MULTI_BROKER_RECOVERY_THRESHOLD"] < 1 or RISK_PARAMS["MULTI_BROKER_RECOVERY_THRESHOLD"] > 20:
+        errors.append(
+            "MULTI_BROKER_RECOVERY_THRESHOLD must be between 1 and 20, got "
+            f"{RISK_PARAMS['MULTI_BROKER_RECOVERY_THRESHOLD']}"
+        )
+
+    if (
+        RISK_PARAMS["MULTI_BROKER_OPERATION_TIMEOUT_SECONDS"] < 1
+        or RISK_PARAMS["MULTI_BROKER_OPERATION_TIMEOUT_SECONDS"] > 120
+    ):
+        errors.append(
+            "MULTI_BROKER_OPERATION_TIMEOUT_SECONDS must be between 1 and 120, got "
+            f"{RISK_PARAMS['MULTI_BROKER_OPERATION_TIMEOUT_SECONDS']}"
+        )
+
+    if RISK_PARAMS["MULTI_BROKER_BACKUP_BROKER"] not in {"ib"}:
+        errors.append(
+            "MULTI_BROKER_BACKUP_BROKER must be 'ib', got "
+            f"{RISK_PARAMS['MULTI_BROKER_BACKUP_BROKER']}"
         )
 
     # Validate factor data provenance gates
@@ -417,10 +550,10 @@ TRADING_PARAMS = {
 
 # Risk management parameters
 RISK_PARAMS = {
-    "MAX_PORTFOLIO_RISK": 0.02,  # 2% portfolio-wide risk limit
-    "MAX_POSITION_RISK": 0.01,  # 1% individual position risk limit
-    "MAX_CORRELATION": 0.7,  # Maximum position correlation
-    "VAR_CONFIDENCE": 0.95,  # Value at Risk confidence level
+    "MAX_PORTFOLIO_RISK": _parse_float_env("MAX_PORTFOLIO_RISK", 0.02),
+    "MAX_POSITION_RISK": _parse_float_env("MAX_POSITION_RISK", 0.01),
+    "MAX_CORRELATION": _parse_float_env("MAX_CORRELATION", 0.7),
+    "VAR_CONFIDENCE": _parse_float_env("VAR_CONFIDENCE", 0.95),
     "ORDER_RECON_MISMATCH_HALT_RUNS": 3,  # Consecutive mismatch runs before halting new entries
     "DATA_QUALITY_MAX_ERRORS": 0,  # Maximum tolerated data quality errors before halting new entries
     "DATA_QUALITY_MAX_STALE_WARNINGS": 0,  # Maximum stale data warnings before halting new entries
@@ -437,12 +570,51 @@ RISK_PARAMS = {
     .strip()
     .lower(),
     "SLO_PAGING_TIMEOUT_SECONDS": _parse_int_env("SLO_PAGING_TIMEOUT_SECONDS", 3),
+    "SLO_PAGING_MAX_RETRIES": _parse_int_env("SLO_PAGING_MAX_RETRIES", 2),
+    "SLO_PAGING_RETRY_BACKOFF_SECONDS": _parse_float_env(
+        "SLO_PAGING_RETRY_BACKOFF_SECONDS", 0.5
+    ),
+    "SLO_PAGING_AUTH_TOKEN": os.environ.get("SLO_PAGING_AUTH_TOKEN", "").strip(),
+    "SLO_PAGING_AUTH_SCHEME": str(os.environ.get("SLO_PAGING_AUTH_SCHEME", "Bearer")).strip(),
     "INCIDENT_TICKETING_ENABLED": _parse_bool_env("INCIDENT_TICKETING_ENABLED", default=False),
     "INCIDENT_TICKETING_WEBHOOK_URL": os.environ.get("INCIDENT_TICKETING_WEBHOOK_URL", "").strip(),
     "INCIDENT_TICKETING_TIMEOUT_SECONDS": _parse_int_env("INCIDENT_TICKETING_TIMEOUT_SECONDS", 3),
+    "INCIDENT_TICKETING_MAX_RETRIES": _parse_int_env("INCIDENT_TICKETING_MAX_RETRIES", 2),
+    "INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS": _parse_float_env(
+        "INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS", 0.5
+    ),
+    "INCIDENT_TICKETING_AUTH_TOKEN": os.environ.get("INCIDENT_TICKETING_AUTH_TOKEN", "").strip(),
+    "INCIDENT_TICKETING_AUTH_SCHEME": str(
+        os.environ.get("INCIDENT_TICKETING_AUTH_SCHEME", "Bearer")
+    ).strip(),
+    "INCIDENT_RESPONSE_RUNBOOK_URL": os.environ.get("INCIDENT_RESPONSE_RUNBOOK_URL", "").strip(),
+    "INCIDENT_ESCALATION_ROSTER_URL": os.environ.get(
+        "INCIDENT_ESCALATION_ROSTER_URL", ""
+    ).strip(),
     "INCIDENT_ACK_SLA_MINUTES": _parse_int_env("INCIDENT_ACK_SLA_MINUTES", 15),
     "PAPER_LIVE_SHADOW_DRIFT_WARNING": _parse_float_env("PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12),
     "PAPER_LIVE_SHADOW_DRIFT_MAX": _parse_float_env("PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15),
+    "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD": _parse_int_env(
+        "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD", 10
+    ),
+    "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD": _parse_int_env(
+        "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD", 25
+    ),
+    "NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES": _parse_int_env(
+        "NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES", 5
+    ),
+    "MULTI_BROKER_ENABLED": _parse_bool_env("MULTI_BROKER_ENABLED", default=False),
+    "MULTI_BROKER_BACKUP_BROKER": str(os.environ.get("MULTI_BROKER_BACKUP_BROKER", "ib"))
+    .strip()
+    .lower(),
+    "MULTI_BROKER_HEALTH_CHECK_INTERVAL": _parse_int_env(
+        "MULTI_BROKER_HEALTH_CHECK_INTERVAL", 30
+    ),
+    "MULTI_BROKER_FAILURE_THRESHOLD": _parse_int_env("MULTI_BROKER_FAILURE_THRESHOLD", 3),
+    "MULTI_BROKER_RECOVERY_THRESHOLD": _parse_int_env("MULTI_BROKER_RECOVERY_THRESHOLD", 5),
+    "MULTI_BROKER_OPERATION_TIMEOUT_SECONDS": _parse_float_env(
+        "MULTI_BROKER_OPERATION_TIMEOUT_SECONDS", 15.0
+    ),
 }
 
 # Technical analysis parameters

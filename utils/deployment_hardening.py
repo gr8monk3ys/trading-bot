@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from utils.runtime_state import RuntimeStateStore
+from utils.secrets_audit import run_secrets_audit
 
 
 @dataclass
@@ -21,6 +22,7 @@ class DeploymentCheck:
     passed: bool
     message: str
     severity: str = "critical"  # critical | warning
+    details: dict | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -28,6 +30,7 @@ class DeploymentCheck:
             "passed": self.passed,
             "message": self.message,
             "severity": self.severity,
+            "details": self.details or {},
         }
 
 
@@ -53,6 +56,9 @@ def run_deployment_preflight(
     required_env_vars: Optional[List[str]] = None,
     run_rollback_drill: bool = False,
     rollback_drill_workdir: str | Path | None = None,
+    run_secrets_audit_check: bool = False,
+    secrets_inventory_path: str | Path = "docs/SECRETS_ROTATION_INVENTORY.json",
+    secrets_default_max_age_days: int = 90,
 ) -> dict:
     """
     Run deployment hardening checks.
@@ -88,6 +94,55 @@ def run_deployment_preflight(
                 ),
             )
         )
+        has_ownership_link = "INCIDENT_RESPONSE_OWNERSHIP.md" in runbook_text
+        checks.append(
+            DeploymentCheck(
+                name="runbook_links_incident_ownership",
+                passed=has_ownership_link,
+                message=(
+                    "Runbook links incident ownership document"
+                    if has_ownership_link
+                    else "Runbook missing link to INCIDENT_RESPONSE_OWNERSHIP.md"
+                ),
+            )
+        )
+        has_escalation_link = "INCIDENT_ESCALATION_ROSTER.md" in runbook_text
+        checks.append(
+            DeploymentCheck(
+                name="runbook_links_escalation_roster",
+                passed=has_escalation_link,
+                message=(
+                    "Runbook links escalation roster document"
+                    if has_escalation_link
+                    else "Runbook missing link to INCIDENT_ESCALATION_ROSTER.md"
+                ),
+            )
+        )
+
+    ownership_doc = root / "docs" / "INCIDENT_RESPONSE_OWNERSHIP.md"
+    checks.append(
+        DeploymentCheck(
+            name="incident_ownership_doc_present",
+            passed=ownership_doc.exists(),
+            message=(
+                "Incident ownership document found"
+                if ownership_doc.exists()
+                else f"Missing incident ownership document: {ownership_doc}"
+            ),
+        )
+    )
+    escalation_doc = root / "docs" / "INCIDENT_ESCALATION_ROSTER.md"
+    checks.append(
+        DeploymentCheck(
+            name="incident_escalation_roster_present",
+            passed=escalation_doc.exists(),
+            message=(
+                "Incident escalation roster document found"
+                if escalation_doc.exists()
+                else f"Missing incident escalation roster document: {escalation_doc}"
+            ),
+        )
+    )
 
     rollback_script = root / "scripts" / "rollback_drill.py"
     checks.append(
@@ -99,6 +154,108 @@ def run_deployment_preflight(
                 "Rollback drill script found"
                 if rollback_script.exists()
                 else f"Missing rollback drill script: {rollback_script}"
+            ),
+        )
+    )
+
+    checks.append(
+        DeploymentCheck(
+            name="canary_rollout_script_present",
+            passed=(root / "scripts" / "deploy_canary.py").exists(),
+            severity="warning",
+            message=(
+                "Canary rollout automation script found"
+                if (root / "scripts" / "deploy_canary.py").exists()
+                else "Missing canary rollout automation script: scripts/deploy_canary.py"
+            ),
+        )
+    )
+    checks.append(
+        DeploymentCheck(
+            name="secrets_audit_script_present",
+            passed=(root / "scripts" / "secrets_audit.py").exists(),
+            severity="warning",
+            message=(
+                "Secrets audit script found"
+                if (root / "scripts" / "secrets_audit.py").exists()
+                else "Missing secrets audit script: scripts/secrets_audit.py"
+            ),
+        )
+    )
+    checks.append(
+        DeploymentCheck(
+            name="governance_gate_script_present",
+            passed=(root / "scripts" / "governance_gate.py").exists(),
+            severity="warning",
+            message=(
+                "Governance gate script found"
+                if (root / "scripts" / "governance_gate.py").exists()
+                else "Missing governance gate script: scripts/governance_gate.py"
+            ),
+        )
+    )
+    checks.append(
+        DeploymentCheck(
+            name="ops_metrics_export_script_present",
+            passed=(root / "scripts" / "export_ops_metrics.py").exists(),
+            severity="warning",
+            message=(
+                "Ops metrics exporter script found"
+                if (root / "scripts" / "export_ops_metrics.py").exists()
+                else "Missing ops metrics exporter script: scripts/export_ops_metrics.py"
+            ),
+        )
+    )
+    checks.append(
+        DeploymentCheck(
+            name="ops_metrics_push_script_present",
+            passed=(root / "scripts" / "push_ops_metrics.py").exists(),
+            severity="warning",
+            message=(
+                "Ops metrics push script found"
+                if (root / "scripts" / "push_ops_metrics.py").exists()
+                else "Missing ops metrics push script: scripts/push_ops_metrics.py"
+            ),
+        )
+    )
+    checks.append(
+        DeploymentCheck(
+            name="incident_response_automation_script_present",
+            passed=(root / "scripts" / "incident_response_automation.py").exists(),
+            severity="warning",
+            message=(
+                "Incident response automation script found"
+                if (root / "scripts" / "incident_response_automation.py").exists()
+                else (
+                    "Missing incident response automation script: "
+                    "scripts/incident_response_automation.py"
+                )
+            ),
+        )
+    )
+
+    iac_required = [
+        root / "infra" / "README.md",
+        root / "infra" / "systemd" / "trading-bot.service",
+        root / "infra" / "systemd" / "trading-bot-watchdog.service",
+        root / "infra" / "systemd" / "trading-bot-watchdog.timer",
+        root / "infra" / "systemd" / "trading-bot-runtime-gate.service",
+        root / "infra" / "systemd" / "trading-bot-runtime-gate.timer",
+        root / "infra" / "systemd" / "trading-bot-ops-metrics.service",
+        root / "infra" / "systemd" / "trading-bot-ops-metrics.timer",
+        root / "infra" / "systemd" / "trading-bot-incident-automation.service",
+        root / "infra" / "systemd" / "trading-bot-incident-automation.timer",
+    ]
+    missing_iac = [str(path) for path in iac_required if not path.exists()]
+    checks.append(
+        DeploymentCheck(
+            name="infra_as_code_manifests_present",
+            passed=len(missing_iac) == 0,
+            severity="warning",
+            message=(
+                "Infrastructure-as-code manifests found"
+                if not missing_iac
+                else f"Missing IaC manifests: {', '.join(missing_iac)}"
             ),
         )
     )
@@ -172,6 +329,25 @@ def run_deployment_preflight(
                 name="runtime_rollback_drill",
                 passed=bool(drill.get("passed")),
                 message=str(drill.get("message", "rollback drill completed")),
+            )
+        )
+
+    if run_secrets_audit_check:
+        secrets_report = run_secrets_audit(
+            repo_root=root,
+            inventory_path=secrets_inventory_path,
+            default_max_age_days=max(1, int(secrets_default_max_age_days)),
+        )
+        checks.append(
+            DeploymentCheck(
+                name="secrets_audit",
+                passed=bool(secrets_report.get("ready")),
+                message=(
+                    "Secrets audit passed"
+                    if bool(secrets_report.get("ready"))
+                    else "Secrets audit failed"
+                ),
+                details={"report": secrets_report},
             )
         )
 

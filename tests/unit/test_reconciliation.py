@@ -9,6 +9,7 @@ These tests verify that:
 5. ReconciliationError is raised when configured
 """
 
+import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -140,6 +141,41 @@ class TestPositionReconciler:
         assert len(result.mismatches) == 1
         assert result.mismatches[0].symbol == "AAPL"
         assert result.mismatches[0].mismatch_type == "quantity"
+
+    async def test_reconcile_mismatch_logs_warning_when_auto_sync_enabled(
+        self,
+        mock_broker,
+        mock_tracker,
+        caplog,
+    ):
+        """Auto-sync mode should report drift as warning severity."""
+        from utils.reconciliation import PositionReconciler
+
+        mock_position = MagicMock()
+        mock_position.symbol = "AAPL"
+        mock_position.qty = "100"
+        mock_position.avg_entry_price = "150.00"
+        mock_broker.get_positions = AsyncMock(return_value=[mock_position])
+
+        internal_pos = MagicMock()
+        internal_pos.symbol = "AAPL"
+        internal_pos.qty = "90"
+        mock_tracker.get_positions = MagicMock(return_value=[internal_pos])
+        mock_tracker.sync_positions = MagicMock()
+
+        caplog.set_level(logging.WARNING, logger="utils.reconciliation")
+        reconciler = PositionReconciler(
+            broker=mock_broker,
+            internal_tracker=mock_tracker,
+            halt_on_mismatch=False,
+            sync_to_broker=True,
+        )
+
+        result = await reconciler.reconcile()
+
+        assert result.positions_match is False
+        assert "RECONCILIATION DRIFT DETECTED" in caplog.text
+        assert "RECONCILIATION FAILED" not in caplog.text
 
     async def test_reconcile_detects_missing_internal(self, mock_broker, mock_tracker):
         """Reconciliation should detect positions missing from internal tracker."""
@@ -339,6 +375,50 @@ class TestPositionReconciler:
         assert len(lines) == 1
         assert '"event_type":"position_reconciliation_snapshot"' in lines[0]
         assert '"run_id":"test_run"' in lines[0]
+
+    async def test_reconcile_respects_symbol_scope(self, mock_broker, mock_tracker):
+        """Reconciliation should ignore positions outside the configured scope."""
+        from utils.reconciliation import PositionReconciler
+
+        mock_broker.get_positions = AsyncMock(
+            return_value=[
+                MagicMock(symbol="AAPL", qty="100", avg_entry_price="150.0"),
+                MagicMock(symbol="BTCUSD", qty="0.5", avg_entry_price="68000.0"),
+            ]
+        )
+        mock_tracker.get_positions = MagicMock(return_value=[MagicMock(symbol="AAPL", qty="100")])
+
+        reconciler = PositionReconciler(
+            broker=mock_broker,
+            internal_tracker=mock_tracker,
+            halt_on_mismatch=False,
+            symbol_scope=["AAPL"],
+        )
+
+        result = await reconciler.reconcile()
+        assert result.positions_match is True
+        assert set(result.broker_positions.keys()) == {"AAPL"}
+
+    async def test_reconcile_scope_normalizes_crypto_symbols(self, mock_broker, mock_tracker):
+        """Scope matching should treat BTC/USD and BTCUSD as the same symbol."""
+        from utils.reconciliation import PositionReconciler
+
+        mock_broker.get_positions = AsyncMock(
+            return_value=[MagicMock(symbol="BTCUSD", qty="0.5", avg_entry_price="68000.0")]
+        )
+        mock_tracker.get_positions = MagicMock(return_value=[MagicMock(symbol="BTC/USD", qty="0.5")])
+
+        reconciler = PositionReconciler(
+            broker=mock_broker,
+            internal_tracker=mock_tracker,
+            halt_on_mismatch=False,
+            symbol_scope=["BTC/USD"],
+        )
+
+        result = await reconciler.reconcile()
+        assert result.positions_match is True
+        assert set(result.broker_positions.keys()) == {"BTCUSD"}
+        assert set(result.internal_positions.keys()) == {"BTCUSD"}
 
 
 class TestRunNightlyReconciliation:

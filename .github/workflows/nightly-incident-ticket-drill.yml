@@ -1,0 +1,334 @@
+name: Nightly Incident Ticket Drill
+
+on:
+  schedule:
+    # Weekdays at 07:15 UTC (after pre-market prep windows, before US regular session)
+    - cron: "15 7 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      webhook_url:
+        description: "Optional override webhook URL (defaults to repo secret)"
+        required: false
+        type: string
+      require_delivery:
+        description: "Fail workflow if webhook delivery does not succeed"
+        required: true
+        default: true
+        type: boolean
+      send_test_email_only:
+        description: "Send test email webhook payload only (skip drill/replay path)"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  staging-ticket-drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        run: uv python install 3.10
+
+      - name: Install dependencies
+        run: uv sync --group dev --group test
+
+      - name: Send test email webhook payload
+        if: github.event_name == 'workflow_dispatch' && inputs.send_test_email_only == true
+        env:
+          EMAIL_WEBHOOK_URL: ${{ secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_URL }}
+          EMAIL_WEBHOOK_AUTH_TOKEN: ${{ secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_AUTH_TOKEN }}
+          EMAIL_WEBHOOK_AUTH_SCHEME: ${{ secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_AUTH_SCHEME }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          WORKFLOW: ${{ github.workflow }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EMAIL_WEBHOOK_URL:-}" ]; then
+            echo "::error::send_test_email_only=true requires INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_URL secret."
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          import os
+          from urllib import request
+
+          run_url = f"https://github.com/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}"
+          payload = {
+              "event_type": "nightly_incident_ticket_drill_email_test",
+              "severity": "info",
+              "subject": (
+                  f"[TEST] Nightly Incident Ticket Drill Email Webhook - "
+                  f"{os.environ['REPOSITORY']} #{os.environ['RUN_ID']}"
+              ),
+              "body": {
+                  "summary": "This is a test payload from workflow_dispatch send_test_email_only mode.",
+                  "workflow": os.environ["WORKFLOW"],
+                  "repository": os.environ["REPOSITORY"],
+                  "branch": os.environ["REF_NAME"],
+                  "commit": os.environ["SHA"],
+                  "run_url": run_url,
+              },
+          }
+          headers = {
+              "Content-Type": "application/json",
+              "User-Agent": "trading-bot-nightly-drill/1.0",
+          }
+          auth_token = str(os.environ.get("EMAIL_WEBHOOK_AUTH_TOKEN", "") or "").strip()
+          auth_scheme = str(os.environ.get("EMAIL_WEBHOOK_AUTH_SCHEME", "Bearer") or "").strip()
+          if auth_token:
+              headers["Authorization"] = (
+                  f"{auth_scheme} {auth_token}" if auth_scheme else auth_token
+              )
+
+          req = request.Request(
+              os.environ["EMAIL_WEBHOOK_URL"],
+              data=json.dumps(payload).encode("utf-8"),
+              headers=headers,
+              method="POST",
+          )
+          with request.urlopen(req, timeout=10) as resp:
+              status = int(getattr(resp, "status", 200) or 200)
+              if status >= 400:
+                  raise RuntimeError(f"email webhook returned HTTP {status}")
+          print("test_email_webhook_sent")
+          PY
+
+      - name: Resolve webhook configuration
+        if: github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true
+        env:
+          INPUT_WEBHOOK_URL: ${{ inputs.webhook_url }}
+          SECRET_WEBHOOK_URL: ${{ secrets.INCIDENT_TICKETING_WEBHOOK_URL_STAGING }}
+          INPUT_REQUIRE_DELIVERY: ${{ inputs.require_delivery }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          WEBHOOK_URL="${INPUT_WEBHOOK_URL:-}"
+          if [ -z "${WEBHOOK_URL}" ]; then
+            WEBHOOK_URL="${SECRET_WEBHOOK_URL:-}"
+          fi
+
+          if [ -z "${WEBHOOK_URL}" ]; then
+            echo "::error::Missing staging incident ticket webhook. Set workflow input webhook_url or repository secret INCIDENT_TICKETING_WEBHOOK_URL_STAGING."
+            exit 1
+          fi
+
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            case "${INPUT_REQUIRE_DELIVERY}" in
+              true|false) REQUIRE_DELIVERY="${INPUT_REQUIRE_DELIVERY}" ;;
+              *) REQUIRE_DELIVERY="true" ;;
+            esac
+          else
+            REQUIRE_DELIVERY="true"
+          fi
+
+          {
+            echo "DRILL_WEBHOOK_URL=${WEBHOOK_URL}"
+            echo "DRILL_REQUIRE_DELIVERY=${REQUIRE_DELIVERY}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Run staging incident ticket drill
+        if: github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true
+        env:
+          DRILL_WEBHOOK_URL: ${{ env.DRILL_WEBHOOK_URL }}
+          DRILL_REQUIRE_DELIVERY: ${{ env.DRILL_REQUIRE_DELIVERY }}
+          DRILL_AUTH_TOKEN: ${{ secrets.INCIDENT_TICKETING_AUTH_TOKEN_STAGING }}
+          DRILL_AUTH_SCHEME: ${{ secrets.INCIDENT_TICKETING_AUTH_SCHEME_STAGING }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p results/validation
+
+          runbook_url="https://github.com/${REPOSITORY}/blob/${REF_NAME}/docs/OPERATIONS_RUNBOOK.md"
+          escalation_roster_url="https://github.com/${REPOSITORY}/blob/${REF_NAME}/docs/INCIDENT_ESCALATION_ROSTER.md"
+
+          cmd=(
+            uv run python scripts/staging_incident_ticket_drill.py
+            --webhook-url "${DRILL_WEBHOOK_URL}"
+            --artifact-dir "results/validation"
+            --output "results/validation/incident_ticket_drill_report.json"
+            --source "github_actions.nightly_incident_ticket_drill"
+            --auth-token "${DRILL_AUTH_TOKEN:-}"
+            --auth-scheme "${DRILL_AUTH_SCHEME:-Bearer}"
+            --runbook-url "${runbook_url}"
+            --escalation-roster-url "${escalation_roster_url}"
+            --require-non-test-target
+          )
+
+          if [ "${DRILL_REQUIRE_DELIVERY}" = "true" ]; then
+            cmd+=(--require-delivery)
+          fi
+
+          "${cmd[@]}"
+
+      - name: Verify evidence artifact
+        if: github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true
+        run: |
+          set -euo pipefail
+          test -f results/validation/incident_ticket_drill_report.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path("results/validation/incident_ticket_drill_report.json").read_text())
+          assert report.get("delivery", {}).get("attempted") is True
+          if report.get("require_delivery"):
+              assert report.get("delivery", {}).get("succeeded") is True
+          assert report.get("passed") is True
+          PY
+
+      - name: Validate non-test drill evidence gate
+        if: github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true
+        run: |
+          set -euo pipefail
+          uv run python scripts/validate_incident_ticket_drill_evidence.py \
+            --report-path results/validation/incident_ticket_drill_report.json \
+            --max-age-hours 72 \
+            --require-delivery \
+            --require-non-test-target \
+            --require-response-links \
+            --output results/validation/incident_ticket_drill_evidence_gate.json
+
+      - name: Resolve dead-letter artifact path
+        if: github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import os
+
+          report = json.loads(Path("results/validation/incident_ticket_drill_report.json").read_text())
+          dead_letter_path = report.get("artifacts", {}).get("dead_letters_path")
+          if not dead_letter_path:
+              raise SystemExit("Missing artifacts.dead_letters_path in incident ticket drill report")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+              handle.write(f"DRILL_DEAD_LETTER_PATH={dead_letter_path}\n")
+          PY
+
+      - name: Replay dead letters and enforce zero backlog
+        if: github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true
+        env:
+          DRILL_DEAD_LETTER_PATH: ${{ env.DRILL_DEAD_LETTER_PATH }}
+          INCIDENT_TICKETING_ENABLED: "True"
+          INCIDENT_TICKETING_WEBHOOK_URL: ${{ env.DRILL_WEBHOOK_URL }}
+          INCIDENT_TICKETING_AUTH_TOKEN: ${{ secrets.INCIDENT_TICKETING_AUTH_TOKEN_STAGING }}
+          INCIDENT_TICKETING_AUTH_SCHEME: ${{ secrets.INCIDENT_TICKETING_AUTH_SCHEME_STAGING }}
+          INCIDENT_TICKETING_TIMEOUT_SECONDS: "3"
+          INCIDENT_TICKETING_MAX_RETRIES: "2"
+          INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS: "0.5"
+        run: |
+          set -euo pipefail
+          uv run python scripts/replay_notification_dead_letters.py \
+            --dead-letter-path "${DRILL_DEAD_LETTER_PATH}" \
+            --in-place \
+            --output "results/validation/incident_ticket_dead_letter_replay_report.json" \
+            --source "github_actions.nightly_incident_ticket_dead_letter_replay"
+
+      - name: Upload drill artifacts
+        if: always() && (github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true)
+        uses: actions/upload-artifact@v6
+        with:
+          name: nightly-incident-ticket-drill-${{ github.run_id }}
+          path: results/validation/
+          retention-days: 30
+
+      - name: Send failure email webhook
+        if: failure() && (github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true) && secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_URL != ''
+        continue-on-error: true
+        env:
+          EMAIL_WEBHOOK_URL: ${{ secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_URL }}
+          EMAIL_WEBHOOK_AUTH_TOKEN: ${{ secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_AUTH_TOKEN }}
+          EMAIL_WEBHOOK_AUTH_SCHEME: ${{ secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_AUTH_SCHEME }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          WORKFLOW: ${{ github.workflow }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          run_url="https://github.com/${REPOSITORY}/actions/runs/${RUN_ID}"
+          artifacts_url="${run_url}/artifacts"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib import request
+
+          run_url = f"https://github.com/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}"
+          artifacts_url = f"{run_url}/artifacts"
+          drill_report_path = Path("results/validation/incident_ticket_drill_report.json")
+          replay_report_path = Path("results/validation/incident_ticket_dead_letter_replay_report.json")
+
+          drill_report = {}
+          replay_report = {}
+          if drill_report_path.exists():
+              drill_report = json.loads(drill_report_path.read_text(encoding="utf-8"))
+          if replay_report_path.exists():
+              replay_report = json.loads(replay_report_path.read_text(encoding="utf-8"))
+
+          subject = (
+              f"[ALERT] Nightly Incident Ticket Drill Failed - {os.environ['REPOSITORY']} "
+              f"#{os.environ['RUN_ID']}"
+          )
+          body = {
+              "summary": "Nightly incident ticket drill or dead-letter replay failed.",
+              "workflow": os.environ["WORKFLOW"],
+              "repository": os.environ["REPOSITORY"],
+              "branch": os.environ["REF_NAME"],
+              "commit": os.environ["SHA"],
+              "run_url": run_url,
+              "artifacts_url": artifacts_url,
+              "drill_report": drill_report,
+              "replay_report": replay_report,
+          }
+
+          payload = {
+              "event_type": "nightly_incident_ticket_drill_failure",
+              "severity": "critical",
+              "subject": subject,
+              "body": body,
+          }
+
+          headers = {
+              "Content-Type": "application/json",
+              "User-Agent": "trading-bot-nightly-drill/1.0",
+          }
+          auth_token = str(os.environ.get("EMAIL_WEBHOOK_AUTH_TOKEN", "") or "").strip()
+          auth_scheme = str(os.environ.get("EMAIL_WEBHOOK_AUTH_SCHEME", "Bearer") or "").strip()
+          if auth_token:
+              headers["Authorization"] = (
+                  f"{auth_scheme} {auth_token}" if auth_scheme else auth_token
+              )
+
+          req = request.Request(
+              os.environ["EMAIL_WEBHOOK_URL"],
+              data=json.dumps(payload).encode("utf-8"),
+              headers=headers,
+              method="POST",
+          )
+          with request.urlopen(req, timeout=10) as resp:
+              status = int(getattr(resp, "status", 200) or 200)
+              if status >= 400:
+                  raise RuntimeError(f"email webhook returned HTTP {status}")
+          PY
+
+      - name: Email webhook not configured
+        if: failure() && (github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true) && secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_URL == ''
+        run: |
+          echo "::warning::Nightly drill failed but INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_URL is not configured; no email webhook sent."

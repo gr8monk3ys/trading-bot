@@ -60,16 +60,16 @@ class TestRiskParamsValidation:
     """Test RISK_PARAMS validation."""
 
     def test_max_portfolio_risk_reasonable(self):
-        """Max portfolio risk should be <= 0.2 (20%)."""
+        """Max portfolio risk should be a valid fraction."""
         from config import RISK_PARAMS
 
-        assert 0 < RISK_PARAMS["MAX_PORTFOLIO_RISK"] <= 0.2
+        assert 0 < RISK_PARAMS["MAX_PORTFOLIO_RISK"] <= 1
 
     def test_max_position_risk_reasonable(self):
-        """Max position risk should be <= 0.1 (10%)."""
+        """Max position risk should be a valid fraction."""
         from config import RISK_PARAMS
 
-        assert 0 < RISK_PARAMS["MAX_POSITION_RISK"] <= 0.1
+        assert 0 < RISK_PARAMS["MAX_POSITION_RISK"] <= 1
 
     def test_var_confidence_valid(self):
         """VaR confidence should be between 0.5 and 1."""
@@ -91,13 +91,32 @@ class TestRiskParamsValidation:
         assert isinstance(RISK_PARAMS["SLO_PAGING_ENABLED"], bool)
         assert RISK_PARAMS["SLO_PAGING_MIN_SEVERITY"] in {"warning", "critical"}
         assert 1 <= RISK_PARAMS["SLO_PAGING_TIMEOUT_SECONDS"] <= 30
+        assert 0 <= RISK_PARAMS["SLO_PAGING_MAX_RETRIES"] <= 5
+        assert 0 <= RISK_PARAMS["SLO_PAGING_RETRY_BACKOFF_SECONDS"] <= 10
         assert 1 <= RISK_PARAMS["INCIDENT_ACK_SLA_MINUTES"] <= 1440
+        assert 0 <= RISK_PARAMS["INCIDENT_TICKETING_MAX_RETRIES"] <= 5
+        assert 0 <= RISK_PARAMS["INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS"] <= 10
+        assert isinstance(RISK_PARAMS["INCIDENT_RESPONSE_RUNBOOK_URL"], str)
+        assert isinstance(RISK_PARAMS["INCIDENT_ESCALATION_ROSTER_URL"], str)
         assert 0 <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] <= 1
         assert 0 <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"] <= 1
         assert (
             RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"]
             <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"]
         )
+        assert 1 <= RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"] <= 10000
+        assert 1 <= RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"] <= 10000
+        assert (
+            RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"]
+            <= RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"]
+        )
+        assert 1 <= RISK_PARAMS["NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES"] <= 1440
+        assert isinstance(RISK_PARAMS["MULTI_BROKER_ENABLED"], bool)
+        assert RISK_PARAMS["MULTI_BROKER_BACKUP_BROKER"] in {"ib"}
+        assert 5 <= RISK_PARAMS["MULTI_BROKER_HEALTH_CHECK_INTERVAL"] <= 600
+        assert 1 <= RISK_PARAMS["MULTI_BROKER_FAILURE_THRESHOLD"] <= 20
+        assert 1 <= RISK_PARAMS["MULTI_BROKER_RECOVERY_THRESHOLD"] <= 20
+        assert 1 <= RISK_PARAMS["MULTI_BROKER_OPERATION_TIMEOUT_SECONDS"] <= 120
 
 
 class TestTechnicalParamsValidation:

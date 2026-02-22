@@ -15,8 +15,39 @@ def _registry_paths(tmp_path: Path):
     }
 
 
+def _incident_docs(tmp_path: Path) -> dict[str, str]:
+    ownership = tmp_path / "INCIDENT_RESPONSE_OWNERSHIP.md"
+    escalation = tmp_path / "INCIDENT_ESCALATION_ROSTER.md"
+    ownership.write_text(
+        "\n".join(
+            [
+                "# Incident Response Ownership",
+                "- Service owner (role/team): `Trading Team`",
+                "- Technical owner (role/team): `Trading Platform`",
+                "- Operations owner (role/team): `Ops`",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    escalation.write_text(
+        "\n".join(
+            [
+                "# Incident Escalation Roster",
+                "- Pager policy URL: `https://pager.example.internal/trading`",
+                "- Chat war-room URL: `https://chat.example.internal/trading-incidents`",
+                "- Ticket queue URL: `https://tickets.example.internal/queue/trading`",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return {"ownership": str(ownership), "escalation": str(escalation)}
+
+
 def test_promotion_gate_fails_when_not_ready(tmp_path):
     paths = _registry_paths(tmp_path)
+    docs = _incident_docs(tmp_path)
     registry = ResearchRegistry(**paths)
     exp_id = registry.create_experiment(
         name="gate_fail",
@@ -38,6 +69,10 @@ def test_promotion_gate_fails_when_not_ready(tmp_path):
         paths["parameter_registry_path"],
         "--artifacts-path",
         paths["artifacts_path"],
+        "--incident-ownership-doc",
+        docs["ownership"],
+        "--incident-escalation-doc",
+        docs["escalation"],
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     assert proc.returncode == 1
@@ -46,6 +81,7 @@ def test_promotion_gate_fails_when_not_ready(tmp_path):
 
 def test_promotion_gate_passes_when_strict_ready(tmp_path):
     paths = _registry_paths(tmp_path)
+    docs = _incident_docs(tmp_path)
     registry = ResearchRegistry(**paths)
     exp_id = registry.create_experiment(
         name="gate_pass",
@@ -107,14 +143,94 @@ def test_promotion_gate_passes_when_strict_ready(tmp_path):
         paths["artifacts_path"],
         "--output",
         str(output_path),
+        "--incident-ownership-doc",
+        docs["ownership"],
+        "--incident-escalation-doc",
+        docs["escalation"],
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     assert proc.returncode == 0
     assert "Ready: YES" in proc.stdout
     assert "Burn-In Signoff: READY" in proc.stdout
+    assert "Incident Contacts: VALID" in proc.stdout
     assert output_path.exists()
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     burn_in_scorecard = payload.get("burn_in_scorecard")
     assert isinstance(burn_in_scorecard, dict)
     assert burn_in_scorecard["ready_for_signoff"] is True
+
+
+def test_promotion_gate_strict_fails_with_incident_placeholders(tmp_path):
+    paths = _registry_paths(tmp_path)
+    registry = ResearchRegistry(**paths)
+    exp_id = registry.create_experiment(
+        name="gate_contact_fail",
+        description="Should fail incident contact gate",
+        author="test_user",
+        parameters={"lookback": 20},
+    )
+
+    registry.record_backtest_results(exp_id, {"sharpe_ratio": 1.5, "max_drawdown": -0.1})
+    registry.record_validation_results(
+        exp_id,
+        {
+            "in_sample_sharpe": 2.0,
+            "out_of_sample_sharpe": 1.4,
+            "alpha_t_stat": 2.4,
+        },
+    )
+    registry.record_paper_results(
+        exp_id,
+        {
+            "trading_days": 70,
+            "total_trades": 150,
+            "net_return": 0.02,
+            "max_drawdown": -0.10,
+            "reconciliation_pass_rate": 0.999,
+            "operational_error_rate": 0.005,
+            "execution_quality_score": 79.0,
+            "avg_actual_slippage_bps": 15.0,
+            "fill_rate": 0.96,
+            "paper_live_shadow_drift": 0.07,
+            "critical_slo_breaches": 0,
+        },
+    )
+    registry.approve_manual_review(exp_id, "reviewer")
+    registry.store_walk_forward_artifacts(
+        exp_id,
+        {
+            "is_avg_sharpe": 2.0,
+            "oos_avg_sharpe": 1.4,
+            "alpha_t_stat": 2.4,
+            "passes_validation": True,
+        },
+    )
+
+    ownership = tmp_path / "ownership.md"
+    escalation = tmp_path / "escalation.md"
+    ownership.write_text("- owner: `REPLACE_WITH_OWNER_TEAM`\n", encoding="utf-8")
+    escalation.write_text("- pager: `REPLACE_WITH_PAGER_POLICY_URL`\n", encoding="utf-8")
+
+    cmd = [
+        sys.executable,
+        "scripts/strategy_promotion_gate.py",
+        "--experiment-id",
+        exp_id,
+        "--strict",
+        "--registry-path",
+        paths["registry_path"],
+        "--production-path",
+        paths["production_path"],
+        "--parameter-registry-path",
+        paths["parameter_registry_path"],
+        "--artifacts-path",
+        paths["artifacts_path"],
+        "--incident-ownership-doc",
+        str(ownership),
+        "--incident-escalation-doc",
+        str(escalation),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    assert proc.returncode == 1
+    assert "Incident Contacts: INVALID" in proc.stdout

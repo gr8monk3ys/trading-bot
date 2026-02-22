@@ -1,0 +1,11 @@
+[Unit]
+Description=Trading Bot Runtime Industrial Gate Probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gr8monk3ys
+WorkingDirectory=/home/gr8monk3ys/trading-bot
+EnvironmentFile=/home/gr8monk3ys/trading-bot/.env
+ExecStart=/home/gr8monk3ys/trading-bot/.venv/bin/python scripts/runtime_industrial_gate.py --repo-root /home/gr8monk3ys/trading-bot --no-run-chaos-drill --output results/validation/runtime_industrial_gate_systemd.json

@@ -30,12 +30,14 @@ from utils.data_quality import (
     summarize_quality_reports,
     validate_ohlcv_frame,
 )
+from utils.governance_gate import run_governance_gate
 from utils.incident_tracker import IncidentTracker
+from utils.live_broker_factory import create_live_broker, shutdown_live_broker_failover
 from utils.order_reconciliation import OrderReconciler
 from utils.reconciliation import PositionReconciler
 from utils.run_artifacts import JsonlWriter, ensure_run_directory, generate_run_id, write_json
 from utils.simple_symbol_selector import SimpleSymbolSelector
-from utils.slo_alerting import build_slo_alert_notifier
+from utils.slo_alerting import build_incident_ticket_notifier, build_slo_alert_notifier
 from utils.slo_monitor import SLOMonitor
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,35 @@ def configure_logging() -> None:
         ],
     )
     _LOGGING_CONFIGURED = True
+
+
+def _evaluate_live_governance_gate(
+    *,
+    enforce: bool,
+    repo_root: str | Path = ".",
+    mode: str = "live",
+    approval_path: str = "results/governance/live_approval.json",
+    policy_doc_path: str = "docs/COMPLIANCE_GOVERNANCE.md",
+) -> tuple[bool, dict[str, Any]]:
+    """
+    Evaluate live-capital governance controls before real-money startup.
+    """
+    if not enforce:
+        return True, {
+            "ready": True,
+            "skipped": True,
+            "mode": mode,
+            "checks": [],
+            "message": "Governance gate enforcement disabled by runtime flag",
+        }
+
+    report = run_governance_gate(
+        repo_root=repo_root,
+        mode=mode,
+        approval_path=approval_path,
+        policy_doc_path=policy_doc_path,
+    )
+    return bool(report.get("ready")), report
 
 
 async def run_walk_forward_validation(
@@ -365,6 +396,7 @@ async def select_trading_symbols(broker):
 async def run_live(args):
     """Run live trading mode."""
     strategy_manager = None
+    failover_manager = None
     session_run_id = args.run_id or generate_run_id("live")
     session_run_dir = ensure_run_directory(args.artifacts_dir, session_run_id)
     slo_monitor = None
@@ -402,10 +434,42 @@ async def run_live(args):
         else:
             logger.info("Paper trading mode - no real money at risk")
 
-        # Initialize broker
-        broker = AlpacaBroker(paper=paper)
-        await broker.start_websocket()
-        logger.info("Websocket started (trade updates enabled)")
+        if not paper:
+            governance_ready, governance_report = _evaluate_live_governance_gate(
+                enforce=bool(args.enforce_governance_gate),
+                repo_root=".",
+                mode="live",
+                approval_path=args.governance_approval_path,
+                policy_doc_path=args.governance_policy_doc_path,
+            )
+            if not governance_ready:
+                print("\n❌ Compliance governance gate failed. Blocking live-capital startup.")
+                print("Critical blockers:")
+                for check in governance_report.get("checks", []):
+                    if (
+                        str(check.get("severity", "critical")).strip().lower() == "critical"
+                        and not bool(check.get("passed"))
+                    ):
+                        print(f"  - {check.get('name')}: {check.get('message')}")
+                logger.error(
+                    "Governance gate failed for --real startup: %s",
+                    governance_report,
+                )
+                return
+            if governance_report.get("skipped"):
+                logger.warning(
+                    "Governance gate skipped for --real startup via --no-enforce-governance-gate"
+                )
+            else:
+                logger.info("Governance gate passed for live-capital startup")
+
+        # Initialize broker (optional multi-broker failover manager)
+        broker, failover_manager = await create_live_broker(
+            paper=paper,
+            source="main.run_live",
+        )
+        if failover_manager:
+            logger.info("Multi-broker failover manager active")
 
         # Select symbols for trading (dynamic or static)
         trading_symbols = await select_trading_symbols(broker)
@@ -413,6 +477,9 @@ async def run_live(args):
             f"Trading universe: {', '.join(trading_symbols[:10])}"
             + (f" ... and {len(trading_symbols)-10} more" if len(trading_symbols) > 10 else "")
         )
+
+        await broker.start_websocket(trading_symbols)
+        logger.info("Websocket started (trade updates enabled)")
 
         # Initialize circuit breaker (CRITICAL SAFETY FEATURE)
         circuit_breaker = CircuitBreaker(
@@ -469,21 +536,41 @@ async def run_live(args):
             ack_sla_minutes=RISK_PARAMS.get("INCIDENT_ACK_SLA_MINUTES", 15),
         )
         slo_alert_notifier = build_slo_alert_notifier(RISK_PARAMS, source="main.run_live")
+        incident_ticket_notifier = build_incident_ticket_notifier(
+            RISK_PARAMS,
+            source="main.run_live",
+        )
         if slo_alert_notifier:
             logger.info(
                 "SLO paging alerts enabled (severity>=%s)",
                 RISK_PARAMS.get("SLO_PAGING_MIN_SEVERITY", "critical"),
             )
+        if incident_ticket_notifier:
+            logger.info("Incident ticketing enabled for ack-SLA breaches")
         slo_monitor = SLOMonitor(
             audit_log=strategy_manager.audit_log,
             events_path=session_run_dir / "ops_slo_events.jsonl",
+            notification_dead_letter_path=session_run_dir / "notification_dead_letters.jsonl",
             alert_notifier=slo_alert_notifier,
+            incident_ticket_notifier=incident_ticket_notifier,
             incident_tracker=incident_tracker,
             recon_mismatch_halt_runs=RISK_PARAMS.get("ORDER_RECON_MISMATCH_HALT_RUNS", 3),
             max_data_quality_errors=RISK_PARAMS.get("DATA_QUALITY_MAX_ERRORS", 0),
             max_stale_data_warnings=RISK_PARAMS.get("DATA_QUALITY_MAX_STALE_WARNINGS", 0),
             shadow_drift_warning_threshold=RISK_PARAMS.get("PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12),
             shadow_drift_critical_threshold=RISK_PARAMS.get("PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15),
+            notification_dead_letter_warning_threshold=RISK_PARAMS.get(
+                "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD",
+                10,
+            ),
+            notification_dead_letter_critical_threshold=RISK_PARAMS.get(
+                "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD",
+                25,
+            ),
+            notification_dead_letter_persist_minutes=RISK_PARAMS.get(
+                "NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES",
+                5,
+            ),
         )
         quality_symbols = (
             [s.strip() for s in args.symbols.split(",") if s.strip()]
@@ -603,6 +690,12 @@ async def run_live(args):
                         await strategy_manager.save_runtime_state()
                         if slo_monitor:
                             slo_monitor.check_incident_ack_sla()
+                            backlog = (
+                                slo_monitor.get_status_snapshot()
+                                .get("dead_letters", {})
+                                .get("queued", 0)
+                            )
+                            slo_monitor.record_notification_dead_letter_backlog(backlog)
                     if counter % reconciliation_interval == 0:
                         try:
                             await reconciler.reconcile()
@@ -813,6 +906,9 @@ async def run_live(args):
                     "symbols": quality_symbols,
                     "ended_at": datetime.utcnow().isoformat(),
                     "slo_status": slo_monitor.get_status_snapshot() if slo_monitor else {},
+                    "broker_failover_status": (
+                        failover_manager.get_status_summary() if failover_manager else {}
+                    ),
                 },
             )
 
@@ -825,6 +921,7 @@ async def run_live(args):
             data_quality_writer.close()
         if strategy_manager is not None:
             strategy_manager.close()
+        await shutdown_live_broker_failover(failover_manager)
 
 
 async def optimize_parameters(args):
@@ -1207,6 +1304,22 @@ def main():
     # Live trading options
     parser.add_argument(
         "--real", action="store_true", help="Use real trading instead of paper trading"
+    )
+    parser.add_argument(
+        "--enforce-governance-gate",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Require compliance governance gate to pass before --real startup",
+    )
+    parser.add_argument(
+        "--governance-approval-path",
+        default="results/governance/live_approval.json",
+        help="Path to live-approval artifact used by governance gate (live mode)",
+    )
+    parser.add_argument(
+        "--governance-policy-doc-path",
+        default="docs/COMPLIANCE_GOVERNANCE.md",
+        help="Path to compliance governance policy document",
     )
     parser.add_argument(
         "--force", action="store_true", help="Force execution even if market is closed"

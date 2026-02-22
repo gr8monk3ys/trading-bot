@@ -1,6 +1,81 @@
-version: '3.8'
-
 services:
+  # Trading bot - 24/7 crypto paper trading (Raspberry Pi profile)
+  trading-bot-crypto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading-bot-crypto
+    restart: unless-stopped
+    environment:
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - PAPER=True
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - LOW_RESOURCE_CRYPTO_SYMBOLS=${LOW_RESOURCE_CRYPTO_SYMBOLS:-BTC/USD,ETH/USD,SOL/USD,LTC/USD,DOGE/USD,AVAX/USD,LINK/USD,BCH/USD,DOT/USD,UNI/USD}
+      - LOW_RESOURCE_CRYPTO_BUY_SCORE_THRESHOLD=${LOW_RESOURCE_CRYPTO_BUY_SCORE_THRESHOLD:-0.75}
+      - LOW_RESOURCE_CRYPTO_DIP_RSI_MAX=${LOW_RESOURCE_CRYPTO_DIP_RSI_MAX:-45.0}
+      - LOW_RESOURCE_CRYPTO_DIP_MIN_MACD_HIST_DELTA=${LOW_RESOURCE_CRYPTO_DIP_MIN_MACD_HIST_DELTA:-0.005}
+      - LOW_RESOURCE_CRYPTO_DIP_MIN_REBOUND_PCT=${LOW_RESOURCE_CRYPTO_DIP_MIN_REBOUND_PCT:-0.0005}
+      - SLO_PAGING_ENABLED=${SLO_PAGING_ENABLED:-false}
+      - SLO_PAGING_WEBHOOK_URL=${SLO_PAGING_WEBHOOK_URL:-}
+      - SLO_PAGING_MIN_SEVERITY=${SLO_PAGING_MIN_SEVERITY:-critical}
+      - SLO_PAGING_TIMEOUT_SECONDS=${SLO_PAGING_TIMEOUT_SECONDS:-3}
+      - SLO_PAGING_MAX_RETRIES=${SLO_PAGING_MAX_RETRIES:-2}
+      - SLO_PAGING_RETRY_BACKOFF_SECONDS=${SLO_PAGING_RETRY_BACKOFF_SECONDS:-0.5}
+      - SLO_PAGING_AUTH_TOKEN=${SLO_PAGING_AUTH_TOKEN:-}
+      - SLO_PAGING_AUTH_SCHEME=${SLO_PAGING_AUTH_SCHEME:-Bearer}
+      - INCIDENT_TICKETING_ENABLED=${INCIDENT_TICKETING_ENABLED:-false}
+      - INCIDENT_TICKETING_WEBHOOK_URL=${INCIDENT_TICKETING_WEBHOOK_URL:-}
+      - INCIDENT_TICKETING_TIMEOUT_SECONDS=${INCIDENT_TICKETING_TIMEOUT_SECONDS:-3}
+      - INCIDENT_TICKETING_MAX_RETRIES=${INCIDENT_TICKETING_MAX_RETRIES:-2}
+      - INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS=${INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS:-0.5}
+      - INCIDENT_TICKETING_AUTH_TOKEN=${INCIDENT_TICKETING_AUTH_TOKEN:-}
+      - INCIDENT_TICKETING_AUTH_SCHEME=${INCIDENT_TICKETING_AUTH_SCHEME:-Bearer}
+      - INCIDENT_RESPONSE_RUNBOOK_URL=${INCIDENT_RESPONSE_RUNBOOK_URL:-}
+      - INCIDENT_ESCALATION_ROSTER_URL=${INCIDENT_ESCALATION_ROSTER_URL:-}
+      - INCIDENT_ACK_SLA_MINUTES=${INCIDENT_ACK_SLA_MINUTES:-15}
+      - MULTI_BROKER_ENABLED=${MULTI_BROKER_ENABLED:-false}
+      - MULTI_BROKER_BACKUP_BROKER=${MULTI_BROKER_BACKUP_BROKER:-ib}
+      - MULTI_BROKER_HEALTH_CHECK_INTERVAL=${MULTI_BROKER_HEALTH_CHECK_INTERVAL:-30}
+      - MULTI_BROKER_FAILURE_THRESHOLD=${MULTI_BROKER_FAILURE_THRESHOLD:-3}
+      - MULTI_BROKER_RECOVERY_THRESHOLD=${MULTI_BROKER_RECOVERY_THRESHOLD:-5}
+      - MULTI_BROKER_OPERATION_TIMEOUT_SECONDS=${MULTI_BROKER_OPERATION_TIMEOUT_SECONDS:-15}
+      - IB_HOST=${IB_HOST:-127.0.0.1}
+      - IB_PAPER_PORT=${IB_PAPER_PORT:-7497}
+      - IB_LIVE_PORT=${IB_LIVE_PORT:-7496}
+      - IB_CLIENT_ID=${IB_CLIENT_ID:-1}
+    env_file:
+      - .env
+    volumes:
+      # Persist logs/state/artifacts on host
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./results:/app/results
+      - ./audit_logs:/app/audit_logs
+      # Mount config (read-only for safety)
+      - ./config.py:/app/config.py:ro
+    command:
+      [
+        "python",
+        "scripts/run_low_resource_profile.py",
+        "--asset-class",
+        "crypto",
+        "--risk-profile",
+        "aggressive"
+      ]
+    healthcheck:
+      disable: true
+    networks:
+      - trading-net
+    profiles:
+      - crypto
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # Trading bot - Paper trading
   trading-bot-paper:
     build:
@@ -31,6 +106,78 @@ services:
       start_period: 30s
     networks:
       - trading-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Trading bot - Weekday stock session (runs continuously, trades when market is open)
+  trading-bot-stock:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: trading-bot-stock
+    restart: unless-stopped
+    environment:
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - PAPER=True
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+      - LOW_RESOURCE_STOCK_SYMBOLS=${LOW_RESOURCE_STOCK_SYMBOLS:-AAPL,MSFT,NVDA,AMZN,META,GOOGL,TSLA}
+      - SLO_PAGING_ENABLED=${SLO_PAGING_ENABLED:-false}
+      - SLO_PAGING_WEBHOOK_URL=${SLO_PAGING_WEBHOOK_URL:-}
+      - SLO_PAGING_MIN_SEVERITY=${SLO_PAGING_MIN_SEVERITY:-critical}
+      - SLO_PAGING_TIMEOUT_SECONDS=${SLO_PAGING_TIMEOUT_SECONDS:-3}
+      - SLO_PAGING_MAX_RETRIES=${SLO_PAGING_MAX_RETRIES:-2}
+      - SLO_PAGING_RETRY_BACKOFF_SECONDS=${SLO_PAGING_RETRY_BACKOFF_SECONDS:-0.5}
+      - SLO_PAGING_AUTH_TOKEN=${SLO_PAGING_AUTH_TOKEN:-}
+      - SLO_PAGING_AUTH_SCHEME=${SLO_PAGING_AUTH_SCHEME:-Bearer}
+      - INCIDENT_TICKETING_ENABLED=${INCIDENT_TICKETING_ENABLED:-false}
+      - INCIDENT_TICKETING_WEBHOOK_URL=${INCIDENT_TICKETING_WEBHOOK_URL:-}
+      - INCIDENT_TICKETING_TIMEOUT_SECONDS=${INCIDENT_TICKETING_TIMEOUT_SECONDS:-3}
+      - INCIDENT_TICKETING_MAX_RETRIES=${INCIDENT_TICKETING_MAX_RETRIES:-2}
+      - INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS=${INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS:-0.5}
+      - INCIDENT_TICKETING_AUTH_TOKEN=${INCIDENT_TICKETING_AUTH_TOKEN:-}
+      - INCIDENT_TICKETING_AUTH_SCHEME=${INCIDENT_TICKETING_AUTH_SCHEME:-Bearer}
+      - INCIDENT_RESPONSE_RUNBOOK_URL=${INCIDENT_RESPONSE_RUNBOOK_URL:-}
+      - INCIDENT_ESCALATION_ROSTER_URL=${INCIDENT_ESCALATION_ROSTER_URL:-}
+      - INCIDENT_ACK_SLA_MINUTES=${INCIDENT_ACK_SLA_MINUTES:-15}
+      - MULTI_BROKER_ENABLED=${MULTI_BROKER_ENABLED:-false}
+      - MULTI_BROKER_BACKUP_BROKER=${MULTI_BROKER_BACKUP_BROKER:-ib}
+      - MULTI_BROKER_HEALTH_CHECK_INTERVAL=${MULTI_BROKER_HEALTH_CHECK_INTERVAL:-30}
+      - MULTI_BROKER_FAILURE_THRESHOLD=${MULTI_BROKER_FAILURE_THRESHOLD:-3}
+      - MULTI_BROKER_RECOVERY_THRESHOLD=${MULTI_BROKER_RECOVERY_THRESHOLD:-5}
+      - MULTI_BROKER_OPERATION_TIMEOUT_SECONDS=${MULTI_BROKER_OPERATION_TIMEOUT_SECONDS:-15}
+      - IB_HOST=${IB_HOST:-127.0.0.1}
+      - IB_PAPER_PORT=${IB_PAPER_PORT:-7497}
+      - IB_LIVE_PORT=${IB_LIVE_PORT:-7496}
+      - IB_CLIENT_ID=${IB_CLIENT_ID:-1}
+    env_file:
+      - .env
+    volumes:
+      # Keep stock runtime state/logs isolated from crypto runtime.
+      - ./logs_stock:/app/logs
+      - ./data_stock:/app/data
+      - ./results_stock:/app/results
+      - ./audit_logs_stock:/app/audit_logs
+      - ./config.py:/app/config.py:ro
+    command:
+      [
+        "python",
+        "scripts/run_low_resource_profile.py",
+        "--asset-class",
+        "stock",
+        "--risk-profile",
+        "aggressive"
+      ]
+    healthcheck:
+      disable: true
+    networks:
+      - trading-net
+    profiles:
+      - stock
     logging:
       driver: "json-file"
       options:
