@@ -2122,8 +2122,8 @@ class AlpacaBroker:
             # alpaca-py returns a BarSet where `symbol in bars` can be False even when
             # the symbol exists in bars.data. Always resolve from .data first.
             bars_by_symbol: dict = {}
-            if hasattr(bars, "data") and isinstance(getattr(bars, "data"), dict):
-                bars_by_symbol = getattr(bars, "data")
+            if hasattr(bars, "data") and isinstance(bars.data, dict):
+                bars_by_symbol = bars.data
             elif isinstance(bars, dict):
                 bars_by_symbol = bars
 

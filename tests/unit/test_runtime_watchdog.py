@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from types import SimpleNamespace
 from contextlib import nullcontext
+from types import SimpleNamespace
 from urllib import error
 
 from utils import runtime_watchdog

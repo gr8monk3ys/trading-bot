@@ -6,7 +6,6 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STRATEGY_DIR = REPO_ROOT / "strategies"
 BANNED_BROKER_ORDER_METHODS = {

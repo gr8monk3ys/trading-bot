@@ -150,7 +150,7 @@ class MultiBrokerManager(BrokerInterface):
             if not hasattr(broker, "name"):
                 derived_name = getattr(broker, "NAME", broker.__class__.__name__)
                 try:
-                    setattr(broker, "name", str(derived_name))
+                    broker.name = str(derived_name)
                 except Exception:
                     # Fallback: leave object unchanged; later attribute access may fail loudly.
                     pass
@@ -227,9 +227,9 @@ class MultiBrokerManager(BrokerInterface):
             payload.setdefault("buying_power", payload.get("buying_power", 0))
             return SimpleNamespace(**payload)
         if hasattr(account, "account_id") and not hasattr(account, "id"):
-            setattr(account, "id", str(getattr(account, "account_id")))
+            account.id = str(account.account_id)
         if not hasattr(account, "buying_power"):
-            setattr(account, "buying_power", 0)
+            account.buying_power = 0
         return account
 
     @staticmethod
@@ -247,13 +247,13 @@ class MultiBrokerManager(BrokerInterface):
             payload.setdefault("unrealized_plpc", payload.get("unrealized_pnl_pct", 0))
             return SimpleNamespace(**payload)
         if hasattr(position, "quantity") and not hasattr(position, "qty"):
-            setattr(position, "qty", getattr(position, "quantity"))
+            position.qty = position.quantity
         if hasattr(position, "unrealized_pnl") and not hasattr(position, "unrealized_pl"):
-            setattr(position, "unrealized_pl", getattr(position, "unrealized_pnl"))
+            position.unrealized_pl = position.unrealized_pnl
         if hasattr(position, "unrealized_pnl_pct") and not hasattr(position, "unrealized_plpc"):
-            setattr(position, "unrealized_plpc", getattr(position, "unrealized_pnl_pct"))
+            position.unrealized_plpc = position.unrealized_pnl_pct
         if not hasattr(position, "current_price"):
-            setattr(position, "current_price", getattr(position, "avg_entry_price", 0))
+            position.current_price = getattr(position, "avg_entry_price", 0)
         return position
 
     @staticmethod
@@ -271,11 +271,11 @@ class MultiBrokerManager(BrokerInterface):
             payload.setdefault("filled_qty", payload.get("filled_quantity", 0))
             return SimpleNamespace(**payload)
         if hasattr(order, "order_id") and not hasattr(order, "id"):
-            setattr(order, "id", str(getattr(order, "order_id")))
+            order.id = str(order.order_id)
         if hasattr(order, "quantity") and not hasattr(order, "qty"):
-            setattr(order, "qty", getattr(order, "quantity"))
+            order.qty = order.quantity
         if hasattr(order, "filled_quantity") and not hasattr(order, "filled_qty"):
-            setattr(order, "filled_qty", getattr(order, "filled_quantity"))
+            order.filled_qty = order.filled_quantity
         return order
 
     @staticmethod
