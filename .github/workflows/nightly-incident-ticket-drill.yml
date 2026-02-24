@@ -31,10 +31,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b
 
       - name: Set up Python
         run: uv python install 3.10
@@ -240,7 +240,7 @@ jobs:
 
       - name: Upload drill artifacts
         if: always() && (github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true)
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: nightly-incident-ticket-drill-${{ github.run_id }}
           path: results/validation/
