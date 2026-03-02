@@ -1,6 +1,6 @@
 [project]
 name = "trading-bot"
-version = "3.0.0"
+version = "0.1.0"
 description = "Professional algorithmic trading bot with advanced strategies and institutional-grade risk management"
 authors = [
     {name = "gr8monk3ys", email = "your-email@example.com"}
