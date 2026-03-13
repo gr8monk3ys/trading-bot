@@ -1,9 +1,6 @@
 name: org-precommit
 
 on:
-  push:
-    branches:
-      - "**"
   pull_request:
   workflow_dispatch:
 
@@ -15,6 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
@@ -30,8 +29,16 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Run pre-commit
-        if: steps.cfg.outputs.present == 'true'
+      - name: Run pre-commit on PR diff
+        if: steps.cfg.outputs.present == 'true' && github.event_name == 'pull_request'
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
+        with:
+          extra_args: >-
+            --from-ref ${{ github.event.pull_request.base.sha }}
+            --to-ref ${{ github.event.pull_request.head.sha }}
+
+      - name: Run pre-commit on full repo
+        if: steps.cfg.outputs.present == 'true' && github.event_name != 'pull_request'
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
 
       - name: Skip when no config

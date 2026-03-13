@@ -1050,7 +1050,7 @@ class BacktestEngine:
 
         logger.info(
             f"Running walk-forward backtest with {n_folds} folds, "
-            f"{train_pct:.0%} train / {1-train_pct:.0%} test split, "
+            f"{train_pct:.0%} train / {1 - train_pct:.0%} test split, "
             f"{embargo_days} day embargo"
         )
 
@@ -1204,9 +1204,9 @@ class BacktestEngine:
         overfit_detected = avg_is_sharpe > 0 and avg_oos_sharpe < (avg_is_sharpe * 0.5)
 
         # Log summary
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info("WALK-FORWARD BACKTEST RESULTS")
-        logger.info(f"{'='*60}")
+        logger.info(f"{'=' * 60}")
         logger.info(f"Folds completed: {len(fold_results)}/{n_folds}")
         logger.info(f"Average IS Sharpe:  {avg_is_sharpe:.2f}")
         logger.info(f"Average OOS Sharpe: {avg_oos_sharpe:.2f}")
@@ -1223,7 +1223,7 @@ class BacktestEngine:
         else:
             logger.info("✓ No significant overfitting detected")
 
-        logger.info(f"{'='*60}\n")
+        logger.info(f"{'=' * 60}\n")
 
         return {
             "fold_results": fold_results,

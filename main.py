@@ -480,7 +480,7 @@ async def run_live(args):
         trading_symbols = await select_trading_symbols(broker)
         logger.info(
             f"Trading universe: {', '.join(trading_symbols[:10])}"
-            + (f" ... and {len(trading_symbols)-10} more" if len(trading_symbols) > 10 else "")
+            + (f" ... and {len(trading_symbols) - 10} more" if len(trading_symbols) > 10 else "")
         )
 
         await broker.start_websocket(trading_symbols)
@@ -1025,7 +1025,7 @@ async def optimize_parameters(args):
             for j, param in enumerate(param_names):
                 params[param] = combo[j]
 
-            logger.info(f"Testing combination {i+1}/{len(combinations)}: {params}")
+            logger.info(f"Testing combination {i + 1}/{len(combinations)}: {params}")
 
             # Run backtest
             result = await strategy_manager.backtest_engine.run_backtest(
@@ -1267,9 +1267,7 @@ def run_research(args) -> int:
 
     if action == "promote":
         if args.strict and not args.force and not ready:
-            print(
-                f"Strict promotion blocked for {args.experiment_id}: " f"{len(blockers)} blockers"
-            )
+            print(f"Strict promotion blocked for {args.experiment_id}: {len(blockers)} blockers")
             for blocker in blockers:
                 print(f"  - {blocker}")
             return 1

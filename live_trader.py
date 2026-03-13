@@ -64,7 +64,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(LOG_DIR / f'trading_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'),
+        logging.FileHandler(LOG_DIR / f"trading_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"),
     ],
 )
 
@@ -798,7 +798,7 @@ class LiveTrader:
                         logger.info(
                             f"  {pos.symbol}: {pos.qty} shares @ ${float(pos.avg_entry_price):.2f} "
                             f"(Current: ${float(pos.current_price):.2f}, "
-                            f"P/L: ${float(pos.unrealized_pl):+,.2f} / {float(pos.unrealized_plpc)*100:+.2f}%)"
+                            f"P/L: ${float(pos.unrealized_pl):+,.2f} / {float(pos.unrealized_plpc) * 100:+.2f}%)"
                         )
 
                 logger.info("-" * 80 + "\n")
@@ -897,9 +897,9 @@ class LiveTrader:
                 if counter % state_interval == 0 and self.position_manager:
                     strategy_states = {}
                     if self.strategy is not None:
-                        strategy_states[self.strategy_name] = (
-                            await self._build_strategy_state_snapshot(self.strategy)
-                        )
+                        strategy_states[
+                            self.strategy_name
+                        ] = await self._build_strategy_state_snapshot(self.strategy)
                     await self.state_store.save(
                         self.position_manager,
                         lifecycle=(
