@@ -123,14 +123,14 @@ def test_find_latest_validation_artifact_dir_prefers_latest_bundle(tmp_path: Pat
     empty_root.mkdir()
     assert main._find_latest_validation_artifact_dir(empty_root) is None
 
-    older_bundle = _write_validation_bundle(
-        tmp_path, git_sha="abc123", bundle_name="20260310_010203"
-    )
+    root_bundle = _write_validation_bundle(tmp_path, git_sha="abc123", bundle_name="")
+    assert main._find_latest_validation_artifact_dir(root_bundle) == root_bundle
+
+    _write_validation_bundle(tmp_path, git_sha="abc123", bundle_name="20260310_010203")
     newer_bundle = _write_validation_bundle(
         tmp_path, git_sha="abc123", bundle_name="20260313_010203"
     )
 
-    assert main._find_latest_validation_artifact_dir(older_bundle) == older_bundle
     assert main._find_latest_validation_artifact_dir(tmp_path) == newer_bundle
 
 
@@ -184,6 +184,28 @@ def test_evaluate_live_validation_gate_passes_for_current_paper_artifacts(
     assert ready is True
     assert report["ready"] is True
     assert report["selected_validation_artifact_dir"] == str(bundle_dir)
+
+
+def test_evaluate_live_validation_gate_allows_missing_git_sha_when_artifacts_are_valid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle_dir = _write_validation_bundle(tmp_path, git_sha="abc123")
+
+    monkeypatch.setattr(main, "_current_git_sha", lambda _repo_root=".": None)
+
+    ready, report = main._evaluate_live_validation_gate(
+        enforce=True,
+        repo_root=".",
+        validation_artifacts_dir=bundle_dir,
+        requested_strategy="MomentumStrategy",
+        require_go_live_evidence=False,
+        max_age_hours=168,
+    )
+
+    assert ready is True
+    checks = {check["name"]: check for check in report["checks"]}
+    assert checks["validation_git_sha_match"]["passed"] is True
+    assert checks["validation_git_sha_match"]["severity"] == "warning"
 
 
 def test_evaluate_live_validation_gate_rejects_missing_or_invalid_artifacts(

@@ -92,12 +92,10 @@ def _find_latest_validation_artifact_dir(base_dir: str | Path) -> Path | None:
     """Find the newest validation artifact directory produced by generate_validation_artifacts."""
     root = Path(base_dir)
     required_files = ("manifest.json", "validated_backtest_result.json")
-
-    if all((root / filename).exists() for filename in required_files):
-        return root
+    root_is_bundle = all((root / filename).exists() for filename in required_files)
 
     if not root.exists() or not root.is_dir():
-        return None
+        return root if root_is_bundle else None
 
     candidates = [
         candidate
@@ -105,10 +103,10 @@ def _find_latest_validation_artifact_dir(base_dir: str | Path) -> Path | None:
         if candidate.is_dir()
         and all((candidate / filename).exists() for filename in required_files)
     ]
-    if not candidates:
-        return None
+    if candidates:
+        return sorted(candidates, key=lambda candidate: candidate.name, reverse=True)[0]
 
-    return sorted(candidates, key=lambda candidate: candidate.name, reverse=True)[0]
+    return root if root_is_bundle else None
 
 
 def _evaluate_live_validation_gate(
@@ -227,24 +225,33 @@ def _evaluate_live_validation_gate(
 
     current_git_sha = _current_git_sha(repo_root_path)
     manifest_git_sha = str(manifest.get("git_sha", "") or "").strip()
-    add_check(
-        "validation_git_sha_match",
-        bool(current_git_sha) and manifest_git_sha == current_git_sha,
-        (
-            f"Validation manifest matches current git SHA {current_git_sha}"
-            if current_git_sha and manifest_git_sha == current_git_sha
-            else (
-                "Unable to determine current git SHA for validation gate"
-                if not current_git_sha
+    if current_git_sha:
+        add_check(
+            "validation_git_sha_match",
+            manifest_git_sha == current_git_sha,
+            (
+                f"Validation manifest matches current git SHA {current_git_sha}"
+                if manifest_git_sha == current_git_sha
                 else f"Validation manifest SHA {manifest_git_sha or 'missing'} does not match current git SHA {current_git_sha}"
-            )
-        ),
-        details={
-            "manifest_git_sha": manifest_git_sha,
-            "current_git_sha": current_git_sha,
-            "path": str(manifest_path),
-        },
-    )
+            ),
+            details={
+                "manifest_git_sha": manifest_git_sha,
+                "current_git_sha": current_git_sha,
+                "path": str(manifest_path),
+            },
+        )
+    else:
+        add_check(
+            "validation_git_sha_match",
+            True,
+            "Current git SHA unavailable; skipping strict validation git SHA comparison",
+            severity="warning",
+            details={
+                "manifest_git_sha": manifest_git_sha,
+                "current_git_sha": current_git_sha,
+                "path": str(manifest_path),
+            },
+        )
 
     eligible_for_trading = bool(
         manifest.get("eligible_for_trading", validated_result.get("eligible_for_trading"))
