@@ -95,11 +95,24 @@ jobs:
           PAPER: "True"
         run: |
           docker run --rm \
-            -e ALPACA_API_KEY="${ALPACA_API_KEY}" \
-            -e ALPACA_SECRET_KEY="${ALPACA_SECRET_KEY}" \
+            -e ALPACA_API_KEY="${ALPACA_API_KEY:-docker-test-key}" \
+            -e ALPACA_SECRET_KEY="${ALPACA_SECRET_KEY:-docker-test-secret}" \
             -e PAPER="${PAPER}" \
             trading-bot-test \
-            python -c "from brokers.alpaca_broker import AlpacaBroker; import asyncio; asyncio.run(AlpacaBroker(paper=True).get_account())"
+            python -c "from brokers.alpaca_broker import AlpacaBroker; broker = AlpacaBroker(paper=True); assert broker.paper is True"
+
+          docker run --rm trading-bot-test python main.py --help >/dev/null
+
+          if [ -n "${ALPACA_API_KEY}" ] && [ -n "${ALPACA_SECRET_KEY}" ]; then
+            docker run --rm \
+              -e ALPACA_API_KEY="${ALPACA_API_KEY}" \
+              -e ALPACA_SECRET_KEY="${ALPACA_SECRET_KEY}" \
+              -e PAPER="${PAPER}" \
+              trading-bot-test \
+              python -c "from brokers.alpaca_broker import AlpacaBroker; import asyncio; asyncio.run(AlpacaBroker(paper=True).get_account())"
+          else
+            echo "::notice::Skipping authenticated Alpaca account check because CI test credentials are not configured."
+          fi
 
       - name: Test Docker Compose
         env:
