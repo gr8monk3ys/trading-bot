@@ -2,8 +2,8 @@ name: Nightly Incident Ticket Drill
 
 on:
   schedule:
-    # Weekdays at 07:15 UTC (after pre-market prep windows, before US regular session)
-    - cron: "15 7 * * 1-5"
+    # Weekly on Monday at 07:15 UTC; manual dispatch remains available for extra drills.
+    - cron: "15 7 * * 1"
   workflow_dispatch:
     inputs:
       webhook_url:
@@ -244,7 +244,7 @@ jobs:
         with:
           name: nightly-incident-ticket-drill-${{ github.run_id }}
           path: results/validation/
-          retention-days: 30
+          retention-days: 7
 
       - name: Send failure email webhook
         if: failure() && (github.event_name != 'workflow_dispatch' || inputs.send_test_email_only != true) && secrets.INCIDENT_DRILL_FAILURE_EMAIL_WEBHOOK_URL != ''

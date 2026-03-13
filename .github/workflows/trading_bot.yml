@@ -4,8 +4,8 @@ name: Scheduled Trading Operations
 
 on:
   schedule:
-    # Run backtest daily at 6 AM UTC (before US market open)
-    - cron: "0 6 * * 1-5"
+    # Run backtest on Monday, Wednesday, and Friday; manual dispatch remains available for extra runs.
+    - cron: "0 6 * * 1,3,5"
   workflow_dispatch:
     inputs:
       operation:
@@ -64,7 +64,7 @@ jobs:
         with:
           name: backtest-results-${{ github.run_id }}
           path: backtest_results.txt
-          retention-days: 30
+          retention-days: 7
 
       - name: Check for Performance Degradation
         run: |
