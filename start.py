@@ -16,19 +16,27 @@ logging.basicConfig(
 logger = logging.getLogger("startup")
 
 
+def _dashboard_command(port: str) -> list[str]:
+    return [sys.executable, "-m", "uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", port]
+
+
+def _bot_command() -> list[str]:
+    return [sys.executable, "run_adaptive.py"]
+
+
 def main():
     port = os.environ.get("PORT", "8000")
 
     # Start the web dashboard (FastAPI)
     dashboard_proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", port],
+        _dashboard_command(port),
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
 
     # Start the trading bot
     bot_proc = subprocess.Popen(
-        [sys.executable, "run_adaptive.py", "--force"],
+        _bot_command(),
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
@@ -54,16 +62,7 @@ def main():
             logger.error(f"Dashboard exited with code {dashboard_status}")
             # Restart dashboard
             dashboard_proc = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-m",
-                    "uvicorn",
-                    "web.app:app",
-                    "--host",
-                    "0.0.0.0",
-                    "--port",
-                    port,
-                ],
+                _dashboard_command(port),
                 stdout=sys.stdout,
                 stderr=sys.stderr,
             )
@@ -72,7 +71,7 @@ def main():
             logger.warning(f"Trading bot exited with code {bot_status}")
             # Restart bot
             bot_proc = subprocess.Popen(
-                [sys.executable, "run_adaptive.py", "--force"],
+                _bot_command(),
                 stdout=sys.stdout,
                 stderr=sys.stderr,
             )

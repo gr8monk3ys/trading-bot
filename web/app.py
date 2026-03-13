@@ -55,7 +55,11 @@ async def lifespan(app: FastAPI):
         await _db.initialize()
         logger.info("Dashboard database connected")
     except Exception as exc:
-        logger.warning(f"Database initialization failed (dashboard will show limited data): {exc}")
+        _log_internal_error(
+            "Dashboard database initialization",
+            exc,
+            level=logging.WARNING,
+        )
         _db = None
 
     # --- Broker (optional – dashboard still works without it) ---
@@ -67,11 +71,15 @@ async def lifespan(app: FastAPI):
         if api_key:
             _paper_mode = ALPACA_CREDS.get("PAPER", True)
             _broker = AlpacaBroker(paper=_paper_mode)
-            logger.info(f"Dashboard broker connected (paper={_paper_mode})")
+            logger.info("Dashboard broker connected")
         else:
             logger.warning("No Alpaca API key configured – broker endpoints will return defaults")
     except Exception as exc:
-        logger.warning(f"Broker initialization failed (dashboard will use database only): {exc}")
+        _log_internal_error(
+            "Dashboard broker initialization",
+            exc,
+            level=logging.WARNING,
+        )
         _broker = None
 
     yield  # ---- app is running ----
@@ -126,6 +134,18 @@ def _format_timestamp(dt: Any) -> Optional[str]:
         return dt.isoformat()
     except AttributeError:
         return str(dt)
+
+
+def _log_internal_error(context: str, exc: Exception, *, level: int = logging.ERROR) -> None:
+    """Log a sanitized internal failure without leaking exception content."""
+    logger.log(level, "%s failed with %s", context, type(exc).__name__)
+
+
+def _server_error_response(message: str, **payload: Any) -> JSONResponse:
+    """Return a generic API error without exposing exception details."""
+    content = dict(payload)
+    content["error"] = message
+    return JSONResponse(content=content, status_code=500)
 
 
 # ---------------------------------------------------------------------------
@@ -210,10 +230,10 @@ async def get_account():
             "paper_mode": _paper_mode,
         }
     except Exception as exc:
-        logger.error(f"Error fetching account: {exc}")
-        return JSONResponse(
-            content={"error": str(exc), "paper_mode": _paper_mode},
-            status_code=500,
+        _log_internal_error("Account fetch", exc)
+        return _server_error_response(
+            "Unable to fetch account data",
+            paper_mode=_paper_mode,
         )
 
 
@@ -241,10 +261,11 @@ async def get_positions():
             )
         return {"positions": result, "count": len(result)}
     except Exception as exc:
-        logger.error(f"Error fetching positions: {exc}")
-        return JSONResponse(
-            content={"positions": [], "count": 0, "error": str(exc)},
-            status_code=500,
+        _log_internal_error("Positions fetch", exc)
+        return _server_error_response(
+            "Unable to fetch positions",
+            positions=[],
+            count=0,
         )
 
 
@@ -259,10 +280,11 @@ async def get_trades(limit: int = Query(default=20, ge=1, le=500)):
         result = [t.to_dict() for t in trades]
         return {"trades": result, "count": len(result)}
     except Exception as exc:
-        logger.error(f"Error fetching trades: {exc}")
-        return JSONResponse(
-            content={"trades": [], "count": 0, "error": str(exc)},
-            status_code=500,
+        _log_internal_error("Trades fetch", exc)
+        return _server_error_response(
+            "Unable to fetch trades",
+            trades=[],
+            count=0,
         )
 
 
@@ -360,15 +382,15 @@ async def get_performance():
                             max_dd = max(max_dd, dd)
                         response["max_drawdown"] = round(max_dd * 100, 2)
         except Exception as exc:
-            logger.debug(f"Extended metrics calculation skipped: {exc}")
+            logger.debug(
+                "Extended metrics calculation skipped due to %s",
+                type(exc).__name__,
+            )
 
         return response
     except Exception as exc:
-        logger.error(f"Error fetching performance: {exc}")
-        return JSONResponse(
-            content={"error": str(exc)},
-            status_code=500,
-        )
+        _log_internal_error("Performance fetch", exc)
+        return _server_error_response("Unable to fetch performance data")
 
 
 @app.get("/api/daily-metrics")
@@ -384,10 +406,11 @@ async def get_daily_metrics(days: int = Query(default=30, ge=1, le=365)):
         result = [dm.to_dict() for dm in daily]
         return {"metrics": result, "count": len(result)}
     except Exception as exc:
-        logger.error(f"Error fetching daily metrics: {exc}")
-        return JSONResponse(
-            content={"metrics": [], "count": 0, "error": str(exc)},
-            status_code=500,
+        _log_internal_error("Daily metrics fetch", exc)
+        return _server_error_response(
+            "Unable to fetch daily metrics",
+            metrics=[],
+            count=0,
         )
 
 
@@ -405,8 +428,8 @@ async def get_market_status():
             "next_close": _format_timestamp(status.get("next_close")),
         }
     except Exception as exc:
-        logger.error(f"Error fetching market status: {exc}")
-        return {"is_open": False, "error": str(exc)}
+        _log_internal_error("Market status fetch", exc)
+        return {"is_open": False, "error": "Unable to fetch market status"}
 
 
 # ---------------------------------------------------------------------------

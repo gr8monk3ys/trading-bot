@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from utils.secrets_audit import run_secrets_audit  # noqa: E402
+from utils.secrets_audit import run_secrets_audit, sanitize_audit_report  # noqa: E402
 
 
 def _parse_args() -> argparse.Namespace:
@@ -38,19 +38,20 @@ def main() -> int:
         inventory_path=args.inventory_path,
         default_max_age_days=max(1, int(args.default_max_age_days)),
     )
+    safe_report = sanitize_audit_report(report)
 
     print("=" * 72)
     print("SECRETS AUDIT")
     print("=" * 72)
-    print(f"Ready: {'YES' if report.get('ready') else 'NO'}")
-    for check in report.get("checks", []):
+    print(f"Ready: {'YES' if safe_report.get('ready') else 'NO'}")
+    for check in safe_report.get("checks", []):
         status = "PASS" if check.get("passed") else "FAIL"
         print(f"[{status}] {check.get('name')}: {check.get('message')}")
 
     if args.output:
         output = Path(args.output)
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        output.write_text(json.dumps(safe_report, indent=2), encoding="utf-8")
 
     return 0 if report.get("ready") else 1
 

@@ -14,9 +14,14 @@ import asyncio
 import json
 import platform
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from brokers.alpaca_broker import AlpacaBroker
 from config import BACKTEST_PARAMS, RISK_PARAMS, SYMBOLS

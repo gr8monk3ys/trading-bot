@@ -13,9 +13,9 @@
 ## Build, Test, and Development Commands
 - `uv run pytest` — Run the test suite with coverage gates (preferred).
 - `pytest` — Works if pytest is installed in the active environment.
-- `python main.py backtest --strategy MomentumStrategy --symbols AAPL,MSFT --start-date 2024-01-01 --end-date 2024-12-31` — Run a backtest.
-- `python main.py live --strategy MomentumStrategy --force` — Start live/paper trading (websocket auto-starts for audit logging).
-- `python scripts/validated_backtest_report.py --strategy MomentumStrategy --symbols AAPL,MSFT --start-date 2014-01-01 --end-date 2024-12-31 --output results/validated_backtest_report.md --json results/validated_backtest_report.json` — Generate validated backtest report.
+- `uv run python main.py backtest --strategy MomentumStrategy --symbols AAPL,MSFT --start-date 2024-01-01 --end-date 2024-12-31` — Run a backtest.
+- `uv run python main.py live --strategy MomentumStrategy --force` — Start live/paper trading (websocket auto-starts for audit logging).
+- `uv run python -m scripts.validated_backtest_report --strategy MomentumStrategy --symbols AAPL,MSFT --start-date 2014-01-01 --end-date 2024-12-31 --output results/validated_backtest_report.md --json results/validated_backtest_report.json` — Generate validated backtest report.
 
 ## Coding Style & Naming Conventions
 - Python 3.10+.

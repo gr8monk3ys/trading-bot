@@ -29,7 +29,7 @@ def test_alpaca_connection():
     if not api_key or not api_secret:
         pytest.skip("API credentials not found in environment")
 
-    logger.info(f"Testing connection with API_KEY: {api_key[:5]}... (Paper: {paper})")
+    logger.info("Testing Alpaca connection (credentials present, paper=%s)", paper)
 
     # Initialize the trading client with explicit endpoint
     trading_client = TradingClient(
