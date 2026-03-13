@@ -95,6 +95,42 @@ jobs:
           PAPER: "True"
         run: uv run pytest tests/unit/
 
+      - name: Preserve full coverage report
+        run: mv coverage.xml coverage_full.xml
+
+      - name: Run patch coverage report
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+          PAPER: "True"
+          COVERAGE_FILE: .coverage.patch
+        run: |
+          uv run pytest \
+            tests/unit/test_backtest_engine.py \
+            tests/unit/test_backtest_engine_coverage_boost.py \
+            tests/unit/test_backtest_engine_run_backtest.py \
+            tests/unit/test_walk_forward_backtest.py \
+            tests/unit/test_validated_backtest_runner.py \
+            tests/unit/test_validated_backtest_coverage_boost.py \
+            tests/unit/test_validated_backtest_gates.py \
+            tests/unit/test_validated_backtest_report.py \
+            tests/unit/test_validated_backtest_report_more.py \
+            tests/unit/test_validated_backtest_stats.py \
+            tests/unit/test_live_trader_state_restore.py \
+            tests/unit/test_live_trader_risk_profiles.py \
+            tests/unit/test_live_trader_cli_and_lifecycle.py \
+            tests/unit/test_main_runtime_coverage.py \
+            tests/unit/test_main_research_mode.py \
+            tests/unit/test_config_credentials_runtime.py \
+            --cov=engine.backtest_engine \
+            --cov=engine.validated_backtest \
+            --cov=live_trader \
+            --cov=main \
+            --cov=utils.secrets_audit \
+            --cov-report=xml:coverage_patch.xml \
+            --cov-fail-under=0 \
+            -q
+
       - name: Resolve promotion gate configuration
         if: github.event_name == 'pull_request' && steps.promotion_changes.outputs.promotion_relevant == 'true'
         id: promotion_gate_config
@@ -129,7 +165,8 @@ jobs:
       - name: Upload coverage reports
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
         with:
-          file: ./coverage.xml
+          files: ./coverage_full.xml,./coverage_patch.xml
+          disable_search: true
           flags: unittests
           name: codecov-umbrella
 

@@ -16,6 +16,8 @@ from engine.validated_backtest import (
     ValidatedBacktestRunner,
     _coerce_float,
     _coerce_int,
+    _coerce_numeric_series,
+    _max_drawdown_from_equity_curve,
     format_validated_backtest_report,
 )
 
@@ -131,6 +133,109 @@ async def test_run_backtest_returns_empty_dict_when_engine_returns_no_result(mon
     )
 
     assert result == {}
+
+
+def test_coerce_numeric_series_handles_none_and_lists():
+    assert _coerce_numeric_series(None) is None
+
+    coerced = _coerce_numeric_series([1, "2", None])
+
+    assert coerced is not None
+    assert coerced.iloc[0] == 1.0
+    assert coerced.iloc[1] == 2.0
+    assert pd.isna(coerced.iloc[2])
+
+
+def test_max_drawdown_from_equity_curve_handles_empty_and_non_positive_values():
+    assert _max_drawdown_from_equity_curve(None) == 0.0
+
+    drawdown = _max_drawdown_from_equity_curve(pd.Series([0.0, -1.0, 100.0, 90.0]))
+
+    assert drawdown < 0.0
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_derives_series_and_daily_returns_from_raw_equity_curve(monkeypatch):
+    runner = ValidatedBacktestRunner(broker=None)
+
+    class _RawEquityBacktestEngine:
+        def __init__(self, broker):
+            self.broker = broker
+
+        async def run_backtest(
+            self,
+            strategy_class,
+            symbols,
+            start_date,
+            end_date,
+            initial_capital,
+            strategy_params=None,
+        ):
+            return {
+                "equity_curve": [100000.0, 101000.0, 102000.0],
+                "final_equity": 102000.0,
+                "total_return": 0.02,
+                "trades": [],
+                "total_trades": 0,
+            }
+
+    fake_engine_mod = types.ModuleType("engine.backtest_engine")
+    fake_engine_mod.BacktestEngine = _RawEquityBacktestEngine
+    monkeypatch.setitem(sys.modules, "engine.backtest_engine", fake_engine_mod)
+
+    result = await runner._run_backtest(
+        _Strategy,
+        ["AAPL"],
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 3),
+        100000,
+    )
+
+    assert result["equity_curve"] is not None
+    assert result["daily_returns"] is not None
+    assert len(result["daily_returns"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_handles_nan_only_equity_curve_when_daily_returns_missing(monkeypatch):
+    runner = ValidatedBacktestRunner(broker=None)
+
+    class _NanEquityBacktestEngine:
+        def __init__(self, broker):
+            self.broker = broker
+
+        async def run_backtest(
+            self,
+            strategy_class,
+            symbols,
+            start_date,
+            end_date,
+            initial_capital,
+            strategy_params=None,
+        ):
+            return {
+                "equity_curve_series": pd.Series(
+                    [float("nan")],
+                    index=pd.to_datetime(["2024-01-02"]),
+                ),
+                "trades": [],
+                "total_trades": 0,
+            }
+
+    fake_engine_mod = types.ModuleType("engine.backtest_engine")
+    fake_engine_mod.BacktestEngine = _NanEquityBacktestEngine
+    monkeypatch.setitem(sys.modules, "engine.backtest_engine", fake_engine_mod)
+
+    result = await runner._run_backtest(
+        _Strategy,
+        ["AAPL"],
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 3),
+        100000,
+    )
+
+    assert result["daily_returns"] is None
+    assert result["sharpe_ratio"] == 0.0
 
 
 @pytest.mark.asyncio

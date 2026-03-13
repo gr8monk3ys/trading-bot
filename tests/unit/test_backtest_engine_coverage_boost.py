@@ -198,6 +198,23 @@ def test_calculate_performance_metrics_zero_days_branch():
     assert result_df.attrs["annualized_return"] == 0
 
 
+def test_calculate_performance_metrics_builds_cum_returns_when_missing():
+    engine = BacktestEngine()
+    dates = pd.date_range(start="2024-01-01", periods=3, freq="B")
+    result_df = pd.DataFrame(
+        {
+            "equity": [100000.0, 100500.0, 101000.0],
+            "returns": [0.0, 0.005, 0.004975124378109453],
+        },
+        index=dates,
+    )
+
+    engine._calculate_performance_metrics(result_df, "MissingCumReturns")
+
+    assert "cum_returns" in result_df.columns
+    assert result_df["cum_returns"].iloc[-1] > 0
+
+
 def test_build_weekday_sessions_returns_empty_for_inverted_range():
     engine = BacktestEngine()
 
@@ -406,6 +423,49 @@ async def test_run_backtest_branch_coverage(monkeypatch, tmp_path):
     trades_text = (run_dir / "trades.jsonl").read_text()
     assert "event_type" in trades_text and "trade" in trades_text
     assert "event_type" in trades_text and "order" in trades_text
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_skips_bars_without_timestamps(monkeypatch):
+    engine = BacktestEngine()
+
+    class _TimestampGapDataBroker(_FakeDataBroker):
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            return [
+                SimpleNamespace(
+                    open=100.0,
+                    high=101.0,
+                    low=99.0,
+                    close=100.0,
+                    volume=1000.0,
+                    timestamp=None,
+                ),
+                _Bar(100.0, 101.0, 99.0, 100.0, 1000.0, datetime(2024, 1, 3)),
+            ]
+
+    monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _TimestampGapDataBroker)
+    monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
+    monkeypatch.setattr(
+        "engine.backtest_engine.HistoricalUniverse", lambda broker=None: _FakeHistoricalUniverse()
+    )
+    monkeypatch.setattr(
+        "engine.backtest_engine.validate_ohlcv_frame",
+        lambda data, symbol, stale_after_days, reference_time: _QualityReport(
+            symbol=symbol, has_errors=False
+        ),
+    )
+
+    result = await engine.run_backtest(
+        strategy_class=_StrategyNoCurrentData,
+        symbols=["GOOD"],
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 5),
+        initial_capital=100000,
+    )
+
+    assert [ts.date().isoformat() for ts in result["equity_curve_series"].index] == [
+        "2024-01-03"
+    ]
 
 
 @pytest.mark.asyncio

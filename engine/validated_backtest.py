@@ -77,8 +77,6 @@ def _coerce_numeric_series(series: object) -> Optional[pd.Series]:
         series = pd.Series(series)
 
     numeric_series = pd.to_numeric(series, errors="coerce")
-    if not isinstance(numeric_series, pd.Series):
-        numeric_series = pd.Series(numeric_series, index=series.index)
     return pd.Series(numeric_series, index=series.index, dtype=float)
 
 
