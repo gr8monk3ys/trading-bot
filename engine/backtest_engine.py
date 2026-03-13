@@ -87,6 +87,18 @@ class BacktestEngine:
         sessions = self._extract_trading_sessions_from_price_data(start_dt, end_dt, price_data)
         return sessions if sessions else self._build_weekday_sessions(start_dt, end_dt)
 
+    def _cached_sessions_cover_requested_range(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+        sessions: List[datetime],
+    ) -> bool:
+        """Only trust cached sessions when they span the full requested window."""
+        if not sessions or start_dt > end_dt:
+            return False
+
+        return sessions[0].date() <= start_dt.date() and sessions[-1].date() >= end_dt.date()
+
     async def _fetch_trading_sessions_from_data_broker(
         self,
         data_broker,
@@ -99,7 +111,7 @@ class BacktestEngine:
         cached_sessions = self._extract_trading_sessions_from_price_data(
             start_dt, end_dt, cached_price_data
         )
-        if cached_sessions:
+        if self._cached_sessions_cover_requested_range(start_dt, end_dt, cached_sessions):
             return cached_sessions
 
         if not hasattr(data_broker, "get_bars"):

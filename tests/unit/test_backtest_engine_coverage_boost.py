@@ -279,13 +279,53 @@ async def test_fetch_trading_sessions_prefers_cached_price_data():
     sessions = await engine._fetch_trading_sessions_from_data_broker(
         _Broker(),
         ["AAPL"],
-        datetime(2024, 1, 1),
-        datetime(2024, 1, 5),
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 4),
     )
 
     assert [session.date().isoformat() for session in sessions] == [
         "2024-01-02",
         "2024-01-04",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fetch_trading_sessions_ignores_partial_cached_price_data():
+    engine = BacktestEngine()
+
+    class _Broker:
+        def __init__(self):
+            self.price_data = {
+                "AAPL": pd.DataFrame(
+                    {"close": [100.0, 101.0]},
+                    index=pd.to_datetime(["2024-01-02", "2024-01-04"]),
+                )
+            }
+            self.calls = 0
+
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            self.calls += 1
+            return [
+                _Bar(100.0, 101.0, 99.0, 100.0, 1000.0, datetime(2024, 1, 1)),
+                _Bar(101.0, 102.0, 100.0, 101.0, 1100.0, datetime(2024, 1, 2)),
+                _Bar(102.0, 103.0, 101.0, 102.0, 1200.0, datetime(2024, 1, 4)),
+                _Bar(103.0, 104.0, 102.0, 103.0, 1300.0, datetime(2024, 1, 5)),
+            ]
+
+    broker = _Broker()
+    sessions = await engine._fetch_trading_sessions_from_data_broker(
+        broker,
+        ["AAPL"],
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 5),
+    )
+
+    assert broker.calls == 1
+    assert [session.date().isoformat() for session in sessions] == [
+        "2024-01-01",
+        "2024-01-02",
+        "2024-01-04",
+        "2024-01-05",
     ]
 
 
