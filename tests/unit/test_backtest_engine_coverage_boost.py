@@ -198,6 +198,128 @@ def test_calculate_performance_metrics_zero_days_branch():
     assert result_df.attrs["annualized_return"] == 0
 
 
+def test_build_weekday_sessions_returns_empty_for_inverted_range():
+    engine = BacktestEngine()
+
+    sessions = engine._build_weekday_sessions(datetime(2024, 1, 5), datetime(2024, 1, 1))
+
+    assert sessions == []
+
+
+def test_extract_trading_sessions_handles_missing_invalid_and_out_of_range_data():
+    engine = BacktestEngine()
+
+    assert (
+        engine._extract_trading_sessions_from_price_data(
+            datetime(2024, 1, 1),
+            datetime(2024, 1, 5),
+            None,
+        )
+        == []
+    )
+
+    price_data = {
+        "INVALID": object(),
+        "EMPTY": pd.DataFrame(),
+        "AAPL": pd.DataFrame(
+            {"close": [99.0, 100.0, 101.0]},
+            index=pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-04"]),
+        ),
+        "MSFT": pd.DataFrame(
+            {"close": [200.0]},
+            index=pd.to_datetime(["2024-01-02"]),
+        ),
+    }
+
+    sessions = engine._extract_trading_sessions_from_price_data(
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 4),
+        price_data,
+    )
+
+    assert [session.date().isoformat() for session in sessions] == [
+        "2024-01-02",
+        "2024-01-04",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fetch_trading_sessions_prefers_cached_price_data():
+    engine = BacktestEngine()
+
+    class _Broker:
+        def __init__(self):
+            self.price_data = {
+                "AAPL": pd.DataFrame(
+                    {"close": [100.0, 101.0]},
+                    index=pd.to_datetime(["2024-01-02", "2024-01-04"]),
+                )
+            }
+
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            raise AssertionError("cached sessions should short-circuit get_bars")
+
+    sessions = await engine._fetch_trading_sessions_from_data_broker(
+        _Broker(),
+        ["AAPL"],
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 5),
+    )
+
+    assert [session.date().isoformat() for session in sessions] == [
+        "2024-01-02",
+        "2024-01-04",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fetch_trading_sessions_falls_back_when_broker_has_no_bar_api():
+    engine = BacktestEngine()
+
+    class _Broker:
+        price_data = {}
+
+    sessions = await engine._fetch_trading_sessions_from_data_broker(
+        _Broker(),
+        ["AAPL"],
+        datetime(2024, 1, 5),
+        datetime(2024, 1, 8),
+    )
+
+    assert [session.date().isoformat() for session in sessions] == [
+        "2024-01-05",
+        "2024-01-08",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fetch_trading_sessions_handles_symbol_errors_and_missing_timestamps(caplog):
+    engine = BacktestEngine()
+
+    class _Broker:
+        price_data = {}
+
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            if symbol == "ERR":
+                raise RuntimeError("calendar lookup failed")
+            return [
+                SimpleNamespace(timestamp=None),
+                _Bar(100.0, 101.0, 99.0, 100.0, 1000.0, datetime(2024, 1, 3)),
+                _Bar(101.0, 102.0, 100.0, 101.0, 1200.0, datetime(2024, 1, 10)),
+            ]
+
+    caplog.set_level("WARNING")
+    sessions = await engine._fetch_trading_sessions_from_data_broker(
+        _Broker(),
+        ["ERR", "AAPL"],
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 5),
+    )
+
+    assert [session.date().isoformat() for session in sessions] == ["2024-01-03"]
+    assert "Failed to load session calendar for ERR" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_process_symbol_signal_non_dict_action_and_exception():
     engine = BacktestEngine()

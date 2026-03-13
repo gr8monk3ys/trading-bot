@@ -100,6 +100,40 @@ async def test_run_backtest_success_and_failure_paths(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_backtest_returns_empty_dict_when_engine_returns_no_result(monkeypatch):
+    runner = ValidatedBacktestRunner(broker=None)
+
+    class _EmptyBacktestEngine:
+        def __init__(self, broker):
+            self.broker = broker
+
+        async def run_backtest(
+            self,
+            strategy_class,
+            symbols,
+            start_date,
+            end_date,
+            initial_capital,
+            strategy_params=None,
+        ):
+            return {}
+
+    fake_engine_mod = types.ModuleType("engine.backtest_engine")
+    fake_engine_mod.BacktestEngine = _EmptyBacktestEngine
+    monkeypatch.setitem(sys.modules, "engine.backtest_engine", fake_engine_mod)
+
+    result = await runner._run_backtest(
+        _Strategy,
+        ["AAPL"],
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 3),
+        100000,
+    )
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
 async def test_run_walk_forward_branches(monkeypatch):
     class _Validator:
         def __init__(self, n_splits):

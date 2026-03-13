@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
+import math
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Type
 
 import pandas as pd
@@ -248,32 +249,77 @@ class BacktestEngine:
         if len(result_df) < 2:
             return
 
+        equity = pd.to_numeric(result_df.get("equity"), errors="coerce").astype(float)
+        returns = pd.to_numeric(result_df.get("returns"), errors="coerce").astype(float)
+        if "cum_returns" in result_df.columns:
+            cum_returns = pd.to_numeric(result_df["cum_returns"], errors="coerce").astype(float)
+        else:
+            cum_returns = (1.0 + returns.fillna(0.0)).cumprod() - 1.0
+
+        result_df["equity"] = equity
+        result_df["returns"] = returns
+        result_df["cum_returns"] = cum_returns
+
         # Calculate daily, monthly, and annual returns
-        result_df["daily_returns"] = result_df["returns"]
+        result_df["daily_returns"] = returns
 
         # Calculate drawdowns
-        result_df["peak"] = result_df["equity"].cummax()
-        result_df["drawdown"] = (result_df["equity"] / result_df["peak"]) - 1
+        peak_values: list[float] = []
+        drawdown_values: list[float] = []
+        running_peak: float | None = None
+        for value in equity.tolist():
+            if pd.isna(value) or float(value) <= 0.0:
+                peak_values.append(float("nan"))
+                drawdown_values.append(float("nan"))
+                continue
+
+            current_equity = float(value)
+            running_peak = current_equity if running_peak is None else max(running_peak, current_equity)
+            peak_values.append(running_peak)
+            drawdown_values.append((current_equity / running_peak) - 1.0)
+
+        result_df["peak"] = pd.Series(peak_values, index=result_df.index, dtype=float)
+        result_df["drawdown"] = pd.Series(drawdown_values, index=result_df.index, dtype=float)
 
         # Maximum drawdown
-        max_drawdown = result_df["drawdown"].min()
+        valid_drawdowns = [
+            float(value) for value in drawdown_values if value is not None and not pd.isna(value)
+        ]
+        max_drawdown = min(valid_drawdowns) if valid_drawdowns else 0.0
 
         # Annualized return (assuming 252 trading days in a year)
         days = (result_df.index[-1] - result_df.index[0]).days
         if days > 0:
             years = days / 365
-            total_return = result_df["cum_returns"].iloc[-1]
+            valid_cum_returns = [
+                float(value)
+                for value in result_df["cum_returns"].tolist()
+                if value is not None and not pd.isna(value)
+            ]
+            total_return = valid_cum_returns[-1] if valid_cum_returns else 0.0
             annualized_return = (1 + total_return) ** (1 / years) - 1
         else:
-            annualized_return = 0
+            annualized_return = 0.0
 
         # Sharpe ratio (assuming 0% risk-free rate for simplicity)
-        if result_df["daily_returns"].std() > 0:
-            sharpe_ratio = (
-                result_df["daily_returns"].mean() / result_df["daily_returns"].std()
-            ) * (252**0.5)
+        daily_return_values = [
+            float(value)
+            for value in result_df["daily_returns"].tolist()
+            if value is not None and not pd.isna(value)
+        ]
+        if len(daily_return_values) >= 2:
+            mean_return = sum(daily_return_values) / len(daily_return_values)
+            variance = sum((value - mean_return) ** 2 for value in daily_return_values) / (
+                len(daily_return_values) - 1
+            )
+            daily_std = math.sqrt(variance) if variance > 0.0 else 0.0
         else:
-            sharpe_ratio = 0
+            daily_std = 0.0
+
+        if daily_std > 0.0:
+            sharpe_ratio = (mean_return / daily_std) * math.sqrt(252.0)
+        else:
+            sharpe_ratio = 0.0
 
         # Add metrics to dataframe
         result_df.attrs["strategy"] = strategy_name
@@ -423,6 +469,8 @@ class BacktestEngine:
             f"Loading historical data for {len(symbols)} symbols from {start_dt.date()} to {end_dt.date()}..."
         )
         data_quality_reports: dict[str, dict] = {}
+        loaded_price_data: dict[str, pd.DataFrame] = {}
+        loaded_sessions_by_date: dict[date, datetime] = {}
 
         async def _load_symbol_data(symbol: str) -> None:
             """Load historical data for a single symbol."""
@@ -435,6 +483,13 @@ class BacktestEngine:
                 )
 
                 if bars and len(bars) > 0:
+                    for bar in bars:
+                        timestamp = getattr(bar, "timestamp", None)
+                        if timestamp is None:
+                            continue
+                        session_ts = pd.Timestamp(timestamp).to_pydatetime()
+                        loaded_sessions_by_date.setdefault(session_ts.date(), session_ts)
+
                     # Convert to DataFrame format expected by BacktestBroker
                     # Note: volume must be float for talib SMA compatibility
                     data = pd.DataFrame(
@@ -464,6 +519,7 @@ class BacktestEngine:
                         return
 
                     backtest_broker.set_price_data(symbol, data)
+                    loaded_price_data[symbol] = data
                     logger.debug(f"Loaded {len(bars)} bars for {symbol}")
                 else:
                     logger.warning(f"No data available for {symbol}")
@@ -525,7 +581,15 @@ class BacktestEngine:
         # Track equity curve
         equity_curve = [initial_capital]
 
-        trading_days = self._resolve_trading_sessions(start_dt, end_dt, backtest_broker.price_data)
+        trading_days = (
+            [loaded_sessions_by_date[session_date] for session_date in sorted(loaded_sessions_by_date)]
+            if loaded_sessions_by_date
+            else self._resolve_trading_sessions(
+                start_dt,
+                end_dt,
+                loaded_price_data or getattr(backtest_broker, "price_data", None),
+            )
+        )
 
         logger.info(f"Running backtest over {len(trading_days)} trading days...")
 
