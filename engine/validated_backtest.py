@@ -307,9 +307,7 @@ class ValidatedBacktestRunner:
             trade_records = backtest_result.get("trades") or []
             realized_trades = [trade for trade in trade_records if trade.get("side") == "sell"]
             winning_trades = [
-                trade
-                for trade in realized_trades
-                if _coerce_float(trade.get("pnl"), 0.0) > 0.0
+                trade for trade in realized_trades if _coerce_float(trade.get("pnl"), 0.0) > 0.0
             ]
             win_rate = len(winning_trades) / len(realized_trades) if realized_trades else 0.0
 

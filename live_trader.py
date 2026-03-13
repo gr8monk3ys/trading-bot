@@ -897,9 +897,9 @@ class LiveTrader:
                 if counter % state_interval == 0 and self.position_manager:
                     strategy_states = {}
                     if self.strategy is not None:
-                        strategy_states[
-                            self.strategy_name
-                        ] = await self._build_strategy_state_snapshot(self.strategy)
+                        strategy_states[self.strategy_name] = (
+                            await self._build_strategy_state_snapshot(self.strategy)
+                        )
                     await self.state_store.save(
                         self.position_manager,
                         lifecycle=(
