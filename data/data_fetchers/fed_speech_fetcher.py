@@ -19,6 +19,9 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
+_SCRIPT_TAG_RE = re.compile(r"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL)
+_STYLE_TAG_RE = re.compile(r"<style\b[^>]*>.*?</style\s*>", re.IGNORECASE | re.DOTALL)
+
 
 # FOMC meeting dates for 2024-2025 (approximate)
 FOMC_DATES = [
@@ -326,8 +329,8 @@ class FedSpeechFetcher:
         """Extract speech text from HTML."""
         # Simple extraction - remove HTML tags
         # In production, use BeautifulSoup for better parsing
-        text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
-        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL)
+        text = _SCRIPT_TAG_RE.sub("", html)
+        text = _STYLE_TAG_RE.sub("", text)
         text = re.sub(r"<[^>]+>", " ", text)
         text = re.sub(r"\s+", " ", text)
         return text.strip()[:50000]  # Limit to 50k chars

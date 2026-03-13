@@ -5,14 +5,14 @@ This directory contains various runner scripts and utilities for the trading bot
 ## Main Entry Points
 
 - **`../main.py`** - Primary entry point for production trading (supports live, backtest, optimize, replay, and research registry modes)
-- **`../live_trader.py`** - Simplified live trading launcher
+- **`../live_trader.py`** - Alternate single-strategy live launcher with extra runtime tuning flags
 
 ## Utilities
 
 - **`dashboard.py`** - Real-time monitoring dashboard
 - **`quickstart.py`** - Interactive setup wizard
 - **`simple_trader.py`** - Simple trading script
-- **`run.py`** - Alternative runner script
+- **`run.py`** - Legacy runner script; do not use as the primary entrypoint
 - **`run_now.py`** - Quick start script
 - **`kill_switch.py`** - Emergency kill switch (cancel orders / liquidate)
 - **`deployment_preflight.py`** - Deployment hardening preflight checks (git/env readiness)
@@ -50,15 +50,15 @@ This directory contains various runner scripts and utilities for the trading bot
 
 ## Usage
 
-Most scripts can be run directly from the project root:
+Prefer `main.py` for normal runtime control. For script helpers, run them from the project root with `uv`:
 
 ```bash
-# Production trading
-python main.py live --strategy auto
+# Canonical runtime entrypoint
+uv run python main.py live --strategy MomentumStrategy --force
 
 # Quick start
-python scripts/quickstart.py
+uv run python -m scripts.quickstart
 
 # Dashboard
-python scripts/dashboard.py
+uv run python -m scripts.dashboard
 ```

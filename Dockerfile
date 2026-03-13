@@ -2,15 +2,21 @@
 # Optimized for production deployment with minimal image size
 
 # Stage 1: Builder
-FROM python:3.10-slim@sha256:ed9e9e63d6b7c71c8f80eae61ab889d3912ca097a8206dca52874457be507cf1 as builder
+FROM python:3.10-slim@sha256:4b0a8ebf16cf4563f3d3732bd4f4a464abb2f671b3b9d00aab281d705d224457 AS builder
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     build-essential \
     wget \
     curl \
     git \
     && rm -rf /var/lib/apt/lists/*
+
+# Upgrade bootstrap packaging tools to versions with current security fixes.
+RUN python -m pip install --no-cache-dir --upgrade \
+    "pip>=26.0" \
+    "setuptools>=82.0.1" \
+    "wheel>=0.46.2"
 
 # Install TA-Lib from source
 # TARGETARCH is set automatically by Docker BuildKit (amd64, arm64, etc.)
@@ -33,8 +39,8 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
 # Set working directory
 WORKDIR /app
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Install uv for dependency resolution in the builder stage only.
+COPY --from=ghcr.io/astral-sh/uv:0.10.9@sha256:10902f58a1606787602f303954cea099626a4adb02acbac4c69920fe9d278f82 /uv /bin/uv
 
 # Copy dependency files
 COPY pyproject.toml uv.lock* ./
@@ -45,19 +51,21 @@ RUN uv sync --frozen --no-dev --no-install-project && \
     uv pip install --python /app/.venv/bin/python "ib-insync>=0.9.86,<1.1"
 
 # Stage 2: Runtime
-FROM python:3.10-slim@sha256:ed9e9e63d6b7c71c8f80eae61ab889d3912ca097a8206dca52874457be507cf1
+FROM python:3.10-slim@sha256:4b0a8ebf16cf4563f3d3732bd4f4a464abb2f671b3b9d00aab281d705d224457
 
 # Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN python -m pip install --no-cache-dir --upgrade \
+    "pip>=26.0" \
+    "setuptools>=82.0.1" \
+    "wheel>=0.46.2"
 
 # Copy TA-Lib from builder
 COPY --from=builder /usr/lib/libta_lib.* /usr/lib/
 COPY --from=builder /usr/include/ta-lib/ /usr/include/ta-lib/
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv

@@ -3,58 +3,34 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-class _CaptureWebhookHandler(BaseHTTPRequestHandler):
-    payloads: list[dict] = []
-
-    def log_message(self, format, *args):  # noqa: A003
-        return
-
-    def do_POST(self):  # noqa: N802
-        length = int(self.headers.get("Content-Length", "0") or 0)
-        body = self.rfile.read(length).decode("utf-8")
-        try:
-            payload = json.loads(body)
-        except json.JSONDecodeError:
-            payload = {"raw_body": body}
-        self.__class__.payloads.append(payload)
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"ok")
+def _read_payloads(path) -> list[dict]:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def test_staging_incident_ticket_drill_script_delivers_webhook(tmp_path):
-    _CaptureWebhookHandler.payloads = []
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _CaptureWebhookHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-
     report_path = tmp_path / "staging_ticket_drill_report.json"
-    webhook_url = f"http://127.0.0.1:{server.server_port}/incident-ticket"
-    try:
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "scripts/staging_incident_ticket_drill.py",
-                "--webhook-url",
-                webhook_url,
-                "--artifact-dir",
-                str(tmp_path),
-                "--output",
-                str(report_path),
-                "--require-delivery",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=3)
+    webhook_payload_path = tmp_path / "incident_ticket_payloads.jsonl"
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "scripts/staging_incident_ticket_drill.py",
+            "--webhook-url",
+            webhook_payload_path.as_uri(),
+            "--artifact-dir",
+            str(tmp_path),
+            "--output",
+            str(report_path),
+            "--require-delivery",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
     assert proc.returncode == 0
     assert "STAGING INCIDENT TICKET DRILL" in proc.stdout
@@ -65,42 +41,34 @@ def test_staging_incident_ticket_drill_script_delivers_webhook(tmp_path):
     assert report["ticketing"]["created"] == 1
     assert report["dead_letters"]["queued"] == 0
 
-    assert len(_CaptureWebhookHandler.payloads) >= 1
-    webhook_payload = _CaptureWebhookHandler.payloads[0]
+    payloads = _read_payloads(webhook_payload_path)
+    assert len(payloads) >= 1
+    webhook_payload = payloads[0]["payload"]
     assert webhook_payload["event_type"] == "incident_ticket"
     assert webhook_payload["breach"]["name"] == "incident_ack_sla_breach"
 
 
 def test_staging_incident_ticket_drill_script_fails_when_non_test_target_required(tmp_path):
-    _CaptureWebhookHandler.payloads = []
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _CaptureWebhookHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-
     report_path = tmp_path / "staging_ticket_drill_report.json"
-    webhook_url = f"http://127.0.0.1:{server.server_port}/incident-ticket"
-    try:
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "scripts/staging_incident_ticket_drill.py",
-                "--webhook-url",
-                webhook_url,
-                "--artifact-dir",
-                str(tmp_path),
-                "--output",
-                str(report_path),
-                "--require-delivery",
-                "--require-non-test-target",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=3)
+    webhook_payload_path = tmp_path / "incident_ticket_payloads.jsonl"
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "scripts/staging_incident_ticket_drill.py",
+            "--webhook-url",
+            webhook_payload_path.as_uri(),
+            "--artifact-dir",
+            str(tmp_path),
+            "--output",
+            str(report_path),
+            "--require-delivery",
+            "--require-non-test-target",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
     assert proc.returncode == 1
     report = json.loads(report_path.read_text(encoding="utf-8"))

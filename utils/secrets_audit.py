@@ -41,6 +41,42 @@ _SECRET_VALUE_PATTERN = re.compile(r"""(?ix)
     """)
 
 
+def _redact_line_secret_values(line: str) -> str:
+    """Mask the captured secret portion in an assignment-like line."""
+    if not line:
+        return line
+
+    def _replace(match: re.Match[str]) -> str:
+        secret_value = match.group(1)
+        if len(secret_value) <= 6:
+            masked_value = "***"
+        else:
+            masked_value = f"{secret_value[:3]}***{secret_value[-2:]}"
+        return match.group(0).replace(secret_value, masked_value, 1)
+
+    return _SECRET_VALUE_PATTERN.sub(_replace, line)
+
+
+def _mask_secret_label(value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if len(raw) <= 6:
+        return "*" * len(raw)
+    return f"{raw[:3]}{'*' * (len(raw) - 5)}{raw[-2:]}"
+
+
+def _sanitize_payload(value: Any) -> Any:
+    """Recursively sanitize report payloads before logging or writing them."""
+    if isinstance(value, str):
+        return _redact_line_secret_values(value)
+    if isinstance(value, list):
+        return [_sanitize_payload(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _sanitize_payload(item) for key, item in value.items() if key != "excerpt"}
+    return value
+
+
 def _looks_like_placeholder(line: str) -> bool:
     lower = line.lower()
     tokens = ("replace_with", "example", "<", "placeholder", "dummy", "sample")
@@ -69,7 +105,7 @@ def _scan_file_for_secret_hits(path: Path) -> list[dict[str, Any]]:
             {
                 "file": str(path),
                 "line": lineno,
-                "excerpt": line[:180],
+                "excerpt": _redact_line_secret_values(line[:180]),
             }
         )
     return hits
@@ -255,3 +291,45 @@ def run_secrets_audit(
         "inventory_path": str(inventory_file),
         "repo_root": str(root),
     }
+
+
+def sanitize_audit_report(report: dict[str, Any]) -> dict[str, Any]:
+    """Return a sanitized copy of an audit report safe for console/file output."""
+    sanitized = _sanitize_payload(report)
+    checks = sanitized.get("checks", [])
+    if not isinstance(checks, list):
+        return sanitized
+
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        details = check.get("details")
+        if not isinstance(details, dict):
+            continue
+        if check.get("name") == "secrets_rotation_fresh":
+            stale_entries = details.get("stale_entries", [])
+            if isinstance(stale_entries, list):
+                details["stale_entries"] = [
+                    {
+                        **{
+                            key: value
+                            for key, value in entry.items()
+                            if key != "name"
+                        },
+                        "name": _mask_secret_label(str(entry.get("name", ""))),
+                    }
+                    for entry in stale_entries
+                    if isinstance(entry, dict)
+                ]
+        elif check.get("name") == "repository_secret_leak_scan":
+            hits = details.get("hits", [])
+            if isinstance(hits, list):
+                details["hits"] = [
+                    {
+                        "file": str(entry.get("file", "")),
+                        "line": int(entry.get("line", 0) or 0),
+                    }
+                    for entry in hits
+                    if isinstance(entry, dict)
+                ]
+    return sanitized

@@ -47,7 +47,7 @@ try:
         sys.exit(1)
 
     print("✅ PASSED: Environment loaded")
-    print(f"   API Key: {api_key[:8]}... (hidden)")
+    print("   Alpaca credentials detected")
     print(f"   Paper Trading: {paper_mode}")
     print()
 except Exception as e:

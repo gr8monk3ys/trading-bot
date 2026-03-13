@@ -253,45 +253,75 @@ class ValidatedBacktestRunner:
     ) -> Dict[str, Any]:
         """Run the main backtest."""
         try:
-            from brokers.backtest_broker import BacktestBroker
             from engine.backtest_engine import BacktestEngine
 
-            # Create backtest broker
-            backtest_broker = BacktestBroker(
-                initial_balance=initial_capital,
+            engine = BacktestEngine(broker=self.broker)
+            backtest_result = await engine.run_backtest(
+                strategy_class=strategy_class,
+                symbols=symbols,
+                start_date=start_date,
+                end_date=end_date,
+                initial_capital=initial_capital,
+                strategy_params=strategy_kwargs or None,
             )
 
-            # Initialize strategy
-            strategy = strategy_class(broker=backtest_broker, **strategy_kwargs)
+            if not backtest_result:
+                return {}
 
-            # Create engine and run
-            engine = BacktestEngine(broker=backtest_broker)
-            results = await engine.run([strategy], start_date, end_date)
+            equity_curve = backtest_result.get("equity_curve_series")
+            if equity_curve is None:
+                raw_equity_curve = backtest_result.get("equity_curve") or []
+                if raw_equity_curve:
+                    series_values = raw_equity_curve[1:] or raw_equity_curve
+                    series_length = len(series_values)
+                    series_index = pd.bdate_range(start=start_date, periods=series_length)
+                    equity_curve = pd.Series(
+                        [float(value) for value in series_values],
+                        index=series_index,
+                        dtype=float,
+                    )
+                else:
+                    equity_curve = None
 
-            if results and len(results) > 0:
-                result_df = results[0]
+            daily_returns = backtest_result.get("daily_returns")
+            if daily_returns is None and equity_curve is not None:
+                daily_returns = equity_curve.pct_change().fillna(0.0)
 
-                # Extract metrics
-                equity_curve = result_df["equity"].dropna()
-                daily_returns = result_df["returns"].dropna()
+            final_equity = _coerce_float(
+                backtest_result.get("final_equity"),
+                float(initial_capital),
+            )
+            total_return = _coerce_float(
+                backtest_result.get("total_return"),
+                (final_equity / float(initial_capital)) - 1 if initial_capital else 0.0,
+            )
 
-                total_return = (
-                    (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1
-                    if len(equity_curve) > 0
-                    else 0
-                )
-                sharpe = self._calculate_sharpe(daily_returns)
-                max_dd = result_df["drawdown"].min() if "drawdown" in result_df else 0
+            sharpe = self._calculate_sharpe(daily_returns) if daily_returns is not None else 0.0
 
-                return {
-                    "total_return": total_return,
-                    "sharpe_ratio": sharpe,
-                    "max_drawdown": max_dd,
-                    "num_trades": int(result_df["trades"].sum()),
-                    "win_rate": 0.5,  # Would need trade-level data
-                    "equity_curve": equity_curve,
-                    "daily_returns": daily_returns,
-                }
+            if equity_curve is not None and not equity_curve.empty:
+                running_max = equity_curve.cummax()
+                max_dd = float(((equity_curve / running_max) - 1.0).min())
+            else:
+                max_dd = 0.0
+
+            trade_records = backtest_result.get("trades") or []
+            realized_trades = [trade for trade in trade_records if trade.get("side") == "sell"]
+            winning_trades = [
+                trade
+                for trade in realized_trades
+                if _coerce_float(trade.get("pnl"), 0.0) > 0.0
+            ]
+            win_rate = len(winning_trades) / len(realized_trades) if realized_trades else 0.0
+
+            return {
+                "total_return": total_return,
+                "sharpe_ratio": sharpe,
+                "max_drawdown": max_dd,
+                "num_trades": int(backtest_result.get("total_trades", len(trade_records))),
+                "win_rate": win_rate,
+                "equity_curve": equity_curve,
+                "daily_returns": daily_returns,
+            }
 
         except Exception as e:
             logger.error(f"Backtest failed: {e}")

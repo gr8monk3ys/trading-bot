@@ -9,8 +9,9 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Mapping, Optional
-from urllib import error, request
+from urllib import error, parse, request
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,19 @@ def _deliver_json_webhook(
     authorization_header: str | None = None,
     extra_headers: Mapping[str, str] | None = None,
 ) -> bool:
+    parsed_url = parse.urlsplit(str(webhook_url or "").strip())
+    if parsed_url.scheme.lower() == "file":
+        output_path = Path(request.url2pathname(parsed_url.path))
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        payload_record = {
+            "description": description,
+            "payload": dict(payload),
+        }
+        with output_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload_record))
+            handle.write("\n")
+        return True
+
     body = json.dumps(dict(payload)).encode("utf-8")
     attempts = max(1, int(max_retries) + 1)
 

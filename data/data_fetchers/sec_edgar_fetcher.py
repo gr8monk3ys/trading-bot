@@ -21,6 +21,9 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
+_SCRIPT_TAG_RE = re.compile(r"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL)
+_STYLE_TAG_RE = re.compile(r"<style\b[^>]*>.*?</style\s*>", re.IGNORECASE | re.DOTALL)
+
 
 @dataclass
 class SECFiling:
@@ -538,8 +541,8 @@ class SECEdgarFetcher:
     def _extract_text_from_html(self, html: str) -> str:
         """Extract text from HTML content."""
         # Remove scripts and styles
-        text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.I)
-        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.I)
+        text = _SCRIPT_TAG_RE.sub("", html)
+        text = _STYLE_TAG_RE.sub("", text)
 
         # Remove HTML tags
         text = re.sub(r"<[^>]+>", " ", text)

@@ -134,6 +134,13 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"scripts/dashboard.py" = ["E402"]
+"scripts/generate_validation_artifacts.py" = ["E402"]
+"scripts/kill_switch.py" = ["E402"]
+"scripts/mcp_server.py" = ["E402"]
+"scripts/quickstart.py" = ["E402"]
+"scripts/simple_trader.py" = ["E402"]
+"scripts/validated_backtest_report.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.10"

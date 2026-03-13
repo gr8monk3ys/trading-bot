@@ -667,13 +667,37 @@ class BacktestEngine:
                     }
                 )
 
+        if trading_days:
+            equity_curve_series = pd.Series(
+                [float(value) for value in equity_curve[1:]],
+                index=pd.DatetimeIndex(trading_days),
+                dtype=float,
+            )
+        elif equity_curve:
+            equity_curve_series = pd.Series(
+                [float(equity_curve[-1])],
+                index=pd.DatetimeIndex([pd.Timestamp(start_dt)]),
+                dtype=float,
+            )
+        else:
+            equity_curve_series = pd.Series(dtype=float)
+
+        daily_returns = (
+            equity_curve_series.pct_change().fillna(0.0)
+            if not equity_curve_series.empty
+            else pd.Series(dtype=float)
+        )
+
         result = {
             "equity_curve": equity_curve,
+            "equity_curve_series": equity_curve_series,
+            "daily_returns": daily_returns,
             "trades": trade_records,
             "start_date": start_dt,
             "end_date": end_dt,
             "initial_capital": initial_capital,
             "final_equity": final_equity,
+            "total_return": total_return,
             "positions": backtest_broker.get_positions(),
             "total_trades": len(trade_records),
             "stress_test": stress_test,

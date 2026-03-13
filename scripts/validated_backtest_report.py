@@ -3,7 +3,7 @@
 Generate a validated backtest report with profitability gates.
 
 Usage:
-  python scripts/validated_backtest_report.py \
+  uv run python scripts/validated_backtest_report.py \
     --strategy MomentumStrategy \
     --symbols AAPL,MSFT \
     --start-date 2024-01-01 \
@@ -15,8 +15,13 @@ Usage:
 import argparse
 import asyncio
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from brokers.alpaca_broker import AlpacaBroker
 from engine.strategy_manager import StrategyManager

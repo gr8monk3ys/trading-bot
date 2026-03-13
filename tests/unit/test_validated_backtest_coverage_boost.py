@@ -30,32 +30,39 @@ class _Strategy:
 async def test_run_backtest_success_and_failure_paths(monkeypatch):
     runner = ValidatedBacktestRunner(broker=None)
 
-    class _FakeBacktestBroker:
-        def __init__(self, initial_balance):
-            self.initial_balance = initial_balance
-
     class _FakeBacktestEngine:
         def __init__(self, broker):
             self.broker = broker
 
-        async def run(self, strategies, start_date, end_date):
-            dates = pd.date_range(start=start_date, periods=3, freq="D")
-            df = pd.DataFrame(
-                {
-                    "equity": [100000.0, 101000.0, 102000.0],
-                    "returns": [0.0, 0.01, 0.0099],
-                    "drawdown": [0.0, -0.002, -0.001],
-                    "trades": [0, 1, 1],
-                },
-                index=dates,
+        async def run_backtest(
+            self,
+            strategy_class,
+            symbols,
+            start_date,
+            end_date,
+            initial_capital,
+            strategy_params=None,
+        ):
+            equity_curve_series = pd.Series(
+                [101000.0, 102000.0],
+                index=pd.to_datetime(["2024-01-02", "2024-01-03"]),
             )
-            return [df]
+            return {
+                "equity_curve": [100000.0, 101000.0, 102000.0],
+                "equity_curve_series": equity_curve_series,
+                "daily_returns": equity_curve_series.pct_change().fillna(0.0),
+                "final_equity": 102000.0,
+                "total_return": 0.02,
+                "trades": [
+                    {"side": "buy", "pnl": 0.0},
+                    {"side": "sell", "pnl": 1000.0},
+                    {"side": "sell", "pnl": -250.0},
+                ],
+                "total_trades": 3,
+            }
 
-    fake_broker_mod = types.ModuleType("brokers.backtest_broker")
-    fake_broker_mod.BacktestBroker = _FakeBacktestBroker
     fake_engine_mod = types.ModuleType("engine.backtest_engine")
     fake_engine_mod.BacktestEngine = _FakeBacktestEngine
-    monkeypatch.setitem(sys.modules, "brokers.backtest_broker", fake_broker_mod)
     monkeypatch.setitem(sys.modules, "engine.backtest_engine", fake_engine_mod)
 
     ok = await runner._run_backtest(
@@ -65,11 +72,20 @@ async def test_run_backtest_success_and_failure_paths(monkeypatch):
         datetime(2024, 1, 3),
         100000,
     )
-    assert ok["num_trades"] == 2
+    assert ok["num_trades"] == 3
     assert ok["sharpe_ratio"] != 0
+    assert ok["win_rate"] == 0.5
 
     class _ExplodingBacktestEngine(_FakeBacktestEngine):
-        async def run(self, strategies, start_date, end_date):
+        async def run_backtest(
+            self,
+            strategy_class,
+            symbols,
+            start_date,
+            end_date,
+            initial_capital,
+            strategy_params=None,
+        ):
             raise RuntimeError("boom")
 
     fake_engine_mod.BacktestEngine = _ExplodingBacktestEngine

@@ -11,13 +11,19 @@ Helps you:
 4. Start trading
 
 Usage:
-    python quickstart.py
+    uv run python scripts/quickstart.py
 """
 
+import argparse
 import asyncio
 import re
 import subprocess
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from brokers.alpaca_broker import AlpacaBroker
 
@@ -48,6 +54,17 @@ async def test_connection():
         print(f"❌ Connection failed: {e}\n")
         print("Please check your .env file and API credentials")
         return False
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments without forcing an immediate broker connection."""
+    parser = argparse.ArgumentParser(description="Interactive setup wizard for paper trading")
+    parser.add_argument(
+        "--skip-connection-test",
+        action="store_true",
+        help="Skip the upfront Alpaca connectivity check",
+    )
+    return parser.parse_args()
 
 
 def choose_strategy():
@@ -231,7 +248,7 @@ def show_summary(strategy, symbols, params):
     print("\n" + "=" * 80)
 
 
-async def main():
+async def main(args: argparse.Namespace):
     """Main quickstart flow."""
     print("\n")
     print("╔" + "=" * 78 + "╗")
@@ -241,7 +258,7 @@ async def main():
     print("╚" + "=" * 78 + "╝")
 
     # Step 1: Test connection
-    if not await test_connection():
+    if not args.skip_connection_test and not await test_connection():
         print("\n❌ Setup failed. Please fix the connection issue and try again.\n")
         return 1
 
@@ -271,7 +288,7 @@ async def main():
     # Build command as argument list (prevents command injection)
     cmd_args = [
         sys.executable,  # Use same Python interpreter
-        "live_trader.py",
+        str(ROOT / "live_trader.py"),
         "--strategy",
         strategy,
         "--symbols",
@@ -293,7 +310,7 @@ async def main():
         result = subprocess.run(cmd_args, check=False)
         return result.returncode
     except FileNotFoundError:
-        print("❌ Error: live_trader.py not found. Make sure you're in the project root.")
+        print("❌ Error: live_trader.py not found.")
         return 1
     except subprocess.SubprocessError as e:
         print(f"❌ Error launching trading bot: {e}")
@@ -302,7 +319,7 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        exit_code = asyncio.run(main())
+        exit_code = asyncio.run(main(parse_args()))
         sys.exit(exit_code)
     except KeyboardInterrupt:
         print("\n\n👋 Quickstart cancelled.\n")

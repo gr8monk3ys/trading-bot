@@ -78,6 +78,7 @@ audit_logs/
 
 # Linting
 .ruff_cache/
+.uv-cache/
 
 # Database files
 *.db

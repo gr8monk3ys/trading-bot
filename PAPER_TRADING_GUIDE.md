@@ -1,5 +1,7 @@
 # Paper Trading Guide
 
+This guide is historical and contains older operational notes. Use `QUICKSTART.md` and `docs/RUNTIME_ARCHITECTURE.md` for the current supported workflows.
+
 **Status:** ACTIVE - Paper trading started 2025-11-10
 **Strategy:** MomentumStrategy (Simplified)
 **Mode:** Paper Trading (Alpaca)
