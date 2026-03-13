@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
+import math
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Type
 
 import pandas as pd
@@ -37,6 +38,121 @@ class BacktestEngine:
         self.strategies = []
         self.results = {}
 
+    def _build_weekday_sessions(self, start_dt: datetime, end_dt: datetime) -> List[datetime]:
+        """Build a weekday-only fallback session list when market data is unavailable."""
+        if start_dt > end_dt:
+            return []
+
+        sessions = []
+        current = start_dt
+        while current <= end_dt:
+            if current.weekday() < 5:
+                sessions.append(current)
+            current += timedelta(days=1)
+        return sessions
+
+    def _extract_trading_sessions_from_price_data(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+        price_data: Dict[str, pd.DataFrame] | None,
+    ) -> List[datetime]:
+        """Derive actual market sessions from loaded daily bar timestamps."""
+        if not price_data or start_dt > end_dt:
+            return []
+
+        sessions_by_date = {}
+        start_date = start_dt.date()
+        end_date = end_dt.date()
+
+        for df in price_data.values():
+            if not isinstance(df, pd.DataFrame) or df.empty:
+                continue
+
+            for timestamp in df.index:
+                session_ts = pd.Timestamp(timestamp).to_pydatetime()
+                session_date = session_ts.date()
+                if start_date <= session_date <= end_date:
+                    sessions_by_date.setdefault(session_date, session_ts)
+
+        return [sessions_by_date[session_date] for session_date in sorted(sessions_by_date)]
+
+    def _resolve_trading_sessions(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+        price_data: Dict[str, pd.DataFrame] | None = None,
+    ) -> List[datetime]:
+        """Use actual bar timestamps when available, otherwise fall back to weekdays."""
+        sessions = self._extract_trading_sessions_from_price_data(start_dt, end_dt, price_data)
+        return sessions if sessions else self._build_weekday_sessions(start_dt, end_dt)
+
+    def _cached_sessions_cover_requested_range(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+        sessions: List[datetime],
+    ) -> bool:
+        """Only trust cached sessions when they span the full requested window."""
+        if not sessions or start_dt > end_dt:
+            return False
+
+        return sessions[0].date() <= start_dt.date() and sessions[-1].date() >= end_dt.date()
+
+    async def _fetch_trading_sessions_from_data_broker(
+        self,
+        data_broker,
+        symbols: List[str],
+        start_dt: datetime,
+        end_dt: datetime,
+    ) -> List[datetime]:
+        """Fetch session timestamps for a date range to build an exchange-aware fold calendar."""
+        cached_price_data = getattr(data_broker, "price_data", None)
+        cached_sessions = self._extract_trading_sessions_from_price_data(
+            start_dt, end_dt, cached_price_data
+        )
+        if self._cached_sessions_cover_requested_range(start_dt, end_dt, cached_sessions):
+            return cached_sessions
+
+        if not hasattr(data_broker, "get_bars"):
+            return self._build_weekday_sessions(start_dt, end_dt)
+
+        sessions_by_date = {}
+        start_date = start_dt.date()
+        end_date = end_dt.date()
+
+        async def _load_symbol_sessions(symbol: str) -> None:
+            try:
+                bars = await data_broker.get_bars(
+                    symbol,
+                    start=start_dt.strftime("%Y-%m-%d"),
+                    end=end_dt.strftime("%Y-%m-%d"),
+                    timeframe="1Day",
+                )
+            except Exception as exc:
+                logger.warning(f"Failed to load session calendar for {symbol}: {exc}")
+                return
+
+            for bar in bars or []:
+                timestamp = getattr(bar, "timestamp", None)
+                if timestamp is None:
+                    continue
+                session_ts = pd.Timestamp(timestamp).to_pydatetime()
+                session_date = session_ts.date()
+                if start_date <= session_date <= end_date:
+                    sessions_by_date.setdefault(session_date, session_ts)
+
+        await asyncio.gather(
+            *[_load_symbol_sessions(symbol) for symbol in symbols],
+            return_exceptions=True,
+        )
+
+        return (
+            [sessions_by_date[session_date] for session_date in sorted(sessions_by_date)]
+            if sessions_by_date
+            else self._build_weekday_sessions(start_dt, end_dt)
+        )
+
     async def run(self, strategies, start_date, end_date):
         """
         Run backtest for strategies over the given period.
@@ -51,12 +167,17 @@ class BacktestEngine:
         """
         self.strategies = strategies
         self.current_date = start_date
+        trading_days = self._resolve_trading_sessions(
+            start_date,
+            end_date,
+            getattr(self.broker, "price_data", None),
+        )
+        dates = pd.DatetimeIndex(trading_days)
 
         # Initialize result tracking for each strategy
         results = []
         for _strategy in strategies:
             # Create daily results dataframe with date index
-            dates = pd.date_range(start=start_date, end=end_date, freq="B")
             result_df = pd.DataFrame(index=dates)
             result_df["equity"] = pd.Series(index=dates, dtype="float64")
             result_df["cash"] = pd.Series(index=dates, dtype="float64")
@@ -71,13 +192,7 @@ class BacktestEngine:
                 strategy.broker = self.broker
 
         # Run backtest day by day
-        current_date = start_date
-        while current_date <= end_date:
-            # Skip weekends
-            if current_date.weekday() > 4:  # Saturday = 5, Sunday = 6
-                current_date += timedelta(days=1)
-                continue
-
+        for current_date in trading_days:
             logger.debug(f"Processing date: {current_date.date()}")
             self.current_date = current_date
 
@@ -117,9 +232,6 @@ class BacktestEngine:
                         f"Error in strategy {strategy.__class__.__name__} on {current_date.date()}: {e}"
                     )
 
-            # Move to next day
-            current_date += timedelta(days=1)
-
         # Post-process results to fill missing values and calculate metrics
         for i, result_df in enumerate(results):
             # Forward fill equity values for non-trading days
@@ -149,32 +261,79 @@ class BacktestEngine:
         if len(result_df) < 2:
             return
 
+        equity = pd.to_numeric(result_df.get("equity"), errors="coerce").astype(float)
+        returns = pd.to_numeric(result_df.get("returns"), errors="coerce").astype(float)
+        if "cum_returns" in result_df.columns:
+            cum_returns = pd.to_numeric(result_df["cum_returns"], errors="coerce").astype(float)
+        else:
+            cum_returns = (1.0 + returns.fillna(0.0)).cumprod() - 1.0
+
+        result_df["equity"] = equity
+        result_df["returns"] = returns
+        result_df["cum_returns"] = cum_returns
+
         # Calculate daily, monthly, and annual returns
-        result_df["daily_returns"] = result_df["returns"]
+        result_df["daily_returns"] = returns
 
         # Calculate drawdowns
-        result_df["peak"] = result_df["equity"].cummax()
-        result_df["drawdown"] = (result_df["equity"] / result_df["peak"]) - 1
+        peak_values: list[float] = []
+        drawdown_values: list[float] = []
+        running_peak: float | None = None
+        for value in equity.tolist():
+            if pd.isna(value) or float(value) <= 0.0:
+                peak_values.append(float("nan"))
+                drawdown_values.append(float("nan"))
+                continue
+
+            current_equity = float(value)
+            running_peak = (
+                current_equity if running_peak is None else max(running_peak, current_equity)
+            )
+            peak_values.append(running_peak)
+            drawdown_values.append((current_equity / running_peak) - 1.0)
+
+        result_df["peak"] = pd.Series(peak_values, index=result_df.index, dtype=float)
+        result_df["drawdown"] = pd.Series(drawdown_values, index=result_df.index, dtype=float)
 
         # Maximum drawdown
-        max_drawdown = result_df["drawdown"].min()
+        valid_drawdowns = [
+            float(value) for value in drawdown_values if value is not None and not pd.isna(value)
+        ]
+        max_drawdown = min(valid_drawdowns) if valid_drawdowns else 0.0
 
         # Annualized return (assuming 252 trading days in a year)
         days = (result_df.index[-1] - result_df.index[0]).days
         if days > 0:
             years = days / 365
-            total_return = result_df["cum_returns"].iloc[-1]
+            valid_cum_returns = [
+                float(value)
+                for value in result_df["cum_returns"].tolist()
+                if value is not None and not pd.isna(value)
+            ]
+            total_return = valid_cum_returns[-1] if valid_cum_returns else 0.0
             annualized_return = (1 + total_return) ** (1 / years) - 1
         else:
-            annualized_return = 0
+            annualized_return = 0.0
 
         # Sharpe ratio (assuming 0% risk-free rate for simplicity)
-        if result_df["daily_returns"].std() > 0:
-            sharpe_ratio = (
-                result_df["daily_returns"].mean() / result_df["daily_returns"].std()
-            ) * (252**0.5)
+        daily_return_values = [
+            float(value)
+            for value in result_df["daily_returns"].tolist()
+            if value is not None and not pd.isna(value)
+        ]
+        if len(daily_return_values) >= 2:
+            mean_return = sum(daily_return_values) / len(daily_return_values)
+            variance = sum((value - mean_return) ** 2 for value in daily_return_values) / (
+                len(daily_return_values) - 1
+            )
+            daily_std = math.sqrt(variance) if variance > 0.0 else 0.0
         else:
-            sharpe_ratio = 0
+            daily_std = 0.0
+
+        if daily_std > 0.0:
+            sharpe_ratio = (mean_return / daily_std) * math.sqrt(252.0)
+        else:
+            sharpe_ratio = 0.0
 
         # Add metrics to dataframe
         result_df.attrs["strategy"] = strategy_name
@@ -324,6 +483,8 @@ class BacktestEngine:
             f"Loading historical data for {len(symbols)} symbols from {start_dt.date()} to {end_dt.date()}..."
         )
         data_quality_reports: dict[str, dict] = {}
+        loaded_price_data: dict[str, pd.DataFrame] = {}
+        loaded_sessions_by_date: dict[date, datetime] = {}
 
         async def _load_symbol_data(symbol: str) -> None:
             """Load historical data for a single symbol."""
@@ -336,6 +497,13 @@ class BacktestEngine:
                 )
 
                 if bars and len(bars) > 0:
+                    for bar in bars:
+                        timestamp = getattr(bar, "timestamp", None)
+                        if timestamp is None:
+                            continue
+                        session_ts = pd.Timestamp(timestamp).to_pydatetime()
+                        loaded_sessions_by_date.setdefault(session_ts.date(), session_ts)
+
                     # Convert to DataFrame format expected by BacktestBroker
                     # Note: volume must be float for talib SMA compatibility
                     data = pd.DataFrame(
@@ -365,6 +533,7 @@ class BacktestEngine:
                         return
 
                     backtest_broker.set_price_data(symbol, data)
+                    loaded_price_data[symbol] = data
                     logger.debug(f"Loaded {len(bars)} bars for {symbol}")
                 else:
                     logger.warning(f"No data available for {symbol}")
@@ -426,13 +595,18 @@ class BacktestEngine:
         # Track equity curve
         equity_curve = [initial_capital]
 
-        # Generate trading days
-        current_date = start_dt
-        trading_days = []
-        while current_date <= end_dt:
-            if current_date.weekday() < 5:  # Skip weekends
-                trading_days.append(current_date)
-            current_date += timedelta(days=1)
+        trading_days = (
+            [
+                loaded_sessions_by_date[session_date]
+                for session_date in sorted(loaded_sessions_by_date)
+            ]
+            if loaded_sessions_by_date
+            else self._resolve_trading_sessions(
+                start_dt,
+                end_dt,
+                loaded_price_data or getattr(backtest_broker, "price_data", None),
+            )
+        )
 
         logger.info(f"Running backtest over {len(trading_days)} trading days...")
 
@@ -957,17 +1131,19 @@ class BacktestEngine:
 
         logger.info(
             f"Running walk-forward backtest with {n_folds} folds, "
-            f"{train_pct:.0%} train / {1-train_pct:.0%} test split, "
+            f"{train_pct:.0%} train / {1 - train_pct:.0%} test split, "
             f"{embargo_days} day embargo"
         )
 
-        # Generate trading days
-        current = start_dt
-        trading_days = []
-        while current <= end_dt:
-            if current.weekday() < 5:  # Skip weekends
-                trading_days.append(current)
-            current += timedelta(days=1)
+        from brokers.alpaca_broker import AlpacaBroker
+
+        data_broker = self.broker if self.broker else AlpacaBroker(paper=True)
+        trading_days = await self._fetch_trading_sessions_from_data_broker(
+            data_broker,
+            symbols,
+            start_dt,
+            end_dt,
+        )
 
         total_days = len(trading_days)
         fold_size = total_days // n_folds
@@ -1109,9 +1285,9 @@ class BacktestEngine:
         overfit_detected = avg_is_sharpe > 0 and avg_oos_sharpe < (avg_is_sharpe * 0.5)
 
         # Log summary
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info("WALK-FORWARD BACKTEST RESULTS")
-        logger.info(f"{'='*60}")
+        logger.info(f"{'=' * 60}")
         logger.info(f"Folds completed: {len(fold_results)}/{n_folds}")
         logger.info(f"Average IS Sharpe:  {avg_is_sharpe:.2f}")
         logger.info(f"Average OOS Sharpe: {avg_oos_sharpe:.2f}")
@@ -1128,7 +1304,7 @@ class BacktestEngine:
         else:
             logger.info("✓ No significant overfitting detected")
 
-        logger.info(f"{'='*60}\n")
+        logger.info(f"{'=' * 60}\n")
 
         return {
             "fold_results": fold_results,

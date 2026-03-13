@@ -311,11 +311,7 @@ def sanitize_audit_report(report: dict[str, Any]) -> dict[str, Any]:
             if isinstance(stale_entries, list):
                 details["stale_entries"] = [
                     {
-                        **{
-                            key: value
-                            for key, value in entry.items()
-                            if key != "name"
-                        },
+                        **{key: value for key, value in entry.items() if key != "name"},
                         "name": _mask_secret_label(str(entry.get("name", ""))),
                     }
                     for entry in stale_entries

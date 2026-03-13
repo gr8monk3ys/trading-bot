@@ -406,6 +406,12 @@ async def run_live(args):
         logger.info(f"Live session run_id={session_run_id}")
         logger.info(f"Live artifacts directory={session_run_dir}")
 
+        if args.skip_validation:
+            logger.warning(
+                "--skip-validation is currently a no-op; "
+                "main.py live does not run a pre-trade validation pass yet"
+            )
+
         # P0 FIX: Safety confirmation for live trading with real money
         paper = not args.real
         if not paper:  # Real money trading
@@ -474,7 +480,7 @@ async def run_live(args):
         trading_symbols = await select_trading_symbols(broker)
         logger.info(
             f"Trading universe: {', '.join(trading_symbols[:10])}"
-            + (f" ... and {len(trading_symbols)-10} more" if len(trading_symbols) > 10 else "")
+            + (f" ... and {len(trading_symbols) - 10} more" if len(trading_symbols) > 10 else "")
         )
 
         await broker.start_websocket(trading_symbols)
@@ -1019,7 +1025,7 @@ async def optimize_parameters(args):
             for j, param in enumerate(param_names):
                 params[param] = combo[j]
 
-            logger.info(f"Testing combination {i+1}/{len(combinations)}: {params}")
+            logger.info(f"Testing combination {i + 1}/{len(combinations)}: {params}")
 
             # Run backtest
             result = await strategy_manager.backtest_engine.run_backtest(
@@ -1261,9 +1267,7 @@ def run_research(args) -> int:
 
     if action == "promote":
         if args.strict and not args.force and not ready:
-            print(
-                f"Strict promotion blocked for {args.experiment_id}: " f"{len(blockers)} blockers"
-            )
+            print(f"Strict promotion blocked for {args.experiment_id}: {len(blockers)} blockers")
             for blocker in blockers:
                 print(f"  - {blocker}")
             return 1
@@ -1398,7 +1402,7 @@ def main():
     parser.add_argument(
         "--skip-validation",
         action="store_true",
-        help="Skip walk-forward validation for live trading (not recommended)",
+        help="Reserved flag; currently no-op because live pre-trade validation is not wired in",
     )
     parser.add_argument(
         "--wf-splits",

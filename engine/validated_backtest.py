@@ -20,7 +20,9 @@ Usage:
     print(f"Regime performance: {result.regime_metrics}")
 """
 
+import importlib
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
@@ -66,6 +68,38 @@ def _coerce_int(value: object, default: int) -> int:
 
 def _coerce_str(value: object, default: str) -> str:
     return value if isinstance(value, str) else default
+
+
+def _coerce_numeric_series(series: object) -> Optional[pd.Series]:
+    if series is None:
+        return None
+    if not isinstance(series, pd.Series):
+        series = pd.Series(series)
+
+    numeric_series = pd.to_numeric(series, errors="coerce")
+    return pd.Series(numeric_series, index=series.index, dtype=float)
+
+
+def _series_to_float_values(series: Optional[pd.Series]) -> list[float]:
+    if series is None:
+        return []
+    return [float(value) for value in series.tolist() if value is not None and not pd.isna(value)]
+
+
+def _max_drawdown_from_equity_curve(equity_curve: Optional[pd.Series]) -> float:
+    values = _series_to_float_values(equity_curve)
+    if not values:
+        return 0.0
+
+    running_peak: Optional[float] = None
+    max_drawdown = 0.0
+    for value in values:
+        if value <= 0.0:
+            continue
+        running_peak = value if running_peak is None else max(running_peak, value)
+        current_drawdown = (value / running_peak) - 1.0 if running_peak else 0.0
+        max_drawdown = min(max_drawdown, current_drawdown)
+    return float(max_drawdown)
 
 
 @dataclass
@@ -176,8 +210,7 @@ class ValidatedBacktestRunner:
         end_dt = datetime.strptime(end_date, "%Y-%m-%d")
 
         logger.info(
-            f"Running validated backtest: {strategy_class.__name__} "
-            f"from {start_date} to {end_date}"
+            f"Running validated backtest: {strategy_class.__name__} from {start_date} to {end_date}"
         )
 
         # 1. Run main backtest
@@ -253,7 +286,8 @@ class ValidatedBacktestRunner:
     ) -> Dict[str, Any]:
         """Run the main backtest."""
         try:
-            from engine.backtest_engine import BacktestEngine
+            backtest_engine_module = importlib.import_module("engine.backtest_engine")
+            BacktestEngine = backtest_engine_module.BacktestEngine
 
             engine = BacktestEngine(broker=self.broker)
             backtest_result = await engine.run_backtest(
@@ -268,24 +302,37 @@ class ValidatedBacktestRunner:
             if not backtest_result:
                 return {}
 
-            equity_curve = backtest_result.get("equity_curve_series")
+            equity_curve = _coerce_numeric_series(backtest_result.get("equity_curve_series"))
             if equity_curve is None:
                 raw_equity_curve = backtest_result.get("equity_curve") or []
                 if raw_equity_curve:
                     series_values = raw_equity_curve[1:] or raw_equity_curve
                     series_length = len(series_values)
                     series_index = pd.bdate_range(start=start_date, periods=series_length)
-                    equity_curve = pd.Series(
-                        [float(value) for value in series_values],
-                        index=series_index,
-                        dtype=float,
+                    equity_curve = _coerce_numeric_series(
+                        pd.Series(series_values, index=series_index, dtype=float)
                     )
                 else:
                     equity_curve = None
 
-            daily_returns = backtest_result.get("daily_returns")
+            daily_returns = _coerce_numeric_series(backtest_result.get("daily_returns"))
             if daily_returns is None and equity_curve is not None:
-                daily_returns = equity_curve.pct_change().fillna(0.0)
+                equity_values = _series_to_float_values(equity_curve)
+                if equity_values:
+                    computed_returns = [0.0]
+                    for i in range(1, len(equity_values)):
+                        prev_equity = equity_values[i - 1]
+                        current_equity = equity_values[i]
+                        computed_returns.append(
+                            ((current_equity / prev_equity) - 1.0) if prev_equity else 0.0
+                        )
+                    daily_returns = pd.Series(
+                        computed_returns,
+                        index=equity_curve.index,
+                        dtype=float,
+                    )
+                else:
+                    daily_returns = None
 
             final_equity = _coerce_float(
                 backtest_result.get("final_equity"),
@@ -298,18 +345,12 @@ class ValidatedBacktestRunner:
 
             sharpe = self._calculate_sharpe(daily_returns) if daily_returns is not None else 0.0
 
-            if equity_curve is not None and not equity_curve.empty:
-                running_max = equity_curve.cummax()
-                max_dd = float(((equity_curve / running_max) - 1.0).min())
-            else:
-                max_dd = 0.0
+            max_dd = _max_drawdown_from_equity_curve(equity_curve)
 
             trade_records = backtest_result.get("trades") or []
             realized_trades = [trade for trade in trade_records if trade.get("side") == "sell"]
             winning_trades = [
-                trade
-                for trade in realized_trades
-                if _coerce_float(trade.get("pnl"), 0.0) > 0.0
+                trade for trade in realized_trades if _coerce_float(trade.get("pnl"), 0.0) > 0.0
             ]
             win_rate = len(winning_trades) / len(realized_trades) if realized_trades else 0.0
 
@@ -349,7 +390,7 @@ class ValidatedBacktestRunner:
             folds = []
 
             for i, (train_start, train_end, test_start, test_end) in enumerate(splits):
-                logger.debug(f"Walk-forward fold {i+1}/{len(splits)}")
+                logger.debug(f"Walk-forward fold {i + 1}/{len(splits)}")
 
                 # Run backtest on training period
                 is_result = await self._run_backtest(
@@ -509,19 +550,22 @@ class ValidatedBacktestRunner:
 
     def _calculate_sharpe(self, returns: pd.Series, rf_rate: float = 0.02) -> float:
         """Calculate annualized Sharpe ratio."""
-        if len(returns) < 2:
-            return 0
+        return_values = _series_to_float_values(returns)
+        if len(return_values) < 2:
+            return 0.0
 
-        returns = returns.dropna()
-        if len(returns) < 2:
-            return 0
-
-        excess_returns = returns - rf_rate / 252
-        std = float(returns.std())
+        daily_rf = rf_rate / 252.0
+        excess_returns = [value - daily_rf for value in return_values]
+        mean_excess_return = sum(excess_returns) / len(excess_returns)
+        mean_return = sum(return_values) / len(return_values)
+        variance = sum((value - mean_return) ** 2 for value in return_values) / (
+            len(return_values) - 1
+        )
+        std = math.sqrt(variance) if variance > 0.0 else 0.0
         if std == 0.0:
-            return 0
+            return 0.0
 
-        return float(np.sqrt(252)) * float(excess_returns.mean()) / std
+        return float(math.sqrt(252.0) * mean_excess_return / std)
 
     def _calculate_significance(self, daily_returns: pd.Series) -> tuple[bool, Optional[float]]:
         """Calculate statistical significance of returns."""
@@ -723,7 +767,7 @@ def format_validated_backtest_report(result: ValidatedBacktestResult) -> str:
         f"Period: {result.start_date.date()} to {result.end_date.date()} | "
         f"Trades: {result.num_trades} | Return: {result.total_return:+.2%}"
     )
-    lines.append(f"Sharpe: {result.sharpe_ratio:.2f} | " f"Max Drawdown: {result.max_drawdown:.2%}")
+    lines.append(f"Sharpe: {result.sharpe_ratio:.2f} | Max Drawdown: {result.max_drawdown:.2%}")
 
     if result.walk_forward_validated:
         lines.append("-" * 60)
@@ -748,8 +792,7 @@ def format_validated_backtest_report(result: ValidatedBacktestResult) -> str:
                 continue
             status = "PASS" if gate.get("passed") else "FAIL"
             lines.append(
-                f"  {name}: {status} "
-                f"(value={gate.get('value')}, threshold={gate.get('threshold')})"
+                f"  {name}: {status} (value={gate.get('value')}, threshold={gate.get('threshold')})"
             )
         if result.validation_gates.get("blockers"):
             lines.append(f"Blockers: {', '.join(result.validation_gates['blockers'])}")

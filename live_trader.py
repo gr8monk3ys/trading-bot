@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
-Live Trading Launcher
+Single-Strategy Paper Trading Launcher
 
-Launches strategies in live paper trading with real-time monitoring.
+Launches single-strategy paper sessions with real-time monitoring.
+
+This entrypoint is paper-only. Use `main.py live --real` for the real-money path.
 
 Features:
 - Real-time trade execution
@@ -62,7 +64,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(LOG_DIR / f'trading_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'),
+        logging.FileHandler(LOG_DIR / f"trading_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"),
     ],
 )
 
@@ -355,7 +357,7 @@ class LiveTrader:
         """Initialize broker and strategy."""
         try:
             logger.info("=" * 80)
-            logger.info("🚀 LIVE TRADING INITIALIZATION")
+            logger.info("🚀 PAPER TRADING INITIALIZATION")
             logger.info("=" * 80)
             logger.info(f"Session Run ID: {self.session_run_id}")
             logger.info(f"Session Artifacts: {self.session_run_dir}")
@@ -709,13 +711,13 @@ class LiveTrader:
         return drawdown
 
     async def start_trading(self):
-        """Start live trading."""
+        """Start a paper trading session."""
         try:
             self.running = True
             self.start_time = datetime.now()
 
             logger.info("\n" + "=" * 80)
-            logger.info("📈 STARTING LIVE TRADING")
+            logger.info("📈 STARTING PAPER TRADING")
             logger.info("=" * 80)
             logger.info(f"Strategy: {self.strategy_name}")
             logger.info(f"Symbols: {', '.join(self.symbols)}")
@@ -796,7 +798,7 @@ class LiveTrader:
                         logger.info(
                             f"  {pos.symbol}: {pos.qty} shares @ ${float(pos.avg_entry_price):.2f} "
                             f"(Current: ${float(pos.current_price):.2f}, "
-                            f"P/L: ${float(pos.unrealized_pl):+,.2f} / {float(pos.unrealized_plpc)*100:+.2f}%)"
+                            f"P/L: ${float(pos.unrealized_pl):+,.2f} / {float(pos.unrealized_plpc) * 100:+.2f}%)"
                         )
 
                 logger.info("-" * 80 + "\n")
@@ -810,7 +812,7 @@ class LiveTrader:
         """Graceful shutdown."""
         try:
             logger.info("\n" + "=" * 80)
-            logger.info("🛑 SHUTTING DOWN LIVE TRADING")
+            logger.info("🛑 SHUTTING DOWN PAPER TRADING")
             logger.info("=" * 80)
 
             self.running = False
@@ -1231,10 +1233,10 @@ class LiveTrader:
 
 
 async def main():
-    """Main entry point for live trading."""
+    """Main entry point for single-strategy paper trading."""
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Live Trading Bot")
+    parser = argparse.ArgumentParser(description="Single-Strategy Paper Trading Bot")
     parser.add_argument(
         "--strategy",
         type=str,

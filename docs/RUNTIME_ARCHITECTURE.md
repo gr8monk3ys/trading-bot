@@ -18,7 +18,7 @@ Use this when you want the broadest built-in operational surface: strategy manag
 
 ### `live_trader.py`
 
-Single-strategy runtime focused on direct paper/live session management with explicit risk-profile controls.
+Single-strategy paper runtime focused on direct session management with explicit risk-profile controls.
 
 Use this when you want:
 
@@ -59,16 +59,16 @@ Use this for deployment-style environments where both processes should run toget
 
 ## Architectural Overlaps To Be Aware Of
 
-### Two live runtimes
+### Separate paper and live surfaces
 
-`main.py live` and `live_trader.py` both support ongoing trading sessions, but they differ in:
+`main.py live` is the primary live/paper control-plane entrypoint. `live_trader.py` is a narrower paper-only runtime, and they differ in:
 
 - strategy naming conventions
 - broker/session orchestration
 - runtime features and defaults
 - intended operating mode
 
-That means docs and operators need to be explicit about which live path they are using.
+That means docs and operators need to be explicit about which runtime they are using, especially for any real-money workflow.
 
 ### Adaptive runtime is separate
 

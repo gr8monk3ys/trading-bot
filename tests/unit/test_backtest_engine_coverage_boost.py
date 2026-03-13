@@ -198,6 +198,185 @@ def test_calculate_performance_metrics_zero_days_branch():
     assert result_df.attrs["annualized_return"] == 0
 
 
+def test_calculate_performance_metrics_builds_cum_returns_when_missing():
+    engine = BacktestEngine()
+    dates = pd.date_range(start="2024-01-01", periods=3, freq="B")
+    result_df = pd.DataFrame(
+        {
+            "equity": [100000.0, 100500.0, 101000.0],
+            "returns": [0.0, 0.005, 0.004975124378109453],
+        },
+        index=dates,
+    )
+
+    engine._calculate_performance_metrics(result_df, "MissingCumReturns")
+
+    assert "cum_returns" in result_df.columns
+    assert result_df["cum_returns"].iloc[-1] > 0
+
+
+def test_build_weekday_sessions_returns_empty_for_inverted_range():
+    engine = BacktestEngine()
+
+    sessions = engine._build_weekday_sessions(datetime(2024, 1, 5), datetime(2024, 1, 1))
+
+    assert sessions == []
+
+
+def test_extract_trading_sessions_handles_missing_invalid_and_out_of_range_data():
+    engine = BacktestEngine()
+
+    assert (
+        engine._extract_trading_sessions_from_price_data(
+            datetime(2024, 1, 1),
+            datetime(2024, 1, 5),
+            None,
+        )
+        == []
+    )
+
+    price_data = {
+        "INVALID": object(),
+        "EMPTY": pd.DataFrame(),
+        "AAPL": pd.DataFrame(
+            {"close": [99.0, 100.0, 101.0]},
+            index=pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-04"]),
+        ),
+        "MSFT": pd.DataFrame(
+            {"close": [200.0]},
+            index=pd.to_datetime(["2024-01-02"]),
+        ),
+    }
+
+    sessions = engine._extract_trading_sessions_from_price_data(
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 4),
+        price_data,
+    )
+
+    assert [session.date().isoformat() for session in sessions] == [
+        "2024-01-02",
+        "2024-01-04",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fetch_trading_sessions_prefers_cached_price_data():
+    engine = BacktestEngine()
+
+    class _Broker:
+        def __init__(self):
+            self.price_data = {
+                "AAPL": pd.DataFrame(
+                    {"close": [100.0, 101.0]},
+                    index=pd.to_datetime(["2024-01-02", "2024-01-04"]),
+                )
+            }
+
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            raise AssertionError("cached sessions should short-circuit get_bars")
+
+    sessions = await engine._fetch_trading_sessions_from_data_broker(
+        _Broker(),
+        ["AAPL"],
+        datetime(2024, 1, 2),
+        datetime(2024, 1, 4),
+    )
+
+    assert [session.date().isoformat() for session in sessions] == [
+        "2024-01-02",
+        "2024-01-04",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fetch_trading_sessions_ignores_partial_cached_price_data():
+    engine = BacktestEngine()
+
+    class _Broker:
+        def __init__(self):
+            self.price_data = {
+                "AAPL": pd.DataFrame(
+                    {"close": [100.0, 101.0]},
+                    index=pd.to_datetime(["2024-01-02", "2024-01-04"]),
+                )
+            }
+            self.calls = 0
+
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            self.calls += 1
+            return [
+                _Bar(100.0, 101.0, 99.0, 100.0, 1000.0, datetime(2024, 1, 1)),
+                _Bar(101.0, 102.0, 100.0, 101.0, 1100.0, datetime(2024, 1, 2)),
+                _Bar(102.0, 103.0, 101.0, 102.0, 1200.0, datetime(2024, 1, 4)),
+                _Bar(103.0, 104.0, 102.0, 103.0, 1300.0, datetime(2024, 1, 5)),
+            ]
+
+    broker = _Broker()
+    sessions = await engine._fetch_trading_sessions_from_data_broker(
+        broker,
+        ["AAPL"],
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 5),
+    )
+
+    assert broker.calls == 1
+    assert [session.date().isoformat() for session in sessions] == [
+        "2024-01-01",
+        "2024-01-02",
+        "2024-01-04",
+        "2024-01-05",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fetch_trading_sessions_falls_back_when_broker_has_no_bar_api():
+    engine = BacktestEngine()
+
+    class _Broker:
+        price_data = {}
+
+    sessions = await engine._fetch_trading_sessions_from_data_broker(
+        _Broker(),
+        ["AAPL"],
+        datetime(2024, 1, 5),
+        datetime(2024, 1, 8),
+    )
+
+    assert [session.date().isoformat() for session in sessions] == [
+        "2024-01-05",
+        "2024-01-08",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_fetch_trading_sessions_handles_symbol_errors_and_missing_timestamps(caplog):
+    engine = BacktestEngine()
+
+    class _Broker:
+        price_data = {}
+
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            if symbol == "ERR":
+                raise RuntimeError("calendar lookup failed")
+            return [
+                SimpleNamespace(timestamp=None),
+                _Bar(100.0, 101.0, 99.0, 100.0, 1000.0, datetime(2024, 1, 3)),
+                _Bar(101.0, 102.0, 100.0, 101.0, 1200.0, datetime(2024, 1, 10)),
+            ]
+
+    caplog.set_level("WARNING")
+    sessions = await engine._fetch_trading_sessions_from_data_broker(
+        _Broker(),
+        ["ERR", "AAPL"],
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 5),
+    )
+
+    assert [session.date().isoformat() for session in sessions] == ["2024-01-03"]
+    assert "Failed to load session calendar for ERR" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_process_symbol_signal_non_dict_action_and_exception():
     engine = BacktestEngine()
@@ -284,6 +463,47 @@ async def test_run_backtest_branch_coverage(monkeypatch, tmp_path):
     trades_text = (run_dir / "trades.jsonl").read_text()
     assert "event_type" in trades_text and "trade" in trades_text
     assert "event_type" in trades_text and "order" in trades_text
+
+
+@pytest.mark.asyncio
+async def test_run_backtest_skips_bars_without_timestamps(monkeypatch):
+    engine = BacktestEngine()
+
+    class _TimestampGapDataBroker(_FakeDataBroker):
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            return [
+                SimpleNamespace(
+                    open=100.0,
+                    high=101.0,
+                    low=99.0,
+                    close=100.0,
+                    volume=1000.0,
+                    timestamp=None,
+                ),
+                _Bar(100.0, 101.0, 99.0, 100.0, 1000.0, datetime(2024, 1, 3)),
+            ]
+
+    monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _TimestampGapDataBroker)
+    monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
+    monkeypatch.setattr(
+        "engine.backtest_engine.HistoricalUniverse", lambda broker=None: _FakeHistoricalUniverse()
+    )
+    monkeypatch.setattr(
+        "engine.backtest_engine.validate_ohlcv_frame",
+        lambda data, symbol, stale_after_days, reference_time: _QualityReport(
+            symbol=symbol, has_errors=False
+        ),
+    )
+
+    result = await engine.run_backtest(
+        strategy_class=_StrategyNoCurrentData,
+        symbols=["GOOD"],
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 5),
+        initial_capital=100000,
+    )
+
+    assert [ts.date().isoformat() for ts in result["equity_curve_series"].index] == ["2024-01-03"]
 
 
 @pytest.mark.asyncio

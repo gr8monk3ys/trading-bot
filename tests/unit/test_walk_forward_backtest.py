@@ -7,7 +7,7 @@ These tests verify the walk-forward analysis functionality which:
 - Calculates degradation metrics
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -364,6 +364,58 @@ class TestWalkForwardBacktest:
 
         # IS return should be higher than OOS
         assert result["is_return"] > result["oos_return"]
+
+    @pytest.mark.asyncio
+    async def test_walk_forward_uses_exchange_sessions_for_fold_boundaries(
+        self, engine, mock_strategy_class
+    ):
+        """Test fold splitting uses fetched market sessions instead of raw weekdays."""
+        sessions = []
+        current = datetime(2024, 1, 2)
+        synthetic_holiday = datetime(2024, 1, 17).date()
+
+        while len(sessions) < 40:
+            if current.weekday() < 5 and current.date() != synthetic_holiday:
+                sessions.append(current)
+            current += timedelta(days=1)
+
+        backtest_ranges = []
+
+        async def mock_fetch_sessions(*args, **kwargs):
+            return sessions
+
+        async def mock_run_backtest(*args, **kwargs):
+            backtest_ranges.append((kwargs["start_date"], kwargs["end_date"]))
+            return {
+                "equity_curve": [100000, 101000],
+                "total_trades": 1,
+            }
+
+        with patch.object(
+            engine,
+            "_fetch_trading_sessions_from_data_broker",
+            side_effect=mock_fetch_sessions,
+        ):
+            with patch.object(engine, "run_backtest", side_effect=mock_run_backtest):
+                result = await engine.run_walk_forward_backtest(
+                    strategy_class=mock_strategy_class,
+                    symbols=["AAPL"],
+                    start_date=sessions[0],
+                    end_date=sessions[-1],
+                    n_folds=1,
+                    embargo_days=2,
+                    train_pct=0.70,
+                )
+
+        n_train = int(len(sessions) * 0.70)
+        test_start_idx = n_train + 2
+
+        assert backtest_ranges == [
+            (sessions[0], sessions[n_train - 1]),
+            (sessions[test_start_idx], sessions[-1]),
+        ]
+        assert result["fold_results"][0]["train_start"] == sessions[0].isoformat()
+        assert result["fold_results"][0]["test_start"] == sessions[test_start_idx].isoformat()
 
 
 # ============================================================================
