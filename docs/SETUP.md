@@ -54,13 +54,13 @@ python main.py research --research-action check --experiment-id <experiment_id>
 
 ### `live_trader.py`
 
-Alternate launcher for direct single-strategy runs with explicit runtime risk settings:
+Alternate paper-only launcher for direct single-strategy runs with explicit runtime risk settings:
 
 ```bash
 python live_trader.py --strategy momentum --risk-profile balanced --symbols AAPL MSFT
 ```
 
-Use this when you specifically want the narrower `live_trader.py` flags. Prefer `main.py` for general operations.
+Use this when you specifically want the narrower `live_trader.py` flags for paper trading. Prefer `main.py` for general operations, especially any real-money path.
 
 ### `web/app.py`
 

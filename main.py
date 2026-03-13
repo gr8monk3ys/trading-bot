@@ -406,6 +406,12 @@ async def run_live(args):
         logger.info(f"Live session run_id={session_run_id}")
         logger.info(f"Live artifacts directory={session_run_dir}")
 
+        if args.skip_validation:
+            logger.warning(
+                "--skip-validation is currently a no-op; "
+                "main.py live does not run a pre-trade validation pass yet"
+            )
+
         # P0 FIX: Safety confirmation for live trading with real money
         paper = not args.real
         if not paper:  # Real money trading
@@ -1398,7 +1404,7 @@ def main():
     parser.add_argument(
         "--skip-validation",
         action="store_true",
-        help="Skip walk-forward validation for live trading (not recommended)",
+        help="Reserved flag; currently no-op because live pre-trade validation is not wired in",
     )
     parser.add_argument(
         "--wf-splits",

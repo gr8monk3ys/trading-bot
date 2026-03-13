@@ -158,6 +158,36 @@ async def test_run_backtest_handles_no_data(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_backtest_uses_market_sessions_not_weekdays(monkeypatch):
+    class _HolidayGapDataBroker(_FakeDataBroker):
+        async def get_bars(self, symbol, start, end, timeframe="1Day"):
+            return [
+                _Bar(100, 101, 99, 100, 1000, datetime(2024, 7, 3)),
+                _Bar(101, 102, 100, 101, 1200, datetime(2024, 7, 5)),
+            ]
+
+    monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _HolidayGapDataBroker)
+    monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
+    monkeypatch.setattr("engine.backtest_engine.HistoricalUniverse", _FakeHistoricalUniverse)
+
+    engine = BacktestEngine()
+
+    result = await engine.run_backtest(
+        strategy_class=_DummyStrategy,
+        symbols=["AAPL"],
+        start_date=datetime(2024, 7, 3),
+        end_date=datetime(2024, 7, 5),
+        initial_capital=100000,
+    )
+
+    assert list(result["equity_curve_series"].index.date) == [
+        datetime(2024, 7, 3).date(),
+        datetime(2024, 7, 5).date(),
+    ]
+    assert len(result["equity_curve"]) == 3
+
+
+@pytest.mark.asyncio
 async def test_run_backtest_persists_observability_artifacts(monkeypatch, tmp_path):
     monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _FakeDataBroker)
     monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)

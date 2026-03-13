@@ -7,7 +7,7 @@ This repository has multiple runtime entrypoints. The commands below reflect the
 ## Supported Execution Paths
 
 - `main.py`: primary multi-mode CLI for `live`, `backtest`, `optimize`, `replay`, and `research`
-- `live_trader.py`: single-strategy live/paper runner with risk-profile controls; used by the low-resource launcher
+- `live_trader.py`: single-strategy paper-only runner with risk-profile controls; used by the low-resource launcher
 - `run_adaptive.py`: standalone adaptive strategy runner and opportunity scanner
 - `web/app.py`: FastAPI monitoring dashboard and JSON API
 - `start.py`: deployment wrapper that launches `web.app` and `run_adaptive.py` together
@@ -72,7 +72,7 @@ Start paper trading with the main runtime:
 uv run python main.py live --strategy MomentumStrategy --force
 ```
 
-Start the single-strategy live trader directly:
+Start the single-strategy paper trader directly:
 
 ```bash
 uv run python live_trader.py --strategy momentum --symbols AAPL MSFT
@@ -132,7 +132,7 @@ uv run python scripts/kill_switch.py --confirm "HALT TRADING" --cancel-orders --
 
 ## Current Reality
 
-- `main.py` and `live_trader.py` are both valid live-entry paths, but they are not the same runtime.
+- `main.py live` is the primary live/paper operator path; `live_trader.py` is a separate paper-only single-strategy runtime.
 - `run_adaptive.py` remains a separate execution path and is not integrated into `main.py`.
 - `web/app.py` is a monitoring surface, not the trading control plane.
 - `start.py` is intended for deployment environments, not as the primary local CLI.

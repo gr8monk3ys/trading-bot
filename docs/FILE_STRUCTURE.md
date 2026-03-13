@@ -21,7 +21,7 @@ trading-bot/
 ├── utils/            Shared runtime, risk, analytics, and ops utilities
 ├── web/              FastAPI dashboard, routes, and templates
 ├── main.py           Primary CLI
-├── live_trader.py    Narrower alternate live launcher
+├── live_trader.py    Narrower paper-only single-strategy launcher
 ├── run_adaptive.py   Adaptive-strategy launcher
 ├── start.py          Deployment wrapper for bot + dashboard
 ├── Dockerfile        Multi-stage container build

@@ -37,6 +37,109 @@ class BacktestEngine:
         self.strategies = []
         self.results = {}
 
+    def _build_weekday_sessions(self, start_dt: datetime, end_dt: datetime) -> List[datetime]:
+        """Build a weekday-only fallback session list when market data is unavailable."""
+        if start_dt > end_dt:
+            return []
+
+        sessions = []
+        current = start_dt
+        while current <= end_dt:
+            if current.weekday() < 5:
+                sessions.append(current)
+            current += timedelta(days=1)
+        return sessions
+
+    def _extract_trading_sessions_from_price_data(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+        price_data: Dict[str, pd.DataFrame] | None,
+    ) -> List[datetime]:
+        """Derive actual market sessions from loaded daily bar timestamps."""
+        if not price_data or start_dt > end_dt:
+            return []
+
+        sessions_by_date = {}
+        start_date = start_dt.date()
+        end_date = end_dt.date()
+
+        for df in price_data.values():
+            if not isinstance(df, pd.DataFrame) or df.empty:
+                continue
+
+            for timestamp in df.index:
+                session_ts = pd.Timestamp(timestamp).to_pydatetime()
+                session_date = session_ts.date()
+                if start_date <= session_date <= end_date:
+                    sessions_by_date.setdefault(session_date, session_ts)
+
+        return [sessions_by_date[session_date] for session_date in sorted(sessions_by_date)]
+
+    def _resolve_trading_sessions(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+        price_data: Dict[str, pd.DataFrame] | None = None,
+    ) -> List[datetime]:
+        """Use actual bar timestamps when available, otherwise fall back to weekdays."""
+        sessions = self._extract_trading_sessions_from_price_data(start_dt, end_dt, price_data)
+        return sessions if sessions else self._build_weekday_sessions(start_dt, end_dt)
+
+    async def _fetch_trading_sessions_from_data_broker(
+        self,
+        data_broker,
+        symbols: List[str],
+        start_dt: datetime,
+        end_dt: datetime,
+    ) -> List[datetime]:
+        """Fetch session timestamps for a date range to build an exchange-aware fold calendar."""
+        cached_price_data = getattr(data_broker, "price_data", None)
+        cached_sessions = self._extract_trading_sessions_from_price_data(
+            start_dt, end_dt, cached_price_data
+        )
+        if cached_sessions:
+            return cached_sessions
+
+        if not hasattr(data_broker, "get_bars"):
+            return self._build_weekday_sessions(start_dt, end_dt)
+
+        sessions_by_date = {}
+        start_date = start_dt.date()
+        end_date = end_dt.date()
+
+        async def _load_symbol_sessions(symbol: str) -> None:
+            try:
+                bars = await data_broker.get_bars(
+                    symbol,
+                    start=start_dt.strftime("%Y-%m-%d"),
+                    end=end_dt.strftime("%Y-%m-%d"),
+                    timeframe="1Day",
+                )
+            except Exception as exc:
+                logger.warning(f"Failed to load session calendar for {symbol}: {exc}")
+                return
+
+            for bar in bars or []:
+                timestamp = getattr(bar, "timestamp", None)
+                if timestamp is None:
+                    continue
+                session_ts = pd.Timestamp(timestamp).to_pydatetime()
+                session_date = session_ts.date()
+                if start_date <= session_date <= end_date:
+                    sessions_by_date.setdefault(session_date, session_ts)
+
+        await asyncio.gather(
+            *[_load_symbol_sessions(symbol) for symbol in symbols],
+            return_exceptions=True,
+        )
+
+        return (
+            [sessions_by_date[session_date] for session_date in sorted(sessions_by_date)]
+            if sessions_by_date
+            else self._build_weekday_sessions(start_dt, end_dt)
+        )
+
     async def run(self, strategies, start_date, end_date):
         """
         Run backtest for strategies over the given period.
@@ -51,12 +154,17 @@ class BacktestEngine:
         """
         self.strategies = strategies
         self.current_date = start_date
+        trading_days = self._resolve_trading_sessions(
+            start_date,
+            end_date,
+            getattr(self.broker, "price_data", None),
+        )
+        dates = pd.DatetimeIndex(trading_days)
 
         # Initialize result tracking for each strategy
         results = []
         for _strategy in strategies:
             # Create daily results dataframe with date index
-            dates = pd.date_range(start=start_date, end=end_date, freq="B")
             result_df = pd.DataFrame(index=dates)
             result_df["equity"] = pd.Series(index=dates, dtype="float64")
             result_df["cash"] = pd.Series(index=dates, dtype="float64")
@@ -71,13 +179,7 @@ class BacktestEngine:
                 strategy.broker = self.broker
 
         # Run backtest day by day
-        current_date = start_date
-        while current_date <= end_date:
-            # Skip weekends
-            if current_date.weekday() > 4:  # Saturday = 5, Sunday = 6
-                current_date += timedelta(days=1)
-                continue
-
+        for current_date in trading_days:
             logger.debug(f"Processing date: {current_date.date()}")
             self.current_date = current_date
 
@@ -116,9 +218,6 @@ class BacktestEngine:
                     logger.error(
                         f"Error in strategy {strategy.__class__.__name__} on {current_date.date()}: {e}"
                     )
-
-            # Move to next day
-            current_date += timedelta(days=1)
 
         # Post-process results to fill missing values and calculate metrics
         for i, result_df in enumerate(results):
@@ -426,13 +525,7 @@ class BacktestEngine:
         # Track equity curve
         equity_curve = [initial_capital]
 
-        # Generate trading days
-        current_date = start_dt
-        trading_days = []
-        while current_date <= end_dt:
-            if current_date.weekday() < 5:  # Skip weekends
-                trading_days.append(current_date)
-            current_date += timedelta(days=1)
+        trading_days = self._resolve_trading_sessions(start_dt, end_dt, backtest_broker.price_data)
 
         logger.info(f"Running backtest over {len(trading_days)} trading days...")
 
@@ -961,13 +1054,15 @@ class BacktestEngine:
             f"{embargo_days} day embargo"
         )
 
-        # Generate trading days
-        current = start_dt
-        trading_days = []
-        while current <= end_dt:
-            if current.weekday() < 5:  # Skip weekends
-                trading_days.append(current)
-            current += timedelta(days=1)
+        from brokers.alpaca_broker import AlpacaBroker
+
+        data_broker = self.broker if self.broker else AlpacaBroker(paper=True)
+        trading_days = await self._fetch_trading_sessions_from_data_broker(
+            data_broker,
+            symbols,
+            start_dt,
+            end_dt,
+        )
 
         total_days = len(trading_days)
         fold_size = total_days // n_folds
