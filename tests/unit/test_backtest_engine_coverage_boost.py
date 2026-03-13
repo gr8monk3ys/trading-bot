@@ -463,9 +463,7 @@ async def test_run_backtest_skips_bars_without_timestamps(monkeypatch):
         initial_capital=100000,
     )
 
-    assert [ts.date().isoformat() for ts in result["equity_curve_series"].index] == [
-        "2024-01-03"
-    ]
+    assert [ts.date().isoformat() for ts in result["equity_curve_series"].index] == ["2024-01-03"]
 
 
 @pytest.mark.asyncio
