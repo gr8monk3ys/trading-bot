@@ -274,7 +274,9 @@ class BacktestEngine:
                 continue
 
             current_equity = float(value)
-            running_peak = current_equity if running_peak is None else max(running_peak, current_equity)
+            running_peak = (
+                current_equity if running_peak is None else max(running_peak, current_equity)
+            )
             peak_values.append(running_peak)
             drawdown_values.append((current_equity / running_peak) - 1.0)
 
@@ -582,7 +584,10 @@ class BacktestEngine:
         equity_curve = [initial_capital]
 
         trading_days = (
-            [loaded_sessions_by_date[session_date] for session_date in sorted(loaded_sessions_by_date)]
+            [
+                loaded_sessions_by_date[session_date]
+                for session_date in sorted(loaded_sessions_by_date)
+            ]
             if loaded_sessions_by_date
             else self._resolve_trading_sessions(
                 start_dt,

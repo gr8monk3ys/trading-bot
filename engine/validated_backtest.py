@@ -85,11 +85,7 @@ def _coerce_numeric_series(series: object) -> Optional[pd.Series]:
 def _series_to_float_values(series: Optional[pd.Series]) -> list[float]:
     if series is None:
         return []
-    return [
-        float(value)
-        for value in series.tolist()
-        if value is not None and not pd.isna(value)
-    ]
+    return [float(value) for value in series.tolist() if value is not None and not pd.isna(value)]
 
 
 def _max_drawdown_from_equity_curve(equity_curve: Optional[pd.Series]) -> float:
