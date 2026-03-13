@@ -119,11 +119,11 @@ jobs:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
         run: |
-          echo "ALPACA_API_KEY=${ALPACA_API_KEY}" > .env.test
-          echo "ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}" >> .env.test
-          echo "PAPER=True" >> .env.test
+          echo "ALPACA_API_KEY=${ALPACA_API_KEY}" > .env
+          echo "ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}" >> .env
+          echo "PAPER=True" >> .env
 
-          docker compose --env-file .env.test config
-          docker compose --env-file .env.test build
+          docker compose config
+          docker compose build
 
-          rm .env.test
+          rm .env
