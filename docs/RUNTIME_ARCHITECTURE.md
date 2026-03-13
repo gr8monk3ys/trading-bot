@@ -67,6 +67,7 @@ Use this for deployment-style environments where both processes should run toget
 - broker/session orchestration
 - runtime features and defaults
 - intended operating mode
+- startup gates: `main.py live` enforces validation artifacts before startup and adds go-live precheck requirements for `--real`
 
 That means docs and operators need to be explicit about which runtime they are using, especially for any real-money workflow.
 
