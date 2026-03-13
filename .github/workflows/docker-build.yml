@@ -123,7 +123,7 @@ jobs:
           echo "ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}" >> .env.test
           echo "PAPER=True" >> .env.test
 
-          docker-compose --env-file .env.test config
-          docker-compose --env-file .env.test build
+          docker compose --env-file .env.test config
+          docker compose --env-file .env.test build
 
           rm .env.test
