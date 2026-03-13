@@ -32,6 +32,8 @@ jobs:
       - name: Run pre-commit on PR diff
         if: steps.cfg.outputs.present == 'true' && github.event_name == 'pull_request'
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
+        env:
+          SKIP: ruff-format
         with:
           extra_args: >-
             --from-ref ${{ github.event.pull_request.base.sha }}
@@ -40,6 +42,8 @@ jobs:
       - name: Run pre-commit on full repo
         if: steps.cfg.outputs.present == 'true' && github.event_name != 'pull_request'
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
+        env:
+          SKIP: ruff-format
 
       - name: Skip when no config
         if: steps.cfg.outputs.present != 'true'

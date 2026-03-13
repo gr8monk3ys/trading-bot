@@ -176,8 +176,7 @@ class ValidatedBacktestRunner:
         end_dt = datetime.strptime(end_date, "%Y-%m-%d")
 
         logger.info(
-            f"Running validated backtest: {strategy_class.__name__} "
-            f"from {start_date} to {end_date}"
+            f"Running validated backtest: {strategy_class.__name__} from {start_date} to {end_date}"
         )
 
         # 1. Run main backtest
@@ -347,7 +346,7 @@ class ValidatedBacktestRunner:
             folds = []
 
             for i, (train_start, train_end, test_start, test_end) in enumerate(splits):
-                logger.debug(f"Walk-forward fold {i+1}/{len(splits)}")
+                logger.debug(f"Walk-forward fold {i + 1}/{len(splits)}")
 
                 # Run backtest on training period
                 is_result = await self._run_backtest(
@@ -721,7 +720,7 @@ def format_validated_backtest_report(result: ValidatedBacktestResult) -> str:
         f"Period: {result.start_date.date()} to {result.end_date.date()} | "
         f"Trades: {result.num_trades} | Return: {result.total_return:+.2%}"
     )
-    lines.append(f"Sharpe: {result.sharpe_ratio:.2f} | " f"Max Drawdown: {result.max_drawdown:.2%}")
+    lines.append(f"Sharpe: {result.sharpe_ratio:.2f} | Max Drawdown: {result.max_drawdown:.2%}")
 
     if result.walk_forward_validated:
         lines.append("-" * 60)
@@ -746,8 +745,7 @@ def format_validated_backtest_report(result: ValidatedBacktestResult) -> str:
                 continue
             status = "PASS" if gate.get("passed") else "FAIL"
             lines.append(
-                f"  {name}: {status} "
-                f"(value={gate.get('value')}, threshold={gate.get('threshold')})"
+                f"  {name}: {status} (value={gate.get('value')}, threshold={gate.get('threshold')})"
             )
         if result.validation_gates.get("blockers"):
             lines.append(f"Blockers: {', '.join(result.validation_gates['blockers'])}")
