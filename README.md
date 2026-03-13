@@ -72,6 +72,8 @@ Start paper trading with the main runtime:
 uv run python main.py live --strategy MomentumStrategy --force
 ```
 
+`main.py live` now enforces current validation evidence by default. Generate a fresh artifact bundle with `scripts/generate_validation_artifacts.py` before startup, and for `--real` also ensure `results/validation/precheck/go_live_precheck_summary.json` is present and passing. Use `--skip-validation` only for controlled dry runs.
+
 Start the single-strategy paper trader directly:
 
 ```bash

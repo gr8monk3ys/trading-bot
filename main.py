@@ -11,8 +11,9 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,334 @@ logger = logging.getLogger(__name__)
 
 
 _LOGGING_CONFIGURED = False
+
+
+def _current_git_sha(repo_root: str | Path = ".") -> str | None:
+    """Return the current repo HEAD SHA when git metadata is available."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(Path(repo_root)),
+            text=True,
+        ).strip()
+    except Exception:
+        return None
+
+
+def _load_json_dict(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    """Load a JSON object from disk and return a structured error on failure."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return None, str(exc)
+
+    if not isinstance(payload, dict):
+        return None, "expected a JSON object"
+
+    return payload, None
+
+
+def _parse_report_timestamp(payload: dict[str, Any] | None, fallback_path: Path) -> datetime:
+    """Resolve an artifact timestamp from payload metadata or file mtime."""
+    if isinstance(payload, dict):
+        raw = payload.get("generated_at")
+        if isinstance(raw, str) and raw.strip():
+            try:
+                parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    return parsed.replace(tzinfo=timezone.utc)
+                return parsed.astimezone(timezone.utc)
+            except ValueError:
+                pass
+
+    return datetime.fromtimestamp(fallback_path.stat().st_mtime, tz=timezone.utc)
+
+
+def _find_latest_validation_artifact_dir(base_dir: str | Path) -> Path | None:
+    """Find the newest validation artifact directory produced by generate_validation_artifacts."""
+    root = Path(base_dir)
+    required_files = ("manifest.json", "validated_backtest_result.json")
+
+    if all((root / filename).exists() for filename in required_files):
+        return root
+
+    if not root.exists() or not root.is_dir():
+        return None
+
+    candidates = [
+        candidate
+        for candidate in root.iterdir()
+        if candidate.is_dir()
+        and all((candidate / filename).exists() for filename in required_files)
+    ]
+    if not candidates:
+        return None
+
+    return sorted(candidates, key=lambda candidate: candidate.name, reverse=True)[0]
+
+
+def _evaluate_live_validation_gate(
+    *,
+    enforce: bool,
+    repo_root: str | Path = ".",
+    validation_artifacts_dir: str | Path = "results/validation",
+    go_live_summary_path: str | Path = "results/validation/precheck/go_live_precheck_summary.json",
+    requested_strategy: str = "auto",
+    require_go_live_evidence: bool = False,
+    max_age_hours: int = 168,
+) -> tuple[bool, dict[str, Any]]:
+    """
+    Evaluate pre-trade validation evidence before starting live or paper runtime.
+
+    Paper mode requires validated backtest evidence for the current code.
+    Real-capital mode additionally requires paper-trading readiness and a passing go-live precheck.
+    """
+    if not enforce:
+        return True, {
+            "ready": True,
+            "skipped": True,
+            "mode": "real" if require_go_live_evidence else "paper",
+            "checks": [],
+            "message": "Live validation enforcement disabled by runtime flag",
+        }
+
+    repo_root_path = Path(repo_root)
+    strategy_name = str(requested_strategy or "auto").strip()
+    report: dict[str, Any] = {
+        "ready": True,
+        "skipped": False,
+        "mode": "real" if require_go_live_evidence else "paper",
+        "validation_artifacts_dir": str(validation_artifacts_dir),
+        "go_live_summary_path": str(go_live_summary_path),
+        "checks": [],
+    }
+    checks: list[dict[str, Any]] = report["checks"]
+
+    def add_check(
+        name: str,
+        passed: bool,
+        message: str,
+        *,
+        severity: str = "critical",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        checks.append(
+            {
+                "name": name,
+                "passed": passed,
+                "message": message,
+                "severity": severity,
+                "details": details or {},
+            }
+        )
+        if severity == "critical" and not passed:
+            report["ready"] = False
+
+    validation_dir = _find_latest_validation_artifact_dir(validation_artifacts_dir)
+    if validation_dir is None:
+        add_check(
+            "validated_backtest_artifacts",
+            False,
+            (
+                "No validation artifact bundle found. Run scripts/generate_validation_artifacts.py "
+                "before starting live mode."
+            ),
+            details={"searched_path": str(validation_artifacts_dir)},
+        )
+        return False, report
+
+    report["selected_validation_artifact_dir"] = str(validation_dir)
+
+    manifest_path = validation_dir / "manifest.json"
+    result_path = validation_dir / "validated_backtest_result.json"
+    paper_summary_path = validation_dir / "paper_trading_summary.json"
+
+    manifest, manifest_error = _load_json_dict(manifest_path)
+    if manifest is None:
+        add_check(
+            "validation_manifest",
+            False,
+            f"Failed to load validation manifest: {manifest_error}",
+            details={"path": str(manifest_path)},
+        )
+        return False, report
+
+    validated_result, result_error = _load_json_dict(result_path)
+    if validated_result is None:
+        add_check(
+            "validated_backtest_result",
+            False,
+            f"Failed to load validated backtest result: {result_error}",
+            details={"path": str(result_path)},
+        )
+        return False, report
+
+    artifact_timestamp = _parse_report_timestamp(manifest, manifest_path)
+    artifact_age_hours = (datetime.now(timezone.utc) - artifact_timestamp).total_seconds() / 3600.0
+    add_check(
+        "validation_artifact_freshness",
+        artifact_age_hours <= float(max_age_hours),
+        (
+            f"Validation artifact age {artifact_age_hours:.1f}h is within {max_age_hours}h"
+            if artifact_age_hours <= float(max_age_hours)
+            else f"Validation artifact is stale ({artifact_age_hours:.1f}h old; max {max_age_hours}h)"
+        ),
+        details={
+            "path": str(validation_dir),
+            "generated_at": artifact_timestamp.isoformat(),
+            "age_hours": artifact_age_hours,
+            "max_age_hours": max_age_hours,
+        },
+    )
+
+    current_git_sha = _current_git_sha(repo_root_path)
+    manifest_git_sha = str(manifest.get("git_sha", "") or "").strip()
+    add_check(
+        "validation_git_sha_match",
+        bool(current_git_sha) and manifest_git_sha == current_git_sha,
+        (
+            f"Validation manifest matches current git SHA {current_git_sha}"
+            if current_git_sha and manifest_git_sha == current_git_sha
+            else (
+                "Unable to determine current git SHA for validation gate"
+                if not current_git_sha
+                else f"Validation manifest SHA {manifest_git_sha or 'missing'} does not match current git SHA {current_git_sha}"
+            )
+        ),
+        details={
+            "manifest_git_sha": manifest_git_sha,
+            "current_git_sha": current_git_sha,
+            "path": str(manifest_path),
+        },
+    )
+
+    eligible_for_trading = bool(
+        manifest.get("eligible_for_trading", validated_result.get("eligible_for_trading"))
+    )
+    blockers = list(validated_result.get("validation_gates", {}).get("blockers", []))
+    add_check(
+        "validated_backtest_eligibility",
+        eligible_for_trading,
+        (
+            "Validated backtest artifacts marked strategy as eligible for trading"
+            if eligible_for_trading
+            else "Validated backtest artifacts did not clear profitability/validation gates"
+        ),
+        details={
+            "path": str(result_path),
+            "eligible_for_trading": eligible_for_trading,
+            "blockers": blockers,
+        },
+    )
+
+    if strategy_name not in {"", "auto", "all"}:
+        manifest_strategy = str(manifest.get("strategy", "") or "").strip()
+        add_check(
+            "validation_strategy_match",
+            manifest_strategy.lower() == strategy_name.lower(),
+            (
+                f"Validation artifacts match requested strategy {strategy_name}"
+                if manifest_strategy.lower() == strategy_name.lower()
+                else f"Validation artifacts were generated for {manifest_strategy or 'unknown'} instead of requested strategy {strategy_name}"
+            ),
+            details={"manifest_strategy": manifest_strategy, "requested_strategy": strategy_name},
+        )
+
+    if require_go_live_evidence:
+        if not paper_summary_path.exists():
+            add_check(
+                "paper_trading_readiness",
+                False,
+                (
+                    "Missing paper_trading_summary.json in validation bundle. "
+                    "Generate validation artifacts after sufficient paper trading."
+                ),
+                details={"path": str(paper_summary_path)},
+            )
+        else:
+            paper_summary, paper_error = _load_json_dict(paper_summary_path)
+            if paper_summary is None:
+                add_check(
+                    "paper_trading_readiness",
+                    False,
+                    f"Failed to load paper trading summary: {paper_error}",
+                    details={"path": str(paper_summary_path)},
+                )
+            else:
+                paper_ready = bool(paper_summary.get("ready"))
+                paper_blockers = list(paper_summary.get("blockers", []))
+                add_check(
+                    "paper_trading_readiness",
+                    paper_ready,
+                    (
+                        "Paper trading summary reports strategy is ready for live capital"
+                        if paper_ready
+                        else "Paper trading summary still has live-capital blockers"
+                    ),
+                    details={
+                        "path": str(paper_summary_path),
+                        "ready": paper_ready,
+                        "blockers": paper_blockers,
+                    },
+                )
+
+        go_live_summary = Path(go_live_summary_path)
+        if not go_live_summary.exists():
+            add_check(
+                "go_live_precheck",
+                False,
+                (
+                    "Missing go-live precheck summary. Run scripts/go_live_precheck.sh "
+                    "before starting live capital."
+                ),
+                details={"path": str(go_live_summary)},
+            )
+        else:
+            precheck_payload, precheck_error = _load_json_dict(go_live_summary)
+            if precheck_payload is None:
+                add_check(
+                    "go_live_precheck",
+                    False,
+                    f"Failed to load go-live precheck summary: {precheck_error}",
+                    details={"path": str(go_live_summary)},
+                )
+            else:
+                precheck_timestamp = _parse_report_timestamp(precheck_payload, go_live_summary)
+                precheck_age_hours = (
+                    datetime.now(timezone.utc) - precheck_timestamp
+                ).total_seconds() / 3600.0
+                precheck_ready = bool(precheck_payload.get("ready"))
+                add_check(
+                    "go_live_precheck_freshness",
+                    precheck_age_hours <= float(max_age_hours),
+                    (
+                        f"Go-live precheck age {precheck_age_hours:.1f}h is within {max_age_hours}h"
+                        if precheck_age_hours <= float(max_age_hours)
+                        else f"Go-live precheck is stale ({precheck_age_hours:.1f}h old; max {max_age_hours}h)"
+                    ),
+                    details={
+                        "path": str(go_live_summary),
+                        "generated_at": precheck_timestamp.isoformat(),
+                        "age_hours": precheck_age_hours,
+                        "max_age_hours": max_age_hours,
+                    },
+                )
+                add_check(
+                    "go_live_precheck",
+                    precheck_ready,
+                    (
+                        "Go-live precheck summary is ready"
+                        if precheck_ready
+                        else "Go-live precheck summary reported failing readiness checks"
+                    ),
+                    details={
+                        "path": str(go_live_summary),
+                        "ready": precheck_ready,
+                        "steps": precheck_payload.get("steps", []),
+                    },
+                )
+
+    return bool(report.get("ready")), report
 
 
 def configure_logging() -> None:
@@ -406,14 +735,38 @@ async def run_live(args):
         logger.info(f"Live session run_id={session_run_id}")
         logger.info(f"Live artifacts directory={session_run_dir}")
 
-        if args.skip_validation:
-            logger.warning(
-                "--skip-validation is currently a no-op; "
-                "main.py live does not run a pre-trade validation pass yet"
+        paper = not args.real
+        validation_ready, validation_report = _evaluate_live_validation_gate(
+            enforce=not bool(args.skip_validation),
+            repo_root=".",
+            validation_artifacts_dir=args.validation_artifacts_dir,
+            go_live_summary_path=args.go_live_precheck_summary_path,
+            requested_strategy=args.strategy,
+            require_go_live_evidence=not paper,
+            max_age_hours=max(1, int(args.validation_max_age_hours)),
+        )
+        write_json(session_run_dir / "live_validation_gate.json", validation_report)
+
+        if not validation_ready:
+            print("\n❌ Live validation gate failed. Blocking startup.")
+            print("Critical blockers:")
+            for check in validation_report.get("checks", []):
+                if str(
+                    check.get("severity", "critical")
+                ).strip().lower() == "critical" and not bool(check.get("passed")):
+                    print(f"  - {check.get('name')}: {check.get('message')}")
+            logger.error("Live validation gate failed: %s", validation_report)
+            return
+
+        if validation_report.get("skipped"):
+            logger.warning("Live pre-trade validation skipped via --skip-validation")
+        else:
+            logger.info(
+                "Live validation gate passed using %s",
+                validation_report.get("selected_validation_artifact_dir"),
             )
 
         # P0 FIX: Safety confirmation for live trading with real money
-        paper = not args.real
         if not paper:  # Real money trading
             print("\n" + "=" * 60)
             print("⚠️  WARNING: LIVE TRADING WITH REAL MONEY")
@@ -1402,7 +1755,23 @@ def main():
     parser.add_argument(
         "--skip-validation",
         action="store_true",
-        help="Reserved flag; currently no-op because live pre-trade validation is not wired in",
+        help="Skip live pre-trade validation evidence checks (for controlled dry runs only)",
+    )
+    parser.add_argument(
+        "--validation-artifacts-dir",
+        default="results/validation",
+        help="Validation artifact directory or base directory produced by generate_validation_artifacts.py",
+    )
+    parser.add_argument(
+        "--go-live-precheck-summary-path",
+        default="results/validation/precheck/go_live_precheck_summary.json",
+        help="Go-live precheck summary JSON required for --real startup",
+    )
+    parser.add_argument(
+        "--validation-max-age-hours",
+        type=int,
+        default=168,
+        help="Maximum artifact age in hours for live validation evidence (default: 168)",
     )
     parser.add_argument(
         "--wf-splits",

@@ -102,6 +102,10 @@ This checklist summarizes operational readiness for live trading in this reposit
   - `python scripts/secrets_audit.py --inventory-path docs/SECRETS_ROTATION_INVENTORY.json --output results/validation/secrets_audit.json`
 - Compliance/governance gate for beyond-paper capital:
   - `python scripts/governance_gate.py --mode live --output results/validation/governance_gate.json`
+  - `main.py live` now enforces a live validation gate by default:
+    - Requires current validated-backtest artifacts under `results/validation/`
+    - `--real` additionally requires `paper_trading_summary.json` to report ready and `results/validation/precheck/go_live_precheck_summary.json` to pass
+    - Override only for controlled dry runs with `--skip-validation`
   - `main.py live --real` now enforces governance gate by default; override only for controlled dry runs with:
     - `--no-enforce-governance-gate`
     - Optional paths: `--governance-approval-path`, `--governance-policy-doc-path`
