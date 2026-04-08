@@ -1,0 +1,216 @@
+permissions: read-all
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Detect promotion-relevant changes
+        id: promotion_changes
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        with:
+          filters: |
+            promotion_relevant:
+              - 'strategies/**'
+              - 'engine/**'
+              - 'research/**'
+              - 'main.py'
+              - 'scripts/strategy_promotion_gate.py'
+              - 'scripts/generate_validation_artifacts.py'
+              - 'scripts/validated_backtest_report.py'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install TA-Lib (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential wget
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          ./configure --prefix=/usr
+          make
+          sudo make install
+          cd ..
+
+      - name: Install TA-Lib (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ta-lib
+
+      - name: Install dependencies
+        run: uv sync --group dev --group test
+
+      - name: Lint with ruff
+        run: uv run ruff check .
+
+      - name: Format check with black
+        run: uv run black --check .
+
+      - name: Type check with mypy
+        continue-on-error: true
+        run: uv run mypy strategies/ brokers/ engine/ utils/
+
+      - name: Run strict warning gate
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+          PAPER: "True"
+        run: |
+          uv run pytest tests/unit/ --no-cov \
+            -W error \
+            -W ignore::DeprecationWarning \
+            -W ignore::PendingDeprecationWarning \
+            -W ignore::pytest.PytestUnraisableExceptionWarning
+
+      - name: Run chaos drills
+        run: |
+          uv run python scripts/chaos_drill.py \
+            --output "results/chaos_drill_ci.json"
+
+      - name: Run tests with coverage
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+          PAPER: "True"
+        run: uv run pytest tests/unit/
+
+      - name: Preserve full coverage report
+        run: mv coverage.xml coverage_full.xml
+
+      - name: Run patch coverage report
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY_TEST }}
+          PAPER: "True"
+          COVERAGE_FILE: .coverage.patch
+        run: |
+          uv run pytest \
+            tests/unit/test_backtest_engine.py \
+            tests/unit/test_walk_forward_backtest.py \
+            tests/unit/test_config_credentials_runtime.py \
+            --cov=engine.backtest_engine \
+            --cov=main \
+            --cov-report=xml:coverage_patch.xml \
+            --cov-fail-under=0 \
+            -q
+
+      - name: Resolve promotion gate configuration
+        if: github.event_name == 'pull_request' && steps.promotion_changes.outputs.promotion_relevant == 'true'
+        id: promotion_gate_config
+        env:
+          PROMOTION_EXPERIMENT_ID: ${{ vars.PROMOTION_EXPERIMENT_ID }}
+        run: |
+          if [ -z "${PROMOTION_EXPERIMENT_ID}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping strict promotion gate because PROMOTION_EXPERIMENT_ID is not configured."
+            exit 0
+          fi
+
+          if [ ! -f ".research/experiments/${PROMOTION_EXPERIMENT_ID}.json" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping strict promotion gate because .research/experiments/${PROMOTION_EXPERIMENT_ID}.json is missing."
+            exit 0
+          fi
+
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+          echo "experiment_id=${PROMOTION_EXPERIMENT_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Strategy promotion gate (strict, when configured)
+        if: github.event_name == 'pull_request' && steps.promotion_changes.outputs.promotion_relevant == 'true' && steps.promotion_gate_config.outputs.configured == 'true'
+        env:
+          PROMOTION_EXPERIMENT_ID: ${{ steps.promotion_gate_config.outputs.experiment_id }}
+        run: |
+          uv run python scripts/strategy_promotion_gate.py \
+            --experiment-id "${PROMOTION_EXPERIMENT_ID}" \
+            --strict \
+            --output "results/promotion_gate_${PROMOTION_EXPERIMENT_ID}.json"
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
+        with:
+          files: ./coverage_full.xml,./coverage_patch.xml
+          disable_search: true
+          flags: unittests
+          name: codecov-umbrella
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098
+
+      - name: Set up Python
+        run: uv python install 3.10
+
+      - name: Run Bandit security linter
+        run: |
+          uv tool install bandit
+          uv tool run bandit -r strategies/ brokers/ engine/ utils/ -f json -o bandit-report.json || true
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@be889fa341b7a3b1c8d5fbd9e5c6ab378f417da8
+        with:
+          path: ./
+          extra_args: --only-verified
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098
+
+      - name: Set up Python
+        run: uv python install 3.10
+
+      - name: Check for dependency vulnerabilities
+        run: |
+          uv tool install safety
+          uv tool run safety check --json || true
+
+  build:
+    needs: [test, security, dependency-check]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098
+
+      - name: Set up Python
+        run: uv python install 3.10
+
+      - name: Build package
+        run: uv build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: dist-packages
+          path: dist/
