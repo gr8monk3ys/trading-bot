@@ -1,7 +1,7 @@
 torch>=2.0.0
 torchvision
 torchaudio
-transformers>=4.30.0
+transformers>=5.6.2
 alpaca-py>=0.22.0  # Align with pyproject dependency floor
 timedelta
 pandas>=2.0.0
