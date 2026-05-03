@@ -17,25 +17,29 @@ This is **not** a SaaS product, not a service for others, and not an investment 
 
 ## Current Phase
 
-## Current Phase
+**Phase 1: Paper trading validation on Alpaca** (active, just started)
 
-**Phase 0: Setup and tooling** (transitioning to Phase 1)
-
-Currently completing the foundational setup before any actual trading begins:
-- ✅ Repo forked, remotes configured, SSH auth set up
+Phase 0 setup is complete:
+- ✅ Repo forked, remotes configured, SSH dual-account auth
 - ✅ Documentation scaffolding in `docs/personal/`
 - ✅ Branch protection on `main`
 - ✅ Claude.ai Project with this file as project knowledge
-- 🔜 Claude Code smoke test
-- 🔜 Alpaca paper credentials (start of Phase 1)
+- ✅ Claude Code working inside the repo
+- ✅ Alpaca paper credentials configured and verified
+- ✅ First real bug found and fixed (PR #3): backtest mode was silently dropping all orders due to missing OrderGateway wiring
 
-**Phase 1: Paper trading validation on Alpaca**
+Phase 1 status:
+- ✅ First successful backtest: `MomentumStrategyBacktest` on AAPL/MSFT/GOOGL/NVDA/META/AMZN for 2024 → +21.26% return, Sharpe 1.62, 6 trades
+- 🔜 Run more backtest variations (different strategies, time windows, symbols)
+- 🔜 Run live paper trading during market hours
+- 🔜 Set up Discord/Telegram notifications
+- 🔜 Deploy to Railway for 24/7 paper trading
+- 🔜 Run for 2+ weeks before declaring Phase 1 complete
 
-The bot is being run in paper trading mode against Alpaca's free paper trading API to confirm:
-- The codebase actually works end-to-end
-- The strategies generate reasonable signals
-- The infrastructure (logging, alerts, monitoring) is functional
-- No critical bugs in order submission paths
+Known issues identified during Phase 1:
+- BacktestEngine creates its own OrderGateway separately from StrategyManager's — should thread the same instance through (Phase 3 task)
+- `BacktestBroker.get_positions()` async warning in OrderGateway logs — likely sync/async mismatch (Phase 3 task)
+- No CI smoke test for backtest order placement — should add to prevent regression (Phase 3 task)
 
 ## Key Decisions Made
 
