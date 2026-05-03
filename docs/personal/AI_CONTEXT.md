@@ -17,6 +17,18 @@ This is **not** a SaaS product, not a service for others, and not an investment 
 
 ## Current Phase
 
+## Current Phase
+
+**Phase 0: Setup and tooling** (transitioning to Phase 1)
+
+Currently completing the foundational setup before any actual trading begins:
+- ✅ Repo forked, remotes configured, SSH auth set up
+- ✅ Documentation scaffolding in `docs/personal/`
+- ✅ Branch protection on `main`
+- ✅ Claude.ai Project with this file as project knowledge
+- 🔜 Claude Code smoke test
+- 🔜 Alpaca paper credentials (start of Phase 1)
+
 **Phase 1: Paper trading validation on Alpaca**
 
 The bot is being run in paper trading mode against Alpaca's free paper trading API to confirm:
