@@ -519,7 +519,7 @@ async def run_backtest(args):
         broker = AlpacaBroker(paper=True)
 
         # Initialize strategy manager
-        strategy_manager = StrategyManager(broker=broker)
+        strategy_manager = StrategyManager(broker=broker, enforce_gateway=False)
 
         # Get available strategies
         available_strategies = strategy_manager.get_available_strategy_names()
@@ -1299,7 +1299,7 @@ async def optimize_parameters(args):
         broker = AlpacaBroker(paper=True)
 
         # Initialize strategy manager
-        strategy_manager = StrategyManager(broker=broker)
+        strategy_manager = StrategyManager(broker=broker, enforce_gateway=False)
 
         # Get available strategies
         available_strategies = strategy_manager.get_available_strategy_names()

@@ -583,7 +583,29 @@ class BacktestEngine:
         params = {"symbols": symbols}
         if strategy_params:
             params.update(strategy_params)
-        strategy = strategy_class(broker=backtest_broker, parameters=params)
+
+        # Create a non-enforcing OrderGateway for backtest mode.
+        # In live mode, the gateway enforces routing and risk checks against a real
+        # broker. In backtest mode, orders simulate against historical data via
+        # BacktestBroker, so enforcement isn't applicable. Without a gateway,
+        # strategies' submit_entry_order() returns None with the error
+        # "No OrderGateway configured." See docs/personal/INCIDENTS.md.
+        from utils.order_gateway import OrderGateway
+        backtest_gateway = OrderGateway(broker=backtest_broker, enforce_gateway=False)
+
+        try:
+            strategy = strategy_class(
+                broker=backtest_broker,
+                parameters=params,
+                order_gateway=backtest_gateway,
+            )
+        except TypeError:
+            # Fallback for strategies that don't accept order_gateway kwarg
+            logger.warning(
+                f"Strategy {strategy_class.__name__} doesn't accept order_gateway; "
+                "falling back to broker-only construction."
+            )
+            strategy = strategy_class(broker=backtest_broker, parameters=params)
 
         # Initialize the strategy if it has an initialize method
         if hasattr(strategy, "initialize"):
