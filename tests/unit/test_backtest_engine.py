@@ -487,7 +487,7 @@ class TestRunBacktestMethod:
             mock_bb = MagicMock()
             mock_bb.get_portfolio_value.return_value = 100000
             mock_bb.get_trades.return_value = []
-            mock_bb.get_positions.return_value = []
+            mock_bb.get_positions = AsyncMock(return_value=[])
             mock_bb.price_data = {}
             MockBacktestBroker.return_value = mock_bb
 
@@ -521,7 +521,7 @@ class TestRunBacktestMethod:
             mock_bb = MagicMock()
             mock_bb.get_portfolio_value.return_value = 100000
             mock_bb.get_trades.return_value = []
-            mock_bb.get_positions.return_value = []
+            mock_bb.get_positions = AsyncMock(return_value=[])
             mock_bb.price_data = {}
             MockBacktestBroker.return_value = mock_bb
 

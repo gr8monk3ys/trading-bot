@@ -692,9 +692,14 @@ class BacktestBroker:
         """Get position for a symbol"""
         return self.positions.get(symbol, None)
 
-    def get_positions(self):
-        """Get all positions"""
-        return list(self.positions.values())
+    async def get_positions(self):
+        """Get all positions.
+
+        Returns MockPosition objects matching the AlpacaBroker async contract
+        (`.symbol`, `.qty`, `.market_value`) so strategies can use the same
+        `await self.broker.get_positions()` call in live and backtest paths.
+        """
+        return await self.get_all_positions()
 
     def get_balance(self):
         """Get current cash balance"""
@@ -809,15 +814,24 @@ class BacktestBroker:
     async def get_all_positions(self):
         """Async wrapper for getting all positions (for strategy compatibility)."""
 
-        # Convert dict positions to mock position objects
+        current_date = self._current_date if self._current_date else datetime.now()
+
         class MockPosition:
-            def __init__(self, position_dict):
+            def __init__(self, position_dict, market_value):
                 self.symbol = position_dict["symbol"]
                 self.qty = str(position_dict["quantity"])
                 self.quantity = position_dict["quantity"]
                 self.entry_price = position_dict["entry_price"]
+                self.market_value = market_value
 
-        return [MockPosition(pos) for pos in self.positions.values()]
+        result = []
+        for pos in self.positions.values():
+            try:
+                current_price = self.get_price(pos["symbol"], current_date)
+            except Exception:
+                current_price = pos["entry_price"]
+            result.append(MockPosition(pos, pos["quantity"] * current_price))
+        return result
 
     # =========================================================================
     # GAP RISK MODELING - INSTITUTIONAL GRADE

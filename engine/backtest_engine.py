@@ -666,6 +666,16 @@ class BacktestEngine:
                 if not hasattr(strategy, "current_data"):
                     strategy.current_data = {}
 
+                # Make simulated time visible to the strategy so cooldown logic in
+                # _execute_signal can use it instead of wall-clock datetime.now().
+                strategy._current_simulated_time = current_date_utc
+                # Invalidate any per-bar position cache (e.g. MomentumStrategy's
+                # _positions_cache_time) so it re-fetches against the broker each
+                # simulated day. The cache TTL is wall-clock based and a fast
+                # backtest can keep stale entries alive across many simulated days.
+                if hasattr(strategy, "_positions_cache_time"):
+                    strategy._positions_cache_time = None
+
                 # SURVIVORSHIP BIAS CORRECTION: Filter to only tradeable symbols
                 # This prevents backtesting on symbols that weren't actually tradeable
                 # on this date (IPO hadn't happened, stock was delisted, etc.)
@@ -690,11 +700,33 @@ class BacktestEngine:
                             ]
 
                         if len(historical) > 0:
-                            prices = historical["close"].tolist()
                             if hasattr(strategy, "price_history"):
-                                strategy.price_history[symbol] = prices[-30:]  # Keep last 30 days
+                                # Bar-dict shape matches what live `on_bar` populates,
+                                # so risk-sizing and trailing-stop helpers (which iterate
+                                # `bar["close"]` etc.) work uniformly across modes.
+                                # 30 bars covers the live path's deepest requirement
+                                # (RiskManager.adjust_position_size, gated on len > 20).
+                                tail = historical.tail(30)
+                                strategy.price_history[symbol] = [
+                                    {
+                                        "timestamp": idx,
+                                        "open": float(row["open"]),
+                                        "high": float(row["high"]),
+                                        "low": float(row["low"]),
+                                        "close": float(row["close"]),
+                                        "volume": float(row["volume"]),
+                                    }
+                                    for idx, row in tail.iterrows()
+                                ]
                             # Also populate current_data with the historical DataFrame
                             strategy.current_data[symbol] = historical
+                            # Last historical close (yesterday's close) — used by
+                            # _execute_buy_signal/_execute_short_signal/_check_exit_conditions
+                            # in the live code path. Strictly pre-today, so no look-ahead.
+                            if hasattr(strategy, "current_prices"):
+                                strategy.current_prices[symbol] = float(
+                                    historical["close"].iloc[-1]
+                                )
 
                 # Generate signals if the strategy has a generate_signals method
                 if hasattr(strategy, "generate_signals"):
@@ -759,7 +791,7 @@ class BacktestEngine:
                             "date": current_date.date().isoformat(),
                             "equity": portfolio_value,
                             "cash": backtest_broker.get_balance(),
-                            "open_positions": len(backtest_broker.get_positions()),
+                            "open_positions": len(await backtest_broker.get_positions()),
                         }
                     )
 
@@ -789,7 +821,7 @@ class BacktestEngine:
         logger.info(f"Backtest complete: Final equity = ${final_equity:,.2f} ({total_return:+.2%})")
         logger.info(f"Total trades: {len(trade_records)}")
         stress_test = run_portfolio_stress_test(
-            backtest_broker.get_positions(),
+            await backtest_broker.get_positions(),
             equity=final_equity,
         )
 
@@ -894,7 +926,7 @@ class BacktestEngine:
             "initial_capital": initial_capital,
             "final_equity": final_equity,
             "total_return": total_return,
-            "positions": backtest_broker.get_positions(),
+            "positions": await backtest_broker.get_positions(),
             "total_trades": len(trade_records),
             "stress_test": stress_test,
             "run_metadata": {

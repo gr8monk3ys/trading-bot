@@ -105,8 +105,11 @@ class _FakeBacktestBroker:
     def get_balance(self):
         return self.balance
 
-    def get_positions(self):
-        return self.positions
+    async def get_positions(self):
+        # Mirrors BacktestBroker.get_positions() async contract.
+        # Previously sync and returned a dict; callsites were
+        # shape-tolerant so the mismatch was latent.
+        return list(self.positions.values())
 
     def get_trades(self):
         return self._trades

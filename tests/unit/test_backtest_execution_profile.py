@@ -77,7 +77,7 @@ def test_stressed_profile_has_higher_slippage_than_idealistic():
     assert stressed_order["slippage_bps"] > ideal_order["slippage_bps"]
 
 
-def test_reject_probability_can_simulate_liquidity_reject():
+async def test_reject_probability_can_simulate_liquidity_reject():
     broker = BacktestBroker(random_seed=123)
     broker.set_execution_profile(
         ExecutionProfile(
@@ -97,5 +97,5 @@ def test_reject_probability_can_simulate_liquidity_reject():
 
     assert order["status"] == "rejected"
     assert order["filled_qty"] == 0
-    assert broker.get_positions() == []
+    assert await broker.get_positions() == []
     assert broker.get_trades() == []

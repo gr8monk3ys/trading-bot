@@ -375,18 +375,18 @@ class TestPositionManagement:
         """Test getting nonexistent position returns None."""
         assert broker.get_position("AAPL") is None
 
-    def test_get_positions_empty(self, broker):
+    async def test_get_positions_empty(self, broker):
         """Test getting positions when empty."""
-        positions = broker.get_positions()
+        positions = await broker.get_positions()
         assert positions == []
 
-    def test_get_positions_multiple(self, broker_with_data, sample_price_data):
+    async def test_get_positions_multiple(self, broker_with_data, sample_price_data):
         """Test getting multiple positions."""
         broker_with_data.set_price_data("MSFT", sample_price_data)
         broker_with_data.place_order("AAPL", 10, "buy")
         broker_with_data.place_order("MSFT", 20, "buy")
 
-        positions = broker_with_data.get_positions()
+        positions = await broker_with_data.get_positions()
         assert len(positions) == 2
 
 

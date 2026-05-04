@@ -941,8 +941,11 @@ class MomentumStrategy(BaseStrategy):
     async def _execute_signal(self, symbol, signal):
         """Execute a trading signal by dispatching to the appropriate handler."""
         try:
-            # Check cooldown to avoid overtrading
-            current_time = datetime.now()
+            # Check cooldown to avoid overtrading. In backtest mode, BacktestEngine
+            # sets `_current_simulated_time` per-bar so cooldown gates simulated time
+            # rather than wall-clock (which advances in microseconds during a fast
+            # historical replay and would erroneously block every signal after the first).
+            current_time = getattr(self, "_current_simulated_time", None) or datetime.now()
             if (
                 self.last_signal_time.get(symbol)
                 and (current_time - self.last_signal_time[symbol]).total_seconds() < 3600
@@ -1155,9 +1158,26 @@ class MomentumStrategy(BaseStrategy):
         return self.signals.get(symbol, "neutral")
 
     async def execute_trade(self, symbol, signal):
-        """Execute a trade based on the signal."""
-        # This is already handled in _execute_signal
-        pass
+        """Execute a trade based on the signal.
+
+        Drives the same live execution path that `on_bar` uses, so a strategy
+        run via BacktestEngine takes the same code paths (gateway-routed orders,
+        risk manager, trailing stops) as it would in live trading.
+
+        Order matches `on_bar`: signal exec → state population → exit check.
+        Same-bar open/close cannot fire because `_execute_buy_signal` records
+        `entry_prices[symbol]` from `current_prices[symbol]`, and
+        `_check_exit_conditions` reads the same `current_prices[symbol]` —
+        yielding `profit_pct == 0` and failing the trailing-stop activation
+        gate. (Live `on_bar` has the same property: both prices come from the
+        bar's close.)
+        """
+        action = signal if isinstance(signal, str) else (
+            signal.get("action") if isinstance(signal, dict) else None
+        )
+        if action and action not in ("neutral", "hold"):
+            await self._execute_signal(symbol, action)
+        await self._check_exit_conditions(symbol)
 
     async def generate_signals(self):
         """Generate signals for all symbols (used in backtest mode)."""
