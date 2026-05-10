@@ -17,7 +17,7 @@ This is **not** a SaaS product, not a service for others, and not an investment 
 
 ## Current Phase
 
-**Phase 1: Paper trading validation on Alpaca** (active, just started)
+**Phase 1: Paper trading validation on Alpaca** (active)
 
 Phase 0 setup is complete:
 - ✅ Repo forked, remotes configured, SSH dual-account auth
@@ -31,8 +31,8 @@ Phase 0 setup is complete:
 Phase 1 status:
 - ✅ First successful backtest: `MomentumStrategyBacktest` on AAPL/MSFT/GOOGL/NVDA/META/AMZN for 2024 → +21.26% return, Sharpe 1.62, 6 trades. **Important caveat:** subsequent parity audit (see below) revealed this measures `MomentumStrategyBacktest`, which has materially different parameters and sizing logic from the live `MomentumStrategy`. The number is not predictive of live behavior.
 - ✅ Parity audit: `MomentumStrategy` vs `MomentumStrategyBacktest` — found `MomentumStrategy.execute_trade()` was a `pass`, so the live class produced zero orders when run through `BacktestEngine`. Same family of bug as PR #3, inverted direction.
-- ✅ Parity fix merged: `fix: make MomentumStrategy runnable in BacktestEngine`. Replaces the empty `execute_trade` with dispatch to `_execute_signal` + `_check_exit_conditions`, fixes three corollary issues (async `get_positions`, simulated-time cooldown, `price_history` shape parity), adds regression + cooldown tests. 4343/4377 passing, 3 verified-pre-existing failures.
-- 🔜 Bracket-qty follow-up PR (Phase 1 blocker — see Known Issues). Must merge before any further backtest work.
+- ✅ Parity fix merged: `fix: make MomentumStrategy runnable in BacktestEngine` (PR #6). Replaces the empty `execute_trade` with dispatch to `_execute_signal` + `_check_exit_conditions`, fixes three corollary issues (async `get_positions`, simulated-time cooldown, `price_history` shape parity), adds regression + cooldown tests. 4343/4377 passing, 3 verified-pre-existing failures.
+- 🔜 Bracket-qty follow-up PR (issue #9, **Phase 1 blocker** — see Known Issues). Must merge before any further backtest work.
 - 🔜 Re-run 2024 backtest with live `MomentumStrategy` (post-fix) to compare against the +21.26% number from the Backtest variant. Expect divergence; honest divergence is the goal.
 - 🔜 Run more backtest variations (different strategies, time windows, symbols)
 - 🔜 Run live paper trading during market hours
@@ -41,15 +41,15 @@ Phase 1 status:
 - 🔜 Run for 2+ weeks before declaring Phase 1 complete
 
 Known issues identified during Phase 1:
-- **Phase 1 blocker:** `BacktestBroker.submit_order_advanced` does not extract qty from bracket-order envelopes. Surfaced (not caused) by the parity PR — once `MomentumStrategy` flows orders through the gateway, bracket orders reach the broker but get logged with `quantity=0`. Real-data backtests will show trades happening with zero equity impact. Follow-up PR required before resuming Phase 1 backtest work.
+- **Phase 1 blocker:** `BacktestBroker.submit_order_advanced` does not extract qty from bracket-order envelopes (issue #9). Surfaced (not caused) by the parity PR — once `MomentumStrategy` flows orders through the gateway, bracket orders reach the broker but get logged with `quantity=0`. Real-data backtests will show trades happening with zero equity impact. Follow-up PR required before resuming Phase 1 backtest work.
 - BacktestEngine creates its own OrderGateway separately from StrategyManager's — should thread the same instance through (Phase 3 task)
 - ~~`BacktestBroker.get_positions()` async warning in OrderGateway logs~~ — fixed by parity PR (pulled forward from Phase 3)
 - ~~No CI smoke test for backtest order placement~~ — added by parity PR (`tests/unit/test_momentum_strategy_backtest_parity.py`)
 
-Lessons learned (add to process notes):
+Lessons learned (process notes):
 - Coordinated-API-change surveys must grep for both class stubs *and* inline mock patches (`mock_x.method.return_value = ...`). Class-only greps miss the latter — bit us during the parity PR (5 test files needed updates, two were missed by the first survey).
 - Phase 1 / 2 / 3 stop points in risk-critical PR work caught real issues (Blockers A and B during Phase 1 analysis, fixture mismatch during Phase 2). The ~3-file scope-expansion threshold for "stop and check" worked.
-- `MomentumStrategyBacktest` exists primarily as a workaround for the empty `execute_trade` in the live class. Once the parity PR lands, evaluate deleting it or reducing it to a pure parameter override (no logic divergence). Open question for a separate `DECISIONS.md` entry.
+- `MomentumStrategyBacktest` exists primarily as a workaround for the empty `execute_trade` in the live class. Now that the parity PR has landed, evaluate deleting it or reducing it to a pure parameter override (no logic divergence). Open question for a separate `DECISIONS.md` entry.
 
 ## Key Decisions Made
 
@@ -135,4 +135,4 @@ When something significant changes:
 3. Commit both changes together with a message like `docs: update AI context after [decision]`
 4. If using Claude.ai Project knowledge, re-upload this file to keep it synced
 
-Last updated: [May 4, 2026]
+Last updated: May 11, 2026 — parity PR #6 merged, bracket-qty issue #9 tracked
