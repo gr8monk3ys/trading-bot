@@ -759,8 +759,11 @@ class BacktestBroker:
         if hasattr(side, "value"):
             side = side.value
 
-        # Place the order
-        result = self.place_order(symbol, int(qty), side, order_type=str(order_type))
+        # Place the order. Cast to float (not int) so fractional-share orders
+        # — produced legitimately by Kelly/volatility sizing on small accounts
+        # and by Alpaca paper trading's native fractional-share support —
+        # don't get truncated to 0 (sub-1 qty) or silently shrunk (e.g., 4.95→4).
+        result = self.place_order(symbol, float(qty), side, order_type=str(order_type))
 
         # Return a mock order response
         class MockOrder:

@@ -534,6 +534,72 @@ class TestAsyncWrappers:
         assert order is not None
 
     @pytest.mark.asyncio
+    async def test_submit_order_advanced_preserves_fractional_qty_for_bracket(
+        self, broker_with_data
+    ):
+        """Regression: bracket orders with fractional qty must reach the broker
+        with their full quantity, not be truncated by an int() cast.
+
+        Pre-fix behavior (issue #9): submit_order_advanced did
+            self.place_order(symbol, int(qty), ...)
+        which collapsed sub-1 quantities (e.g. 0.5) to 0 and silently shrank
+        fractional qty ≥ 1 (e.g. 4.95 → 4). Symptom in the parity test:
+        trade record showed quantity=0 with no equity impact, even though
+        OrderGateway accepted the order.
+
+        This test exercises the actual OrderBuilder → MarketOrderRequest
+        envelope (not a hand-rolled mock) so future regressions in alpaca-py's
+        bracket-order shape would also be caught.
+        """
+        from brokers.order_builder import OrderBuilder
+
+        # Case 1: sub-1 fractional qty — pre-fix this truncated to 0.
+        sub_one_order = (
+            OrderBuilder("AAPL", "buy", 0.5)
+            .market()
+            .bracket(take_profit=110.0, stop_loss=95.0)
+            .gtc()
+            .build()
+        )
+        result = await broker_with_data.submit_order_advanced(sub_one_order)
+        assert result is not None, "broker rejected fractional bracket order"
+        # MockOrder.qty is stringified; compare numerically.
+        assert float(result.qty) == 0.5, (
+            f"sub-1 qty truncated: expected 0.5, broker recorded {result.qty}"
+        )
+
+        trades = broker_with_data.get_trades()
+        assert trades, "no trade recorded"
+        assert trades[-1]["quantity"] == 0.5, (
+            f"sub-1 qty lost in trade record: expected 0.5, got "
+            f"{trades[-1]['quantity']}"
+        )
+        assert broker_with_data.positions["AAPL"]["quantity"] == 0.5, (
+            "fractional qty did not reach the position book"
+        )
+
+        # Case 2: fractional qty ≥ 1 — pre-fix this silently shrank (4.95 → 4).
+        # Use a different symbol so the position book reflects this case
+        # cleanly, not the cumulative effect of Case 1.
+        broker_with_data.set_price_data(
+            "MSFT", broker_with_data.price_data["AAPL"]
+        )
+        fractional_order = (
+            OrderBuilder("MSFT", "buy", 4.95)
+            .market()
+            .bracket(take_profit=120.0, stop_loss=100.0)
+            .gtc()
+            .build()
+        )
+        result2 = await broker_with_data.submit_order_advanced(fractional_order)
+        assert result2 is not None
+        assert float(result2.qty) == 4.95, (
+            f"fractional qty ≥1 truncated: expected 4.95, got {result2.qty}"
+        )
+        assert broker_with_data.get_trades()[-1]["quantity"] == 4.95
+        assert broker_with_data.positions["MSFT"]["quantity"] == 4.95
+
+    @pytest.mark.asyncio
     async def test_get_latest_quote(self, broker_with_data):
         """Test async get_latest_quote method."""
         quote = await broker_with_data.get_latest_quote("AAPL")

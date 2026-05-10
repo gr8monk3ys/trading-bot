@@ -156,6 +156,19 @@ async def test_momentum_strategy_runs_in_backtest_engine_and_places_orders(monke
         "execute_trade is bypassing the order path again."
     )
 
+    # Bracket orders must reach the broker with their actual fractional qty
+    # intact. Before the fix in fix/backtest-broker-fractional-qty, bracket
+    # orders with sub-1 qty (common with Kelly/volatility sizing) were
+    # truncated to 0 inside BacktestBroker.submit_order_advanced — orders
+    # nominally "happened" but the trade record showed quantity=0 and the
+    # equity curve stayed flat. This assertion locks the contract closed.
+    first_trade = result["trades"][0]
+    assert first_trade["quantity"] > 0, (
+        f"Bracket order reached the broker but was sized to "
+        f"{first_trade['quantity']} — BacktestBroker.submit_order_advanced "
+        "is truncating fractional qty (see fix/backtest-broker-fractional-qty)."
+    )
+
 
 # ---------------------------------------------------------------------------
 # Cooldown: simulated time, not wall clock, gates _execute_signal
