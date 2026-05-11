@@ -32,7 +32,7 @@ Algorithmic trading bot on the Alpaca Trading API, async Python.
 - `strategies/base_strategy.py` — abstract base for all strategies.
 - `brokers/alpaca_broker.py`, `brokers/backtest_broker.py`, `brokers/order_builder.py`.
 - `engine/backtest_engine.py`, `engine/performance_metrics.py`, `engine/strategy_manager.py`.
-- `utils/circuit_breaker.py`, `utils/market_regime.py`, `utils/realistic_backtest.py`, `utils/websocket_manager.py`, `utils/database.py`, `utils/notifier.py`, `utils/audit_log.py`, `utils/multi_timeframe.py`.
+- `utils/circuit_breaker.py`, `utils/market_regime.py`, `utils/websocket_manager.py`, `utils/database.py`, `utils/notifier.py`, `utils/audit_log.py`, `utils/multi_timeframe.py`.
 - `main.py` — single canonical CLI (`live`, `backtest`, `optimize`). The previous `live_trader.py` and `run_adaptive.py` were merged in by Phase 2 of the form-cleanup refactor; pass `--strategy adaptive --regime-only` / `--scan-only` for the old `run_adaptive.py` inspection modes, and `--risk-profile {conservative,balanced,aggressive}` for the old `live_trader.py` presets.
 
 ## Quarantined (unvalidated)
