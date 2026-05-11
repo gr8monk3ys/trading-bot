@@ -64,13 +64,6 @@ class TestStrategyImports:
         assert BaseStrategy is not None
         assert callable(BaseStrategy)
 
-    def test_bracket_momentum_strategy_import(self):
-        """Test that BracketMomentumStrategy can be imported"""
-        from strategies.bracket_momentum_strategy import BracketMomentumStrategy
-
-        assert BracketMomentumStrategy is not None
-        assert callable(BracketMomentumStrategy)
-
     def test_momentum_strategy_import(self):
         """Test that MomentumStrategy can be imported"""
         from strategies.momentum_strategy import MomentumStrategy

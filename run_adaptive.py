@@ -82,8 +82,6 @@ async def scan_for_opportunities(
     """
     from dotenv import load_dotenv
 
-    from utils.simple_symbol_selector import SimpleSymbolSelector
-
     load_dotenv()
 
     print("\n" + "=" * 60)
@@ -126,67 +124,14 @@ async def scan_for_opportunities(
         except Exception as e:
             logger.warning(f"Sector rotation failed: {e}. Falling back to momentum scan.")
 
-    # Stage 2: Supplement with momentum scanner
-    if len(symbols) < top_n * 2:  # Get more candidates for factor ranking
-        try:
-            selector = SimpleSymbolSelector(
-                api_key=os.getenv("ALPACA_API_KEY"),
-                secret_key=os.getenv("ALPACA_SECRET_KEY"),
-                paper=True,
-            )
+    # Stage 2: Momentum-scanner supplementation was removed in the 2026-05 cleanup
+    # along with utils.simple_symbol_selector. Sector-rotation output (if any) is
+    # the only opportunity source now; fall back to defaults below if empty.
 
-            momentum_symbols = selector.select_top_symbols(
-                top_n=top_n * 2 - len(symbols), min_score=min_score
-            )
-
-            # Combine and dedupe
-            for sym in momentum_symbols:
-                if sym not in symbols:
-                    symbols.append(sym)
-
-        except Exception as e:
-            logger.error(f"Momentum scanner error: {e}")
-
-    # Stage 3: Factor-based ranking (NEW)
+    # Stage 3: Factor-based ranking was quarantined to research/ in the 2026-05
+    # cleanup. Use the unranked momentum/sector list as-is.
     if use_factor_ranking and len(symbols) > top_n:
-        try:
-            from factors.factor_portfolio import FactorPortfolio
-
-            print("\nApplying factor-based ranking...")
-
-            if broker is None:
-                from brokers.alpaca_broker import AlpacaBroker
-
-                broker = AlpacaBroker(paper=True)
-
-            factor_portfolio = FactorPortfolio(broker=broker)
-
-            # Get composite factor scores for all candidates
-            rankings = await factor_portfolio.get_composite_rankings(symbols)
-
-            if rankings:
-                # Sort by composite score (higher is better)
-                sorted_symbols = sorted(
-                    rankings.items(),
-                    key=lambda x: x[1].composite_score,
-                    reverse=True,
-                )
-
-                # Take top N
-                symbols = [sym for sym, _ in sorted_symbols[:top_n]]
-
-                # Print factor summary
-                print("Factor Rankings (Top 5):")
-                for sym, score in sorted_symbols[:5]:
-                    print(
-                        f"  {sym}: {score.composite_score:.2f} "
-                        f"(M:{score.factor_scores.get('momentum', 0):.2f}, "
-                        f"V:{score.factor_scores.get('volatility', 0):.2f})"
-                    )
-
-        except Exception as e:
-            logger.warning(f"Factor ranking failed: {e}. Using unranked symbols.")
-            symbols = symbols[:top_n]
+        symbols = symbols[:top_n]
 
     # Final fallback
     if not symbols:
@@ -412,31 +357,20 @@ async def run_live_trading(broker, symbols: List[str]) -> None:
             "use_kelly_criterion": True,
             "use_volatility_regime": True,
         },
-        enable_signal_aggregator=True,  # Multi-source signal enrichment
-        enable_portfolio_optimizer=True,  # Risk parity position sizing
     )
 
     if not await strategy.initialize():
         logger.error("Failed to initialize strategy")
         return
 
-    # Calculate optimal portfolio weights (daily)
-    print("\nOptimizing portfolio weights...")
-    await strategy.update_portfolio_weights()
-
     logger.info(f"Strategy initialized: {strategy.NAME}")
     logger.info(f"Active sub-strategy: {strategy.active_strategy_name}")
     logger.info(f"Market regime: {regime['type']}")
-    if strategy.signal_aggregator:
-        logger.info("Signal Aggregator: ACTIVE (multi-source enrichment)")
-    if strategy.portfolio_optimizer:
-        logger.info("Portfolio Optimizer: ACTIVE (risk parity sizing)")
 
     # Main trading loop
     iteration = 0
     last_earnings_check = None
     last_rs_refresh = None
-    last_portfolio_update = datetime.now().date()  # Track portfolio optimization
 
     try:
         while True:
@@ -475,12 +409,6 @@ async def run_live_trading(broker, symbols: List[str]) -> None:
                 if positions_to_exit:
                     logger.warning(f"EARNINGS ALERT: Should exit {positions_to_exit}")
                 last_earnings_check = today
-
-            # Update portfolio weights daily
-            if last_portfolio_update != today and strategy.portfolio_optimizer:
-                logger.info("Daily portfolio weight optimization...")
-                await strategy.update_portfolio_weights()
-                last_portfolio_update = today
 
             # NEW: Refresh RS rankings every 2 hours
             now = datetime.now()

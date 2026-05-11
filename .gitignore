@@ -86,7 +86,10 @@ audit_logs/
 *.sqlite3
 
 # Trading bot results
-results/
+results/*
+# Exception: keep the canonical honest baseline artifact (referenced from README/CLAUDE.md)
+!results/honest_backtest_2020-2024.md
+!results/honest_backtest_2020-2024.json
 backtest_results/
 live_trading_logs/
 performance_reports/

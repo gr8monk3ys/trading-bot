@@ -480,39 +480,3 @@ class TestAlpacaBrokerCryptoOrders:
             assert result["symbol"] == "BTC/USD"
 
 
-# =============================================================================
-# CONFIG TESTS
-# =============================================================================
-
-
-class TestCryptoConfig:
-    """Test crypto configuration."""
-
-    def test_crypto_symbols_defined(self):
-        """CRYPTO_SYMBOLS is defined in config."""
-        from config import CRYPTO_SYMBOLS
-
-        assert isinstance(CRYPTO_SYMBOLS, list)
-        assert len(CRYPTO_SYMBOLS) > 0
-        assert "BTC/USD" in CRYPTO_SYMBOLS
-        assert "ETH/USD" in CRYPTO_SYMBOLS
-
-    def test_crypto_params_defined(self):
-        """CRYPTO_PARAMS is defined in config."""
-        from config import CRYPTO_PARAMS
-
-        assert isinstance(CRYPTO_PARAMS, dict)
-        assert "ENABLED" in CRYPTO_PARAMS
-        assert "POSITION_SIZE" in CRYPTO_PARAMS
-        assert "STOP_LOSS" in CRYPTO_PARAMS
-        assert "TAKE_PROFIT" in CRYPTO_PARAMS
-
-    def test_crypto_params_have_higher_volatility_settings(self):
-        """Crypto params should account for higher volatility."""
-        from config import CRYPTO_PARAMS, TRADING_PARAMS
-
-        # Crypto position size should be lower (more conservative)
-        assert CRYPTO_PARAMS["POSITION_SIZE"] <= TRADING_PARAMS["POSITION_SIZE"]
-
-        # Crypto stop loss should be higher (wider to account for volatility)
-        assert CRYPTO_PARAMS["STOP_LOSS"] >= TRADING_PARAMS["STOP_LOSS"]

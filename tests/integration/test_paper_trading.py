@@ -185,37 +185,6 @@ class TestStrategyAnalysis:
         else:
             logger.info("No indicators calculated (insufficient data available)")
 
-    @pytest.mark.asyncio
-    async def test_enhanced_momentum_strategy_can_analyze(self, alpaca_broker):
-        """Test that EnhancedMomentumStrategy can analyze a symbol."""
-        from strategies.enhanced_momentum_strategy import EnhancedMomentumStrategy
-
-        strategy = EnhancedMomentumStrategy(
-            broker=alpaca_broker,
-            parameters={
-                "symbols": ["MSFT"],
-                "use_kelly_criterion": False,
-                "use_multi_timeframe": False,  # Disable to speed up test
-                "use_volatility_regime": False,
-            },
-        )
-        await strategy.initialize()
-
-        signal = await strategy.analyze_symbol("MSFT")
-
-        logger.info(f"MSFT analysis complete. Signal: {signal}")
-
-        # Verify indicator structure exists
-        assert "MSFT" in strategy.indicators
-        indicators = strategy.indicators["MSFT"]
-
-        if len(indicators) > 0:
-            assert "rsi" in indicators
-            assert "atr" in indicators
-            logger.info(f"Indicators calculated: {list(indicators.keys())}")
-        else:
-            logger.info("No indicators calculated (insufficient data available)")
-
 
 class TestRiskManagement:
     """Test risk management components with live data."""

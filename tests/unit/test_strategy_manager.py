@@ -93,16 +93,6 @@ class TestStrategyManagerInitialization:
             assert manager.strategy_allocations == {}
             assert manager.strategy_status == {}
 
-    def test_init_links_circuit_breaker_to_gateway(self, mock_broker):
-        """Test circuit breaker receives gateway reference when supported."""
-        with patch("engine.strategy_manager.StrategyManager._load_available_strategies"):
-            from engine.strategy_manager import StrategyManager
-
-            circuit_breaker = Mock()
-            manager = StrategyManager(broker=mock_broker, circuit_breaker=circuit_breaker)
-
-            circuit_breaker.set_order_gateway.assert_called_once_with(manager.order_gateway)
-
 
 class TestLoadAvailableStrategies:
     """Tests for _load_available_strategies method."""

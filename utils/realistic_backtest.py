@@ -41,9 +41,24 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 import numpy as np
 
 from config import BACKTEST_PARAMS
-from utils.market_impact import AlmgrenChrissModel, MarketImpactResult
 
 logger = logging.getLogger(__name__)
+
+
+# NOTE: The Almgren-Chriss market-impact model was quarantined to research/ in
+# the 2026-05 cleanup. We keep stub names here so that signatures still resolve;
+# the feature is hard-disabled below (impact_model is always None).
+class MarketImpactResult:  # pragma: no cover - stub for type hints only
+    permanent_impact_usd: float = 0.0
+    temporary_impact_usd: float = 0.0
+    total_impact_usd: float = 0.0
+    total_impact_bps: float = 0.0
+    participation_rate: float = 0.0
+
+
+class AlmgrenChrissModel:  # pragma: no cover - stub; feature is disabled
+    def calculate_impact(self, *args, **kwargs) -> MarketImpactResult:
+        return MarketImpactResult()
 
 
 @dataclass
@@ -263,7 +278,7 @@ class RealisticBacktester:
         spread_pct: Optional[float] = None,
         commission_per_share: Optional[float] = None,
         execution_delay_bars: Optional[int] = None,
-        use_almgren_chriss: bool = True,
+        use_almgren_chriss: bool = False,  # quarantined to research/ in 2026-05 cleanup
         execution_time_hours: float = 1.0,
     ):
         """
@@ -308,15 +323,15 @@ class RealisticBacktester:
         # Enable/disable features
         self.use_slippage: bool = bool(BACKTEST_PARAMS.get("USE_SLIPPAGE", True))
 
-        # Initialize Almgren-Chriss model
+        # Almgren-Chriss market impact model was quarantined to research/ in the
+        # 2026-05 cleanup. Always disabled; fixed slippage/spread costs are used.
         self.impact_model: Optional[AlmgrenChrissModel] = None
         if use_almgren_chriss:
-            try:
-                self.impact_model = AlmgrenChrissModel()
-                logger.info("Almgren-Chriss market impact model enabled")
-            except Exception as e:
-                logger.warning(f"Could not initialize Almgren-Chriss model: {e}")
-                self.use_almgren_chriss = False
+            logger.warning(
+                "use_almgren_chriss=True ignored; Almgren-Chriss model was "
+                "quarantined to research/ in the 2026-05 cleanup."
+            )
+            self.use_almgren_chriss = False
 
         # Cache for volume/volatility data
         self._volume_cache: Dict[str, float] = {}

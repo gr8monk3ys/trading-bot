@@ -84,40 +84,6 @@ class TestRiskParamsValidation:
         corr = RISK_PARAMS["MAX_CORRELATION"]
         assert -1 <= corr <= 1
 
-    def test_slo_paging_defaults_are_valid(self):
-        """SLO paging parameters should be well-formed."""
-        from config import RISK_PARAMS
-
-        assert isinstance(RISK_PARAMS["SLO_PAGING_ENABLED"], bool)
-        assert RISK_PARAMS["SLO_PAGING_MIN_SEVERITY"] in {"warning", "critical"}
-        assert 1 <= RISK_PARAMS["SLO_PAGING_TIMEOUT_SECONDS"] <= 30
-        assert 0 <= RISK_PARAMS["SLO_PAGING_MAX_RETRIES"] <= 5
-        assert 0 <= RISK_PARAMS["SLO_PAGING_RETRY_BACKOFF_SECONDS"] <= 10
-        assert 1 <= RISK_PARAMS["INCIDENT_ACK_SLA_MINUTES"] <= 1440
-        assert 0 <= RISK_PARAMS["INCIDENT_TICKETING_MAX_RETRIES"] <= 5
-        assert 0 <= RISK_PARAMS["INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS"] <= 10
-        assert isinstance(RISK_PARAMS["INCIDENT_RESPONSE_RUNBOOK_URL"], str)
-        assert isinstance(RISK_PARAMS["INCIDENT_ESCALATION_ROSTER_URL"], str)
-        assert 0 <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] <= 1
-        assert 0 <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"] <= 1
-        assert (
-            RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"]
-            <= RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"]
-        )
-        assert 1 <= RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"] <= 10000
-        assert 1 <= RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"] <= 10000
-        assert (
-            RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"]
-            <= RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"]
-        )
-        assert 1 <= RISK_PARAMS["NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES"] <= 1440
-        assert isinstance(RISK_PARAMS["MULTI_BROKER_ENABLED"], bool)
-        assert RISK_PARAMS["MULTI_BROKER_BACKUP_BROKER"] in {"ib"}
-        assert 5 <= RISK_PARAMS["MULTI_BROKER_HEALTH_CHECK_INTERVAL"] <= 600
-        assert 1 <= RISK_PARAMS["MULTI_BROKER_FAILURE_THRESHOLD"] <= 20
-        assert 1 <= RISK_PARAMS["MULTI_BROKER_RECOVERY_THRESHOLD"] <= 20
-        assert 1 <= RISK_PARAMS["MULTI_BROKER_OPERATION_TIMEOUT_SECONDS"] <= 120
-
 
 class TestTechnicalParamsValidation:
     """Test TECHNICAL_PARAMS validation."""

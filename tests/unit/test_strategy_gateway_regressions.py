@@ -1,7 +1,7 @@
 """Regression tests for strategy gateway routing and constructor compatibility."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -29,24 +29,6 @@ class _FakeOrderBuilder:
         )
 
 
-class _FakeLSTMPredictor:
-    """Lightweight predictor stub for constructor wiring tests."""
-
-    def __init__(
-        self,
-        sequence_length=60,
-        prediction_horizon=5,
-        hidden_size=64,
-        num_layers=2,
-        dropout=0.2,
-        model_dir="models",
-    ):
-        self.sequence_length = sequence_length
-        self.prediction_horizon = prediction_horizon
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.dropout = dropout
-        self.model_dir = model_dir
 
 
 class _ConcreteBaseStrategy:
@@ -112,43 +94,6 @@ async def test_momentum_backtest_exit_order_uses_submit_exit_order(monkeypatch):
         reason="backtest_exit",
     )
     strategy.submit_entry_order.assert_not_awaited()
-
-
-def test_lstm_constructor_accepts_strategy_manager_signature(monkeypatch):
-    """LSTM strategy must support broker/parameters/order_gateway constructor path."""
-    from strategies import lstm_enhanced_strategy as module
-
-    monkeypatch.setattr(module, "LSTMPredictor", _FakeLSTMPredictor)
-
-    gateway = Mock()
-    strategy = module.LSTMEnhancedStrategy(
-        broker=AsyncMock(),
-        parameters={"symbols": ["AAPL", "MSFT"], "lstm_sequence_length": 21},
-        order_gateway=gateway,
-    )
-
-    assert strategy.order_gateway is gateway
-    assert strategy.parameters["symbols"] == ["AAPL", "MSFT"]
-    assert strategy.lstm.sequence_length == 21
-
-
-def test_lstm_constructor_keeps_legacy_inputs_and_prefers_parameters(monkeypatch):
-    """Legacy symbols/config remain supported while modern parameters take precedence."""
-    from strategies import lstm_enhanced_strategy as module
-
-    monkeypatch.setattr(module, "LSTMPredictor", _FakeLSTMPredictor)
-
-    strategy = module.LSTMEnhancedStrategy(
-        broker=AsyncMock(),
-        symbols=["AAPL"],
-        config={"lstm_sequence_length": 13, "from_config": True},
-        parameters={"symbols": ["TSLA"], "lstm_sequence_length": 34, "from_parameters": True},
-    )
-
-    assert strategy.parameters["symbols"] == ["TSLA"]
-    assert strategy.parameters["from_config"] is True
-    assert strategy.parameters["from_parameters"] is True
-    assert strategy.lstm.sequence_length == 34
 
 
 @pytest.mark.asyncio

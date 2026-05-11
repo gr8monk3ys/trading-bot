@@ -14,9 +14,6 @@ from utils.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 from utils.streak_sizing import StreakSizer
 from utils.volatility_regime import VolatilityRegimeDetector
 
-# Lazy import for sentiment analyzer (expensive to load)
-NewsSentimentAnalyzer = None
-
 logger = logging.getLogger(__name__)
 
 
@@ -119,24 +116,14 @@ class BaseStrategy(ABC):
         else:
             self.multi_timeframe = None
 
-        # SENTIMENT FILTERING: Block trades against strong negative sentiment
-        use_sentiment_filter = parameters.get("use_sentiment_filter", False)
-        if use_sentiment_filter:
-            self.sentiment_analyzer = None  # Initialized in async initialize()
-            self.sentiment_block_threshold = parameters.get("sentiment_block_threshold", -0.3)
-            self.sentiment_boost_threshold = parameters.get("sentiment_boost_threshold", 0.3)
-            self.sentiment_max_multiplier = parameters.get("sentiment_max_multiplier", 1.3)
-            self.sentiment_min_multiplier = parameters.get("sentiment_min_multiplier", 0.5)
-            self.logger.info(
-                f"✅ Sentiment filtering enabled: block below {self.sentiment_block_threshold}, "
-                f"boost above {self.sentiment_boost_threshold}"
-            )
-        else:
-            self.sentiment_analyzer = None
-            self.sentiment_block_threshold = -0.3
-            self.sentiment_boost_threshold = 0.3
-            self.sentiment_max_multiplier = 1.3
-            self.sentiment_min_multiplier = 0.5
+        # Sentiment filtering removed in the 2026-05 cleanup. The FinBERT-based
+        # NewsSentimentAnalyzer it depended on had no validated edge; placeholder
+        # attributes are kept neutral so legacy callers do not crash.
+        self.sentiment_analyzer = None
+        self.sentiment_block_threshold = -0.3
+        self.sentiment_boost_threshold = 0.3
+        self.sentiment_max_multiplier = 1.0
+        self.sentiment_min_multiplier = 1.0
 
     async def initialize(self, **kwargs):
         """Initialize strategy parameters."""
@@ -175,17 +162,6 @@ class BaseStrategy(ABC):
                     f"✅ Multi-timeframe analyzer initialized: "
                     f"min_confidence={self.mtf_min_confidence:.0%}, "
                     f"require_daily_alignment={self.mtf_require_daily}"
-                )
-
-            # SENTIMENT FILTERING: Initialize news sentiment analyzer
-            if self.parameters.get("use_sentiment_filter", False):
-                global NewsSentimentAnalyzer
-                if NewsSentimentAnalyzer is None:
-                    from utils.news_sentiment import NewsSentimentAnalyzer
-                self.sentiment_analyzer = NewsSentimentAnalyzer()
-                self.logger.info(
-                    f"✅ Sentiment analyzer initialized: "
-                    f"block < {self.sentiment_block_threshold}, boost > {self.sentiment_boost_threshold}"
                 )
 
             return True
@@ -583,143 +559,6 @@ class BaseStrategy(ABC):
         except Exception as e:
             self.logger.error(f"Error in multi-timeframe check for {symbol}: {e}", exc_info=True)
             return None  # Skip trade on error
-
-    async def check_sentiment_filter(self, symbol: str, direction: str = "long") -> bool:
-        """
-        Check if sentiment allows trading in the given direction.
-
-        CRITICAL: Blocks trades that go against strong market sentiment.
-        - Long trades blocked if sentiment < sentiment_block_threshold
-        - Short trades blocked if sentiment > -sentiment_block_threshold
-
-        Args:
-            symbol: Stock symbol to check
-            direction: Trade direction ('long' or 'short')
-
-        Returns:
-            True if trade is ALLOWED (sentiment favorable or neutral)
-            False if trade should be BLOCKED (sentiment strongly against direction)
-
-        Usage in strategies:
-            if not await self.check_sentiment_filter(symbol, 'long'):
-                logger.info(f"Trade blocked: negative sentiment for {symbol}")
-                return None
-        """
-        if not self.sentiment_analyzer:
-            return True  # Sentiment filtering not enabled, allow all trades
-
-        try:
-            sentiment_result = await self.sentiment_analyzer.get_symbol_sentiment(symbol)
-
-            if not sentiment_result:
-                self.logger.debug(f"No sentiment data for {symbol}, allowing trade")
-                return True
-
-            sentiment_score = sentiment_result.score
-
-            # Block long trades on strongly negative sentiment
-            if direction == "long" and sentiment_score < self.sentiment_block_threshold:
-                self.logger.info(
-                    f"🚫 SENTIMENT BLOCK: Long trade for {symbol} blocked - "
-                    f"sentiment {sentiment_score:.2f} < threshold {self.sentiment_block_threshold}"
-                )
-                return False
-
-            # Block short trades on strongly positive sentiment
-            if direction == "short" and sentiment_score > -self.sentiment_block_threshold:
-                self.logger.info(
-                    f"🚫 SENTIMENT BLOCK: Short trade for {symbol} blocked - "
-                    f"sentiment {sentiment_score:.2f} > threshold {-self.sentiment_block_threshold}"
-                )
-                return False
-
-            self.logger.debug(
-                f"✅ Sentiment allows {direction} for {symbol}: score={sentiment_score:.2f}"
-            )
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Error checking sentiment for {symbol}: {e}", exc_info=True)
-            return True  # Fail open - allow trade if sentiment check fails
-
-    async def get_sentiment_adjusted_size(self, symbol: str, base_size: float) -> float:
-        """
-        Adjust position size based on sentiment strength.
-
-        - Strong positive sentiment → increase size (up to sentiment_max_multiplier)
-        - Neutral sentiment → no change
-        - Weak negative sentiment → decrease size (down to sentiment_min_multiplier)
-        - Strong negative sentiment → should be blocked by check_sentiment_filter()
-
-        Args:
-            symbol: Stock symbol
-            base_size: Base position size (e.g., 0.10 for 10% of portfolio)
-
-        Returns:
-            Adjusted position size (same units as base_size)
-
-        Usage in strategies:
-            base_size = 0.10
-            adjusted_size = await self.get_sentiment_adjusted_size(symbol, base_size)
-            # adjusted_size will be between base_size * 0.5 and base_size * 1.3
-        """
-        if not self.sentiment_analyzer:
-            return base_size  # Sentiment not enabled, return unchanged
-
-        try:
-            sentiment_result = await self.sentiment_analyzer.get_symbol_sentiment(symbol)
-
-            if not sentiment_result:
-                return base_size  # No data, return unchanged
-
-            score = sentiment_result.score
-            confidence = sentiment_result.confidence
-
-            # Only adjust if confidence is high enough
-            if confidence < 0.5:
-                self.logger.debug(
-                    f"Sentiment confidence too low for {symbol} ({confidence:.2f}), no size adjustment"
-                )
-                return base_size
-
-            # Calculate multiplier based on sentiment score
-            if score >= self.sentiment_boost_threshold:
-                # Positive sentiment: scale from 1.0 to max_multiplier
-                # Maps [boost_threshold, 1.0] → [1.0, max_multiplier]
-                score_range = 1.0 - self.sentiment_boost_threshold
-                normalized = (score - self.sentiment_boost_threshold) / score_range
-                multiplier = 1.0 + normalized * (self.sentiment_max_multiplier - 1.0)
-
-            elif score <= self.sentiment_block_threshold:
-                # Negative but not blocked (shouldn't happen if filter is used)
-                # Maps [block_threshold, -1.0] → [min_multiplier, even smaller]
-                multiplier = self.sentiment_min_multiplier
-
-            else:
-                # Neutral sentiment: linear scale between thresholds
-                # Maps [block_threshold, boost_threshold] → [min_multiplier, 1.0]
-                range_size = self.sentiment_boost_threshold - self.sentiment_block_threshold
-                normalized = (score - self.sentiment_block_threshold) / range_size
-                multiplier = self.sentiment_min_multiplier + normalized * (
-                    1.0 - self.sentiment_min_multiplier
-                )
-
-            # Apply confidence weighting (blend toward 1.0 for low confidence)
-            final_multiplier = 1.0 + (multiplier - 1.0) * confidence
-
-            adjusted_size = base_size * final_multiplier
-
-            self.logger.debug(
-                f"Sentiment size adjustment for {symbol}: "
-                f"{base_size:.2%} × {final_multiplier:.2f} = {adjusted_size:.2%} "
-                f"(score={score:.2f}, confidence={confidence:.2f})"
-            )
-
-            return adjusted_size
-
-        except Exception as e:
-            self.logger.error(f"Error adjusting size for sentiment: {e}", exc_info=True)
-            return base_size  # Fail safe - return original size
 
     async def is_short_position(self, symbol):
         """

@@ -145,7 +145,6 @@ class StrategyValidator:
         """
         from engine.backtest_engine import BacktestEngine
         from engine.performance_metrics import PerformanceMetrics
-        from engine.walk_forward import WalkForwardValidator
 
         result = ValidationResult(
             valid=False,
@@ -190,33 +189,13 @@ class StrategyValidator:
             for warning in significance["warnings"]:
                 result.warnings.append(warning)
 
-            # 3. Run walk-forward validation
-            logger.info("Step 3: Running walk-forward validation...")
-            try:
-                wf_validator = WalkForwardValidator(engine)
-                wf_result = await wf_validator.validate(
-                    strategy_class=strategy_class,
-                    symbols=symbols,
-                    start_date=start_date,
-                    end_date=end_date,
-                    n_splits=5,
-                    train_ratio=0.7,
-                )
-                result.walk_forward_result = wf_result
-
-                # Check overfit ratio
-                oos_ratio = wf_result.get("oos_ratio", 0)
-                if oos_ratio > self.max_overfit_ratio:
-                    result.blockers.append(
-                        f"Overfitting detected: OOS ratio {oos_ratio:.2f} > {self.max_overfit_ratio}"
-                    )
-                    result.overfit_score = max(0, 100 - (oos_ratio - 1) * 50)
-                else:
-                    result.overfit_score = min(100, 100 - (oos_ratio - 1) * 30)
-
-            except Exception as e:
-                logger.warning(f"Walk-forward validation failed: {e}")
-                result.warnings.append(f"Walk-forward validation error: {str(e)}")
+            # 3. Walk-forward validation was quarantined to research/ in the
+            # 2026-05 cleanup. Skip OOS ratio gating here.
+            result.walk_forward_result = {
+                "skipped": True,
+                "reason": "engine.walk_forward quarantined to research/",
+            }
+            result.overfit_score = 50.0  # neutral score when no signal available
                 result.overfit_score = 50  # Unknown
 
             # 4. Check basic metrics thresholds
