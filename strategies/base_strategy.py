@@ -10,7 +10,6 @@ import numpy as np
 
 from utils.circuit_breaker import CircuitBreaker
 from utils.kelly_criterion import KellyCriterion, Trade
-from utils.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 from utils.streak_sizing import StreakSizer
 from utils.volatility_regime import VolatilityRegimeDetector
 
@@ -104,17 +103,12 @@ class BaseStrategy(ABC):
         else:
             self.streak_sizer = None
 
-        # MULTI-TIMEFRAME ANALYSIS: Initialize for trend confirmation across timeframes
-        use_multi_timeframe = parameters.get("use_multi_timeframe", False)
-        if use_multi_timeframe:
-            self.multi_timeframe = None  # Initialized in async initialize()
-            self.mtf_min_confidence = parameters.get("mtf_min_confidence", 0.70)
-            self.mtf_require_daily = parameters.get("mtf_require_daily_alignment", True)
-            self.logger.info(
-                f"✅ Multi-timeframe analysis enabled: min_confidence={self.mtf_min_confidence:.0%}"
-            )
-        else:
-            self.multi_timeframe = None
+        # Multi-timeframe analysis lives on the concrete strategies (see
+        # MomentumStrategy.mtf_analyzer / MeanReversionStrategy.mtf_analyzer).
+        # The base-class wiring previously here imported a parallel
+        # MultiTimeframeAnalyzer implementation with an .analyze() method that
+        # the canonical utils.multi_timeframe.MultiTimeframeAnalyzer does not
+        # expose; it was removed in the 2026-05 form cleanup.
 
         # Sentiment filtering removed in the 2026-05 cleanup. The FinBERT-based
         # NewsSentimentAnalyzer it depended on had no validated edge; placeholder
@@ -153,15 +147,6 @@ class BaseStrategy(ABC):
                     f"✅ Volatility regime detector initialized: "
                     f"{regime.upper()} (Position: {adjustments['pos_mult']:.1f}x, "
                     f"Stop: {adjustments['stop_mult']:.1f}x)"
-                )
-
-            # MULTI-TIMEFRAME ANALYSIS: Initialize analyzer with broker
-            if self.parameters.get("use_multi_timeframe", False) and self.broker:
-                self.multi_timeframe = MultiTimeframeAnalyzer(self.broker)
-                self.logger.info(
-                    f"✅ Multi-timeframe analyzer initialized: "
-                    f"min_confidence={self.mtf_min_confidence:.0%}, "
-                    f"require_daily_alignment={self.mtf_require_daily}"
                 )
 
             return True
@@ -505,60 +490,6 @@ class BaseStrategy(ABC):
         except Exception as e:
             self.logger.error(f"Error applying streak adjustments: {e}", exc_info=True)
             return base_position_size
-
-    async def check_multi_timeframe_signal(self, symbol: str) -> Optional[str]:
-        """
-        Check multi-timeframe analysis before entering a trade.
-
-        Professional standard: ALL timeframes should align before entering trades.
-        This dramatically reduces false signals and improves win rate.
-
-        Args:
-            symbol: Stock symbol to analyze
-
-        Returns:
-            'buy', 'sell', or None (skip trade)
-
-        Usage in strategies:
-            # In analyze_symbol() or execute_trade():
-            if self.multi_timeframe:
-                mtf_signal = await self.check_multi_timeframe_signal(symbol)
-                if not mtf_signal:
-                    return 'neutral'  # Skip trade
-                # mtf_signal is 'buy' or 'sell', proceed with trade
-        """
-        if not self.multi_timeframe:
-            # Multi-timeframe not enabled, allow trade
-            return None  # Means "no opinion", let strategy decide
-
-        try:
-            analysis = await self.multi_timeframe.analyze(
-                symbol,
-                min_confidence=self.mtf_min_confidence,
-                require_daily_alignment=self.mtf_require_daily,
-            )
-
-            if not analysis:
-                self.logger.warning(f"Multi-timeframe analysis failed for {symbol}")
-                return None  # Skip trade on analysis failure
-
-            if analysis["should_enter"]:
-                self.logger.info(
-                    f"✅ Multi-timeframe CONFIRMS {analysis['signal'].upper()} signal for {symbol} "
-                    f"(Confidence: {analysis['confidence']:.0%})"
-                )
-                return analysis["signal"]  # 'buy' or 'sell'
-            else:
-                self.logger.info(
-                    f"⏭️  Multi-timeframe REJECTS trade for {symbol} "
-                    f"(Confidence: {analysis['confidence']:.0%}, "
-                    f"Signal: {analysis['signal']})"
-                )
-                return None  # Skip trade
-
-        except Exception as e:
-            self.logger.error(f"Error in multi-timeframe check for {symbol}: {e}", exc_info=True)
-            return None  # Skip trade on error
 
     async def is_short_position(self, symbol):
         """

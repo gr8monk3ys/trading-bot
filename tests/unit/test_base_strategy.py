@@ -139,13 +139,6 @@ class TestBaseStrategyInit:
 
         assert strategy.streak_sizer is not None
 
-    def test_init_multi_timeframe_disabled_by_default(self):
-        """Multi-timeframe should be None when not enabled."""
-        strategy = ConcreteStrategy()
-
-        assert strategy.multi_timeframe is None
-
-
 # ============================================================================
 # Test Initialize Method
 # ============================================================================
@@ -469,84 +462,6 @@ class TestStreakAdjustments:
 # ============================================================================
 
 
-class TestMultiTimeframeSignal:
-    """Test multi-timeframe signal checking."""
-
-    @pytest.mark.asyncio
-    async def test_returns_none_when_disabled(self):
-        """Should return None when MTF is disabled."""
-        strategy = ConcreteStrategy()
-        await strategy.initialize()
-
-        result = await strategy.check_multi_timeframe_signal("AAPL")
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_returns_signal_when_confirmed(self):
-        """Should return signal when MTF confirms."""
-        mock_broker = AsyncMock()
-        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_multi_timeframe": True})
-        await strategy.initialize()
-
-        # Set up mock MTF analyzer
-        strategy.multi_timeframe = MagicMock()
-        strategy.multi_timeframe.analyze = AsyncMock(
-            return_value={"should_enter": True, "signal": "buy", "confidence": 0.85}
-        )
-
-        result = await strategy.check_multi_timeframe_signal("AAPL")
-
-        assert result == "buy"
-
-    @pytest.mark.asyncio
-    async def test_returns_none_when_rejected(self):
-        """Should return None when MTF rejects signal."""
-        mock_broker = AsyncMock()
-        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_multi_timeframe": True})
-        await strategy.initialize()
-
-        # Set up mock MTF analyzer
-        strategy.multi_timeframe = MagicMock()
-        strategy.multi_timeframe.analyze = AsyncMock(
-            return_value={"should_enter": False, "signal": "neutral", "confidence": 0.45}
-        )
-
-        result = await strategy.check_multi_timeframe_signal("AAPL")
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_returns_none_on_analysis_failure(self):
-        """Should return None when MTF analysis fails."""
-        mock_broker = AsyncMock()
-        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_multi_timeframe": True})
-        await strategy.initialize()
-
-        # Set up mock MTF analyzer that returns None
-        strategy.multi_timeframe = MagicMock()
-        strategy.multi_timeframe.analyze = AsyncMock(return_value=None)
-
-        result = await strategy.check_multi_timeframe_signal("AAPL")
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_returns_none_on_error(self):
-        """Should return None on error."""
-        mock_broker = AsyncMock()
-        strategy = ConcreteStrategy(broker=mock_broker, parameters={"use_multi_timeframe": True})
-        await strategy.initialize()
-
-        # Set up mock MTF analyzer that raises
-        strategy.multi_timeframe = MagicMock()
-        strategy.multi_timeframe.analyze = AsyncMock(side_effect=Exception("Test error"))
-
-        result = await strategy.check_multi_timeframe_signal("AAPL")
-
-        assert result is None
-
-
 # ============================================================================
 # Test Position Helpers
 # ============================================================================
@@ -821,7 +736,6 @@ class TestInitAttributes:
         assert hasattr(strategy, "kelly")
         assert hasattr(strategy, "volatility_regime")
         assert hasattr(strategy, "streak_sizer")
-        assert hasattr(strategy, "multi_timeframe")
 
 
 if __name__ == "__main__":
