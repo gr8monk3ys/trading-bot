@@ -21,6 +21,10 @@ Algorithmic trading bot on the Alpaca Trading API, async Python.
 
 **Stack:** Python 3.10+, asyncio, pandas, numpy, TA-Lib, pytest-asyncio.
 
+## Architecture
+
+See [`docs/architecture.md`](docs/architecture.md) for the full data-flow diagram, per-package descriptions, and "where to start reading" guide. It's the single entry point for understanding the code organization.
+
 ## Core code path (production)
 
 - `strategies/momentum_strategy.py` — RSI/MACD/ADX momentum with trailing stops, Kelly gated off by default.
