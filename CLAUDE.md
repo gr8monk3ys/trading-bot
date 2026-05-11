@@ -6,7 +6,7 @@ Guidance for Claude Code working in this repository.
 
 This repository is a personal algorithmic-trading sandbox. It is **paper-only** and has no proven edge. Do not deploy real capital. Previous versions of this document claimed an "institutional-grade" rating and a +42.68% backtest; both claims were unsupported by the evidence in the repo (see `PROFITABILITY_RESEARCH.md` for the analysis) and have been removed.
 
-The only validated baseline lives at `results/honest_backtest_2020-2024.md` — when that file exists, that is the single performance number to cite. The current run (`MomentumStrategyBacktest` defaults, 10 large-caps, 2020-2024, yfinance daily bars) produces 93 trades, Sharpe 1.36, 47% max drawdown. The headline 646% return is mark-to-market on still-open positions in a hand-picked survivor universe; read the caveats section of that file before quoting it.
+The only validated baseline lives at `results/honest_backtest_2020-2024.md` — when that file exists, that is the single performance number to cite. The current run (`MomentumStrategyBacktest` defaults, 10 large-caps, 2020-2024, yfinance daily bars) produces 102 trades, Sharpe 1.36, 47% max drawdown, profit factor 7.27, +646.00% total return. The headline is now net of an end-of-period liquidation pass (positions are closed at the final bar with realistic spread + slippage), so equity reflects realized P&L only — the prior +646.64% figure was unrealized MTM on still-open positions. The survivor-biased universe is still uncorrected; read the caveats section of that file before quoting it.
 
 ## Project overview
 

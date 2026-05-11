@@ -705,6 +705,25 @@ class BacktestEngine:
                 logger.error(f"Error on {current_date.date()}: {e}")
                 equity_curve.append(equity_curve[-1] if equity_curve else initial_capital)
 
+        # Liquidate all remaining open positions at the final trading day's
+        # close. Headline equity must reflect realized PnL — unrealized MTM
+        # on still-open positions overstates what an operator could capture
+        # (see results/honest_backtest_2020-2024.md and the 2026-05 follow-up:
+        # "Add an end-of-backtest liquidation pass").
+        if trading_days:
+            await self._liquidate_open_positions(
+                broker=backtest_broker,
+                final_date=trading_days[-1],
+                execution_profile=execution_profile,
+            )
+
+            # Recompute the closing equity snapshot now that positions are flat.
+            final_portfolio_value = backtest_broker.get_portfolio_value(trading_days[-1])
+            if equity_curve:
+                equity_curve[-1] = final_portfolio_value
+            else:
+                equity_curve.append(final_portfolio_value)
+
         # Process trades to calculate P&L
         trades = backtest_broker.get_trades()
         trade_records = self._calculate_trade_pnl(trades)
@@ -910,6 +929,79 @@ class BacktestEngine:
         }
 
         return result
+
+    async def _liquidate_open_positions(
+        self,
+        broker,
+        final_date: datetime,
+        execution_profile: str = "realistic",
+    ) -> int:
+        """Close every open position at the final trading day's close.
+
+        Routes through `broker.place_order(...)` so liquidation fills incur the
+        same realistic execution profile (spread, market impact, slippage) as
+        any other trade, and so the fills land in `broker.get_trades()` and
+        flow through `_calculate_trade_pnl`.
+
+        Long positions (qty > 0) are sold; short positions (qty < 0) are
+        covered with a buy. Snapshot the positions list before mutating —
+        `broker.get_positions()` returns a live reference into the broker's
+        ledger and the underlying `positions` dict is mutated during the
+        loop.
+
+        Args:
+            broker: The backtest broker holding the positions to liquidate.
+            final_date: The trading session used as the timestamp/price
+                anchor for the liquidation fills.
+            execution_profile: Pass-through for logging only; the broker has
+                already been configured with this profile at run start.
+
+        Returns:
+            The number of positions that were liquidated.
+        """
+        # Pin the broker's effective "now" so price lookups + slippage use the
+        # final session, not wall-clock time.
+        try:
+            broker._current_date = final_date
+        except AttributeError:
+            # Non-BacktestBroker brokers (test stubs) may not expose this knob.
+            pass
+
+        # Snapshot — place_order mutates broker.positions during iteration.
+        open_positions = list(broker.get_positions())
+        if not open_positions:
+            return 0
+
+        liquidated = 0
+        for position in open_positions:
+            symbol = position.get("symbol")
+            qty = position.get("quantity", 0)
+            if symbol is None or qty == 0:
+                continue
+
+            side = "sell" if qty > 0 else "buy"
+            abs_qty = int(abs(qty))
+            if abs_qty <= 0:
+                continue
+
+            try:
+                broker.place_order(
+                    symbol=symbol,
+                    quantity=abs_qty,
+                    side=side,
+                    order_type="market",
+                )
+                liquidated += 1
+            except Exception as exc:
+                logger.warning(
+                    f"End-of-backtest liquidation failed for {symbol}: {exc}"
+                )
+
+        if liquidated:
+            logger.info(
+                f"Liquidated {liquidated} open positions at end of backtest"
+            )
+        return liquidated
 
     def _calculate_trade_pnl(self, trades: List[Dict]) -> List[Dict]:
         """

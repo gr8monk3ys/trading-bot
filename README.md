@@ -31,7 +31,7 @@ python run_adaptive.py
 
 When `results/honest_backtest_2020-2024.md` exists, that is the only performance number to cite. Earlier reports (notably `backtest_report_2024.md`) used 9 trades and are below the statistical-significance bar this repo's own `PROFITABILITY_RESEARCH.md` calls out. Don't quote them.
 
-**Current baseline (2020-2024, 10 large-caps, MomentumStrategyBacktest defaults):** 93 trades, Sharpe 1.36, 47% max drawdown, 21.5% win rate, profit factor 3.03. The headline total return (646.64%) is mark-to-market on still-open positions in a hand-picked survivor universe — read the caveats section of `results/honest_backtest_2020-2024.md` before quoting it. Treat the Sharpe as an in-sample upper bound, not an out-of-sample expectation.
+**Current baseline (2020-2024, 10 large-caps, MomentumStrategyBacktest defaults):** 102 trades, Sharpe 1.36, 47% max drawdown, 25.5% win rate, profit factor 7.27, +646.00% total return — now net of an end-of-period liquidation pass (positions are closed at the final bar with realistic spread + slippage, so equity reflects realized P&L only). The universe is hand-picked mega-caps that survived 2020-2024, so survivorship bias is still uncorrected; treat the Sharpe as an in-sample upper bound, not an out-of-sample expectation. Read the caveats section of `results/honest_backtest_2020-2024.md` before quoting any of this.
 
 ## License
 

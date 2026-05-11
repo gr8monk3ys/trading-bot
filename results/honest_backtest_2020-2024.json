@@ -1,6 +1,6 @@
 {
   "spec_ref": "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md",
-  "generated_at": "2026-05-11T18:51:25.529321Z",
+  "generated_at": "2026-05-11T19:01:11.703917Z",
   "status": "REPORTED",
   "data_source": "yfinance",
   "config": {
@@ -23,25 +23,25 @@
     "spread_bps": 10,
     "min_trades_for_significance": 50
   },
-  "n_trades": 93,
+  "n_trades": 102,
   "inconclusive": false,
   "metrics": {
-    "total_return": 6.466446442527263,
-    "annualized_return": 0.4950189538216212,
+    "total_return": 6.459960402967409,
+    "annualized_return": 0.49475908585779194,
     "max_drawdown": 0.4695692984297289,
-    "sharpe_ratio": 1.3628939217267417,
-    "sortino_ratio": 2.0791166305861557,
-    "win_rate": 0.20430107526881722,
-    "profit_factor": 0.4180960092470938,
-    "avg_trade": -195.22594846768018,
-    "avg_win": 0.015517322504807826,
-    "avg_loss": 0.03525854362043256,
-    "volatility": 0.020033686433069398,
-    "trade_count": 93,
-    "num_trades": 93,
-    "final_equity": 746644.6442527263,
-    "calmar_ratio": 1.054197869147318,
-    "recovery_factor": 13.77101625713498
+    "sharpe_ratio": 1.3623230400606026,
+    "sortino_ratio": 2.078356419800428,
+    "win_rate": 0.2549019607843137,
+    "profit_factor": 7.265733609337351,
+    "avg_trade": 1916.641596389472,
+    "avg_win": 0.03380840780437688,
+    "avg_loss": 0.006049069854310053,
+    "volatility": 0.020034110839223646,
+    "trade_count": 102,
+    "num_trades": 102,
+    "final_equity": 745996.040296741,
+    "calmar_ratio": 1.0536444514415644,
+    "recovery_factor": 13.757203515157292
   },
   "trades": [
     {
@@ -787,6 +787,78 @@
       "price": 430.6049115493785,
       "pnl": 0.0,
       "timestamp": "2024-12-23 00:00:00"
+    },
+    {
+      "symbol": "TSLA",
+      "side": "sell",
+      "quantity": 384,
+      "price": 416.89958787191955,
+      "pnl": 135723.14607283438,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "NVDA",
+      "side": "sell",
+      "quantity": 2183,
+      "price": 137.35286560029132,
+      "pnl": 0.0,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "MSFT",
+      "side": "sell",
+      "quantity": 210,
+      "price": 424.5854373357981,
+      "pnl": 26419.891910968418,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "JPM",
+      "side": "sell",
+      "quantity": 200,
+      "price": 239.11836919318984,
+      "pnl": 25583.437619621145,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "AAPL",
+      "side": "sell",
+      "quantity": 211,
+      "price": 252.09784333507258,
+      "pnl": 4737.816801762958,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "sell",
+      "quantity": 30,
+      "price": 588.1021923115998,
+      "pnl": 5062.910932263241,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "sell",
+      "quantity": 41,
+      "price": 515.4507856773504,
+      "pnl": 6917.705632047434,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "AMZN",
+      "side": "sell",
+      "quantity": 146,
+      "price": 221.18015358103537,
+      "pnl": 0.0,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "GOOGL",
+      "side": "sell",
+      "quantity": 94,
+      "price": 191.10775052449839,
+      "pnl": 9208.547069722821,
+      "timestamp": "2024-12-30 00:00:00"
     }
   ],
   "data_quality": {
@@ -796,7 +868,7 @@
   },
   "equity_curve_summary": {
     "start_equity": 100000.0,
-    "end_equity": 746644.6442527263,
+    "end_equity": 745996.040296741,
     "n_days": 1258
   }
 }

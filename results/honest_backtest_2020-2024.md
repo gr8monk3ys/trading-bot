@@ -1,10 +1,10 @@
 # Honest baseline backtest 2020-2024
 
-Generated: 2026-05-11T18:51:25.529321Z
+Generated: 2026-05-11T19:01:11.703917Z
 Spec: `docs/superpowers/specs/2026-05-11-honest-cleanup-design.md`
 Data source: `yfinance`
 
-> **Status: backtest produced 93 trades** (meets the 50-trade significance bar).
+> **Status: backtest produced 102 trades** (meets the 50-trade significance bar).
 
 ## Configuration
 
@@ -18,16 +18,16 @@ Data source: `yfinance`
 
 ## Headline metrics
 
-- **Total return:** 646.64%
-- **Annualized return:** 49.50%
+- **Total return:** 646.00%
+- **Annualized return:** 49.48%
 - **Sharpe ratio:** 1.36
 - **Sortino ratio:** 2.08
 - **Calmar ratio:** 1.05
 - **Max drawdown:** 46.96%
-- **Win rate:** 20.43%
-- **Profit factor:** 0.42
-- **Trade count:** 93
-- **Final equity:** $746,644.64
+- **Win rate:** 25.49%
+- **Profit factor:** 7.27
+- **Trade count:** 102
+- **Final equity:** $745,996.04
 
 ## Trade log
 
@@ -126,6 +126,15 @@ Data source: `yfinance`
 | 91 | AMZN | buy | 4 | 201.70 | -423.49 | 2024-11-18 00:00:00 |
 | 92 | QQQ | buy | 1 | 514.17 | 0.00 | 2024-12-19 00:00:00 |
 | 93 | TSLA | buy | 1 | 430.60 | 0.00 | 2024-12-23 00:00:00 |
+| 94 | TSLA | sell | 384 | 416.90 | 135723.15 | 2024-12-30 00:00:00 |
+| 95 | NVDA | sell | 2183 | 137.35 | 0.00 | 2024-12-30 00:00:00 |
+| 96 | MSFT | sell | 210 | 424.59 | 26419.89 | 2024-12-30 00:00:00 |
+| 97 | JPM | sell | 200 | 239.12 | 25583.44 | 2024-12-30 00:00:00 |
+| 98 | AAPL | sell | 211 | 252.10 | 4737.82 | 2024-12-30 00:00:00 |
+| 99 | SPY | sell | 30 | 588.10 | 5062.91 | 2024-12-30 00:00:00 |
+| 100 | QQQ | sell | 41 | 515.45 | 6917.71 | 2024-12-30 00:00:00 |
+| 101 | AMZN | sell | 146 | 221.18 | 0.00 | 2024-12-30 00:00:00 |
+| 102 | GOOGL | sell | 94 | 191.11 | 9208.55 | 2024-12-30 00:00:00 |
 
 ## Interpretation
 
@@ -134,9 +143,8 @@ This is the single performance number cited by `README.md` and `CLAUDE.md`. It s
 **Caveats — read before quoting these numbers:**
 
 1. **Survivorship-bias correction is off.** The 10-symbol universe is hand-picked mega-caps that survived 2020-2024; survivorship-bias handling was quarantined to `research/` in the 2026-05 cleanup. Numbers above are inflated by selection of known winners.
-2. **PnL accounting under-reports per-trade P&L.** The engine's trade-matching logic only assigns PnL to sells that follow buys in the same symbol; trades the strategy opens as shorts get `pnl: 0` and their gains/losses show up in equity but not in `avg_trade` / `profit_factor`. Treat trade-level stats as lower bounds.
-3. **Mark-to-market dominates the headline return.** A large fraction of the final equity sits in still-open positions on 2024-12-31, valued at end-of-period prices. The 5-year window happens to end near all-time highs; rerun ending on a different date for a different number.
-4. **Costs included: 40 bps slippage + 10 bps spread per trade.** These are realistic for retail at this universe size but do not model gap risk on positions held overnight (gap stats: see engine logs — largest gap in this run was 26%).
-5. **No walk-forward validation in this artifact.** This is a single in-sample run; treat the Sharpe as an upper bound on what an out-of-sample trader would have realized. `PROFITABILITY_RESEARCH.md` documents realistic expectations for this strategy family (Sharpe 0.5 to 1.2 net of costs) — anything well above that range warrants suspicion, not celebration.
+2. **Realized P&L only — end-of-period liquidation pass enabled.** Open positions at end-of-period are closed at the final bar with realistic spread + slippage (see `BacktestEngine._liquidate_open_positions`), so headline equity reflects realized cash, not unrealized MTM. Short-leg PnL is also captured correctly (Step 2B fixed the matcher). The 5-year window happens to end near all-time highs in the chosen universe; rerun ending on a different date for a different number.
+3. **Costs included: 40 bps slippage + 10 bps spread per trade.** These are realistic for retail at this universe size but do not model gap risk on positions held overnight (gap stats: see engine logs — largest gap in this run was 26%).
+4. **No walk-forward validation in this artifact.** This is a single in-sample run; treat the Sharpe as an upper bound on what an out-of-sample trader would have realized. `PROFITABILITY_RESEARCH.md` documents realistic expectations for this strategy family (Sharpe 0.5 to 1.2 net of costs) — anything well above that range warrants suspicion, not celebration.
 
 Do not extrapolate beyond what the trade count supports. Use this artifact as a sanity check that the pipeline runs end-to-end on real market data, not as evidence of strategy edge.
