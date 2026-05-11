@@ -33,7 +33,6 @@ if str(ROOT) not in sys.path:
 
 # Trading bot imports
 from brokers.alpaca_broker import AlpacaBroker
-from strategies.ensemble_strategy import EnsembleStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 from strategies.momentum_strategy import MomentumStrategy
 from strategies.pairs_trading_strategy import PairsTradingStrategy
@@ -60,7 +59,6 @@ class TradingBotMCPServer:
         self.strategies = {
             "momentum": MomentumStrategy,
             "mean_reversion": MeanReversionStrategy,
-            "ensemble": EnsembleStrategy,
             "pairs_trading": PairsTradingStrategy,
         }
 

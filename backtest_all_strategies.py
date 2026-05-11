@@ -7,7 +7,6 @@ import asyncio
 
 from brokers.alpaca_broker import AlpacaBroker
 from engine.backtest_engine import BacktestEngine
-from strategies.bracket_momentum_strategy import BracketMomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 from strategies.momentum_strategy import MomentumStrategy
 
@@ -104,7 +103,6 @@ async def main():
     strategies_to_test = [
         (MomentumStrategy, "Momentum Strategy"),
         (MeanReversionStrategy, "Mean Reversion Strategy"),
-        (BracketMomentumStrategy, "Bracket Momentum Strategy"),
     ]
 
     results = {}

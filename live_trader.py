@@ -32,7 +32,6 @@ from typing import Any
 import pandas as pd
 
 from config import RISK_PARAMS, SYMBOLS
-from strategies.bracket_momentum_strategy import BracketMomentumStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 from strategies.momentum_strategy import MomentumStrategy
 from strategies.risk_manager import RiskManager
@@ -600,7 +599,6 @@ class LiveTrader:
         strategies = {
             "momentum": MomentumStrategy,
             "mean_reversion": MeanReversionStrategy,
-            "bracket_momentum": BracketMomentumStrategy,
         }
 
         if self.strategy_name not in strategies:
@@ -1241,7 +1239,7 @@ async def main():
         "--strategy",
         type=str,
         default="momentum",
-        choices=["momentum", "mean_reversion", "bracket_momentum"],
+        choices=["momentum", "mean_reversion"],
         help="Strategy to run",
     )
     parser.add_argument(

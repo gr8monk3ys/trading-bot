@@ -88,13 +88,6 @@ def choose_strategy():
             "risk": "Medium-High",
             "time_frame": "1-5 days",
         },
-        "3": {
-            "name": "bracket_momentum",
-            "description": "Momentum with automatic take-profit and stop-loss",
-            "best_for": "Active trading",
-            "risk": "Medium",
-            "time_frame": "Hours to days",
-        },
     }
 
     for key, strat in strategies.items():

@@ -25,7 +25,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--strategy",
         default="momentum",
-        choices=["momentum", "mean_reversion", "bracket_momentum"],
+        choices=["momentum", "mean_reversion"],
         help="Strategy name passed to live_trader.py",
     )
     parser.add_argument(

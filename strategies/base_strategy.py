@@ -560,25 +560,6 @@ class BaseStrategy(ABC):
             self.logger.error(f"Error in multi-timeframe check for {symbol}: {e}", exc_info=True)
             return None  # Skip trade on error
 
-    async def check_sentiment_filter(self, symbol: str, direction: str = "long") -> bool:
-        """
-        No-op sentiment filter kept for backwards compatibility.
-
-        The FinBERT-based NewsSentimentAnalyzer that backed this method was
-        removed in the 2026-05 cleanup (no validated edge). This stub always
-        allows trades; callers do not need to be updated.
-        """
-        return True
-
-    async def get_sentiment_adjusted_size(self, symbol: str, base_size: float) -> float:
-        """
-        No-op sentiment sizing kept for backwards compatibility.
-
-        Returns ``base_size`` unchanged after the FinBERT sentiment module was
-        removed in the 2026-05 cleanup.
-        """
-        return base_size
-
     async def is_short_position(self, symbol):
         """
         Check if we currently have a short position in a symbol.
