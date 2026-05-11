@@ -29,7 +29,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 from brokers.order_builder import OrderBuilder
 from engine.backtest_engine import BacktestEngine
