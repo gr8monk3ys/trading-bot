@@ -223,7 +223,7 @@ services:
       - ./data:/app/data
       - ./results:/app/results
       - ./config.py:/app/config.py:ro
-    command: ["python", "simple_backtest.py"]
+    command: ["python", "main.py", "backtest", "--strategy", "MomentumStrategyBacktest", "--start-date", "2024-01-01", "--end-date", "2024-12-31"]
     networks:
       - trading-net
     profiles:
