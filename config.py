@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def _validate_config():
     """
-    P0 FIX: Validate configuration parameters on module load.
+    Validate configuration parameters on module load.
 
     Prevents invalid configurations from causing runtime errors or financial losses.
     Raises ValueError for critical issues, warns for suspicious values.
@@ -71,265 +71,6 @@ def _validate_config():
             f"VAR_CONFIDENCE must be between 0.5 and 1 (exclusive), got {RISK_PARAMS['VAR_CONFIDENCE']}"
         )
 
-    if (
-        RISK_PARAMS["ORDER_RECON_MISMATCH_HALT_RUNS"] < 1
-        or RISK_PARAMS["ORDER_RECON_MISMATCH_HALT_RUNS"] > 20
-    ):
-        errors.append(
-            "ORDER_RECON_MISMATCH_HALT_RUNS must be between 1 and 20, got "
-            f"{RISK_PARAMS['ORDER_RECON_MISMATCH_HALT_RUNS']}"
-        )
-
-    if RISK_PARAMS["DATA_QUALITY_MAX_ERRORS"] < 0 or RISK_PARAMS["DATA_QUALITY_MAX_ERRORS"] > 100:
-        errors.append(
-            "DATA_QUALITY_MAX_ERRORS must be between 0 and 100, got "
-            f"{RISK_PARAMS['DATA_QUALITY_MAX_ERRORS']}"
-        )
-
-    if (
-        RISK_PARAMS["DATA_QUALITY_MAX_STALE_WARNINGS"] < 0
-        or RISK_PARAMS["DATA_QUALITY_MAX_STALE_WARNINGS"] > 100
-    ):
-        errors.append(
-            "DATA_QUALITY_MAX_STALE_WARNINGS must be between 0 and 100, got "
-            f"{RISK_PARAMS['DATA_QUALITY_MAX_STALE_WARNINGS']}"
-        )
-
-    if (
-        RISK_PARAMS["DATA_QUALITY_STALE_AFTER_DAYS"] < 1
-        or RISK_PARAMS["DATA_QUALITY_STALE_AFTER_DAYS"] > 30
-    ):
-        errors.append(
-            "DATA_QUALITY_STALE_AFTER_DAYS must be between 1 and 30, got "
-            f"{RISK_PARAMS['DATA_QUALITY_STALE_AFTER_DAYS']}"
-        )
-
-    if (
-        RISK_PARAMS["SLO_PAGING_TIMEOUT_SECONDS"] < 1
-        or RISK_PARAMS["SLO_PAGING_TIMEOUT_SECONDS"] > 30
-    ):
-        errors.append(
-            "SLO_PAGING_TIMEOUT_SECONDS must be between 1 and 30, got "
-            f"{RISK_PARAMS['SLO_PAGING_TIMEOUT_SECONDS']}"
-        )
-
-    if RISK_PARAMS["SLO_PAGING_MIN_SEVERITY"] not in {"warning", "critical"}:
-        errors.append(
-            "SLO_PAGING_MIN_SEVERITY must be one of {'warning','critical'}, got "
-            f"{RISK_PARAMS['SLO_PAGING_MIN_SEVERITY']}"
-        )
-
-    if RISK_PARAMS["SLO_PAGING_ENABLED"] and not RISK_PARAMS["SLO_PAGING_WEBHOOK_URL"]:
-        errors.append("SLO_PAGING_ENABLED=True requires SLO_PAGING_WEBHOOK_URL to be set")
-
-    if RISK_PARAMS["SLO_PAGING_MAX_RETRIES"] < 0 or RISK_PARAMS["SLO_PAGING_MAX_RETRIES"] > 5:
-        errors.append(
-            "SLO_PAGING_MAX_RETRIES must be between 0 and 5, got "
-            f"{RISK_PARAMS['SLO_PAGING_MAX_RETRIES']}"
-        )
-
-    if (
-        RISK_PARAMS["SLO_PAGING_RETRY_BACKOFF_SECONDS"] < 0
-        or RISK_PARAMS["SLO_PAGING_RETRY_BACKOFF_SECONDS"] > 10
-    ):
-        errors.append(
-            "SLO_PAGING_RETRY_BACKOFF_SECONDS must be between 0 and 10, got "
-            f"{RISK_PARAMS['SLO_PAGING_RETRY_BACKOFF_SECONDS']}"
-        )
-
-    if (
-        RISK_PARAMS["INCIDENT_TICKETING_TIMEOUT_SECONDS"] < 1
-        or RISK_PARAMS["INCIDENT_TICKETING_TIMEOUT_SECONDS"] > 30
-    ):
-        errors.append(
-            "INCIDENT_TICKETING_TIMEOUT_SECONDS must be between 1 and 30, got "
-            f"{RISK_PARAMS['INCIDENT_TICKETING_TIMEOUT_SECONDS']}"
-        )
-
-    if (
-        RISK_PARAMS["INCIDENT_TICKETING_ENABLED"]
-        and not RISK_PARAMS["INCIDENT_TICKETING_WEBHOOK_URL"]
-    ):
-        errors.append(
-            "INCIDENT_TICKETING_ENABLED=True requires INCIDENT_TICKETING_WEBHOOK_URL to be set"
-        )
-    if (
-        RISK_PARAMS["INCIDENT_TICKETING_ENABLED"]
-        and not RISK_PARAMS["INCIDENT_RESPONSE_RUNBOOK_URL"]
-    ):
-        warnings.append(
-            "INCIDENT_TICKETING_ENABLED=True without INCIDENT_RESPONSE_RUNBOOK_URL; "
-            "incident tickets will not include a direct runbook link."
-        )
-    if (
-        RISK_PARAMS["INCIDENT_TICKETING_ENABLED"]
-        and not RISK_PARAMS["INCIDENT_ESCALATION_ROSTER_URL"]
-    ):
-        warnings.append(
-            "INCIDENT_TICKETING_ENABLED=True without INCIDENT_ESCALATION_ROSTER_URL; "
-            "incident tickets will not include an escalation roster link."
-        )
-    for incident_link_key in (
-        "INCIDENT_RESPONSE_RUNBOOK_URL",
-        "INCIDENT_ESCALATION_ROSTER_URL",
-    ):
-        incident_link_value = str(RISK_PARAMS.get(incident_link_key, "") or "").strip()
-        if incident_link_value and not incident_link_value.startswith(("https://", "http://")):
-            warnings.append(
-                f"{incident_link_key} should start with http:// or https://, got "
-                f"'{incident_link_value}'"
-            )
-
-    if (
-        RISK_PARAMS["INCIDENT_TICKETING_MAX_RETRIES"] < 0
-        or RISK_PARAMS["INCIDENT_TICKETING_MAX_RETRIES"] > 5
-    ):
-        errors.append(
-            "INCIDENT_TICKETING_MAX_RETRIES must be between 0 and 5, got "
-            f"{RISK_PARAMS['INCIDENT_TICKETING_MAX_RETRIES']}"
-        )
-
-    if (
-        RISK_PARAMS["INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS"] < 0
-        or RISK_PARAMS["INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS"] > 10
-    ):
-        errors.append(
-            "INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS must be between 0 and 10, got "
-            f"{RISK_PARAMS['INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS']}"
-        )
-
-    if (
-        RISK_PARAMS["INCIDENT_ACK_SLA_MINUTES"] < 1
-        or RISK_PARAMS["INCIDENT_ACK_SLA_MINUTES"] > 1440
-    ):
-        errors.append(
-            "INCIDENT_ACK_SLA_MINUTES must be between 1 and 1440, got "
-            f"{RISK_PARAMS['INCIDENT_ACK_SLA_MINUTES']}"
-        )
-
-    if (
-        RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"] < 0
-        or RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"] > 1
-    ):
-        errors.append(
-            "PAPER_LIVE_SHADOW_DRIFT_MAX must be between 0 and 1, got "
-            f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_MAX']}"
-        )
-
-    if (
-        RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] < 0
-        or RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] > 1
-    ):
-        errors.append(
-            "PAPER_LIVE_SHADOW_DRIFT_WARNING must be between 0 and 1, got "
-            f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_WARNING']}"
-        )
-
-    if RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_WARNING"] > RISK_PARAMS["PAPER_LIVE_SHADOW_DRIFT_MAX"]:
-        errors.append(
-            "PAPER_LIVE_SHADOW_DRIFT_WARNING must be <= PAPER_LIVE_SHADOW_DRIFT_MAX, got "
-            f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_WARNING']} > "
-            f"{RISK_PARAMS['PAPER_LIVE_SHADOW_DRIFT_MAX']}"
-        )
-
-    if (
-        RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"] < 1
-        or RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"] > 10000
-    ):
-        errors.append(
-            "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD must be between 1 and 10000, got "
-            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD']}"
-        )
-
-    if (
-        RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"] < 1
-        or RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"] > 10000
-    ):
-        errors.append(
-            "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD must be between 1 and 10000, got "
-            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD']}"
-        )
-
-    if (
-        RISK_PARAMS["NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES"] < 1
-        or RISK_PARAMS["NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES"] > 1440
-    ):
-        errors.append(
-            "NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES must be between 1 and 1440, got "
-            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES']}"
-        )
-
-    if (
-        RISK_PARAMS["NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD"]
-        > RISK_PARAMS["NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD"]
-    ):
-        errors.append(
-            "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD must be <= "
-            "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD, got "
-            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD']} > "
-            f"{RISK_PARAMS['NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD']}"
-        )
-
-    if (
-        RISK_PARAMS["MULTI_BROKER_HEALTH_CHECK_INTERVAL"] < 5
-        or RISK_PARAMS["MULTI_BROKER_HEALTH_CHECK_INTERVAL"] > 600
-    ):
-        errors.append(
-            "MULTI_BROKER_HEALTH_CHECK_INTERVAL must be between 5 and 600 seconds, got "
-            f"{RISK_PARAMS['MULTI_BROKER_HEALTH_CHECK_INTERVAL']}"
-        )
-
-    if (
-        RISK_PARAMS["MULTI_BROKER_FAILURE_THRESHOLD"] < 1
-        or RISK_PARAMS["MULTI_BROKER_FAILURE_THRESHOLD"] > 20
-    ):
-        errors.append(
-            "MULTI_BROKER_FAILURE_THRESHOLD must be between 1 and 20, got "
-            f"{RISK_PARAMS['MULTI_BROKER_FAILURE_THRESHOLD']}"
-        )
-
-    if (
-        RISK_PARAMS["MULTI_BROKER_RECOVERY_THRESHOLD"] < 1
-        or RISK_PARAMS["MULTI_BROKER_RECOVERY_THRESHOLD"] > 20
-    ):
-        errors.append(
-            "MULTI_BROKER_RECOVERY_THRESHOLD must be between 1 and 20, got "
-            f"{RISK_PARAMS['MULTI_BROKER_RECOVERY_THRESHOLD']}"
-        )
-
-    if (
-        RISK_PARAMS["MULTI_BROKER_OPERATION_TIMEOUT_SECONDS"] < 1
-        or RISK_PARAMS["MULTI_BROKER_OPERATION_TIMEOUT_SECONDS"] > 120
-    ):
-        errors.append(
-            "MULTI_BROKER_OPERATION_TIMEOUT_SECONDS must be between 1 and 120, got "
-            f"{RISK_PARAMS['MULTI_BROKER_OPERATION_TIMEOUT_SECONDS']}"
-        )
-
-    if RISK_PARAMS["MULTI_BROKER_BACKUP_BROKER"] not in {"ib"}:
-        errors.append(
-            "MULTI_BROKER_BACKUP_BROKER must be 'ib', got "
-            f"{RISK_PARAMS['MULTI_BROKER_BACKUP_BROKER']}"
-        )
-
-    # Validate factor data provenance gates
-    for key in (
-        "FACTOR_DATA_MAX_SYNTHETIC_RATIO",
-        "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO",
-        "FACTOR_DATA_MIN_COVERAGE_RATIO",
-    ):
-        val = RISK_PARAMS.get(key)
-        if val is None or val < 0 or val > 1:
-            errors.append(f"{key} must be between 0 and 1, got {val}")
-
-    if RISK_PARAMS.get("FACTOR_DATA_MIN_REAL_COVERAGE_RATIO", 0) > RISK_PARAMS.get(
-        "FACTOR_DATA_MIN_COVERAGE_RATIO", 1
-    ):
-        warnings.append(
-            "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO is greater than FACTOR_DATA_MIN_COVERAGE_RATIO "
-            "(this may unintentionally disable fundamental/size factors)."
-        )
-
     # Validate TECHNICAL_PARAMS
     if TECHNICAL_PARAMS["RSI_PERIOD"] < 2 or TECHNICAL_PARAMS["RSI_PERIOD"] > 100:
         warnings.append(
@@ -360,15 +101,6 @@ def _parse_bool_env(name: str, default: bool = True) -> bool:
     """Parse a boolean environment variable using permissive truthy values."""
     raw = str(os.environ.get(name, str(default))).strip().lower()
     return raw in {"1", "true", "yes", "y", "on"}
-
-
-def _parse_int_env(name: str, default: int) -> int:
-    """Parse an integer environment variable with fallback."""
-    raw = str(os.environ.get(name, default)).strip()
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return int(default)
 
 
 def _parse_float_env(name: str, default: float) -> float:
@@ -447,75 +179,12 @@ SYMBOLS = [
     "TSLA",  # Tesla
 ]
 
-# Cryptocurrency pairs - Supported for 24/7 trading
-# These can be used in addition to or instead of stock symbols
-CRYPTO_SYMBOLS = [
-    "BTC/USD",  # Bitcoin
-    "ETH/USD",  # Ethereum
-    "SOL/USD",  # Solana
-    "AVAX/USD",  # Avalanche
-    "DOGE/USD",  # Dogecoin
-    "SHIB/USD",  # Shiba Inu
-    "LTC/USD",  # Litecoin
-    "BCH/USD",  # Bitcoin Cash
-    "LINK/USD",  # Chainlink
-    "UNI/USD",  # Uniswap
-    "AAVE/USD",  # Aave
-    "DOT/USD",  # Polkadot
-    "MATIC/USD",  # Polygon
-    "XLM/USD",  # Stellar
-    "ATOM/USD",  # Cosmos
-]
-
-# Crypto trading parameters
-CRYPTO_PARAMS = {
-    "ENABLED": True,  # Enable crypto trading
-    "USE_CRYPTO_ONLY": False,  # If True, only trade crypto (not stocks)
-    # Default crypto symbols to trade
-    "DEFAULT_PAIRS": ["BTC/USD", "ETH/USD", "SOL/USD"],
-    # Position sizing for crypto (can be different from stocks due to volatility)
-    "POSITION_SIZE": 0.05,  # 5% of portfolio per crypto position (lower due to volatility)
-    "MAX_POSITION_SIZE": 0.15,  # 15% maximum crypto position size
-    # Crypto-specific risk parameters
-    "STOP_LOSS": 0.05,  # 5% stop loss (higher due to volatility)
-    "TAKE_PROFIT": 0.10,  # 10% take profit (higher due to volatility)
-    # 24/7 trading settings
-    "TRADE_24_7": True,  # Enable around-the-clock trading
-    "TRADING_INTERVAL": 60,  # Seconds between checks (can be more frequent for crypto)
-}
-
-# Overnight trading parameters (Blue Ocean ATS - 24/5 trading)
-# Available: Sunday 8 PM ET to Friday 4 AM ET
-# Enables trading outside regular hours for supported symbols
-OVERNIGHT_PARAMS = {
-    "ENABLED": True,  # Enable overnight trading via Blue Ocean ATS
-    # Position sizing (more conservative due to lower liquidity)
-    "POSITION_SIZE_MULTIPLIER": 0.3,  # 30% of regular position size
-    "MAX_OVERNIGHT_POSITIONS": 3,  # Maximum concurrent overnight positions
-    # Symbols allowed for overnight trading (empty = all overnight-tradeable symbols)
-    "ALLOWED_SYMBOLS": [],  # e.g., ["AAPL", "MSFT", "GOOGL", "SPY", "QQQ"]
-    # Risk parameters
-    "STOP_LOSS_MULTIPLIER": 1.5,  # 1.5x wider stop-loss due to lower liquidity
-    "MAX_SPREAD_PCT": 0.01,  # Max 1.0% bid-ask spread allowed
-    # Order settings
-    "ORDER_TYPE": "limit",  # Always use limit orders in overnight session
-    "LIMIT_ORDER_OFFSET_PCT": 0.002,  # 0.2% offset from mid-price
-    # Monitoring
-    "TRADING_INTERVAL": 300,  # 5 minutes between checks (less frequent than regular)
-    "LOG_OVERNIGHT_TRADES": True,  # Extra logging for overnight trades
-}
-
-# Dynamic Symbol Selection (NEW - WORKING!)
+# Dynamic Symbol Selection
 SYMBOL_SELECTION = {
     "USE_DYNAMIC_SELECTION": True,  # ENABLED - automatically scan for best opportunities
     "TOP_N_SYMBOLS": 20,  # Number of stocks to trade (more = more diversification)
     "MIN_MOMENTUM_SCORE": 1.0,  # Minimum 5-day price movement % to consider
     "RESCAN_INTERVAL_HOURS": 24,  # Rescan market every N hours for new opportunities
-    # SimpleSymbolSelector finds:
-    # - High volume stocks (>1M shares/day) - easier to trade
-    # - Reasonable prices ($10-$500) - not penny stocks, not too expensive
-    # - Active movers - stocks with momentum
-    # Result: ~20 liquid, tradable stocks with real price action
 }
 
 # Trading parameters
@@ -527,20 +196,15 @@ TRADING_PARAMS = {
     "STOP_LOSS": 0.02,  # 2% stop loss
     "TAKE_PROFIT": 0.05,  # 5% take profit
     # Kelly Criterion position sizing (optimal leverage)
-    # Expected improvement: +4-6% annual returns from mathematically optimal sizing
-    "USE_KELLY_CRITERION": True,  # ENABLED for maximum profit
-    "KELLY_FRACTION": 0.5,  # 0.5 = Half Kelly (conservative), 0.25 = Quarter Kelly, 1.0 = Full Kelly
+    "USE_KELLY_CRITERION": True,
+    "KELLY_FRACTION": 0.5,  # 0.5 = Half Kelly (conservative)
     "KELLY_MIN_TRADES": 30,  # Minimum trades before trusting Kelly calculation
     "KELLY_LOOKBACK": 50,  # Use last N trades for Kelly calculation
     "MIN_POSITION_SIZE": 0.01,  # Minimum 1% position size
     # Volatility Regime Detection (adaptive risk management)
-    # Expected improvement: +5-8% annual returns from adaptive risk management
-    "USE_VOLATILITY_REGIME": True,  # ENABLED for maximum profit
-    # Regimes: Very Low (VIX<12), Low (12-15), Normal (15-20), Elevated (20-30), High (>30)
-    # Very Low: +40% position, -30% stop | High: -60% position, +50% stop
+    "USE_VOLATILITY_REGIME": True,
     # Streak-Based Position Sizing (dynamic sizing based on recent performance)
-    # Expected improvement: +4-7% annual returns from compounding wins, cutting losses
-    "USE_STREAK_SIZING": True,  # ENABLED for maximum profit
+    "USE_STREAK_SIZING": True,
     "STREAK_LOOKBACK": 10,  # Number of recent trades to analyze for streak detection
     "HOT_STREAK_THRESHOLD": 7,  # Wins needed (out of lookback) for hot streak
     "COLD_STREAK_THRESHOLD": 3,  # Max wins (out of lookback) for cold streak
@@ -548,12 +212,9 @@ TRADING_PARAMS = {
     "COLD_MULTIPLIER": 0.7,  # Position size multiplier during cold streaks (-30%)
     "STREAK_RESET_AFTER": 5,  # Reset to baseline after N trades in same streak
     # Multi-Timeframe Analysis (trend confirmation across timeframes)
-    # Expected improvement: +8-12% win rate, -30-40% reduction in false signals
-    "USE_MULTI_TIMEFRAME": True,  # ENABLED for maximum profit
+    "USE_MULTI_TIMEFRAME": True,
     "MTF_MIN_CONFIDENCE": 0.70,  # Minimum confidence (0.0-1.0) to enter trade
     "MTF_REQUIRE_DAILY_ALIGNMENT": True,  # Daily timeframe must not contradict signal
-    # Analyzes 5Min, 15Min, 1Hour, 1Day timeframes
-    # Expected improvement: +8-12% win rate, -30-40% reduction in false signals
 }
 
 # Risk management parameters
@@ -562,61 +223,6 @@ RISK_PARAMS = {
     "MAX_POSITION_RISK": _parse_float_env("MAX_POSITION_RISK", 0.01),
     "MAX_CORRELATION": _parse_float_env("MAX_CORRELATION", 0.7),
     "VAR_CONFIDENCE": _parse_float_env("VAR_CONFIDENCE", 0.95),
-    "ORDER_RECON_MISMATCH_HALT_RUNS": 3,  # Consecutive mismatch runs before halting new entries
-    "DATA_QUALITY_MAX_ERRORS": 0,  # Maximum tolerated data quality errors before halting new entries
-    "DATA_QUALITY_MAX_STALE_WARNINGS": 0,  # Maximum stale data warnings before halting new entries
-    "DATA_QUALITY_STALE_AFTER_DAYS": 3,  # Data freshness threshold for live/paper quality gates
-    # Factor-data provenance gates (prevents synthetic fundamentals from driving paper/live decisions)
-    "FACTOR_DATA_MAX_SYNTHETIC_RATIO": _parse_float_env("FACTOR_DATA_MAX_SYNTHETIC_RATIO", 0.0),
-    "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO": _parse_float_env(
-        "FACTOR_DATA_MIN_REAL_COVERAGE_RATIO", 1.0
-    ),
-    "FACTOR_DATA_MIN_COVERAGE_RATIO": _parse_float_env("FACTOR_DATA_MIN_COVERAGE_RATIO", 1.0),
-    "SLO_PAGING_ENABLED": _parse_bool_env("SLO_PAGING_ENABLED", default=False),
-    "SLO_PAGING_WEBHOOK_URL": os.environ.get("SLO_PAGING_WEBHOOK_URL", "").strip(),
-    "SLO_PAGING_MIN_SEVERITY": str(os.environ.get("SLO_PAGING_MIN_SEVERITY", "critical"))
-    .strip()
-    .lower(),
-    "SLO_PAGING_TIMEOUT_SECONDS": _parse_int_env("SLO_PAGING_TIMEOUT_SECONDS", 3),
-    "SLO_PAGING_MAX_RETRIES": _parse_int_env("SLO_PAGING_MAX_RETRIES", 2),
-    "SLO_PAGING_RETRY_BACKOFF_SECONDS": _parse_float_env("SLO_PAGING_RETRY_BACKOFF_SECONDS", 0.5),
-    "SLO_PAGING_AUTH_TOKEN": os.environ.get("SLO_PAGING_AUTH_TOKEN", "").strip(),
-    "SLO_PAGING_AUTH_SCHEME": str(os.environ.get("SLO_PAGING_AUTH_SCHEME", "Bearer")).strip(),
-    "INCIDENT_TICKETING_ENABLED": _parse_bool_env("INCIDENT_TICKETING_ENABLED", default=False),
-    "INCIDENT_TICKETING_WEBHOOK_URL": os.environ.get("INCIDENT_TICKETING_WEBHOOK_URL", "").strip(),
-    "INCIDENT_TICKETING_TIMEOUT_SECONDS": _parse_int_env("INCIDENT_TICKETING_TIMEOUT_SECONDS", 3),
-    "INCIDENT_TICKETING_MAX_RETRIES": _parse_int_env("INCIDENT_TICKETING_MAX_RETRIES", 2),
-    "INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS": _parse_float_env(
-        "INCIDENT_TICKETING_RETRY_BACKOFF_SECONDS", 0.5
-    ),
-    "INCIDENT_TICKETING_AUTH_TOKEN": os.environ.get("INCIDENT_TICKETING_AUTH_TOKEN", "").strip(),
-    "INCIDENT_TICKETING_AUTH_SCHEME": str(
-        os.environ.get("INCIDENT_TICKETING_AUTH_SCHEME", "Bearer")
-    ).strip(),
-    "INCIDENT_RESPONSE_RUNBOOK_URL": os.environ.get("INCIDENT_RESPONSE_RUNBOOK_URL", "").strip(),
-    "INCIDENT_ESCALATION_ROSTER_URL": os.environ.get("INCIDENT_ESCALATION_ROSTER_URL", "").strip(),
-    "INCIDENT_ACK_SLA_MINUTES": _parse_int_env("INCIDENT_ACK_SLA_MINUTES", 15),
-    "PAPER_LIVE_SHADOW_DRIFT_WARNING": _parse_float_env("PAPER_LIVE_SHADOW_DRIFT_WARNING", 0.12),
-    "PAPER_LIVE_SHADOW_DRIFT_MAX": _parse_float_env("PAPER_LIVE_SHADOW_DRIFT_MAX", 0.15),
-    "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD": _parse_int_env(
-        "NOTIFICATION_DEAD_LETTER_WARNING_THRESHOLD", 10
-    ),
-    "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD": _parse_int_env(
-        "NOTIFICATION_DEAD_LETTER_CRITICAL_THRESHOLD", 25
-    ),
-    "NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES": _parse_int_env(
-        "NOTIFICATION_DEAD_LETTER_PERSIST_MINUTES", 5
-    ),
-    "MULTI_BROKER_ENABLED": _parse_bool_env("MULTI_BROKER_ENABLED", default=False),
-    "MULTI_BROKER_BACKUP_BROKER": str(os.environ.get("MULTI_BROKER_BACKUP_BROKER", "ib"))
-    .strip()
-    .lower(),
-    "MULTI_BROKER_HEALTH_CHECK_INTERVAL": _parse_int_env("MULTI_BROKER_HEALTH_CHECK_INTERVAL", 30),
-    "MULTI_BROKER_FAILURE_THRESHOLD": _parse_int_env("MULTI_BROKER_FAILURE_THRESHOLD", 3),
-    "MULTI_BROKER_RECOVERY_THRESHOLD": _parse_int_env("MULTI_BROKER_RECOVERY_THRESHOLD", 5),
-    "MULTI_BROKER_OPERATION_TIMEOUT_SECONDS": _parse_float_env(
-        "MULTI_BROKER_OPERATION_TIMEOUT_SECONDS", 15.0
-    ),
 }
 
 # Technical analysis parameters
@@ -630,121 +236,7 @@ TECHNICAL_PARAMS = {
     "RSI_OVERSOLD": 30,
 }
 
-# News sentiment parameters (FinBERT-based analysis)
-SENTIMENT_PARAMS = {
-    # Enable/disable news sentiment analysis
-    "USE_NEWS_SENTIMENT": True,  # ENABLED for sentiment-aware trading
-    # Sentiment thresholds for signal generation
-    "BULLISH_THRESHOLD": 0.3,  # Score above this = bullish signal
-    "BEARISH_THRESHOLD": -0.3,  # Score below this = bearish signal
-    # News analysis settings
-    "LOOKBACK_HOURS": 24,  # Hours of news to analyze (default: 1 day)
-    "MIN_NEWS_COUNT": 3,  # Minimum articles required for valid sentiment
-    "INCLUDE_SUMMARY": True,  # Analyze article summaries (more accurate, slower)
-    # Caching settings
-    "CACHE_TTL_MINUTES": 15,  # Cache sentiment results for this long
-    # GPU acceleration (requires CUDA)
-    "USE_GPU": False,  # Set to True if GPU available for faster inference
-    # Signal weight (how much sentiment influences final signal)
-    "SENTIMENT_WEIGHT": 0.3,  # 30% weight in combined signal (0.0-1.0)
-}
-
-# Options trading parameters
-OPTIONS_PARAMS = {
-    # Enable/disable options trading (requires Alpaca options approval)
-    "ENABLED": True,  # Enabled for tail hedging
-    # Expiration preferences
-    "DEFAULT_EXPIRATION_DAYS": 30,  # Default days to expiration for new positions
-    "MIN_DAYS_TO_EXPIRATION": 7,  # Minimum DTE (avoid last-week decay issues)
-    "MAX_DAYS_TO_EXPIRATION": 45,  # Maximum DTE (balance theta decay vs premium)
-    # Position limits
-    "MAX_CONTRACTS": 10,  # Maximum contracts per position
-    "MAX_TOTAL_CONTRACTS": 50,  # Maximum total option contracts across all positions
-    "MAX_NOTIONAL_EXPOSURE": 50000,  # Maximum notional value at risk
-    # Delta targeting for income strategies
-    "COVERED_CALL_DELTA_TARGET": 0.30,  # Target delta for covered calls (0.30 = ~30% ITM prob)
-    "CASH_SECURED_PUT_DELTA_TARGET": -0.30,  # Target delta for CSPs
-    # Risk management
-    "MAX_LOSS_PER_TRADE": 500,  # Maximum loss per option trade
-    "CLOSE_AT_PROFIT_PCT": 50,  # Close position at 50% of max profit
-    "CLOSE_AT_LOSS_PCT": 200,  # Close position at 200% loss (2x premium paid)
-    # Spread requirements (for bid-ask spread quality)
-    "MAX_SPREAD_PCT": 10.0,  # Maximum bid-ask spread as % of mid price
-    "MIN_OPEN_INTEREST": 100,  # Minimum open interest for liquidity
-    # Strategy preferences
-    "PREFER_LIMIT_ORDERS": True,  # Always use limit orders (recommended for options)
-    "DEFAULT_ORDER_TYPE": "limit",  # Default order type
-    # =========================================================================
-    # TAIL HEDGING PARAMETERS
-    # Buy protective puts in low-volatility regimes to protect against crashes
-    # =========================================================================
-    "TAIL_HEDGE_ENABLED": True,  # Enable automatic tail hedging
-    "TAIL_HEDGE_VIX_THRESHOLD": 15,  # Buy puts when VIX < 15 (complacency)
-    "TAIL_HEDGE_ALLOCATION": 0.02,  # Allocate 2% of portfolio to puts
-    "TAIL_HEDGE_PUT_DELTA": -0.15,  # Target 15-delta puts (OTM protection)
-    "TAIL_HEDGE_DTE_MIN": 30,  # Minimum days to expiration for hedge
-    "TAIL_HEDGE_DTE_MAX": 45,  # Maximum days to expiration for hedge
-    "TAIL_HEDGE_UNDERLYING": "SPY",  # Hedge with SPY puts (market exposure)
-    "TAIL_HEDGE_CLOSE_VIX": 25,  # Close hedge when VIX > 25 (take profit)
-    "TAIL_HEDGE_CLOSE_PROFIT_PCT": 50,  # Close at 50% profit
-}
-
-# Reinforcement Learning parameters (DQN agent)
-RL_PARAMS = {
-    # Enable/disable RL-based trading
-    "ENABLED": False,  # Disabled by default (experimental feature)
-    # DQN architecture
-    "STATE_SIZE": 20,  # Dimension of state vector
-    "HIDDEN_SIZES": [128, 64],  # Hidden layer sizes
-    # Training hyperparameters
-    "LEARNING_RATE": 0.001,  # Adam optimizer learning rate
-    "GAMMA": 0.99,  # Discount factor for future rewards
-    "EPSILON_START": 1.0,  # Initial exploration rate
-    "EPSILON_END": 0.01,  # Minimum exploration rate
-    "EPSILON_DECAY": 0.995,  # Exploration decay rate per step
-    "BATCH_SIZE": 64,  # Training batch size
-    "BUFFER_SIZE": 10000,  # Replay buffer capacity
-    "TARGET_UPDATE_FREQ": 100,  # Steps between target network updates
-    # Compute settings
-    "USE_GPU": False,  # Set True if GPU available (CUDA or MPS)
-    # Training requirements
-    "MIN_TRAINING_EPISODES": 100,  # Minimum episodes before live trading
-    "MIN_TRAINING_STEPS": 10000,  # Minimum steps before live trading
-    # Model persistence
-    "MODEL_DIR": "models",  # Directory to save/load models
-    "AUTO_SAVE_FREQ": 1000,  # Steps between auto-saves (0 to disable)
-    # Agent variant
-    "USE_DOUBLE_DQN": True,  # Use Double DQN (reduces overestimation bias)
-}
-
-# Machine Learning parameters (LSTM price prediction)
-ML_PARAMS = {
-    # Enable/disable LSTM predictions
-    "LSTM_ENABLED": True,  # Set to False to disable ML predictions
-    # Model architecture
-    "SEQUENCE_LENGTH": 60,  # Number of historical bars for input (60 = 1 hour of minute data)
-    "PREDICTION_HORIZON": 5,  # Predict 5 bars ahead
-    "HIDDEN_SIZE": 64,  # LSTM hidden layer size
-    "NUM_LAYERS": 2,  # Number of stacked LSTM layers
-    "DROPOUT": 0.2,  # Dropout rate for regularization
-    # Training parameters
-    "EPOCHS": 50,  # Training epochs
-    "BATCH_SIZE": 32,  # Mini-batch size
-    "LEARNING_RATE": 0.001,  # Adam optimizer learning rate
-    "EARLY_STOPPING_PATIENCE": 10,  # Epochs to wait before early stopping
-    "VALIDATION_SPLIT": 0.2,  # Fraction of data for validation
-    # Inference parameters
-    "USE_GPU": False,  # Set to True if GPU available for faster training/inference
-    "MIN_CONFIDENCE": 0.6,  # Minimum prediction confidence to act on signal
-    "SIGNAL_WEIGHT": 0.2,  # Weight of ML signal in combined signal (0.0-1.0)
-    # Model persistence
-    "MODEL_DIR": "models",  # Directory to save/load trained models
-    "AUTO_RETRAIN_DAYS": 7,  # Retrain model every N days (0 to disable)
-    # Data requirements
-    "MIN_TRAINING_BARS": 500,  # Minimum historical bars needed for training
-}
-
-# Backtest parameters (NEW - for realistic simulation)
+# Backtest parameters (realistic simulation)
 BACKTEST_PARAMS = {
     # Slippage modeling - critical for realistic results
     "SLIPPAGE_PCT": 0.004,  # 0.4% slippage per trade (conservative estimate)
@@ -759,55 +251,11 @@ BACKTEST_PARAMS = {
     # Statistical significance thresholds
     "MIN_TRADES_FOR_SIGNIFICANCE": 50,  # Need 50+ trades for valid results
     "OVERFITTING_RATIO_THRESHOLD": 2.0,  # In-sample / out-of-sample ratio threshold
-    # Profitability validation gates
-    "MIN_SHARPE": 0.5,  # Minimum Sharpe for eligibility
-    "MAX_DRAWDOWN": 0.15,  # Maximum drawdown allowed
-    "MIN_WIN_RATE": 0.35,  # Minimum win rate (if available)
-    "MIN_WF_CONSISTENCY": 0.5,  # % of folds with positive OOS returns
-    "PERMUTATION_P_THRESHOLD": 0.05,  # Permutation test alpha
-    "MULTIPLE_TESTING_METHOD": "bonferroni",  # bonferroni or fdr
     # Realistic execution modeling
     "EXECUTION_DELAY_BARS": 1,  # Assume 1-bar delay for order execution
     "USE_LIMIT_ORDERS": False,  # If True, model limit order fill rates
     "LIMIT_ORDER_FILL_RATE": 0.7,  # 70% of limit orders fill at target price
 }
 
-# LLM Analysis parameters (GPT-4 / Claude for text analysis)
-# Adds +2-4% alpha from earnings calls, Fed speeches, SEC filings, news themes
-LLM_PARAMS = {
-    # Enable/disable LLM analysis
-    "ENABLED": True,  # Enable LLM-powered text analysis
-    # Provider configuration
-    "PRIMARY_PROVIDER": "anthropic",  # "anthropic" or "openai"
-    "OPENAI_MODEL": "gpt-4o",  # OpenAI model to use
-    "ANTHROPIC_MODEL": "claude-3-5-sonnet-20241022",  # Anthropic model to use
-    # Cost management
-    "DAILY_COST_CAP_USD": 50.0,  # Maximum daily LLM API cost
-    "WEEKLY_COST_CAP_USD": 250.0,  # Maximum weekly LLM API cost
-    "MONTHLY_COST_CAP_USD": 750.0,  # Maximum monthly LLM API cost
-    # Rate limiting
-    "MAX_TOKENS_PER_MINUTE": 50000,  # Token rate limit
-    "MAX_REQUESTS_PER_MINUTE": 10,  # Request rate limit
-    # Cache TTL (in hours) - reduces costs significantly
-    "CACHE_TTL_EARNINGS_HOURS": 168,  # 7 days - transcripts don't change
-    "CACHE_TTL_FED_HOURS": 24,  # 24 hours - speeches don't change
-    "CACHE_TTL_SEC_HOURS": 720,  # 30 days - SEC filings don't change
-    "CACHE_TTL_NEWS_HOURS": 4,  # 4 hours - news is time-sensitive
-    # Analysis weights in ensemble
-    "EARNINGS_WEIGHT": 0.35,  # Highest - direct company info
-    "FED_SPEECH_WEIGHT": 0.15,  # Market-wide signal
-    "SEC_FILING_WEIGHT": 0.25,  # Important fundamental data
-    "NEWS_THEME_WEIGHT": 0.25,  # Timely but noisy
-    # Confidence thresholds
-    "MIN_CONFIDENCE": 0.4,  # Minimum confidence to use signal
-    "SIGNAL_WEIGHT": 0.15,  # Weight in overall ensemble (15%)
-    # Data source API keys (or from env)
-    # ALPHA_VANTAGE_API_KEY - for earnings transcripts
-    # FMP_API_KEY - for earnings transcripts (fallback)
-    # OPENAI_API_KEY - for GPT-4
-    # ANTHROPIC_API_KEY - for Claude
-}
-
-# P0 FIX: Validate configuration on module load
-# This catches invalid configs early rather than at runtime
+# Validate configuration on module load
 _validate_config()
