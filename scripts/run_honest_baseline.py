@@ -377,64 +377,6 @@ def _format_markdown(artifact: dict) -> str:
     return header + config_block + metrics_block + trades_block + interpretation
 
 
-class _OrderResult:
-    """Duck-type stand-in for the OrderGateway result expected by BaseStrategy."""
-
-    def __init__(self, success, order_id=None, side=None, quantity=None,
-                 rejection_reason=None):
-        self.success = success
-        self.order_id = order_id or ""
-        self.side = side or ""
-        self.quantity = quantity or 0
-        self.rejection_reason = rejection_reason or ""
-
-
-class _BacktestOrderGateway:
-    """Minimal OrderGateway implementation that forwards to the backtest broker.
-
-    Background: PR #22 made gateway routing mandatory for ALL entry/exit
-    orders (`BaseStrategy.submit_entry_order` and `submit_exit_order` log
-    "No OrderGateway configured" and return None when `self.order_gateway`
-    is missing). That guard exists for live trading safety, but the backtest
-    engine doesn't construct a gateway — so the gate blocks every order and
-    the backtest produces 0 trades that look identical to a data-fetch
-    failure. This shim restores the backtest path by forwarding orders to
-    the broker's `submit_order_advanced` (for entries) / `place_order` (for
-    exits), exposing the success/side/quantity/order_id surface the strategy
-    expects. It enforces no extra safety because the backtest broker is
-    already a sandboxed in-memory ledger.
-    """
-
-    def __init__(self, broker):
-        self.broker = broker
-
-    async def submit_order(self, *, order_request, strategy_name, max_positions=None,
-                            price_history=None, is_exit_order=False):
-        mock_order = await self.broker.submit_order_advanced(order_request)
-        if mock_order is None:
-            return _OrderResult(success=False, rejection_reason="broker_returned_none")
-        side = getattr(mock_order, "side", "")
-        return _OrderResult(
-            success=True,
-            order_id=str(getattr(mock_order, "id", "")),
-            side=str(side),
-            quantity=float(getattr(mock_order, "filled_qty", 0) or getattr(mock_order, "qty", 0)),
-        )
-
-    async def submit_exit_order(self, *, symbol, quantity, strategy_name, side="sell",
-                                  reason="exit"):
-        # BacktestBroker.place_order is synchronous on this codepath.
-        result = self.broker.place_order(symbol, int(quantity), side, order_type="market")
-        if not result:
-            return _OrderResult(success=False, rejection_reason="broker_place_order_failed")
-        return _OrderResult(
-            success=True,
-            order_id=str(result.get("id", "")),
-            side=str(result.get("side", side)),
-            quantity=float(result.get("filled_qty", 0) or result.get("quantity", quantity)),
-        )
-
-
 async def _run_backtest(data_broker, source_name: str) -> None:
     from engine.backtest_engine import BacktestEngine
     from engine.performance_metrics import PerformanceMetrics
@@ -453,27 +395,19 @@ async def _run_backtest(data_broker, source_name: str) -> None:
     # on 10 large-caps") is preserved.
     from strategies.momentum_strategy_backtest import MomentumStrategyBacktest
 
-    # Subclass to install an OrderGateway shim after the engine builds the
-    # strategy — see _BacktestOrderGateway docstring for why this is needed.
-    class _GatewayWiredStrategy(MomentumStrategyBacktest):
-        async def initialize(self, **kwargs):
-            await super().initialize(**kwargs)
-            if self.order_gateway is None:
-                self.order_gateway = _BacktestOrderGateway(self.broker)
-                self.logger.info(
-                    "Installed _BacktestOrderGateway for backtest order routing."
-                )
-
     # BacktestEngine internally constructs its own BacktestBroker; the broker
     # we pass via `broker=` is only used as a *data source* (its get_bars is
     # called). The internal BacktestBroker uses the default execution
-    # profile "realistic" which models slippage + spread.
+    # profile "realistic" which models slippage + spread. The engine also
+    # attaches a `BacktestOrderGateway` to the strategy automatically so
+    # `BaseStrategy.submit_entry_order` / `submit_exit_order` route to the
+    # backtest broker — no gateway shim is needed here.
     engine = BacktestEngine(broker=data_broker)
 
     logger.info("Starting backtest: %s symbols, %s to %s, data=%s",
                 len(SYMBOLS), START, END, source_name)
     result = await engine.run_backtest(
-        strategy_class=_GatewayWiredStrategy,
+        strategy_class=MomentumStrategyBacktest,
         symbols=SYMBOLS,
         start_date=datetime.strptime(START, "%Y-%m-%d"),
         end_date=datetime.strptime(END, "%Y-%m-%d"),

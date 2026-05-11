@@ -526,6 +526,16 @@ class BacktestEngine:
             params.update(strategy_params)
         strategy = strategy_class(broker=backtest_broker, parameters=params)
 
+        # Wire the canonical backtest OrderGateway. PR #22 made gateway routing
+        # mandatory for BaseStrategy.submit_entry_order / submit_exit_order; the
+        # backtest engine has to attach one or every order is rejected with
+        # "No OrderGateway configured" and the run looks like a data-fetch
+        # failure. See engine/backtest_order_gateway.py for rationale. Both
+        # run_backtest and run_walk_forward_backtest funnel through here.
+        from engine.backtest_order_gateway import BacktestOrderGateway
+
+        strategy.order_gateway = BacktestOrderGateway(broker=backtest_broker)
+
         # Initialize the strategy if it has an initialize method
         if hasattr(strategy, "initialize"):
             try:

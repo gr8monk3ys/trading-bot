@@ -13,7 +13,7 @@ Follow-ups after the 2026-05 honest cleanup (`docs/superpowers/specs/2026-05-11-
 
 ## Project (engine/backtest bugs surfaced by the Task 8 baseline)
 
-- [ ] **Wire an `OrderGateway` into `BacktestEngine`.** PR #22 made `BaseStrategy.submit_entry_order` / `submit_exit_order` require an `OrderGateway`. `engine/backtest_engine.py` doesn't construct one, so every backtest order was being rejected with "No OrderGateway configured" until Task 8 added a `_BacktestOrderGateway` shim inside `scripts/run_honest_baseline.py`. Proper fix: either wire a gateway in `BacktestEngine.initialize()`, or make the gateway requirement conditional on a "live" mode flag. The shim in the baseline script should then be removed.
+- [x] **Wire an `OrderGateway` into `BacktestEngine`.** Done in commit wiring `BacktestOrderGateway` into `engine/backtest_engine.py` (see `engine/backtest_order_gateway.py`). The shim inside `scripts/run_honest_baseline.py` has been removed; backtests now route orders through the canonical gateway automatically.
 - [ ] **Fix the short-trade P&L bug in `engine/backtest_engine._calculate_trade_pnl`.** The matcher only pairs sells against prior buys per symbol, so short trades get recorded with `pnl: 0`. The Task 8 backtest had 34 such trades. Zero-P&L exits don't count as losses, which biases `profit_factor` upward and silently inflates win-rate framing. Fix the matching logic to track open shorts and pair covers against them.
 
 ## Validation (if continuing toward live)
