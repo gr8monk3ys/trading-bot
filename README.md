@@ -29,9 +29,12 @@ python run_adaptive.py
 
 ## Performance
 
-When `results/honest_backtest_2020-2024.md` exists, that is the only performance number to cite. Earlier reports (notably `backtest_report_2024.md`) used 9 trades and are below the statistical-significance bar this repo's own `PROFITABILITY_RESEARCH.md` calls out. Don't quote them.
+Two baselines exist, and the ETF one is the honest test of strategy edge.
 
-**Current baseline (2020-2024, 10 large-caps, MomentumStrategyBacktest defaults):** 102 trades, Sharpe 1.36, 47% max drawdown, 25.5% win rate, profit factor 7.27, +646.00% total return — now net of an end-of-period liquidation pass (positions are closed at the final bar with realistic spread + slippage, so equity reflects realized P&L only). The universe is hand-picked mega-caps that survived 2020-2024, so survivorship bias is still uncorrected; treat the Sharpe as an in-sample upper bound, not an out-of-sample expectation. Read the caveats section of `results/honest_backtest_2020-2024.md` before quoting any of this.
+- `results/honest_backtest_2020-2024.md` — 10 hand-picked mega-caps, +646%, Sharpe 1.36. Survivor-biased: every name in the universe (NVDA, TSLA, AAPL, MSFT, etc.) is one a 2026 retrospective would obviously pick. Treat this as a cautionary contrast, not as evidence of edge.
+- `results/etf_baseline_2020-2024.md` — SPY/QQQ/IWM/EFA, broad market ETFs that can't be delisted or selection-biased. **The strategy returned +53.4% / Sharpe 0.78 on this universe, underperforming SPY buy-and-hold (+95.3% / Sharpe 0.75).** 38 trades, below the 50-trade significance bar, so this is a hint not a verdict — but the direction is the most damning one: most of the hand-picked baseline's outperformance was selection bias, not strategy alpha.
+
+When citing a single performance number, prefer the ETF baseline. Earlier reports (notably `backtest_report_2024.md`) used 9 trades and are below the statistical-significance bar this repo's own `PROFITABILITY_RESEARCH.md` calls out. Don't quote them.
 
 ## License
 

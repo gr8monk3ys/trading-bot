@@ -6,7 +6,12 @@ Guidance for Claude Code working in this repository.
 
 This repository is a personal algorithmic-trading sandbox. It is **paper-only** and has no proven edge. Do not deploy real capital. Previous versions of this document claimed an "institutional-grade" rating and a +42.68% backtest; both claims were unsupported by the evidence in the repo (see `PROFITABILITY_RESEARCH.md` for the analysis) and have been removed.
 
-The only validated baseline lives at `results/honest_backtest_2020-2024.md` — when that file exists, that is the single performance number to cite. The current run (`MomentumStrategyBacktest` defaults, 10 large-caps, 2020-2024, yfinance daily bars) produces 102 trades, Sharpe 1.36, 47% max drawdown, profit factor 7.27, +646.00% total return. The headline is now net of an end-of-period liquidation pass (positions are closed at the final bar with realistic spread + slippage), so equity reflects realized P&L only — the prior +646.64% figure was unrealized MTM on still-open positions. The survivor-biased universe is still uncorrected; read the caveats section of that file before quoting it.
+Two baselines exist, both 2020-2024, both `MomentumStrategyBacktest` defaults, both yfinance daily bars:
+
+- `results/honest_backtest_2020-2024.md` — 10 hand-picked mega-caps (NVDA/AAPL/TSLA/MSFT/GOOGL/AMZN/META/JPM/SPY/QQQ). 102 trades, Sharpe 1.36, 47% max drawdown, profit factor 7.27, +646.00% total return. Survivor-biased: every symbol is one a 2026 retrospective would pick. This number reflects selection bias more than strategy edge.
+- `results/etf_baseline_2020-2024.md` — 4 broad-market ETFs (SPY/QQQ/IWM/EFA). 38 trades (below the 50-trade significance bar — treated as INCONCLUSIVE), Sharpe 0.78, +53.42% total return. **The strategy underperformed SPY buy-and-hold (+95.3% / Sharpe 0.75) on this bias-free universe.** ETFs can't be delisted or selection-biased, so this is the honest test of strategy edge. The directional finding — most of the hand-picked baseline's outperformance was selection bias, not alpha — is reportable even at 38 trades, but Sharpe confidence intervals at that sample size are wide and the result could be chance.
+
+When citing a performance number, lead with the ETF baseline. Both reports include caveats sections; read them before quoting.
 
 ## Project overview
 

@@ -91,6 +91,8 @@ results/*
 !results/honest_backtest_2020-2024.md
 !results/honest_backtest_2020-2024.json
 !results/can_this_beat_qqq.md
+!results/etf_baseline_2020-2024.md
+!results/etf_baseline_2020-2024.json
 backtest_results/
 live_trading_logs/
 performance_reports/
