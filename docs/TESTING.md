@@ -68,7 +68,7 @@ uv run mypy strategies/ brokers/ engine/ utils/
 python examples/smoke_test.py
 python tests/test_connection.py
 .venv/bin/python main.py --help
-.venv/bin/python live_trader.py --help
+.venv/bin/python main.py live --help
 ```
 
 ## Test Categories

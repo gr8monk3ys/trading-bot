@@ -8,7 +8,7 @@ Follow-ups after the 2026-05 honest cleanup (`docs/superpowers/specs/2026-05-11-
 
 ## Code organization (deferred from cleanup)
 
-- [ ] Measure file sizes after the cleanup. If `main.py`, `live_trader.py`, or `adaptive_strategy.py` are still over 800 LOC, split them — one module per responsibility.
+- [ ] Measure file sizes after the cleanup. If `main.py` or `adaptive_strategy.py` are still over 800 LOC, split them — one module per responsibility.
 - [ ] Audit the kept `utils/` modules. Some (e.g. `multi_timeframe.py`) may be vestigial after the deletions.
 
 ## Project (engine/backtest bugs surfaced by the Task 8 baseline)

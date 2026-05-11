@@ -36,31 +36,27 @@ PAPER=True
 
 ### `main.py`
 
-Canonical operator CLI:
+Single canonical operator CLI:
 
 ```bash
-python main.py {live,backtest,optimize,replay,research} [flags...]
+python main.py {live,backtest,optimize} [flags...]
 ```
 
 Supported examples:
 
 ```bash
 python main.py live --strategy MomentumStrategy --force
+python main.py live --strategy adaptive                                 # auto-scan symbols
+python main.py live --strategy adaptive --scan-only                     # preview scan
+python main.py live --strategy adaptive --regime-only                   # inspect regime
+python main.py live --strategy momentum --risk-profile balanced --symbols AAPL,MSFT
 python main.py backtest --strategy MomentumStrategy --symbols AAPL,MSFT --start-date 2024-01-01 --end-date 2024-12-31
-python main.py backtest --strategy MomentumStrategy --symbols AAPL,MSFT --start-date 2024-01-01 --end-date 2024-12-31 --validated
-python main.py replay --run-id <run_id> --limit 50
-python main.py research --research-action check --experiment-id <experiment_id>
+python main.py optimize --strategy MomentumStrategy --start-date 2024-01-01 --end-date 2024-06-30
 ```
 
-### `live_trader.py`
-
-Alternate paper-only launcher for direct single-strategy runs with explicit runtime risk settings:
-
-```bash
-python live_trader.py --strategy momentum --risk-profile balanced --symbols AAPL MSFT
-```
-
-Use this when you specifically want the narrower `live_trader.py` flags for paper trading. Prefer `main.py` for general operations, especially any real-money path.
+The previous `live_trader.py` (risk-profile presets + audit log) and
+`run_adaptive.py` (regime/scan inspection + auto-symbol scanner) entry points
+were merged into `main.py` by Phase 2 of the form-cleanup refactor.
 
 ### `web/app.py`
 
@@ -72,7 +68,7 @@ python -m uvicorn web.app:app --host 0.0.0.0 --port 8000
 
 ### `start.py`
 
-Deployment wrapper that launches the dashboard and `run_adaptive.py` together:
+Deployment wrapper that launches the dashboard and `main.py live --strategy adaptive` together:
 
 ```bash
 python start.py

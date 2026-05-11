@@ -2,7 +2,7 @@
 
 This guide is the stable, repo-level quick start. It replaces the older runtime snapshot that previously lived in this file.
 
-The canonical interface is `main.py`. Use `live_trader.py` and other root runners only when you intentionally need their alternate behavior.
+The canonical interface is `main.py`. The older `live_trader.py` and `run_adaptive.py` entry points were consolidated into `main.py` subcommands by Phase 2 of the form-cleanup refactor.
 
 ## 1. Install Prerequisites
 
@@ -126,5 +126,6 @@ uv run python scripts/kill_switch.py --confirm "HALT TRADING" --cancel-orders --
 
 ## Current Notes
 
-- `main.py` is the canonical CLI.
-- `live_trader.py` remains a specialized single-strategy launcher with additional runtime tuning flags.
+- `main.py` is the single canonical CLI; previous `live_trader.py` and `run_adaptive.py` runners were merged in.
+- Use `python main.py live --risk-profile balanced` for the old `live_trader.py` presets.
+- Use `python main.py live --strategy adaptive --scan-only` or `--regime-only` for the old `run_adaptive.py` inspection modes.

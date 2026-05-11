@@ -4,8 +4,7 @@ This directory contains various runner scripts and utilities for the trading bot
 
 ## Main Entry Points
 
-- **`../main.py`** - Primary entry point for production trading (supports live, backtest, optimize, replay, and research registry modes)
-- **`../live_trader.py`** - Alternate single-strategy live launcher with extra runtime tuning flags
+- **`../main.py`** - Single canonical entry point. Subcommands: `live`, `backtest`, `optimize`. Use `--risk-profile {conservative,balanced,aggressive}` for the old `live_trader.py` presets and `--strategy adaptive --scan-only|--regime-only` for the old `run_adaptive.py` inspection modes.
 
 ## Utilities
 

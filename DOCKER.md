@@ -13,7 +13,7 @@ This repository ships a multi-stage Docker image and a `docker compose` file wit
 `start.py` is the deployment wrapper that launches:
 
 - `web.app` via `uvicorn`
-- `run_adaptive.py`
+- `main.py live --strategy adaptive`
 
 ## Compose Services
 

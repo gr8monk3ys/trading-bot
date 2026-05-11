@@ -278,14 +278,16 @@ async def main(args: argparse.Namespace):
     # Launch trading
     print("\n🚀 Launching trading bot...\n")
 
-    # Build command as argument list (prevents command injection)
+    # Build command as argument list (prevents command injection).
+    # main.py is the canonical CLI; --symbols is comma-separated.
     cmd_args = [
         sys.executable,  # Use same Python interpreter
-        str(ROOT / "live_trader.py"),
+        str(ROOT / "main.py"),
+        "live",
         "--strategy",
         strategy,
         "--symbols",
-        *symbols,  # Each symbol as separate arg
+        ",".join(symbols),
         "--position-size",
         str(params["position_size"]),
         "--stop-loss",
@@ -303,7 +305,7 @@ async def main(args: argparse.Namespace):
         result = subprocess.run(cmd_args, check=False)
         return result.returncode
     except FileNotFoundError:
-        print("❌ Error: live_trader.py not found.")
+        print("❌ Error: main.py not found.")
         return 1
     except subprocess.SubprocessError as e:
         print(f"❌ Error launching trading bot: {e}")

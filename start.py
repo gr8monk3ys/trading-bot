@@ -21,7 +21,7 @@ def _dashboard_command(port: str) -> list[str]:
 
 
 def _bot_command() -> list[str]:
-    return [sys.executable, "run_adaptive.py"]
+    return [sys.executable, "main.py", "live", "--strategy", "adaptive"]
 
 
 def main():

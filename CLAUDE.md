@@ -33,6 +33,7 @@ Algorithmic trading bot on the Alpaca Trading API, async Python.
 - `brokers/alpaca_broker.py`, `brokers/backtest_broker.py`, `brokers/order_builder.py`.
 - `engine/backtest_engine.py`, `engine/performance_metrics.py`, `engine/strategy_manager.py`.
 - `utils/circuit_breaker.py`, `utils/market_regime.py`, `utils/realistic_backtest.py`, `utils/websocket_manager.py`, `utils/database.py`, `utils/notifier.py`, `utils/audit_log.py`, `utils/multi_timeframe.py`.
+- `main.py` — single canonical CLI (`live`, `backtest`, `optimize`). The previous `live_trader.py` and `run_adaptive.py` were merged in by Phase 2 of the form-cleanup refactor; pass `--strategy adaptive --regime-only` / `--scan-only` for the old `run_adaptive.py` inspection modes, and `--risk-profile {conservative,balanced,aggressive}` for the old `live_trader.py` presets.
 
 ## Quarantined (unvalidated)
 
@@ -51,11 +52,13 @@ pytest tests/ --cov=strategies --cov=utils --cov-report=html
 
 # Backtests
 python main.py backtest --strategy MomentumStrategyBacktest --start-date 2024-01-01 --end-date 2024-12-31
-python run_adaptive.py --backtest --start 2024-01-01 --end 2024-12-31
+python main.py backtest --strategy adaptive --start-date 2024-01-01 --end-date 2024-12-31
 
 # Paper trading (requires .env with ALPACA_API_KEY, ALPACA_SECRET_KEY, PAPER=True)
-python run_adaptive.py
+python main.py live --strategy adaptive
 python main.py live --strategy MomentumStrategy --force
+python main.py live --strategy adaptive --regime-only   # inspect regime, no trading
+python main.py live --strategy adaptive --scan-only     # preview auto-scanned symbols
 
 # Lint / format
 black strategies/ brokers/ engine/ utils/

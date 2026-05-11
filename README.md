@@ -26,7 +26,7 @@ cp .env.example .env  # add ALPACA_API_KEY, ALPACA_SECRET_KEY, PAPER=True
 
 pytest tests/
 python main.py backtest --strategy MomentumStrategyBacktest --start-date 2024-01-01 --end-date 2024-12-31
-python run_adaptive.py
+python main.py live --strategy adaptive
 ```
 
 ## Performance

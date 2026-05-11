@@ -2,7 +2,7 @@
 """
 Alpaca Trading Bot - Main Entry Point
 
-Three modes:
+Single canonical CLI with three subcommands:
 - live:     start live (paper-by-default) trading
 - backtest: run historical backtest
 - optimize: grid-search strategy parameters
@@ -19,6 +19,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -28,11 +29,48 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from brokers.alpaca_broker import AlpacaBroker
 from config import SYMBOLS
 from engine.strategy_manager import StrategyManager
+from utils.audit_log import AuditEventType, AuditLog
 from utils.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
 _LOGGING_CONFIGURED = False
+
+
+# Risk profile presets (migrated from live_trader.py).
+RISK_PROFILE_DEFAULTS: dict[str, dict[str, float]] = {
+    "custom": {},
+    "conservative": {
+        "position_size": 0.02,
+        "max_position_size": 0.03,
+        "stop_loss": 0.01,
+        "take_profit": 0.02,
+        "max_daily_loss": 0.025,
+    },
+    "balanced": {
+        "position_size": 0.05,
+        "max_position_size": 0.08,
+        "stop_loss": 0.02,
+        "take_profit": 0.05,
+        "max_daily_loss": 0.03,
+    },
+    "aggressive": {
+        "position_size": 0.10,
+        "max_position_size": 0.15,
+        "stop_loss": 0.03,
+        "take_profit": 0.08,
+        "max_daily_loss": 0.04,
+    },
+}
+
+
+# Convenience aliases that map shorthand --strategy values to the class
+# NAME attributes auto-discovered by StrategyManager.
+STRATEGY_ALIASES: dict[str, str] = {
+    "momentum": "MomentumStrategy",
+    "mean_reversion": "MeanReversionStrategy",
+    "adaptive": "AdaptiveStrategy",
+}
 
 
 def configure_logging() -> None:
@@ -57,6 +95,127 @@ def configure_logging() -> None:
     _LOGGING_CONFIGURED = True
 
 
+def _resolve_strategy_name(requested: str, available: list[str]) -> str | None:
+    """Map CLI strategy name (alias or class NAME) to a discovered name."""
+    if requested in available:
+        return requested
+    alias_target = STRATEGY_ALIASES.get(requested.lower())
+    if alias_target and alias_target in available:
+        return alias_target
+    return None
+
+
+async def scan_for_opportunities(
+    top_n: int = 15,
+    min_score: float = 1.0,
+    use_sector_rotation: bool = True,
+    broker: AlpacaBroker | None = None,
+) -> list[str]:
+    """
+    Scan the market for the best trading opportunities.
+
+    Uses the sector rotation pipeline (when enabled) to pick liquid stocks
+    weighted by economic phase. Falls back to a small default basket when
+    no opportunities are found.
+
+    Migrated from run_adaptive.py.
+    """
+    print("\n" + "=" * 60)
+    print("OPPORTUNITY SCANNER")
+    print("=" * 60)
+    print("Scanning market for best trading opportunities...")
+    print(f"Criteria: >$10, <$500, >1M volume, momentum > {min_score}%")
+    if use_sector_rotation:
+        print("Sector Rotation: ENABLED (weighting by economic phase)")
+    print("=" * 60 + "\n")
+
+    symbols: list[str] = []
+
+    if use_sector_rotation:
+        try:
+            from utils.sector_rotation import SectorRotator
+
+            if broker is None:
+                broker = AlpacaBroker(paper=True)
+            rotator = SectorRotator(broker)
+            report = await rotator.get_sector_report()
+
+            print(
+                f"Economic Phase: {report['phase'].upper()} "
+                f"({report['phase_confidence']:.0%} confidence)"
+            )
+            print(f"Overweight Sectors: {', '.join(report['overweight_sectors'])}")
+            sector_stocks = report["recommended_stocks"]
+            print(f"Sector picks: {', '.join(sector_stocks[:10])}...")
+            symbols = sector_stocks
+        except Exception as exc:
+            logger.warning(f"Sector rotation failed: {exc}. Using default basket.")
+
+    if not symbols:
+        print("No opportunities found matching criteria. Using defaults.")
+        symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA"]
+    else:
+        symbols = symbols[:top_n]
+        print(f"\nSelected {len(symbols)} opportunities:")
+        print(", ".join(symbols))
+
+    return symbols
+
+
+async def check_market_regime(broker: AlpacaBroker) -> dict[str, Any]:
+    """
+    Check and display current market regime.
+
+    Migrated from run_adaptive.py.
+    """
+    from utils.market_regime import MarketRegimeDetector
+
+    print("\n" + "=" * 60)
+    print("MARKET REGIME ANALYSIS")
+    print("=" * 60)
+
+    detector = MarketRegimeDetector(broker)
+    regime = await detector.detect_regime()
+
+    print(f"\nCurrent Regime: {regime['type'].upper()}")
+    print(f"Confidence: {regime['confidence']:.0%}")
+    print(f"\nTrend Direction: {regime['trend_direction']}")
+    print(f"Trend Strength (ADX): {regime['trend_strength']:.1f}")
+    print(f"  - Trending: {'Yes' if regime['is_trending'] else 'No'}")
+    print(f"  - Ranging: {'Yes' if regime['is_ranging'] else 'No'}")
+    print(f"\nVolatility: {regime['volatility_regime']} ({regime['volatility_pct']:.1f}%)")
+    print(f"\nRecommended Strategy: {regime['recommended_strategy']}")
+    print(f"Position Multiplier: {regime['position_multiplier']:.1f}x")
+
+    if regime.get("sma_50") and regime.get("sma_200"):
+        print(f"\nSMA50: ${regime['sma_50']:.2f}")
+        print(f"SMA200: ${regime['sma_200']:.2f}")
+        spread = (regime["sma_50"] / regime["sma_200"] - 1) * 100
+        print(f"Spread: {spread:+.1f}%")
+
+    print("\n" + "=" * 60)
+    return regime
+
+
+def _apply_risk_profile(args: argparse.Namespace) -> dict[str, Any]:
+    """Merge risk-profile defaults with per-flag CLI overrides."""
+    profile_name = getattr(args, "risk_profile", "custom") or "custom"
+    profile = RISK_PROFILE_DEFAULTS.get(profile_name, {}).copy()
+
+    cli_overrides = {
+        "position_size": getattr(args, "position_size", None),
+        "max_position_size": getattr(args, "max_position_size", None),
+        "stop_loss": getattr(args, "stop_loss", None),
+        "take_profit": getattr(args, "take_profit", None),
+        "max_daily_loss": getattr(args, "max_daily_loss", None),
+    }
+    for key, value in cli_overrides.items():
+        if value is not None:
+            profile[key] = float(value)
+
+    return profile
+
+
 async def run_backtest(args) -> None:
     """Run backtest mode for one or more strategies."""
     strategy_manager = None
@@ -71,11 +230,12 @@ async def run_backtest(args) -> None:
 
         if args.strategy == "all":
             strategies_to_test = available_strategies
-        elif args.strategy in available_strategies:
-            strategies_to_test = [args.strategy]
         else:
-            logger.error(f"Strategy '{args.strategy}' not found")
-            return
+            resolved = _resolve_strategy_name(args.strategy, available_strategies)
+            if resolved is None:
+                logger.error(f"Strategy '{args.strategy}' not found")
+                return
+            strategies_to_test = [resolved]
 
         start_date = datetime.strptime(args.start_date, "%Y-%m-%d").date()
         end_date = datetime.strptime(args.end_date, "%Y-%m-%d").date()
@@ -172,6 +332,8 @@ async def run_backtest(args) -> None:
 async def run_live(args) -> None:
     """Run live (or paper) trading mode."""
     strategy_manager = None
+    audit_log: AuditLog | None = None
+    broker: AlpacaBroker | None = None
     try:
         paper = not args.real
 
@@ -192,15 +354,59 @@ async def run_live(args) -> None:
 
         broker = AlpacaBroker(paper=paper)
 
-        await broker.start_websocket(SYMBOLS if not args.symbols else args.symbols.split(","))
+        # --regime-only and --scan-only short-circuit before doing any heavy
+        # setup. They are useful for inspecting the runtime without trading.
+        if getattr(args, "regime_only", False):
+            await check_market_regime(broker)
+            return
+
+        # Resolve symbols: explicit --symbols wins, else auto-scan.
+        if args.symbols:
+            symbols_to_use = [s.strip().upper() for s in args.symbols.split(",")]
+            logger.info(f"Using explicit symbols: {symbols_to_use}")
+        else:
+            symbols_to_use = await scan_for_opportunities(
+                top_n=args.top_n,
+                min_score=args.min_momentum,
+                use_sector_rotation=not args.no_sector_rotation,
+                broker=broker,
+            )
+
+        if getattr(args, "scan_only", False):
+            print("\n" + "=" * 60)
+            print("SCAN COMPLETE - Use these symbols for trading:")
+            print("=" * 60)
+            print(f"python main.py live --symbols {','.join(symbols_to_use)}")
+            return
+
+        # Apply risk-profile presets / overrides.
+        risk_overrides = _apply_risk_profile(args)
+        max_daily_loss = float(risk_overrides.get("max_daily_loss", 0.03))
+
+        # Audit log for trade-event traceability.
+        audit_log = AuditLog(log_dir="./audit_logs", auto_verify=True)
+        audit_log.log(
+            AuditEventType.SYSTEM_START,
+            {
+                "component": "main.py",
+                "mode": "live",
+                "strategy": args.strategy,
+                "risk_profile": getattr(args, "risk_profile", "custom"),
+                "paper": paper,
+            },
+        )
+        if hasattr(broker, "set_audit_log"):
+            broker.set_audit_log(audit_log)
+
+        await broker.start_websocket(symbols_to_use)
         logger.info("Websocket started")
 
         circuit_breaker = CircuitBreaker(
-            max_daily_loss=0.03,
+            max_daily_loss=max_daily_loss,
             auto_close_positions=True,
         )
         await circuit_breaker.initialize(broker)
-        logger.info("Circuit breaker armed (3% daily loss limit)")
+        logger.info("Circuit breaker armed (%.2f%% daily loss limit)", max_daily_loss * 100)
 
         market_status = await broker.get_market_status()
         logger.info(f"Market status: {market_status}")
@@ -214,6 +420,7 @@ async def run_live(args) -> None:
             max_strategies=args.max_strategies,
             max_allocation=args.max_allocation,
             circuit_breaker=circuit_breaker,
+            audit_log=audit_log,
         )
 
         available_strategies = strategy_manager.get_available_strategy_names()
@@ -226,11 +433,12 @@ async def run_live(args) -> None:
             )
         elif args.strategy == "all":
             strategies_to_run = available_strategies
-        elif args.strategy in available_strategies:
-            strategies_to_run = [args.strategy]
         else:
-            logger.error(f"Strategy '{args.strategy}' not found")
-            return
+            resolved = _resolve_strategy_name(args.strategy, available_strategies)
+            if resolved is None:
+                logger.error(f"Strategy '{args.strategy}' not found")
+                return
+            strategies_to_run = [resolved]
 
         logger.info(f"Selected strategies: {strategies_to_run}")
 
@@ -244,7 +452,6 @@ async def run_live(args) -> None:
         started = []
         for strategy_name in strategies_to_run:
             allocation = allocations.get(strategy_name, 0.1)
-            symbols_to_use = args.symbols.split(",") if args.symbols else SYMBOLS
             success = await strategy_manager.start_strategy(
                 strategy_name=strategy_name, allocation=allocation, symbols=symbols_to_use
             )
@@ -299,6 +506,15 @@ async def run_live(args) -> None:
     finally:
         if strategy_manager is not None:
             strategy_manager.close()
+        if audit_log is not None:
+            try:
+                audit_log.log(
+                    AuditEventType.SYSTEM_STOP,
+                    {"component": "main.py", "mode": "live"},
+                )
+                audit_log.close()
+            except Exception as exc:
+                logger.warning(f"Error closing audit log: {exc}")
 
 
 async def optimize_parameters(args) -> None:
@@ -310,11 +526,12 @@ async def optimize_parameters(args) -> None:
         strategy_manager = StrategyManager(broker=broker)
 
         available_strategies = strategy_manager.get_available_strategy_names()
-        if args.strategy not in available_strategies:
+        resolved = _resolve_strategy_name(args.strategy, available_strategies)
+        if resolved is None:
             logger.error(f"Strategy '{args.strategy}' not found")
             return
 
-        strategy_class = strategy_manager.available_strategies[args.strategy]
+        strategy_class = strategy_manager.available_strategies[resolved]
         temp_strategy = strategy_class(broker=broker, symbols=[])
         default_params = temp_strategy.default_parameters()
 
@@ -396,7 +613,7 @@ async def optimize_parameters(args) -> None:
             best_result = max(results, key=lambda x: x["metrics"]["sharpe_ratio"])
 
         print("\n--- Parameter Optimization Results ---")
-        print(f"Best parameters for {args.strategy} optimized for {args.optimize_for}:")
+        print(f"Best parameters for {resolved} optimized for {args.optimize_for}:")
         for param, value in best_result["params"].items():
             if param in param_ranges:
                 print(f"  {param}: {value}")
@@ -407,7 +624,7 @@ async def optimize_parameters(args) -> None:
         print(f"  Max Drawdown: {best_result['metrics']['max_drawdown']:.2%}")
         print(f"  Win Rate:     {best_result['metrics']['win_rate']:.2%}")
 
-        output_file = f"{args.strategy}_optimized_params.json"
+        output_file = f"{resolved}_optimized_params.json"
         with open(output_file, "w") as f:
             json.dump(
                 {"optimized_params": best_result["params"], "performance": best_result["metrics"]},
@@ -424,59 +641,140 @@ async def optimize_parameters(args) -> None:
             strategy_manager.close()
 
 
-def main() -> None:
-    """Entry point for the trading bot."""
-    configure_logging()
-    parser = argparse.ArgumentParser(description="Alpaca Trading Bot")
-
-    parser.add_argument(
-        "mode",
-        choices=["live", "backtest", "optimize"],
-        help="Operation mode",
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the subcommand-style argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Alpaca Trading Bot (paper-by-default; --real for real money).",
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="mode", required=True, help="Operation mode")
+
+    # --- live ---
+    p_live = subparsers.add_parser("live", help="Start live (or paper) trading")
+    p_live.add_argument(
         "--strategy",
         default="auto",
-        help='Strategy to use (name, "all", or "auto")',
+        help=(
+            'Strategy: class NAME (e.g. MomentumStrategy), alias (momentum, '
+            'mean_reversion, adaptive), or "all"/"auto".'
+        ),
     )
-    parser.add_argument("--symbols", default=None, help="Comma-separated symbols")
+    p_live.add_argument(
+        "--symbols",
+        default=None,
+        help="Comma-separated symbols. Omit to auto-scan via sector rotation.",
+    )
+    p_live.add_argument("--real", action="store_true", help="Use real trading (NOT recommended)")
+    p_live.add_argument("--force", action="store_true", help="Run even if market is closed")
+    p_live.add_argument("--max-strategies", type=int, default=3)
+    p_live.add_argument("--max-allocation", type=float, default=0.9)
+    p_live.add_argument("--min-score", type=float, default=0.5)
+    p_live.add_argument("--auto-allocate", action="store_true")
+    p_live.add_argument("--liquidate-on-exit", action="store_true")
 
-    # Live options
-    parser.add_argument("--real", action="store_true", help="Use real trading (NOT recommended)")
-    parser.add_argument("--force", action="store_true", help="Force execution if market closed")
-    parser.add_argument("--max-strategies", type=int, default=3)
-    parser.add_argument("--max-allocation", type=float, default=0.9)
-    parser.add_argument("--min-score", type=float, default=0.5)
-    parser.add_argument("--auto-allocate", action="store_true")
-    parser.add_argument("--liquidate-on-exit", action="store_true")
+    # Auto-scan controls (migrated from run_adaptive.py).
+    p_live.add_argument(
+        "--top-n",
+        type=int,
+        default=15,
+        help="Number of opportunities to keep from the auto-scan (default 15)",
+    )
+    p_live.add_argument(
+        "--min-momentum",
+        type=float,
+        default=1.0,
+        help="Minimum momentum %% for auto-scan (default 1.0)",
+    )
+    p_live.add_argument(
+        "--no-sector-rotation",
+        action="store_true",
+        help="Disable sector rotation in the auto-scan",
+    )
+    p_live.add_argument(
+        "--scan-only",
+        action="store_true",
+        help="Print what the auto-scanner would select, then exit",
+    )
+    p_live.add_argument(
+        "--regime-only",
+        action="store_true",
+        help="Print the current market regime, then exit",
+    )
 
-    # Backtest options
-    parser.add_argument(
+    # Risk profile (migrated from live_trader.py).
+    p_live.add_argument(
+        "--risk-profile",
+        choices=["custom", "conservative", "balanced", "aggressive"],
+        default="custom",
+        help="Risk profile preset for position size, stops, and daily-loss cap",
+    )
+    p_live.add_argument("--position-size", type=float, default=None)
+    p_live.add_argument("--max-position-size", type=float, default=None)
+    p_live.add_argument("--stop-loss", type=float, default=None)
+    p_live.add_argument("--take-profit", type=float, default=None)
+    p_live.add_argument("--max-daily-loss", type=float, default=None)
+
+    # --- backtest ---
+    p_bt = subparsers.add_parser("backtest", help="Run a historical backtest")
+    p_bt.add_argument(
+        "--strategy",
+        default="auto",
+        help='Strategy: class NAME, alias (momentum/mean_reversion/adaptive), or "all".',
+    )
+    p_bt.add_argument("--symbols", default=None, help="Comma-separated symbols")
+    p_bt.add_argument(
         "--start-date",
         default=(datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d"),
         help="Start date (YYYY-MM-DD)",
     )
-    parser.add_argument(
+    p_bt.add_argument(
         "--end-date",
         default=datetime.now().strftime("%Y-%m-%d"),
         help="End date (YYYY-MM-DD)",
     )
-    parser.add_argument("--capital", type=float, default=100000)
-    parser.add_argument("--plot", action="store_true")
-    parser.add_argument(
+    p_bt.add_argument("--capital", type=float, default=100000)
+    p_bt.add_argument("--plot", action="store_true")
+    p_bt.add_argument(
         "--execution-profile",
         choices=["idealistic", "realistic", "stressed"],
         default="realistic",
     )
 
-    # Optimize options
-    parser.add_argument("--param-ranges", default=None, help="JSON object of parameter ranges")
-    parser.add_argument(
+    # --- optimize ---
+    p_opt = subparsers.add_parser("optimize", help="Grid-search strategy parameters")
+    p_opt.add_argument(
+        "--strategy",
+        required=True,
+        help="Strategy to optimize (class NAME or alias)",
+    )
+    p_opt.add_argument("--symbols", default=None, help="Comma-separated symbols")
+    p_opt.add_argument(
+        "--start-date",
+        default=(datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d"),
+    )
+    p_opt.add_argument(
+        "--end-date",
+        default=datetime.now().strftime("%Y-%m-%d"),
+    )
+    p_opt.add_argument("--capital", type=float, default=100000)
+    p_opt.add_argument(
+        "--execution-profile",
+        choices=["idealistic", "realistic", "stressed"],
+        default="realistic",
+    )
+    p_opt.add_argument("--param-ranges", default=None, help="JSON object of parameter ranges")
+    p_opt.add_argument(
         "--optimize-for",
         choices=["sharpe", "return", "drawdown"],
         default="sharpe",
     )
 
+    return parser
+
+
+def main() -> None:
+    """Entry point for the trading bot."""
+    configure_logging()
+    parser = _build_parser()
     args = parser.parse_args()
 
     try:

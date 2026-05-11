@@ -18,5 +18,11 @@ def test_dashboard_command_targets_web_app():
     ]
 
 
-def test_bot_command_uses_adaptive_runner_without_unsupported_force_flag():
-    assert start._bot_command() == [sys.executable, "run_adaptive.py"]
+def test_bot_command_invokes_main_adaptive_live():
+    assert start._bot_command() == [
+        sys.executable,
+        "main.py",
+        "live",
+        "--strategy",
+        "adaptive",
+    ]
