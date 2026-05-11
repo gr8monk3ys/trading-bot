@@ -1,140 +1,36 @@
-# Trading Bot
+# trading-bot
 
-Algorithmic trading repository for Alpaca with backtesting, paper/live execution paths, monitoring dashboards, and research/governance tooling.
+Personal algorithmic-trading sandbox on Alpaca, async Python.
 
-This repository has multiple runtime entrypoints. The commands below reflect the current supported paths in the codebase, not older historical workflows.
+**Status:** experimental, paper-only, no proven edge. Do not deploy real capital.
 
-## Supported Execution Paths
+## What's in here
 
-- `main.py`: primary multi-mode CLI for `live`, `backtest`, `optimize`, `replay`, and `research`
-- `live_trader.py`: single-strategy paper-only runner with risk-profile controls; used by the low-resource launcher
-- `run_adaptive.py`: standalone adaptive strategy runner and opportunity scanner
-- `web/app.py`: FastAPI monitoring dashboard and JSON API
-- `start.py`: deployment wrapper that launches `web.app` and `run_adaptive.py` together
+- A momentum strategy (RSI/MACD/ADX with trailing stops).
+- A mean-reversion strategy.
+- An adaptive coordinator that switches between them based on market regime.
+- A backtest engine with realistic slippage and spread.
+- A risk manager (VaR, correlation, position sizing).
+- A circuit breaker (daily-loss halts).
+- An Alpaca broker wrapper (paper + live).
 
-Architecture notes live in `docs/RUNTIME_ARCHITECTURE.md`.
+Plausible-but-unvalidated quant work — factor models, pairs trading, cross-asset signals, walk-forward validation, alpha-decay monitoring — is in `research/`, excluded from the production path and the default test run.
 
-## Setup
-
-```bash
-uv sync --group dev --group test
-source .venv/bin/activate
-cp .env.example .env
-```
-
-Set Alpaca credentials in `.env` or your shell environment:
+## Quickstart
 
 ```bash
-ALPACA_API_KEY=...
-ALPACA_SECRET_KEY=...
-PAPER=true
+pip install -r requirements.txt
+cp .env.example .env  # add ALPACA_API_KEY, ALPACA_SECRET_KEY, PAPER=True
+
+pytest tests/
+python main.py backtest --strategy MomentumStrategyBacktest --start-date 2024-01-01 --end-date 2024-12-31
+python run_adaptive.py
 ```
 
-## Common Commands
+## Performance
 
-Run the full test suite:
+When `results/honest_backtest_2020-2024.md` exists, that is the only performance number to cite. Earlier reports (notably `backtest_report_2024.md`) used 9 trades and are below the statistical-significance bar this repo's own `PROFITABILITY_RESEARCH.md` calls out. Don't quote them.
 
-```bash
-uv run pytest
-```
+## License
 
-Run only unit tests without coverage:
-
-```bash
-uv run pytest tests/unit/ --no-cov
-```
-
-Run a backtest:
-
-```bash
-uv run python main.py backtest \
-  --strategy MomentumStrategy \
-  --symbols AAPL,MSFT \
-  --start-date 2024-01-01 \
-  --end-date 2024-12-31
-```
-
-Run a validated backtest report:
-
-```bash
-uv run python scripts/validated_backtest_report.py \
-  --strategy MomentumStrategy \
-  --symbols AAPL,MSFT \
-  --start-date 2014-01-01 \
-  --end-date 2024-12-31 \
-  --output results/validated_backtest_report.md \
-  --json results/validated_backtest_report.json
-```
-
-Start paper trading with the main runtime:
-
-```bash
-uv run python main.py live --strategy MomentumStrategy --force
-```
-
-`main.py live` now enforces current validation evidence by default. Generate a fresh artifact bundle with `scripts/generate_validation_artifacts.py` before startup, and for `--real` also ensure `results/validation/precheck/go_live_precheck_summary.json` is present and passing. Use `--skip-validation` only for controlled dry runs.
-
-Start the single-strategy paper trader directly:
-
-```bash
-uv run python live_trader.py --strategy momentum --symbols AAPL MSFT
-```
-
-Start the low-resource profile:
-
-```bash
-uv run python scripts/run_low_resource_profile.py --dry-run
-uv run python scripts/run_low_resource_profile.py
-```
-
-Launch the interactive quickstart:
-
-```bash
-uv run python scripts/quickstart.py
-```
-
-Run the FastAPI dashboard locally:
-
-```bash
-uv run python -m uvicorn web.app:app --host 0.0.0.0 --port 8000
-```
-
-Run the terminal dashboard:
-
-```bash
-uv run python scripts/dashboard.py
-```
-
-Emergency kill switch:
-
-```bash
-uv run python scripts/kill_switch.py --confirm "HALT TRADING" --cancel-orders --liquidate
-```
-
-## Documentation Map
-
-- `QUICKSTART.md`: current local setup and first-run commands
-- `DOCKER.md`: Docker and `docker compose` workflows
-- `docs/RUNTIME_ARCHITECTURE.md`: runtime entrypoints and architectural overlaps
-- `docs/LOW_HARDWARE_PROFILE.md`: Raspberry Pi / low-resource deployment guidance
-- `docs/OPERATIONS_RUNBOOK.md`: operational procedures and incident handling
-- `docs/README.md`: documentation index with authoritative vs historical guides
-
-## Repository Layout
-
-- `engine/`: backtesting, evaluation, validation, and replay logic
-- `brokers/`: Alpaca/backtest/options broker adapters
-- `strategies/`: strategy implementations and base classes
-- `utils/`: risk, reconciliation, audit, runtime-state, and ops helpers
-- `web/`: FastAPI dashboard and templates
-- `scripts/`: runnable utilities and reporting scripts
-- `tests/`: unit and higher-level tests
-- `docs/`: active guides plus historical implementation notes
-- `results/`, `audit_logs/`: generated outputs and runtime artifacts
-
-## Current Reality
-
-- `main.py live` is the primary live/paper operator path; `live_trader.py` is a separate paper-only single-strategy runtime.
-- `run_adaptive.py` remains a separate execution path and is not integrated into `main.py`.
-- `web/app.py` is a monitoring surface, not the trading control plane.
-- `start.py` is intended for deployment environments, not as the primary local CLI.
+MIT. See `LICENSE`.

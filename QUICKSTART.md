@@ -121,13 +121,10 @@ uv run python scripts/kill_switch.py --confirm "HALT TRADING" --cancel-orders --
 ## 7. Where to Go Next
 
 - `README.md`: top-level overview and command map
-- `docs/README.md`: documentation index
 - `docs/SETUP.md`: detailed environment setup
-- `docs/RUNBOOK.md`: operational runbook
 - `DOCKER.md`: container usage and deployment notes
 
 ## Current Notes
 
 - `main.py` is the canonical CLI.
 - `live_trader.py` remains a specialized single-strategy launcher with additional runtime tuning flags.
-- Historical notes such as `docs/STATUS.md` and `docs/MULTI_AGENT_EXECUTION_PLAN.md` are context documents, not the primary setup path.

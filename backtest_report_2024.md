@@ -1,3 +1,7 @@
+> **⚠️ Caveat — read first.** This report covers 9 trades over a calendar year. The repo's own `PROFITABILITY_RESEARCH.md` states that any backtest under 50 trades is statistically meaningless (~40% probability the result is luck). 8 of 12 months in this report show exactly 0% return — the strategy was in cash most of the year. The Sharpe of 2.0 is an artifact of low time-in-market, not edge. This file is retained as a deprecated artifact. The current reference baseline is `results/honest_backtest_2020-2024.md` once it exists. Do not quote the +42.68% number.
+
+---
+
 # Backtest Performance Report
 ## MomentumStrategyBacktest vs SPY Benchmark
 ### Period: January 1, 2024 - December 31, 2024

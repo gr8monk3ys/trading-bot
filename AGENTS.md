@@ -1,12 +1,12 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `engine/`: Core backtesting, evaluation, and validation logic (e.g., `backtest_engine.py`, `validated_backtest.py`).
-- `brokers/`: Broker integrations and order building (Alpaca, backtest broker, options).
+- `engine/`: Core backtesting and evaluation logic (e.g., `backtest_engine.py`).
+- `brokers/`: Broker integrations and order building (Alpaca, backtest broker).
 - `strategies/`: Trading strategies and shared base classes.
 - `utils/`: Risk, execution, audit logging, and analytics utilities.
 - `tests/`: Pytest-based unit tests (`tests/unit/`).
-- `scripts/`: CLI utilities and reports (e.g., validated backtest report).
+- `scripts/`: CLI utilities and reports.
 - `docs/`: Additional documentation and setup guides.
 - `results/` and `audit_logs/`: Generated outputs and audit trail artifacts.
 
@@ -15,7 +15,6 @@
 - `pytest` — Works if pytest is installed in the active environment.
 - `uv run python main.py backtest --strategy MomentumStrategy --symbols AAPL,MSFT --start-date 2024-01-01 --end-date 2024-12-31` — Run a backtest.
 - `uv run python main.py live --strategy MomentumStrategy --force` — Start live/paper trading (websocket auto-starts for audit logging).
-- `uv run python -m scripts.validated_backtest_report --strategy MomentumStrategy --symbols AAPL,MSFT --start-date 2014-01-01 --end-date 2024-12-31 --output results/validated_backtest_report.md --json results/validated_backtest_report.json` — Generate validated backtest report.
 
 ## Coding Style & Naming Conventions
 - Python 3.10+.
