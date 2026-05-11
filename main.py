@@ -433,82 +433,6 @@ def _evaluate_live_governance_gate(
     return bool(report.get("ready")), report
 
 
-async def run_walk_forward_validation(
-    strategy_class, strategy_manager, symbols, start_date, end_date, args
-):
-    """
-    Run walk-forward validation to detect overfitting.
-
-    Returns:
-        Tuple of (passed: bool, results: dict)
-    """
-    from engine.walk_forward import WalkForwardValidator
-
-    logger.info("=" * 60)
-    logger.info("WALK-FORWARD VALIDATION")
-    logger.info("=" * 60)
-
-    validator = WalkForwardValidator(
-        train_ratio=args.wf_train_ratio,
-        n_splits=args.wf_splits,
-        min_train_days=30,
-        gap_days=1,  # 1-day gap to prevent look-ahead
-    )
-
-    # Create backtest function wrapper
-    async def backtest_fn(syms, start_str, end_str, **kwargs):
-        s_date = datetime.strptime(start_str, "%Y-%m-%d").date()
-        e_date = datetime.strptime(end_str, "%Y-%m-%d").date()
-        result = await strategy_manager.backtest_engine.run_backtest(
-            strategy_class=strategy_class,
-            symbols=syms,
-            start_date=s_date,
-            end_date=e_date,
-            initial_capital=args.capital,
-            execution_profile=args.execution_profile,
-            persist_artifacts=False,
-        )
-        metrics = strategy_manager.perf_metrics.calculate_metrics(result)
-        return metrics
-
-    # Run validation
-    validation_result = await validator.validate(
-        backtest_fn,
-        symbols=symbols,
-        start_date_str=start_date.strftime("%Y-%m-%d"),
-        end_date_str=end_date.strftime("%Y-%m-%d"),
-    )
-
-    # Analyze results
-    avg_is_return = validation_result.get("avg_is_return", 0)
-    avg_oos_return = validation_result.get("avg_oos_return", 0)
-    avg_overfit_ratio = validation_result.get("avg_overfit_ratio", float("inf"))
-
-    # Determine if validation passes
-    passed = avg_overfit_ratio <= args.overfit_threshold
-
-    # Print results
-    print("\n" + "=" * 60)
-    print("WALK-FORWARD VALIDATION RESULTS")
-    print("=" * 60)
-    print(f"Average In-Sample Return:    {avg_is_return:.2%}")
-    print(f"Average Out-of-Sample Return: {avg_oos_return:.2%}")
-    print(f"Overfitting Ratio (IS/OOS):   {avg_overfit_ratio:.2f}")
-    print(f"Threshold:                    {args.overfit_threshold:.2f}")
-    print("-" * 60)
-
-    if passed:
-        print("✅ VALIDATION PASSED - Strategy shows acceptable out-of-sample performance")
-    else:
-        print("❌ VALIDATION FAILED - Strategy appears to be overfit")
-        print(f"   In-sample performance is {avg_overfit_ratio:.1f}x better than out-of-sample")
-        print("   This suggests the strategy may not perform well in live trading")
-
-    print("=" * 60 + "\n")
-
-    return passed, validation_result
-
-
 async def run_backtest(args):
     """Run backtest mode with selected strategies."""
     strategy_manager = None
@@ -542,21 +466,6 @@ async def run_backtest(args):
         # Get symbols
         symbols = args.symbols.split(",") if args.symbols else SYMBOLS
 
-        # Run walk-forward validation if requested (skip if using validated backtest)
-        if args.walk_forward and not args.validated:
-            for strategy_name in strategies_to_test:
-                strategy_class = strategy_manager.available_strategies[strategy_name]
-
-                passed, wf_results = await run_walk_forward_validation(
-                    strategy_class, strategy_manager, symbols, start_date, end_date, args
-                )
-
-                if not passed and not args.force:
-                    print(f"\n⚠️  Walk-forward validation FAILED for {strategy_name}")
-                    print("Use --force to run backtest anyway, but be aware of overfitting risk.")
-                    logger.warning(f"Walk-forward validation failed for {strategy_name}")
-                    continue
-
         # Run backtests
         results = {}
         metrics = {}
@@ -569,41 +478,12 @@ async def run_backtest(args):
                 strategy_class = strategy_manager.available_strategies[strategy_name]
 
                 if args.validated:
-                    from engine.validated_backtest import (
-                        ValidatedBacktestRunner,
-                        format_validated_backtest_report,
+                    logger.warning(
+                        "--validated requested but engine.validated_backtest was quarantined "
+                        "to research/ in the 2026-05 cleanup; running standard backtest instead."
                     )
 
-                    runner = ValidatedBacktestRunner(broker)
-                    validated_result = await runner.run_validated_backtest(
-                        strategy_class=strategy_class,
-                        symbols=args.symbols.split(",") if args.symbols else SYMBOLS,
-                        start_date=args.start_date,
-                        end_date=args.end_date,
-                        initial_capital=args.capital,
-                    )
-
-                    print(format_validated_backtest_report(validated_result))
-
-                    if not validated_result.eligible_for_trading and not args.force:
-                        print("Profitability gates FAILED. Use --force to proceed anyway.")
-                        continue
-
-                    results[strategy_name] = {
-                        "equity_curve": validated_result.equity_curve,
-                        "start_date": start_date,
-                        "end_date": end_date,
-                    }
-                    metrics[strategy_name] = {
-                        "total_return": validated_result.total_return,
-                        "annualized_return": validated_result.total_return,
-                        "sharpe_ratio": validated_result.sharpe_ratio,
-                        "max_drawdown": validated_result.max_drawdown,
-                        "win_rate": validated_result.win_rate,
-                        "profit_factor": None,
-                        "num_trades": validated_result.num_trades,
-                    }
-                else:
+                if True:
                     # Run backtest
                     result = await strategy_manager.backtest_engine.run_backtest(
                         strategy_class=strategy_class,

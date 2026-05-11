@@ -414,9 +414,6 @@ async def test_run_backtest_branch_coverage(monkeypatch, tmp_path):
     monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _FakeDataBroker)
     monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
     monkeypatch.setattr(
-        "engine.backtest_engine.HistoricalUniverse", lambda broker=None: _FakeHistoricalUniverse()
-    )
-    monkeypatch.setattr(
         "engine.backtest_engine.validate_ohlcv_frame",
         lambda data, symbol, stale_after_days, reference_time: _QualityReport(
             symbol=symbol, has_errors=(symbol == "BADQ")
@@ -485,9 +482,6 @@ async def test_run_backtest_skips_bars_without_timestamps(monkeypatch):
 
     monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _TimestampGapDataBroker)
     monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
-    monkeypatch.setattr(
-        "engine.backtest_engine.HistoricalUniverse", lambda broker=None: _FakeHistoricalUniverse()
-    )
     monkeypatch.setattr(
         "engine.backtest_engine.validate_ohlcv_frame",
         lambda data, symbol, stale_after_days, reference_time: _QualityReport(

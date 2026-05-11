@@ -147,46 +147,10 @@ async def scan_for_opportunities(
         except Exception as e:
             logger.error(f"Momentum scanner error: {e}")
 
-    # Stage 3: Factor-based ranking (NEW)
+    # Stage 3: Factor-based ranking was quarantined to research/ in the 2026-05
+    # cleanup. Use the unranked momentum/sector list as-is.
     if use_factor_ranking and len(symbols) > top_n:
-        try:
-            from factors.factor_portfolio import FactorPortfolio
-
-            print("\nApplying factor-based ranking...")
-
-            if broker is None:
-                from brokers.alpaca_broker import AlpacaBroker
-
-                broker = AlpacaBroker(paper=True)
-
-            factor_portfolio = FactorPortfolio(broker=broker)
-
-            # Get composite factor scores for all candidates
-            rankings = await factor_portfolio.get_composite_rankings(symbols)
-
-            if rankings:
-                # Sort by composite score (higher is better)
-                sorted_symbols = sorted(
-                    rankings.items(),
-                    key=lambda x: x[1].composite_score,
-                    reverse=True,
-                )
-
-                # Take top N
-                symbols = [sym for sym, _ in sorted_symbols[:top_n]]
-
-                # Print factor summary
-                print("Factor Rankings (Top 5):")
-                for sym, score in sorted_symbols[:5]:
-                    print(
-                        f"  {sym}: {score.composite_score:.2f} "
-                        f"(M:{score.factor_scores.get('momentum', 0):.2f}, "
-                        f"V:{score.factor_scores.get('volatility', 0):.2f})"
-                    )
-
-        except Exception as e:
-            logger.warning(f"Factor ranking failed: {e}. Using unranked symbols.")
-            symbols = symbols[:top_n]
+        symbols = symbols[:top_n]
 
     # Final fallback
     if not symbols:

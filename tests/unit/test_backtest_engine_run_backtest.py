@@ -116,7 +116,6 @@ async def test_run_backtest_returns_structure(monkeypatch):
     # Patch dependencies inside backtest engine
     monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _FakeDataBroker)
     monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
-    monkeypatch.setattr("engine.backtest_engine.HistoricalUniverse", _FakeHistoricalUniverse)
 
     engine = BacktestEngine()
 
@@ -141,7 +140,6 @@ async def test_run_backtest_handles_no_data(monkeypatch):
 
     monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _EmptyDataBroker)
     monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
-    monkeypatch.setattr("engine.backtest_engine.HistoricalUniverse", _FakeHistoricalUniverse)
 
     engine = BacktestEngine()
 
@@ -168,7 +166,6 @@ async def test_run_backtest_uses_market_sessions_not_weekdays(monkeypatch):
 
     monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _HolidayGapDataBroker)
     monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
-    monkeypatch.setattr("engine.backtest_engine.HistoricalUniverse", _FakeHistoricalUniverse)
 
     engine = BacktestEngine()
 
@@ -191,7 +188,6 @@ async def test_run_backtest_uses_market_sessions_not_weekdays(monkeypatch):
 async def test_run_backtest_persists_observability_artifacts(monkeypatch, tmp_path):
     monkeypatch.setattr("brokers.alpaca_broker.AlpacaBroker", _FakeDataBroker)
     monkeypatch.setattr("brokers.backtest_broker.BacktestBroker", _FakeBacktestBroker)
-    monkeypatch.setattr("engine.backtest_engine.HistoricalUniverse", _FakeHistoricalUniverse)
 
     engine = BacktestEngine()
     run_id = "backtest_20240101_000000_testabcd"

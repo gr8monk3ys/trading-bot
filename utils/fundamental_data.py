@@ -31,8 +31,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from factors.base_factor import BaseFactor
-
 logger = logging.getLogger(__name__)
 
 # Lazy import yfinance
@@ -401,85 +399,6 @@ class FundamentalDataProvider:
         self._cache_time.clear()
 
 
-# Value and Quality factors using fundamental data
-
-
-class ValueFactor(BaseFactor):
-    """
-    Value factor based on fundamental data.
-
-    Uses P/E, P/B, and other valuation metrics.
-    """
-
-    def __init__(
-        self,
-        broker,
-        fundamental_provider: Optional[FundamentalDataProvider] = None,
-        cache_ttl_seconds: int = 86400,  # 24 hours
-    ):
-        super().__init__(broker, cache_ttl_seconds)
-        self.fundamental_provider = fundamental_provider or FundamentalDataProvider()
-
-    @property
-    def factor_name(self) -> str:
-        return "Value"
-
-    async def calculate_raw_score(
-        self, symbol: str, price_data=None
-    ) -> Tuple[float, Dict[str, Any]]:
-        """Calculate value score from fundamentals."""
-        data = await self.fundamental_provider.get_fundamentals(symbol)
-
-        if data is None or data.value_score is None:
-            return (float("nan"), {"error": "no_fundamental_data"})
-
-        metadata = {
-            "value_score": data.value_score,
-            "pe_ratio": data.pe_ratio,
-            "pb_ratio": data.pb_ratio,
-            "peg_ratio": data.peg_ratio,
-            "ps_ratio": data.ps_ratio,
-        }
-
-        return (data.value_score, metadata)
-
-
-class QualityFactor(BaseFactor):
-    """
-    Quality factor based on fundamental data.
-
-    Uses ROE, margins, debt levels, and growth metrics.
-    """
-
-    def __init__(
-        self,
-        broker,
-        fundamental_provider: Optional[FundamentalDataProvider] = None,
-        cache_ttl_seconds: int = 86400,
-    ):
-        super().__init__(broker, cache_ttl_seconds)
-        self.fundamental_provider = fundamental_provider or FundamentalDataProvider()
-
-    @property
-    def factor_name(self) -> str:
-        return "Quality"
-
-    async def calculate_raw_score(
-        self, symbol: str, price_data=None
-    ) -> Tuple[float, Dict[str, Any]]:
-        """Calculate quality score from fundamentals."""
-        data = await self.fundamental_provider.get_fundamentals(symbol)
-
-        if data is None or data.quality_score is None:
-            return (float("nan"), {"error": "no_fundamental_data"})
-
-        metadata = {
-            "quality_score": data.quality_score,
-            "roe": data.roe,
-            "roa": data.roa,
-            "profit_margin": data.profit_margin,
-            "debt_to_equity": data.debt_to_equity,
-            "earnings_growth": data.earnings_growth,
-        }
-
-        return (data.quality_score, metadata)
+# NOTE: ValueFactor and QualityFactor were removed in the 2026-05 cleanup along
+# with the factor models (factors/ moved to research/). The
+# FundamentalDataProvider above still works standalone for ad-hoc lookups.

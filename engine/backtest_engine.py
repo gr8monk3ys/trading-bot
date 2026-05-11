@@ -8,7 +8,6 @@ import pandas as pd
 import pytz
 
 from utils.data_quality import validate_ohlcv_frame
-from utils.historical_universe import HistoricalUniverse
 from utils.portfolio_stress import run_portfolio_stress_test
 from utils.run_artifacts import (
     JsonlWriter,
@@ -458,14 +457,9 @@ class BacktestEngine:
         # Use existing broker for data if available, otherwise create one
         data_broker = self.broker if self.broker else AlpacaBroker(paper=True)
 
-        # Initialize historical universe for survivorship bias correction
-        # This ensures we only trade symbols that were actually tradeable on each date
-        historical_universe = HistoricalUniverse(broker=data_broker)
-        await historical_universe.initialize()
-        logger.info(
-            f"Survivorship bias correction enabled: "
-            f"{historical_universe.get_statistics()['total_symbols']} symbols tracked"
-        )
+        # NOTE: Historical universe / survivorship-bias correction was quarantined
+        # to research/ in the 2026-05 cleanup. Backtests now trade the full symbol
+        # list for all dates; rerun on a curated symbol set if survivorship matters.
 
         # Convert dates to datetime if they are date objects
         if hasattr(start_date, "strftime") and not hasattr(start_date, "hour"):
@@ -644,12 +638,9 @@ class BacktestEngine:
                 if not hasattr(strategy, "current_data"):
                     strategy.current_data = {}
 
-                # SURVIVORSHIP BIAS CORRECTION: Filter to only tradeable symbols
-                # This prevents backtesting on symbols that weren't actually tradeable
-                # on this date (IPO hadn't happened, stock was delisted, etc.)
-                tradeable_symbols = historical_universe.get_tradeable_symbols(
-                    current_date.date(), symbols
-                )
+                # Survivorship-bias correction was quarantined to research/ in the
+                # 2026-05 cleanup. Trade the full symbol list each day.
+                tradeable_symbols = symbols
 
                 for symbol in tradeable_symbols:
                     if symbol in backtest_broker.price_data:
