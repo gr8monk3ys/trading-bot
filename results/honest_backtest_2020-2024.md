@@ -1,6 +1,6 @@
 # Honest baseline backtest 2020-2024
 
-Generated: 2026-05-11T21:48:08.613923Z
+Generated: 2026-05-11T21:55:40.633303Z
 Spec: `docs/superpowers/specs/2026-05-11-honest-cleanup-design.md`
 Data source: `yfinance`
 

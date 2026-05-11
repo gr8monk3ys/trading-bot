@@ -4,7 +4,7 @@ Guidance for Claude Code working in this repository.
 
 ## Status: experimental
 
-This repository is a personal algorithmic-trading sandbox. It is **paper-only** and has no proven edge. Do not deploy real capital. Previous versions of this document claimed an "institutional-grade" rating and a +42.68% backtest; both claims were unsupported by the evidence in the repo (see `PROFITABILITY_RESEARCH.md` for the analysis) and have been removed.
+This repository is a personal algorithmic-trading sandbox. It is **paper-only** and has no proven edge. Do not deploy real capital. Previous versions of this document claimed an "institutional-grade" rating and a +42.68% backtest; both claims were unsupported by the evidence in the repo (see `docs/PROFITABILITY_RESEARCH.md` for the analysis) and have been removed.
 
 **If you are picking up this repo after a break:** read `results/where_we_landed.md` first. It is the durable summary of the May 2026 cleanup + validation work. The TL;DR is that the strategy underperforms SPY buy-and-hold on a bias-free test (+53% vs +95% over 2020-2024) and its real value is drawdown control (-7% max DD vs -33% passive), not profit maximization.
 

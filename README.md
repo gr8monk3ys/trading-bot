@@ -36,7 +36,7 @@ Two baselines exist, and the ETF one is the honest test of strategy edge.
 - `results/honest_backtest_2020-2024.md` — 10 hand-picked mega-caps, +646%, Sharpe 1.36. Survivor-biased: every name in the universe (NVDA, TSLA, AAPL, MSFT, etc.) is one a 2026 retrospective would obviously pick. Treat this as a cautionary contrast, not as evidence of edge.
 - `results/etf_baseline_2020-2024.md` — SPY/QQQ/IWM/EFA, broad market ETFs that can't be delisted or selection-biased. **The strategy returned +53.4% / Sharpe 0.78 on this universe, underperforming SPY buy-and-hold (+95.3% / Sharpe 0.75).** 38 trades, below the 50-trade significance bar, so this is a hint not a verdict — but the direction is the most damning one: most of the hand-picked baseline's outperformance was selection bias, not strategy alpha.
 
-When citing a single performance number, prefer the ETF baseline. Earlier reports (notably `backtest_report_2024.md`) used 9 trades and are below the statistical-significance bar this repo's own `PROFITABILITY_RESEARCH.md` calls out. Don't quote them.
+When citing a single performance number, prefer the ETF baseline. Earlier reports (notably `results/backtest_report_2024.md`) used 9 trades and are below the statistical-significance bar this repo's own `docs/PROFITABILITY_RESEARCH.md` calls out. Don't quote them.
 
 ## License
 

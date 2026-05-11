@@ -2,7 +2,7 @@
 
 This document is the single entry point for understanding the code organization of this repo. Read it before reading code.
 
-**One-line context:** this is a paper-only experimental trading bot whose strategy has been validated as a drawdown-control sleeve rather than a profit maximizer. See [`results/where_we_landed.md`](../results/where_we_landed.md) for the full validation history and [`PROFITABILITY_RESEARCH.md`](../PROFITABILITY_RESEARCH.md) for realistic performance expectations. The May 2026 honest cleanup and form-cleanup refactor reduced the repo from 193K to ~45K LOC and reorganized the remaining code into the structure described here.
+**One-line context:** this is a paper-only experimental trading bot whose strategy has been validated as a drawdown-control sleeve rather than a profit maximizer. See [`results/where_we_landed.md`](../results/where_we_landed.md) for the full validation history and [`PROFITABILITY_RESEARCH.md`](PROFITABILITY_RESEARCH.md) for realistic performance expectations. The May 2026 honest cleanup and form-cleanup refactor reduced the repo from 193K to ~45K LOC and reorganized the remaining code into the structure described here.
 
 ## Data flow
 
@@ -233,7 +233,7 @@ Strategy.execute_trade()
 
 - `CLAUDE.md` — guidance for Claude Code working in this repo.
 - `README.md` — public-facing project description.
-- `PROFITABILITY_RESEARCH.md` — realistic performance expectations and limits.
+- [`PROFITABILITY_RESEARCH.md`](PROFITABILITY_RESEARCH.md) — realistic performance expectations and limits.
 - `results/where_we_landed.md` — durable summary of the May 2026 cleanup + validation outcome.
 - `results/can_this_beat_qqq.md` — pre-validation skeptical analysis.
 - `results/etf_baseline_2020-2024.md` — canonical performance reference.

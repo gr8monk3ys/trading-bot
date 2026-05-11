@@ -110,3 +110,4 @@ api_keys.json
 secrets.yaml
 *.key
 *.secret
+:memory:/
