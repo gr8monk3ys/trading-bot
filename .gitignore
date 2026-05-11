@@ -90,6 +90,7 @@ results/*
 # Exception: keep the canonical honest baseline artifact (referenced from README/CLAUDE.md)
 !results/honest_backtest_2020-2024.md
 !results/honest_backtest_2020-2024.json
+!results/can_this_beat_qqq.md
 backtest_results/
 live_trading_logs/
 performance_reports/
