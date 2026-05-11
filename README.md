@@ -4,6 +4,8 @@ Personal algorithmic-trading sandbox on Alpaca, async Python.
 
 **Status:** experimental, paper-only, no proven edge. Do not deploy real capital.
 
+**Coming back to this repo?** Read [`results/where_we_landed.md`](results/where_we_landed.md) first — durable summary of the May 2026 cleanup + validation. Headline: strategy underperforms SPY on a bias-free test; real value is drawdown control (-7% max DD vs -33% passive), not profit maximization.
+
 ## What's in here
 
 - A momentum strategy (RSI/MACD/ADX with trailing stops).

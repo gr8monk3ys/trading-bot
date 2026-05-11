@@ -6,6 +6,8 @@ Guidance for Claude Code working in this repository.
 
 This repository is a personal algorithmic-trading sandbox. It is **paper-only** and has no proven edge. Do not deploy real capital. Previous versions of this document claimed an "institutional-grade" rating and a +42.68% backtest; both claims were unsupported by the evidence in the repo (see `PROFITABILITY_RESEARCH.md` for the analysis) and have been removed.
 
+**If you are picking up this repo after a break:** read `results/where_we_landed.md` first. It is the durable summary of the May 2026 cleanup + validation work. The TL;DR is that the strategy underperforms SPY buy-and-hold on a bias-free test (+53% vs +95% over 2020-2024) and its real value is drawdown control (-7% max DD vs -33% passive), not profit maximization.
+
 Two baselines exist, both 2020-2024, both `MomentumStrategyBacktest` defaults, both yfinance daily bars:
 
 - `results/honest_backtest_2020-2024.md` — 10 hand-picked mega-caps (NVDA/AAPL/TSLA/MSFT/GOOGL/AMZN/META/JPM/SPY/QQQ). 102 trades, Sharpe 1.36, 47% max drawdown, profit factor 7.27, +646.00% total return. Survivor-biased: every symbol is one a 2026 retrospective would pick. This number reflects selection bias more than strategy edge.
