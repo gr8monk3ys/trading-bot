@@ -1,14 +1,15 @@
 """
-Async SQLite Database Manager for Trading Bot
+Async SQLite Database Manager — Core CRUD operations.
 
-Provides persistent storage for:
-- Trade history with P&L tracking
-- Daily performance metrics
-- Position tracking (open/closed)
-- Strategy and symbol performance analytics
+Provides the dataclasses, `DatabaseError`, and the `TradingDatabaseCore`
+mixin which contains:
+- Connection lifecycle (init, close, table creation)
+- Trade insert/query operations
+- Daily metrics insert/query operations
+- Position save/query/close operations
 
-Uses aiosqlite for non-blocking database operations compatible
-with the bot's async architecture.
+Analytics-style aggregation queries live in
+:mod:`utils.database.analytics`.
 """
 
 import asyncio
@@ -124,15 +125,15 @@ class DatabaseError(Exception):
     pass
 
 
-class TradingDatabase:
+class TradingDatabaseCore:
     """
-    Async SQLite database manager for trading bot persistence.
+    Core CRUD operations for the trading database.
 
-    Provides async methods for:
-    - Trade logging and retrieval
-    - Daily metrics storage
-    - Position tracking
-    - Performance analytics by strategy/symbol
+    Holds connection state and provides table creation plus
+    insert/query operations for trades, daily metrics, and positions.
+
+    Composed into :class:`utils.database.TradingDatabase` together with
+    :class:`utils.database.analytics.TradingDatabaseAnalyticsMixin`.
 
     Usage:
         db = TradingDatabase("data/trading.db")
@@ -870,237 +871,3 @@ class TradingDatabase:
             except Exception as e:
                 self.logger.error(f"Failed to close position: {e}")
                 raise DatabaseError(f"Close position failed: {e}") from e
-
-    # =========================================================================
-    # Analytics
-    # =========================================================================
-
-    async def get_strategy_performance(self, strategy: str) -> Dict[str, Any]:
-        """
-        Get performance metrics for a specific strategy.
-
-        Args:
-            strategy: Strategy name
-
-        Returns:
-            Dictionary with performance metrics
-        """
-        conn = self._ensure_connection()
-
-        try:
-            # Get trade statistics
-            async with conn.execute(
-                """
-                SELECT
-                    COUNT(*) as total_trades,
-                    SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
-                    SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END) as losing_trades,
-                    SUM(CASE WHEN pnl = 0 THEN 1 ELSE 0 END) as breakeven_trades,
-                    SUM(pnl) as total_pnl,
-                    AVG(pnl) as avg_pnl,
-                    MAX(pnl) as best_trade,
-                    MIN(pnl) as worst_trade,
-                    AVG(CASE WHEN pnl > 0 THEN pnl END) as avg_win,
-                    AVG(CASE WHEN pnl < 0 THEN pnl END) as avg_loss
-                FROM trades
-                WHERE strategy = ? AND pnl IS NOT NULL
-                """,
-                (strategy,),
-            ) as cursor:
-                row = await cursor.fetchone()
-
-            if row is None:
-                raise DatabaseError("Strategy performance query returned no row")
-
-            row_seq = cast(Sequence[Any], row)
-            if int(row_seq[0] or 0) == 0:
-                return {
-                    "strategy": strategy,
-                    "total_trades": 0,
-                    "winning_trades": 0,
-                    "losing_trades": 0,
-                    "win_rate": 0.0,
-                    "total_pnl": 0.0,
-                    "avg_pnl": 0.0,
-                    "profit_factor": 0.0,
-                    "best_trade": 0.0,
-                    "worst_trade": 0.0,
-                }
-
-            total_trades = int(row_seq[0] or 0)
-            winning_trades = int(row_seq[1] or 0)
-            losing_trades = int(row_seq[2] or 0)
-            total_pnl = float(row_seq[4] or 0.0)
-            avg_win = float(row_seq[8] or 0.0)
-            avg_loss = abs(float(row_seq[9] or 0.0))
-
-            # Calculate derived metrics
-            win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
-            profit_factor = (
-                (avg_win * winning_trades) / (avg_loss * losing_trades)
-                if losing_trades > 0 and avg_loss > 0
-                else 0.0
-            )
-
-            return {
-                "strategy": strategy,
-                "total_trades": total_trades,
-                "winning_trades": winning_trades,
-                "losing_trades": losing_trades,
-                "breakeven_trades": int(row_seq[3] or 0),
-                "win_rate": win_rate,
-                "total_pnl": total_pnl,
-                "avg_pnl": float(row_seq[5] or 0.0),
-                "profit_factor": profit_factor,
-                "best_trade": float(row_seq[6] or 0.0),
-                "worst_trade": float(row_seq[7] or 0.0),
-                "avg_win": avg_win,
-                "avg_loss": -avg_loss,  # Return as negative for clarity
-            }
-
-        except Exception as e:
-            self.logger.error(f"Failed to get strategy performance: {e}")
-            raise DatabaseError(f"Get strategy performance failed: {e}") from e
-
-    async def get_symbol_performance(self, symbol: str) -> Dict[str, Any]:
-        """
-        Get performance metrics for a specific symbol.
-
-        Args:
-            symbol: Stock symbol
-
-        Returns:
-            Dictionary with performance metrics
-        """
-        conn = self._ensure_connection()
-
-        try:
-            async with conn.execute(
-                """
-                SELECT
-                    COUNT(*) as total_trades,
-                    SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
-                    SUM(CASE WHEN pnl < 0 THEN 1 ELSE 0 END) as losing_trades,
-                    SUM(pnl) as total_pnl,
-                    AVG(pnl) as avg_pnl,
-                    MAX(pnl) as best_trade,
-                    MIN(pnl) as worst_trade,
-                    SUM(qty * price) as total_volume
-                FROM trades
-                WHERE symbol = ? AND pnl IS NOT NULL
-                """,
-                (symbol,),
-            ) as cursor:
-                row = await cursor.fetchone()
-
-            if row is None:
-                raise DatabaseError("Symbol performance query returned no row")
-
-            row_seq = cast(Sequence[Any], row)
-            total_trades = int(row_seq[0] or 0)
-            if total_trades == 0:
-                return {
-                    "symbol": symbol,
-                    "total_trades": 0,
-                    "winning_trades": 0,
-                    "losing_trades": 0,
-                    "win_rate": 0.0,
-                    "total_pnl": 0.0,
-                    "avg_pnl": 0.0,
-                    "best_trade": 0.0,
-                    "worst_trade": 0.0,
-                    "total_volume": 0.0,
-                }
-
-            winning_trades = int(row_seq[1] or 0)
-            win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
-
-            return {
-                "symbol": symbol,
-                "total_trades": total_trades,
-                "winning_trades": winning_trades,
-                "losing_trades": int(row_seq[2] or 0),
-                "win_rate": win_rate,
-                "total_pnl": float(row_seq[3] or 0.0),
-                "avg_pnl": float(row_seq[4] or 0.0),
-                "best_trade": float(row_seq[5] or 0.0),
-                "worst_trade": float(row_seq[6] or 0.0),
-                "total_volume": float(row_seq[7] or 0.0),
-            }
-
-        except Exception as e:
-            self.logger.error(f"Failed to get symbol performance: {e}")
-            raise DatabaseError(f"Get symbol performance failed: {e}") from e
-
-    async def get_summary_stats(self) -> Dict[str, Any]:
-        """
-        Get overall trading summary statistics.
-
-        Returns:
-            Dictionary with summary stats
-        """
-        conn = self._ensure_connection()
-
-        try:
-            # Trade summary
-            async with conn.execute("""
-                SELECT
-                    COUNT(*) as total_trades,
-                    COUNT(DISTINCT symbol) as unique_symbols,
-                    COUNT(DISTINCT strategy) as unique_strategies,
-                    SUM(pnl) as total_pnl,
-                    SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
-                    MIN(timestamp) as first_trade,
-                    MAX(timestamp) as last_trade
-                FROM trades
-                WHERE pnl IS NOT NULL
-                """) as cursor:
-                row = await cursor.fetchone()
-
-            if row is None:
-                raise DatabaseError("Summary stats query returned no row")
-            row_seq = cast(Sequence[Any], row)
-
-            # Open positions count
-            async with conn.execute(
-                "SELECT COUNT(*) FROM positions WHERE status = 'open'"
-            ) as cursor:
-                open_row = await cursor.fetchone()
-
-            if open_row is None:
-                raise DatabaseError("Open positions query returned no row")
-            open_positions = int(cast(Sequence[Any], open_row)[0] or 0)
-
-            total_trades = int(row_seq[0] or 0)
-            winning_trades = int(row_seq[4] or 0)
-
-            return {
-                "total_trades": total_trades,
-                "unique_symbols": int(row_seq[1] or 0),
-                "unique_strategies": int(row_seq[2] or 0),
-                "total_pnl": float(row_seq[3] or 0.0),
-                "win_rate": winning_trades / total_trades if total_trades > 0 else 0.0,
-                "open_positions": open_positions,
-                "first_trade": row_seq[5],
-                "last_trade": row_seq[6],
-            }
-
-        except Exception as e:
-            self.logger.error(f"Failed to get summary stats: {e}")
-            raise DatabaseError(f"Get summary stats failed: {e}") from e
-
-
-# Convenience function for creating database instance
-async def create_database(db_path: str = "data/trading_bot.db") -> TradingDatabase:
-    """
-    Create and initialize a TradingDatabase instance.
-
-    Args:
-        db_path: Path to SQLite database file
-
-    Returns:
-        Initialized TradingDatabase instance
-    """
-    db = TradingDatabase(db_path)
-    await db.initialize()
-    return db
