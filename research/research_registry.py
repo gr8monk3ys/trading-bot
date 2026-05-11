@@ -58,7 +58,9 @@ from utils.execution_quality_gate import (
     extract_execution_quality_metrics,
     extract_paper_live_shadow_drift,
 )
-from utils.paper_burn_in import build_paper_burn_in_scorecard
+
+# utils.paper_burn_in was removed in the 2026-05 cleanup. Promotion checks that
+# depended on it now skip the paper_burn_in_signoff criterion entirely.
 
 logger = logging.getLogger(__name__)
 
@@ -959,22 +961,9 @@ class ResearchRegistry:
                     ),
                 }
             )
-            burn_in_scorecard = build_paper_burn_in_scorecard(paper)
-            burn_in_blockers = burn_in_scorecard.get("blockers", [])
-            burn_in_details = (
-                f"score={float(burn_in_scorecard.get('score', 0.0)):.2%}; "
-                f"ready={bool(burn_in_scorecard.get('ready_for_signoff', False))}"
-            )
-            if burn_in_blockers:
-                burn_in_details = f"{burn_in_details}; blockers={'; '.join(str(item) for item in burn_in_blockers[:3])}"
-            criteria.append(
-                {
-                    "name": "paper_burn_in_signoff",
-                    "required": True,
-                    "passed": bool(burn_in_scorecard.get("ready_for_signoff", False)),
-                    "details": burn_in_details,
-                }
-            )
+            # paper_burn_in_signoff criterion was removed in the 2026-05 cleanup
+            # (utils.paper_burn_in is gone). Re-enable only if a real scorecard
+            # implementation is reintroduced.
 
         blockers = [
             f"{c['name']}: {c.get('details', '')}"

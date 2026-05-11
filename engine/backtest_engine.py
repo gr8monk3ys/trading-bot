@@ -7,14 +7,7 @@ from typing import Any, Dict, List, Type
 import pandas as pd
 import pytz
 
-from utils.data_quality import validate_ohlcv_frame
 from utils.portfolio_stress import run_portfolio_stress_test
-from utils.run_artifacts import (
-    JsonlWriter,
-    ensure_run_directory,
-    generate_run_id,
-    write_json,
-)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -438,12 +431,10 @@ class BacktestEngine:
         from brokers.backtest_broker import BacktestBroker
 
         run_started_at = datetime.utcnow()
-        run_id = run_id or generate_run_id("backtest")
-        run_dir = ensure_run_directory(artifacts_dir, run_id) if persist_artifacts else None
-        decision_log_writer = (
-            JsonlWriter(run_dir / "decision_events.jsonl") if run_dir is not None else None
-        )
-        trades_log_writer = JsonlWriter(run_dir / "trades.jsonl") if run_dir is not None else None
+        run_id = run_id or f"backtest_{run_started_at.strftime('%Y%m%d_%H%M%S')}"
+        run_dir = None
+        decision_log_writer = None
+        trades_log_writer = None
         decision_event_count = 0
         decision_error_count = 0
 
@@ -511,61 +502,17 @@ class BacktestEngine:
                         index=pd.DatetimeIndex([b.timestamp for b in bars]),
                     )
 
-                    quality = validate_ohlcv_frame(
-                        data,
-                        symbol=symbol,
-                        stale_after_days=10,
-                        reference_time=end_dt,
-                    )
-                    data_quality_reports[symbol] = quality.to_dict()
-                    if quality.has_errors:
-                        logger.warning(
-                            f"Data quality errors for {symbol}: "
-                            f"{quality.error_count} errors, {quality.warning_count} warnings. "
-                            "Skipping symbol."
-                        )
-                        return
-
                     backtest_broker.set_price_data(symbol, data)
                     loaded_price_data[symbol] = data
+                    data_quality_reports[symbol] = {"rows": len(data), "loaded": True}
                     logger.debug(f"Loaded {len(bars)} bars for {symbol}")
                 else:
                     logger.warning(f"No data available for {symbol}")
-                    data_quality_reports[symbol] = {
-                        "symbol": symbol,
-                        "rows": 0,
-                        "has_errors": True,
-                        "error_count": 1,
-                        "warning_count": 0,
-                        "issues": [
-                            {
-                                "severity": "error",
-                                "code": "no_data",
-                                "message": "No historical bars returned",
-                                "symbol": symbol,
-                                "affected_rows": 0,
-                            }
-                        ],
-                    }
+                    data_quality_reports[symbol] = {"rows": 0, "loaded": False}
 
             except Exception as e:
                 logger.warning(f"Failed to load data for {symbol}: {e}")
-                data_quality_reports[symbol] = {
-                    "symbol": symbol,
-                    "rows": 0,
-                    "has_errors": True,
-                    "error_count": 1,
-                    "warning_count": 0,
-                    "issues": [
-                        {
-                            "severity": "error",
-                            "code": "data_load_error",
-                            "message": f"Failed to load data: {e}",
-                            "symbol": symbol,
-                            "affected_rows": 0,
-                        }
-                    ],
-                }
+                data_quality_reports[symbol] = {"rows": 0, "loaded": False, "error": str(e)}
 
         # Load all symbols in parallel for faster data fetching
         await asyncio.gather(
@@ -951,54 +898,6 @@ class BacktestEngine:
                 for e in gap_events
             ],
         }
-
-        if run_dir is not None:
-            summary_payload = {
-                "run_id": run_id,
-                "strategy": strategy_class.__name__,
-                "symbols": symbols,
-                "start_date": start_dt,
-                "end_date": end_dt,
-                "initial_capital": initial_capital,
-                "final_equity": final_equity,
-                "total_return": total_return,
-                "total_trades": len(trade_records),
-                "execution_profile": execution_profile,
-                "decision_events": decision_event_count,
-                "decision_errors": decision_error_count,
-                "data_quality": result.get("data_quality", {}),
-                "gap_statistics": result.get("gap_statistics", {}),
-                "stress_test": result.get("stress_test", {}),
-                "started_at": run_started_at,
-                "completed_at": run_completed_at,
-            }
-
-            write_json(run_dir / "summary.json", summary_payload)
-            write_json(
-                run_dir / "manifest.json",
-                {
-                    "run_id": run_id,
-                    "generated_at": run_completed_at,
-                    "artifacts": {
-                        "summary": "summary.json",
-                        "decision_events": "decision_events.jsonl",
-                        "trades": "trades.jsonl",
-                    },
-                },
-            )
-            result["run_metadata"].update(
-                {
-                    "summary_path": str(run_dir / "summary.json"),
-                    "manifest_path": str(run_dir / "manifest.json"),
-                    "decision_events_path": str(run_dir / "decision_events.jsonl"),
-                    "trades_path": str(run_dir / "trades.jsonl"),
-                }
-            )
-
-        if decision_log_writer:
-            decision_log_writer.close()
-        if trades_log_writer:
-            trades_log_writer.close()
 
         return result
 

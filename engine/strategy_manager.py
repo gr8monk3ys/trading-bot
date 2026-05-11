@@ -1,8 +1,6 @@
 import logging
 import os
-from collections import deque
 from datetime import datetime, timedelta
-from typing import Any
 
 from brokers.alpaca_broker import AlpacaBroker
 from config import ALPACA_CREDS, RISK_PARAMS, SYMBOLS
@@ -12,9 +10,6 @@ from engine.strategy_evaluator import StrategyEvaluator
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
 from utils.audit_log import AuditEventType, AuditLog
-from utils.order_gateway import OrderGateway
-from utils.position_manager import PositionManager
-from utils.runtime_state import RuntimeStateStore
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -36,13 +31,8 @@ class StrategyManager:
         strategy_path="strategies",
         broker_type="alpaca",
         circuit_breaker=None,
-        position_manager=None,
         risk_manager=None,
-        order_gateway=None,
         audit_log=None,
-        enforce_gateway: bool = True,
-        max_intraday_drawdown_pct: float | None = None,
-        kill_switch_cooldown_minutes: int = 60,
     ):
         """
         Initialize the Strategy Manager.
@@ -85,35 +75,11 @@ class StrategyManager:
         )
         self.backtest_engine = BacktestEngine(self.broker)
 
-        # Order safety infrastructure (shared across strategies)
-        self.position_manager = position_manager or PositionManager()
+        # Risk manager (shared across strategies)
         self.risk_manager = risk_manager or RiskManager(
             max_portfolio_risk=RISK_PARAMS.get("MAX_PORTFOLIO_RISK", 0.02),
             max_position_risk=RISK_PARAMS.get("MAX_POSITION_RISK", 0.01),
         )
-        self.order_gateway = order_gateway or OrderGateway(
-            broker=self.broker,
-            circuit_breaker=self.circuit_breaker,
-            position_manager=self.position_manager,
-            risk_manager=self.risk_manager,
-            audit_log=self.audit_log,
-            enforce_gateway=enforce_gateway,
-            max_intraday_drawdown_pct=(
-                max_intraday_drawdown_pct
-                if max_intraday_drawdown_pct is not None
-                else RISK_PARAMS.get("MAX_INTRADAY_DRAWDOWN_PCT")
-            ),
-            kill_switch_cooldown_minutes=kill_switch_cooldown_minutes,
-        )
-        if self.circuit_breaker and hasattr(self.circuit_breaker, "set_order_gateway"):
-            try:
-                self.circuit_breaker.set_order_gateway(self.order_gateway)
-            except Exception as e:
-                logger.warning(f"Failed to link circuit breaker to order gateway: {e}")
-
-        # Runtime state persistence
-        self.state_store = RuntimeStateStore("data/runtime_state.json")
-        self._pending_strategy_state = {}
 
         # Strategy tracking
         self.available_strategies = {}  # name -> class
@@ -128,272 +94,8 @@ class StrategyManager:
         )
         if hasattr(self.broker, "set_audit_log"):
             self.broker.set_audit_log(self.audit_log)
-        if hasattr(self.broker, "set_position_manager"):
-            self.broker.set_position_manager(self.position_manager)
 
-        self._load_runtime_state()
         self._load_available_strategies()
-
-    def _load_runtime_state(self) -> None:
-        """Load persisted runtime state if available."""
-        if not self.state_store.exists():
-            return
-        try:
-            # Run async load in event loop if available
-            import asyncio
-
-            async def _load():
-                state = await self.state_store.load()
-                if state:
-                    await self.position_manager.import_state(state.position_manager)
-                    if state.lifecycle and hasattr(self.order_gateway, "lifecycle_tracker"):
-                        self.order_gateway.lifecycle_tracker.import_state(state.lifecycle)
-                    if state.gateway_state and hasattr(self.order_gateway, "import_runtime_state"):
-                        self.order_gateway.import_runtime_state(state.gateway_state)
-                    self._pending_strategy_state = state.strategy_states or {}
-                    logger.info("Runtime state imported into PositionManager")
-
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                asyncio.run(_load())
-            else:
-                loop.create_task(_load())
-        except Exception as e:
-            logger.error(f"Failed to load runtime state: {e}")
-
-    async def save_runtime_state(self) -> None:
-        """Persist runtime state to disk."""
-        strategy_states = {}
-        for name, strat in self.active_strategies.items():
-            strategy_states[name] = await self._build_strategy_checkpoint(name, strat)
-
-        await self.state_store.save(
-            position_manager=self.position_manager,
-            active_strategies=self.strategy_status,
-            allocations=self.strategy_allocations,
-            lifecycle=(
-                self.order_gateway.lifecycle_tracker.export_state()
-                if self.order_gateway and self.order_gateway.lifecycle_tracker
-                else {}
-            ),
-            gateway_state=(
-                self.order_gateway.export_runtime_state()
-                if self.order_gateway and hasattr(self.order_gateway, "export_runtime_state")
-                else {}
-            ),
-            strategy_states=strategy_states,
-        )
-
-    async def _build_strategy_checkpoint(self, strategy_name: str, strategy: Any) -> dict[str, Any]:
-        """Capture strategy state with both explicit and internal snapshots."""
-        exported_state: dict[str, Any] = {}
-        if hasattr(strategy, "export_state"):
-            try:
-                candidate = await strategy.export_state()
-                if isinstance(candidate, dict):
-                    exported_state = candidate
-            except Exception as e:
-                logger.warning(f"Failed to export state for {strategy_name}: {e}")
-                exported_state = {"__export_error__": str(e)}
-
-        return {
-            "version": 2,
-            "captured_at": datetime.utcnow().isoformat(),
-            "exported_state": self._serialize_checkpoint_value(exported_state),
-            "internal_state": self._collect_strategy_internal_state(strategy),
-        }
-
-    def _collect_strategy_internal_state(self, strategy: Any) -> dict[str, Any]:
-        """
-        Collect additional non-critical internals to improve restart continuity.
-
-        These fields are best-effort and intentionally bounded to avoid oversized
-        runtime snapshots.
-        """
-        state: dict[str, Any] = {}
-        internal_fields = (
-            "price_history",
-            "current_prices",
-            "signals",
-            "indicators",
-        )
-        for field in internal_fields:
-            if hasattr(strategy, field):
-                state[field] = self._serialize_checkpoint_value(
-                    getattr(strategy, field),
-                    depth=0,
-                    max_items=200,
-                )
-
-        circuit_breaker = getattr(strategy, "circuit_breaker", None)
-        if circuit_breaker is not None:
-            state["circuit_breaker_state"] = self._serialize_checkpoint_value(
-                {
-                    "trading_halted": getattr(circuit_breaker, "trading_halted", False),
-                    "halt_triggered_at": getattr(circuit_breaker, "halt_triggered_at", None),
-                    "last_reset_date": getattr(circuit_breaker, "last_reset_date", None),
-                    "peak_equity_today": getattr(circuit_breaker, "peak_equity_today", None),
-                    "halt_reason": getattr(circuit_breaker, "_halt_reason", None),
-                    "halt_loss_pct": getattr(circuit_breaker, "_halt_loss_pct", None),
-                }
-            )
-
-        kelly = getattr(strategy, "kelly", None)
-        if kelly is not None:
-            state["kelly_state"] = self._serialize_checkpoint_value(
-                {
-                    "trades_count": len(getattr(kelly, "trades", []) or []),
-                    "win_rate": getattr(kelly, "win_rate", None),
-                    "avg_win": getattr(kelly, "avg_win", None),
-                    "avg_loss": getattr(kelly, "avg_loss", None),
-                    "profit_factor": getattr(kelly, "profit_factor", None),
-                }
-            )
-
-        streak_sizer = getattr(strategy, "streak_sizer", None)
-        if streak_sizer is not None and hasattr(streak_sizer, "get_streak_statistics"):
-            try:
-                state["streak_state"] = self._serialize_checkpoint_value(
-                    streak_sizer.get_streak_statistics()
-                )
-            except Exception:
-                pass
-
-        return state
-
-    @classmethod
-    def _serialize_checkpoint_value(
-        cls,
-        value: Any,
-        *,
-        depth: int = 0,
-        max_depth: int = 4,
-        max_items: int = 200,
-    ) -> Any:
-        """Convert checkpoint values to JSON-safe bounded primitives."""
-        if value is None or isinstance(value, (str, int, float, bool)):
-            return value
-        if hasattr(value, "isoformat") and callable(value.isoformat):
-            try:
-                return value.isoformat()
-            except Exception:
-                pass
-        if hasattr(value, "item") and callable(value.item):
-            try:
-                return value.item()
-            except Exception:
-                pass
-        if depth >= max_depth:
-            return str(value)
-
-        if isinstance(value, dict):
-            serialized = {}
-            for idx, (k, v) in enumerate(value.items()):
-                if idx >= max_items:
-                    serialized["__truncated__"] = f"{len(value) - max_items} entries omitted"
-                    break
-                serialized[str(k)] = cls._serialize_checkpoint_value(
-                    v,
-                    depth=depth + 1,
-                    max_depth=max_depth,
-                    max_items=max_items,
-                )
-            return serialized
-
-        if isinstance(value, deque):
-            value = list(value)
-
-        if isinstance(value, (list, tuple, set)):
-            items = list(value)
-            if len(items) > max_items:
-                items = items[-max_items:]
-            return [
-                cls._serialize_checkpoint_value(
-                    item,
-                    depth=depth + 1,
-                    max_depth=max_depth,
-                    max_items=max_items,
-                )
-                for item in items
-            ]
-
-        if hasattr(value, "to_dict") and callable(value.to_dict):
-            try:
-                return cls._serialize_checkpoint_value(
-                    value.to_dict(),
-                    depth=depth + 1,
-                    max_depth=max_depth,
-                    max_items=max_items,
-                )
-            except Exception:
-                pass
-
-        return str(value)
-
-    async def _restore_strategy_checkpoint(self, strategy: Any, saved: Any) -> None:
-        """Restore legacy or v2 checkpoint payloads into strategy runtime."""
-        if not isinstance(saved, dict):
-            await strategy.import_state(saved)
-            return
-
-        exported_state = saved
-        internal_state = {}
-        if "exported_state" in saved:
-            exported_state = saved.get("exported_state") or {}
-            internal_state = saved.get("internal_state") or {}
-
-        await strategy.import_state(exported_state)
-        self._apply_internal_strategy_state(strategy, internal_state)
-
-    def _apply_internal_strategy_state(self, strategy: Any, internal_state: dict[str, Any]) -> None:
-        """Apply best-effort internal state snapshot to strategy instance."""
-        if not isinstance(internal_state, dict):
-            return
-
-        for field in ("current_prices", "signals", "indicators"):
-            if field in internal_state and hasattr(strategy, field):
-                setattr(strategy, field, internal_state[field])
-
-        if "price_history" in internal_state and hasattr(strategy, "price_history"):
-            restored_history = internal_state.get("price_history")
-            current = getattr(strategy, "price_history", {})
-            if isinstance(restored_history, dict) and isinstance(current, dict):
-                normalized = {}
-                for symbol, rows in restored_history.items():
-                    template = current.get(symbol)
-                    maxlen = getattr(template, "maxlen", None) if template is not None else None
-                    if isinstance(rows, list):
-                        normalized[symbol] = deque(rows, maxlen=maxlen)
-                    else:
-                        normalized[symbol] = deque([], maxlen=maxlen)
-                strategy.price_history = normalized
-
-        breaker_state = internal_state.get("circuit_breaker_state")
-        circuit_breaker = getattr(strategy, "circuit_breaker", None)
-        if isinstance(breaker_state, dict) and circuit_breaker is not None:
-            if "trading_halted" in breaker_state:
-                circuit_breaker.trading_halted = bool(breaker_state["trading_halted"])
-            if "peak_equity_today" in breaker_state:
-                circuit_breaker.peak_equity_today = breaker_state["peak_equity_today"]
-            if "halt_reason" in breaker_state:
-                circuit_breaker._halt_reason = breaker_state["halt_reason"]
-            if "halt_loss_pct" in breaker_state:
-                circuit_breaker._halt_loss_pct = breaker_state["halt_loss_pct"]
-            if isinstance(breaker_state.get("halt_triggered_at"), str):
-                try:
-                    circuit_breaker.halt_triggered_at = datetime.fromisoformat(
-                        breaker_state["halt_triggered_at"]
-                    )
-                except ValueError:
-                    pass
-            if isinstance(breaker_state.get("last_reset_date"), str):
-                try:
-                    circuit_breaker.last_reset_date = datetime.fromisoformat(
-                        breaker_state["last_reset_date"]
-                    ).date()
-                except ValueError:
-                    pass
 
     def _load_available_strategies(self):
         """Load all available strategy classes from the strategy directory."""
@@ -631,19 +333,11 @@ class StrategyManager:
             merged_params["symbols"] = symbols
             merged_params["allocation"] = allocation
 
-            # Create strategy with broker, parameters, and order gateway (if supported)
-            try:
-                strategy = strategy_class(
-                    broker=self.broker,
-                    parameters=merged_params,
-                    order_gateway=self.order_gateway,
-                )
-            except TypeError:
-                logger.error(
-                    f"Strategy {strategy_name} does not accept order_gateway. "
-                    "Refusing to start without mandatory order routing."
-                )
-                return False
+            # Create strategy with broker and parameters
+            strategy = strategy_class(
+                broker=self.broker,
+                parameters=merged_params,
+            )
 
             # Initialize the strategy
             logger.info(f"Initializing strategy {strategy_name} with allocation {allocation:.2%}")
@@ -652,16 +346,6 @@ class StrategyManager:
             if not success:
                 logger.error(f"Failed to initialize strategy {strategy_name}")
                 return False
-
-            # Restore strategy state if available
-            if hasattr(strategy, "import_state"):
-                saved = self._pending_strategy_state.get(strategy_name)
-                if saved:
-                    try:
-                        await self._restore_strategy_checkpoint(strategy, saved)
-                        logger.info(f"Restored state for {strategy_name}")
-                    except Exception as e:
-                        logger.warning(f"Failed to restore state for {strategy_name}: {e}")
 
             # Store the active strategy
             self.active_strategies[strategy_name] = strategy

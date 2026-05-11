@@ -82,8 +82,6 @@ async def scan_for_opportunities(
     """
     from dotenv import load_dotenv
 
-    from utils.simple_symbol_selector import SimpleSymbolSelector
-
     load_dotenv()
 
     print("\n" + "=" * 60)
@@ -126,26 +124,9 @@ async def scan_for_opportunities(
         except Exception as e:
             logger.warning(f"Sector rotation failed: {e}. Falling back to momentum scan.")
 
-    # Stage 2: Supplement with momentum scanner
-    if len(symbols) < top_n * 2:  # Get more candidates for factor ranking
-        try:
-            selector = SimpleSymbolSelector(
-                api_key=os.getenv("ALPACA_API_KEY"),
-                secret_key=os.getenv("ALPACA_SECRET_KEY"),
-                paper=True,
-            )
-
-            momentum_symbols = selector.select_top_symbols(
-                top_n=top_n * 2 - len(symbols), min_score=min_score
-            )
-
-            # Combine and dedupe
-            for sym in momentum_symbols:
-                if sym not in symbols:
-                    symbols.append(sym)
-
-        except Exception as e:
-            logger.error(f"Momentum scanner error: {e}")
+    # Stage 2: Momentum-scanner supplementation was removed in the 2026-05 cleanup
+    # along with utils.simple_symbol_selector. Sector-rotation output (if any) is
+    # the only opportunity source now; fall back to defaults below if empty.
 
     # Stage 3: Factor-based ranking was quarantined to research/ in the 2026-05
     # cleanup. Use the unranked momentum/sector list as-is.
