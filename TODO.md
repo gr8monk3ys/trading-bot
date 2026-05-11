@@ -14,7 +14,7 @@ Follow-ups after the 2026-05 honest cleanup (`docs/superpowers/specs/2026-05-11-
 ## Project (engine/backtest bugs surfaced by the Task 8 baseline)
 
 - [x] **Wire an `OrderGateway` into `BacktestEngine`.** Done in commit wiring `BacktestOrderGateway` into `engine/backtest_engine.py` (see `engine/backtest_order_gateway.py`). The shim inside `scripts/run_honest_baseline.py` has been removed; backtests now route orders through the canonical gateway automatically.
-- [ ] **Fix the short-trade P&L bug in `engine/backtest_engine._calculate_trade_pnl`.** The matcher only pairs sells against prior buys per symbol, so short trades get recorded with `pnl: 0`. The Task 8 backtest had 34 such trades. Zero-P&L exits don't count as losses, which biases `profit_factor` upward and silently inflates win-rate framing. Fix the matching logic to track open shorts and pair covers against them.
+- [x] **Fix the short-trade P&L bug in `engine/backtest_engine._calculate_trade_pnl`.** Fixed by rewriting the matcher as a signed-qty state machine that handles long open/close, short open/cover, partial closes, and immediate reversals. Adds `tests/unit/test_backtest_engine_pnl_accounting.py`. Re-running `scripts/run_honest_baseline.py` produced unchanged headline equity (still +646.64%, Sharpe 1.36 — those come from broker MTM, not trade records) but `profit_factor` collapsed from 3.03 to 0.42 and `avg_win`/`avg_loss` halved, exposing that the pre-fix zeros on short legs were silently inflating per-trade quality metrics.
 
 ## Validation (if continuing toward live)
 

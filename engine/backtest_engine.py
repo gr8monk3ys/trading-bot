@@ -913,7 +913,21 @@ class BacktestEngine:
 
     def _calculate_trade_pnl(self, trades: List[Dict]) -> List[Dict]:
         """
-        Calculate P&L for each trade by matching buys and sells.
+        Calculate P&L for each trade by matching opening and closing legs.
+
+        Tracks signed position state per symbol so both long and short legs
+        record realized PnL:
+
+        - ``position_tracker[symbol] = {"qty": int, "avg_price": float}`` where
+          a positive ``qty`` is a long position, negative is a short, and 0 is
+          flat.
+        - ``buy`` reduces (covers) any existing short, then any remaining
+          quantity opens / adds to a long at the trade price (weighted avg).
+        - ``sell`` reduces (closes) any existing long, then any remaining
+          quantity opens / adds to a short at the trade price (weighted avg).
+
+        Realized PnL from the closing portion of a leg is recorded against the
+        single output record for that trade (one output record per input).
 
         Args:
             trades: List of raw trade records
@@ -922,7 +936,7 @@ class BacktestEngine:
             List of trade records with P&L calculated
         """
         trade_records = []
-        position_tracker = {}  # Track average entry price per symbol
+        position_tracker: Dict[str, Dict[str, float]] = {}
 
         for trade in trades:
             symbol = trade["symbol"]
@@ -930,49 +944,69 @@ class BacktestEngine:
             quantity = trade["quantity"]
             price = trade["price"]
 
+            state = position_tracker.setdefault(symbol, {"qty": 0, "avg_price": 0.0})
+            old_qty = state["qty"]
+            old_avg = state["avg_price"]
+            pnl = 0.0
+            remaining = quantity
+
             if side == "buy":
-                # Update position tracker with new buy
-                if symbol not in position_tracker:
-                    position_tracker[symbol] = {"qty": 0, "avg_price": 0}
-
-                old_qty = position_tracker[symbol]["qty"]
-                old_avg = position_tracker[symbol]["avg_price"]
-                new_qty = old_qty + quantity
-
-                if new_qty > 0:
-                    position_tracker[symbol]["avg_price"] = (
-                        old_qty * old_avg + quantity * price
-                    ) / new_qty
-                position_tracker[symbol]["qty"] = new_qty
-
-                trade_records.append(
-                    {
-                        "symbol": symbol,
-                        "side": side,
-                        "quantity": quantity,
-                        "price": price,
-                        "timestamp": trade.get("timestamp"),
-                        "pnl": 0,  # Buys don't have immediate P&L
-                    }
-                )
+                # First, cover any open short (qty < 0).
+                if old_qty < 0 and remaining > 0:
+                    cover_qty = min(remaining, -old_qty)
+                    # Short PnL: short was opened at old_avg, covered at price.
+                    pnl += (old_avg - price) * cover_qty
+                    new_qty = old_qty + cover_qty
+                    state["qty"] = new_qty
+                    if new_qty == 0:
+                        state["avg_price"] = 0.0
+                    # avg_price unchanged while still short
+                    remaining -= cover_qty
+                    old_qty = new_qty
+                # Any leftover quantity adds to / opens a long.
+                if remaining > 0:
+                    new_qty = old_qty + remaining
+                    if new_qty > 0:
+                        # Weighted average across existing long and new buy.
+                        prior_long = max(old_qty, 0)
+                        state["avg_price"] = (
+                            prior_long * old_avg + remaining * price
+                        ) / new_qty
+                    state["qty"] = new_qty
 
             else:  # sell
-                pnl = 0
-                if symbol in position_tracker and position_tracker[symbol]["qty"] > 0:
-                    entry_price = position_tracker[symbol]["avg_price"]
-                    pnl = (price - entry_price) * quantity
-                    position_tracker[symbol]["qty"] -= quantity
+                # First, close any open long (qty > 0).
+                if old_qty > 0 and remaining > 0:
+                    close_qty = min(remaining, old_qty)
+                    pnl += (price - old_avg) * close_qty
+                    new_qty = old_qty - close_qty
+                    state["qty"] = new_qty
+                    if new_qty == 0:
+                        state["avg_price"] = 0.0
+                    # avg_price unchanged while still long
+                    remaining -= close_qty
+                    old_qty = new_qty
+                # Any leftover quantity adds to / opens a short.
+                if remaining > 0:
+                    new_qty = old_qty - remaining
+                    if new_qty < 0:
+                        # Weighted average across existing short and new sell.
+                        prior_short = -min(old_qty, 0)
+                        state["avg_price"] = (
+                            prior_short * old_avg + remaining * price
+                        ) / (prior_short + remaining)
+                    state["qty"] = new_qty
 
-                trade_records.append(
-                    {
-                        "symbol": symbol,
-                        "side": side,
-                        "quantity": quantity,
-                        "price": price,
-                        "timestamp": trade.get("timestamp"),
-                        "pnl": pnl,
-                    }
-                )
+            trade_records.append(
+                {
+                    "symbol": symbol,
+                    "side": side,
+                    "quantity": quantity,
+                    "price": price,
+                    "timestamp": trade.get("timestamp"),
+                    "pnl": pnl,
+                }
+            )
 
         return trade_records
 
