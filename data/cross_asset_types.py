@@ -3,14 +3,99 @@ Cross-Asset Data Types - Dataclasses for cross-asset signals.
 
 This module defines data structures for VIX term structure, yield curve,
 and FX correlation signals used for cross-asset alpha generation.
+
+NOTE: The base signal types (``AlternativeSignal``, ``SignalDirection``,
+``SignalStrength``, ``AltDataSource``) used to live in ``data.alt_data_types``,
+which was removed during the 2026-05 cleanup along with the rest of the
+alternative-data framework. The minimal subset of those definitions has been
+inlined here so that this module remains self-contained until it is moved
+into ``research/`` in a follow-up cleanup task.
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from data.alt_data_types import AlternativeSignal, SignalDirection
+
+class AltDataSource(Enum):
+    """Sources of alternative / cross-asset signals (retained subset)."""
+
+    # Cross-asset markets (the only sources still in use)
+    VIX_STRUCTURE = "vix_structure"
+    YIELD_CURVE = "yield_curve"
+    FX_CORRELATION = "fx_correlation"
+    # Retained for backwards compatibility with the cross-asset providers,
+    # which historically reused this label to tag emitted ``AlternativeSignal``
+    # instances. New code should use the more specific values above.
+    NEWS_ADVANCED = "news_advanced"
+
+
+class SignalDirection(Enum):
+    """Direction of the trading signal."""
+
+    BULLISH = "bullish"
+    BEARISH = "bearish"
+    NEUTRAL = "neutral"
+
+
+class SignalStrength(Enum):
+    """Strength/confidence level of the signal."""
+
+    VERY_STRONG = "very_strong"
+    STRONG = "strong"
+    MODERATE = "moderate"
+    WEAK = "weak"
+    VERY_WEAK = "very_weak"
+
+
+@dataclass
+class AlternativeSignal:
+    """A single signal for a symbol (base class for cross-asset signals)."""
+
+    symbol: str
+    source: AltDataSource
+    timestamp: datetime
+    signal_value: float
+    confidence: float
+
+    direction: SignalDirection = SignalDirection.NEUTRAL
+    strength: SignalStrength = SignalStrength.MODERATE
+    raw_data: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        # Clamp values
+        self.signal_value = max(-1.0, min(1.0, self.signal_value))
+        self.confidence = max(0.0, min(1.0, self.confidence))
+
+        # Derive direction from signal_value
+        if self.signal_value > 0.1:
+            self.direction = SignalDirection.BULLISH
+        elif self.signal_value < -0.1:
+            self.direction = SignalDirection.BEARISH
+        else:
+            self.direction = SignalDirection.NEUTRAL
+
+        # Derive strength from confidence
+        if self.confidence >= 0.8:
+            self.strength = SignalStrength.VERY_STRONG
+        elif self.confidence >= 0.6:
+            self.strength = SignalStrength.STRONG
+        elif self.confidence >= 0.4:
+            self.strength = SignalStrength.MODERATE
+        elif self.confidence >= 0.2:
+            self.strength = SignalStrength.WEAK
+        else:
+            self.strength = SignalStrength.VERY_WEAK
+
+    @property
+    def weighted_signal(self) -> float:
+        return self.signal_value * self.confidence
+
+    @property
+    def is_actionable(self) -> bool:
+        return self.confidence >= 0.4 and abs(self.signal_value) >= 0.2
 
 
 class CrossAssetSource(Enum):

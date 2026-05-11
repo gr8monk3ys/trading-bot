@@ -1,28 +1,17 @@
 """
-Data Package - Institutional-Grade Data Infrastructure
+Data Package - Data Infrastructure
 
 Provides:
-1. Point-in-Time Database: Survivorship-bias-free historical data
-2. Tick Data Integration: Microstructure data from Polygon, TAQ
-3. Feature Store: Versioned pre-computed features
+- Point-in-Time Database: Survivorship-bias-free historical data
+- Tick Data Integration: Microstructure data from Polygon, TAQ
+- Feature Store: Versioned pre-computed features
+- Cross-Asset Signals: VIX term structure, yield curve, FX (research-only)
+
+The alternative-data framework (Reddit/order-flow/web-scraping) and the
+LLM analysis pipeline (earnings/Fed/SEC/news) were removed in the 2026-05
+cleanup; they had no validated edge.
 """
 
-from data.alt_data_types import (
-    AggregatedSignal,
-    AltDataProviderStatus,
-    AltDataSource,
-    AlternativeSignal,
-    OrderFlowSignal,
-    SignalDirection,
-    SignalStrength,
-    SocialSentimentSignal,
-    WebScrapingSignal,
-)
-from data.alternative_data_provider import (
-    AltDataAggregator,
-    AltDataCache,
-    AlternativeDataProvider,
-)
 from data.cross_asset_provider import (
     CrossAssetAggregator,
     CrossAssetProvider,
@@ -76,13 +65,6 @@ from data.tick_data import (
     Trade,
     create_tick_manager,
 )
-from data.web_scraper import (
-    AppRankingsProvider,
-    GlassdoorSentimentProvider,
-    JobPostingsProvider,
-    WebScraperAggregator,
-    create_web_scraper_provider,
-)
 
 __all__ = [
     # Point-in-Time Database
@@ -117,26 +99,6 @@ __all__ = [
     "ComputeFrequency",
     "SQLiteFeatureBackend",
     "create_feature_store",
-    "STANDARD_FEATURES",
-    # Alternative Data
-    "AltDataSource",
-    "SignalDirection",
-    "SignalStrength",
-    "AlternativeSignal",
-    "SocialSentimentSignal",
-    "OrderFlowSignal",
-    "WebScrapingSignal",
-    "AggregatedSignal",
-    "AltDataProviderStatus",
-    "AlternativeDataProvider",
-    "AltDataAggregator",
-    "AltDataCache",
-    # Web Scraper Providers
-    "JobPostingsProvider",
-    "GlassdoorSentimentProvider",
-    "AppRankingsProvider",
-    "WebScraperAggregator",
-    "create_web_scraper_provider",
     # Cross-Asset Signals
     "CrossAssetSource",
     "VolatilityRegime",

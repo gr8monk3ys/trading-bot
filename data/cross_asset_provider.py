@@ -3,24 +3,93 @@ Cross-Asset Data Providers - Fetch and process cross-asset signals.
 
 This module implements providers for VIX term structure, yield curve,
 and FX correlation data using yfinance (no API keys required).
+
+NOTE: The shared ``AltDataCache`` and ``AlternativeDataProvider`` base class
+that this module used to inherit from were removed during the 2026-05
+cleanup along with the rest of the alternative-data framework. A minimal
+self-contained replacement is defined here so that the cross-asset signals
+still work until this module is moved to ``research/`` in a follow-up task.
 """
 
 import asyncio
 import logging
-from datetime import datetime
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import numpy as np
 
-from data.alt_data_types import AltDataSource, SignalDirection
-from data.alternative_data_provider import AltDataCache, AlternativeDataProvider
 from data.cross_asset_types import (
+    AltDataSource,
+    AlternativeSignal,
     CrossAssetAggregatedSignal,
     CrossAssetSource,
     FxCorrelationSignal,
+    SignalDirection,
     VixTermStructureSignal,
     YieldCurveSignal,
 )
+
+
+class AltDataCache:
+    """Minimal TTL cache used by the cross-asset providers."""
+
+    def __init__(self, default_ttl_seconds: int = 300):
+        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._default_ttl = default_ttl_seconds
+
+    def _make_key(self, source: AltDataSource, symbol: str) -> str:
+        return f"{source.value}:{symbol}"
+
+    def get(self, source: AltDataSource, symbol: str) -> Optional[AlternativeSignal]:
+        key = self._make_key(source, symbol)
+        entry = self._cache.get(key)
+        if entry is None or datetime.now() > entry["expires"]:
+            self._cache.pop(key, None)
+            return None
+        return entry["signal"]
+
+    def set(
+        self,
+        source: AltDataSource,
+        symbol: str,
+        signal: AlternativeSignal,
+        ttl_seconds: Optional[int] = None,
+    ) -> None:
+        key = self._make_key(source, symbol)
+        ttl = ttl_seconds or self._default_ttl
+        self._cache[key] = {
+            "signal": signal,
+            "expires": datetime.now() + timedelta(seconds=ttl),
+        }
+
+    def clear(self) -> None:
+        self._cache.clear()
+
+
+class AlternativeDataProvider(ABC):
+    """Minimal abstract base for the cross-asset providers below."""
+
+    def __init__(
+        self,
+        source: AltDataSource,
+        cache_ttl_seconds: int = 300,
+        max_retries: int = 3,
+        timeout_seconds: float = 30.0,
+    ):
+        self.source = source
+        self.cache_ttl = cache_ttl_seconds
+        self.max_retries = max_retries
+        self.timeout = timeout_seconds
+        self._initialized = False
+
+    @abstractmethod
+    async def initialize(self) -> bool:
+        """Authenticate / warm up. Returns True on success."""
+
+    @abstractmethod
+    async def fetch_signal(self, symbol: Optional[str] = None) -> Optional[AlternativeSignal]:
+        """Fetch a single signal (cross-asset signals ignore ``symbol``)."""
 
 logger = logging.getLogger(__name__)
 

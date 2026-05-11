@@ -412,31 +412,20 @@ async def run_live_trading(broker, symbols: List[str]) -> None:
             "use_kelly_criterion": True,
             "use_volatility_regime": True,
         },
-        enable_signal_aggregator=True,  # Multi-source signal enrichment
-        enable_portfolio_optimizer=True,  # Risk parity position sizing
     )
 
     if not await strategy.initialize():
         logger.error("Failed to initialize strategy")
         return
 
-    # Calculate optimal portfolio weights (daily)
-    print("\nOptimizing portfolio weights...")
-    await strategy.update_portfolio_weights()
-
     logger.info(f"Strategy initialized: {strategy.NAME}")
     logger.info(f"Active sub-strategy: {strategy.active_strategy_name}")
     logger.info(f"Market regime: {regime['type']}")
-    if strategy.signal_aggregator:
-        logger.info("Signal Aggregator: ACTIVE (multi-source enrichment)")
-    if strategy.portfolio_optimizer:
-        logger.info("Portfolio Optimizer: ACTIVE (risk parity sizing)")
 
     # Main trading loop
     iteration = 0
     last_earnings_check = None
     last_rs_refresh = None
-    last_portfolio_update = datetime.now().date()  # Track portfolio optimization
 
     try:
         while True:
@@ -475,12 +464,6 @@ async def run_live_trading(broker, symbols: List[str]) -> None:
                 if positions_to_exit:
                     logger.warning(f"EARNINGS ALERT: Should exit {positions_to_exit}")
                 last_earnings_check = today
-
-            # Update portfolio weights daily
-            if last_portfolio_update != today and strategy.portfolio_optimizer:
-                logger.info("Daily portfolio weight optimization...")
-                await strategy.update_portfolio_weights()
-                last_portfolio_update = today
 
             # NEW: Refresh RS rankings every 2 hours
             now = datetime.now()
