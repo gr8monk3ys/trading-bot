@@ -39,7 +39,7 @@ dependencies = [
 
     # Utilities
     "python-dotenv>=1.0.0",
-    "aiohttp>=3.9.0",
+    "aiohttp>=3.14.0",
     "requests>=2.31.0",
     "pytz>=2023.3",
 
