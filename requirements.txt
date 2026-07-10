@@ -1,5 +1,4 @@
 alpaca-py>=0.22.0  # Align with pyproject dependency floor
-timedelta
 pandas>=2.0.0
 numpy>=1.24.3,<3.0.0  # Pin to 1.x to avoid compatibility issues
 tqdm
