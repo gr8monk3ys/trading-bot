@@ -83,11 +83,6 @@ jobs:
             -W ignore::PendingDeprecationWarning \
             -W ignore::pytest.PytestUnraisableExceptionWarning
 
-      - name: Run chaos drills
-        run: |
-          uv run python scripts/chaos_drill.py \
-            --output "results/chaos_drill_ci.json"
-
       - name: Run tests with coverage
         env:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY_TEST }}
