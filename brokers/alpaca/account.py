@@ -16,15 +16,14 @@ from typing import Any, Dict, Optional
 
 from alpaca.data.historical import CryptoHistoricalDataClient
 
-from utils.audit_log import AuditLog
-from utils.crypto_utils import is_crypto_symbol, normalize_crypto_symbol
-from utils.order_lifecycle import OrderLifecycleTracker
-
 from brokers.alpaca._retry import (
     DEBUG_MODE,
     BrokerConnectionError,
     retry_with_backoff,
 )
+from utils.audit_log import AuditLog
+from utils.crypto_utils import is_crypto_symbol, normalize_crypto_symbol
+from utils.order_lifecycle import OrderLifecycleTracker
 
 logger = logging.getLogger(__name__)
 

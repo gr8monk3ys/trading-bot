@@ -24,7 +24,6 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 import pytest
-
 from strategies.factor_models import CompositeScore, FactorScore, FactorType
 from strategies.factor_portfolio import (
     FactorPortfolioConstructor,

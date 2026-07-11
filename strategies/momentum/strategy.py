@@ -21,11 +21,10 @@ from datetime import datetime, timedelta
 
 from brokers.order_builder import OrderBuilder
 from strategies.base_strategy import BaseStrategy
-from strategies.risk_manager import RiskManager
-from utils.multi_timeframe import MultiTimeframeAnalyzer
-
 from strategies.momentum.indicators import MomentumIndicatorsMixin
 from strategies.momentum.signals import MomentumSignalsMixin
+from strategies.risk_manager import RiskManager
+from utils.multi_timeframe import MultiTimeframeAnalyzer
 
 logger = logging.getLogger(__name__)
 

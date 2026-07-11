@@ -23,8 +23,6 @@ from alpaca.trading.requests import (
     ReplaceOrderRequest,
 )
 
-from utils.audit_log import AuditEventType
-
 from brokers.alpaca._retry import (
     DEBUG_MODE,
     BrokerConnectionError,
@@ -32,6 +30,7 @@ from brokers.alpaca._retry import (
     OrderError,
     retry_with_backoff,
 )
+from utils.audit_log import AuditEventType
 
 logger = logging.getLogger(__name__)
 

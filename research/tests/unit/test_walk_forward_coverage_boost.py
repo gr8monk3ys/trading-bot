@@ -5,7 +5,6 @@ import types
 
 import numpy as np
 import pytest
-
 from engine.walk_forward import (
     WalkForwardValidator,
     _coerce_float,

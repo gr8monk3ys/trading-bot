@@ -24,13 +24,6 @@ from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDa
 from alpaca.data.live import CryptoDataStream, StockDataStream
 from alpaca.trading.client import TradingClient
 
-# NOTE: Removed lumibot imports - they crash at import time due to
-# lumibot.credentials.py trying to instantiate Alpaca broker before config is ready
-# We don't actually need lumibot's Broker class - we built our own implementation
-from config import ALPACA_CREDS, SYMBOLS
-from utils.audit_log import AuditLog
-from utils.order_lifecycle import OrderLifecycleTracker
-
 from brokers.alpaca import (  # noqa: F401 - re-exported for callers
     AlpacaAccountMixin,
     AlpacaCryptoMixin,
@@ -45,6 +38,13 @@ from brokers.alpaca import (  # noqa: F401 - re-exported for callers
     retry_with_backoff,
 )
 from brokers.alpaca._retry import DEBUG_MODE
+
+# NOTE: Removed lumibot imports - they crash at import time due to
+# lumibot.credentials.py trying to instantiate Alpaca broker before config is ready
+# We don't actually need lumibot's Broker class - we built our own implementation
+from config import ALPACA_CREDS, SYMBOLS
+from utils.audit_log import AuditLog
+from utils.order_lifecycle import OrderLifecycleTracker
 
 logger = logging.getLogger(__name__)
 

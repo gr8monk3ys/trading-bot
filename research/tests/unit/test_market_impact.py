@@ -14,7 +14,6 @@ from datetime import datetime, time
 
 import numpy as np
 import pytest
-
 from utils.market_impact import (
     AlmgrenChrissModel,
     ExecutionCostTracker,

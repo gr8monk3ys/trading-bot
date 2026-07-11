@@ -29,11 +29,11 @@ from typing import Any, Dict, List, Optional, Type
 
 import numpy as np
 import pandas as pd
+from engine.statistical_tests import permutation_test_returns
+from engine.walk_forward import WalkForwardResult, WalkForwardValidator
 
 from config import BACKTEST_PARAMS
 from engine.performance_metrics import apply_bonferroni_correction, apply_fdr_correction
-from engine.statistical_tests import permutation_test_returns
-from engine.walk_forward import WalkForwardResult, WalkForwardValidator
 
 logger = logging.getLogger(__name__)
 

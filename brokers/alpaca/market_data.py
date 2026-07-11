@@ -14,9 +14,8 @@ from typing import Dict, List, Optional, cast
 from alpaca.data.requests import StockBarsRequest, StockLatestTradeRequest
 from alpaca.data.timeframe import TimeFrame
 
-from config import ALPACA_CREDS
-
 from brokers.alpaca._retry import DEBUG_MODE, retry_with_backoff
+from config import ALPACA_CREDS
 
 logger = logging.getLogger(__name__)
 

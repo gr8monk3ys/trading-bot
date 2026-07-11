@@ -35,7 +35,6 @@ from brokers.order_builder import OrderBuilder
 from engine.backtest_engine import BacktestEngine
 from strategies.base_strategy import BaseStrategy
 
-
 # =============================================================================
 # Test scaffolding: hermetic bar data and synthetic strategies
 # =============================================================================

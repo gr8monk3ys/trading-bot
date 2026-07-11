@@ -641,6 +641,7 @@ def _interpret(metrics: dict, benchmarks: dict, n_trades: int, inconclusive: boo
 async def _run_backtest(data_broker, source_name: str) -> None:
     from engine.backtest_engine import BacktestEngine
     from engine.performance_metrics import PerformanceMetrics
+
     # See run_honest_baseline.py for why we use the *Backtest variant —
     # MomentumStrategy.execute_trade is a no-op in the engine path.
     from strategies.momentum_strategy_backtest import MomentumStrategyBacktest

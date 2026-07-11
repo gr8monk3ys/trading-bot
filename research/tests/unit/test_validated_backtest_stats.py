@@ -1,5 +1,4 @@
 import pandas as pd
-
 from engine.validated_backtest import ValidatedBacktestRunner
 
 

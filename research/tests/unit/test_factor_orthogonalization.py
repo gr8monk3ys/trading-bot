@@ -12,7 +12,6 @@ from datetime import datetime
 
 import numpy as np
 import pytest
-
 from factors.factor_orthogonalization import (
     AdaptiveFactorWeighter,
     FactorOrthogonalizer,
