@@ -653,7 +653,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--strategy",
         default="auto",
         help=(
-            'Strategy: class NAME (e.g. MomentumStrategy), alias (momentum, '
+            "Strategy: class NAME (e.g. MomentumStrategy), alias (momentum, "
             'mean_reversion, adaptive), or "all"/"auto".'
         ),
     )

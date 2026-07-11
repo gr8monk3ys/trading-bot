@@ -29,7 +29,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+)
 
 from brokers.order_builder import OrderBuilder
 from engine.backtest_engine import BacktestEngine
@@ -137,9 +139,7 @@ class _BuyThenSellStrategy(BaseStrategy):
         action = signal.get("action")
         if action == "buy" and symbol not in type(self)._bought:
             order_request = OrderBuilder(symbol, "buy", 10).market().day().build()
-            result = await self.submit_entry_order(
-                order_request=order_request, reason="enter"
-            )
+            result = await self.submit_entry_order(order_request=order_request, reason="enter")
             if result is not None and getattr(result, "success", False):
                 type(self)._bought.add(symbol)
         elif action == "sell" and symbol not in type(self)._sold:
@@ -209,14 +209,14 @@ class TestEndOfBacktestLiquidation:
 
         # The very last trades should be sells (liquidations of long positions).
         sell_trades = [t for t in trades if t["side"] == "sell"]
-        assert len(sell_trades) >= len(symbols), (
-            f"Expected at least one sell per held symbol; got {len(sell_trades)} sells"
-        )
+        assert len(sell_trades) >= len(
+            symbols
+        ), f"Expected at least one sell per held symbol; got {len(sell_trades)} sells"
         for symbol in symbols:
             sells_for_symbol = [t for t in sell_trades if t["symbol"] == symbol]
-            assert len(sells_for_symbol) >= 1, (
-                f"No liquidation sell recorded for held symbol {symbol}"
-            )
+            assert (
+                len(sells_for_symbol) >= 1
+            ), f"No liquidation sell recorded for held symbol {symbol}"
 
         # 3. final_equity reflects realized cash (no unrealized MTM).
         # After liquidation, get_portfolio_value should equal get_balance
@@ -263,9 +263,7 @@ class TestEndOfBacktestLiquidation:
         )
         # Sanity bound — slippage should be small (< 5%), not catastrophic.
         slippage_pct = (final_close - liquidation["price"]) / final_close
-        assert 0 < slippage_pct < 0.05, (
-            f"Slippage out of bounds: {slippage_pct:.4%}"
-        )
+        assert 0 < slippage_pct < 0.05, f"Slippage out of bounds: {slippage_pct:.4%}"
 
     @pytest.mark.asyncio
     async def test_no_open_positions_no_liquidation_trades(self):
@@ -296,6 +294,5 @@ class TestEndOfBacktestLiquidation:
         sells = [t for t in result["trades"] if t["side"] == "sell"]
         assert len(buys) == 1, f"Expected 1 buy, got {len(buys)}"
         assert len(sells) == 1, (
-            f"Expected exactly 1 sell (no extra liquidation), got {len(sells)}: "
-            f"{sells}"
+            f"Expected exactly 1 sell (no extra liquidation), got {len(sells)}: " f"{sells}"
         )

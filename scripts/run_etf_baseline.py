@@ -57,8 +57,8 @@ SYMBOLS = ["SPY", "QQQ", "IWM", "EFA"]
 START = "2020-01-01"
 END = "2024-12-31"
 INITIAL_CAPITAL = 100_000
-SLIPPAGE_BPS = 40   # 0.40% per trade
-SPREAD_BPS = 10     # 0.10%
+SLIPPAGE_BPS = 40  # 0.40% per trade
+SPREAD_BPS = 10  # 0.10%
 MIN_TRADES_FOR_SIGNIFICANCE = 50
 SPEC_REF = "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md"
 
@@ -69,7 +69,7 @@ BENCHMARK_SYMBOLS = ["SPY", "QQQ"]
 # section in the markdown. These come from `results/honest_backtest_2020-2024.md`.
 HAND_PICKED_BASELINE = {
     "universe": "10 hand-picked mega-caps (SPY, QQQ, AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA, JPM)",
-    "total_return": 6.46,        # +646%
+    "total_return": 6.46,  # +646%
     "sharpe": 1.36,
     # Stored as a positive magnitude to match PerformanceMetrics' convention
     # (strategy `max_drawdown` is the positive fraction of peak-to-trough loss).
@@ -432,8 +432,8 @@ def _format_markdown(artifact: dict) -> str:
 
     purpose = (
         "## Purpose\n\n"
-        "This backtest exists to disambiguate **\"the strategy has edge\"** from\n"
-        "**\"the universe was hand-picked winners\"**. The existing\n"
+        'This backtest exists to disambiguate **"the strategy has edge"** from\n'
+        '**"the universe was hand-picked winners"**. The existing\n'
         "`results/honest_backtest_2020-2024.md` posts +646% / Sharpe 1.36 on\n"
         "10 mega-caps that any 2026 retrospective would obviously pick. That\n"
         "number is dominated by survivorship bias.\n\n"
@@ -574,9 +574,7 @@ def _interpret(metrics: dict, benchmarks: dict, n_trades: int, inconclusive: boo
         )
 
     if strat_ret is None or spy_ret is None:
-        bullets.append(
-            "Some headline values are unavailable — the comparison below is partial."
-        )
+        bullets.append("Some headline values are unavailable — the comparison below is partial.")
     else:
         if strat_ret < spy_ret:
             bullets.append(
@@ -609,9 +607,7 @@ def _interpret(metrics: dict, benchmarks: dict, n_trades: int, inconclusive: boo
                 "  symbols?) before scaling up."
             )
 
-    bullets.append(
-        "**Caveats — read before quoting these numbers:**"
-    )
+    bullets.append("**Caveats — read before quoting these numbers:**")
     bullets.append(
         "- ETFs are not the *only* survivor-bias-free universe. A random sample\n"
         "  of S&P 500 members at each point in time would be stronger; this run\n"
@@ -650,7 +646,10 @@ async def _run_backtest(data_broker, source_name: str) -> None:
 
     logger.info(
         "Starting ETF backtest: %s symbols, %s to %s, data=%s",
-        len(SYMBOLS), START, END, source_name,
+        len(SYMBOLS),
+        START,
+        END,
+        source_name,
     )
     result = await engine.run_backtest(
         strategy_class=MomentumStrategyBacktest,
@@ -688,7 +687,11 @@ async def _run_backtest(data_broker, source_name: str) -> None:
     benchmarks = {}
     for bench in BENCHMARK_SYMBOLS:
         benchmarks[bench] = await asyncio.to_thread(
-            _compute_buy_and_hold, bench, START, END, INITIAL_CAPITAL,
+            _compute_buy_and_hold,
+            bench,
+            START,
+            END,
+            INITIAL_CAPITAL,
         )
 
     artifact = {

@@ -45,8 +45,8 @@ SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"
 START = "2020-01-01"
 END = "2024-12-31"
 INITIAL_CAPITAL = 100_000
-SLIPPAGE_BPS = 40   # 0.40% per trade (configured via execution profile below)
-SPREAD_BPS = 10     # 0.10%
+SLIPPAGE_BPS = 40  # 0.40% per trade (configured via execution profile below)
+SPREAD_BPS = 10  # 0.10%
 MIN_TRADES_FOR_SIGNIFICANCE = 50
 SPEC_REF = "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md"
 
@@ -401,8 +401,9 @@ async def _run_backtest(data_broker, source_name: str) -> None:
     # backtest broker — no gateway shim is needed here.
     engine = BacktestEngine(broker=data_broker)
 
-    logger.info("Starting backtest: %s symbols, %s to %s, data=%s",
-                len(SYMBOLS), START, END, source_name)
+    logger.info(
+        "Starting backtest: %s symbols, %s to %s, data=%s", len(SYMBOLS), START, END, source_name
+    )
     result = await engine.run_backtest(
         strategy_class=MomentumStrategyBacktest,
         symbols=SYMBOLS,
@@ -481,10 +482,12 @@ async def _run_backtest(data_broker, source_name: str) -> None:
 
     print(f"Wrote {JSON_PATH.relative_to(REPO_ROOT)}")
     print(f"Wrote {MD_PATH.relative_to(REPO_ROOT)}")
-    print(f"STATUS={'INCONCLUSIVE' if inconclusive else 'REPORTED'}  trades={n_trades}  "
-          f"total_return={_format_pct(metrics.get('total_return'))}  "
-          f"sharpe={_format_num(metrics.get('sharpe_ratio'))}  "
-          f"data_source={source_name}")
+    print(
+        f"STATUS={'INCONCLUSIVE' if inconclusive else 'REPORTED'}  trades={n_trades}  "
+        f"total_return={_format_pct(metrics.get('total_return'))}  "
+        f"sharpe={_format_num(metrics.get('sharpe_ratio'))}  "
+        f"data_source={source_name}"
+    )
 
 
 async def main() -> int:

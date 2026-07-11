@@ -139,6 +139,7 @@ class TestBaseStrategyInit:
 
         assert strategy.streak_sizer is not None
 
+
 # ============================================================================
 # Test Initialize Method
 # ============================================================================

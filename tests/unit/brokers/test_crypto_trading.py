@@ -478,5 +478,3 @@ class TestAlpacaBrokerCryptoOrders:
 
             # Should be normalized to BTC/USD
             assert result["symbol"] == "BTC/USD"
-
-

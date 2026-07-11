@@ -480,9 +480,7 @@ class BacktestCoreMixin:
                     if new_qty > 0:
                         # Weighted average across existing long and new buy.
                         prior_long = max(old_qty, 0)
-                        state["avg_price"] = (
-                            prior_long * old_avg + remaining * price
-                        ) / new_qty
+                        state["avg_price"] = (prior_long * old_avg + remaining * price) / new_qty
                     state["qty"] = new_qty
 
             else:  # sell
@@ -503,9 +501,9 @@ class BacktestCoreMixin:
                     if new_qty < 0:
                         # Weighted average across existing short and new sell.
                         prior_short = -min(old_qty, 0)
-                        state["avg_price"] = (
-                            prior_short * old_avg + remaining * price
-                        ) / (prior_short + remaining)
+                        state["avg_price"] = (prior_short * old_avg + remaining * price) / (
+                            prior_short + remaining
+                        )
                     state["qty"] = new_qty
 
             trade_records.append(

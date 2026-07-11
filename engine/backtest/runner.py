@@ -636,12 +636,8 @@ class BacktestRunnerMixin:
                 )
                 liquidated += 1
             except Exception as exc:
-                logger.warning(
-                    f"End-of-backtest liquidation failed for {symbol}: {exc}"
-                )
+                logger.warning(f"End-of-backtest liquidation failed for {symbol}: {exc}")
 
         if liquidated:
-            logger.info(
-                f"Liquidated {liquidated} open positions at end of backtest"
-            )
+            logger.info(f"Liquidated {liquidated} open positions at end of backtest")
         return liquidated
