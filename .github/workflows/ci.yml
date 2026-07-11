@@ -101,9 +101,9 @@ jobs:
           COVERAGE_FILE: .coverage.patch
         run: |
           uv run pytest \
-            tests/unit/test_backtest_engine.py \
-            tests/unit/test_walk_forward_backtest.py \
-            tests/unit/test_config_credentials_runtime.py \
+            tests/unit/engine/test_backtest_engine.py \
+            tests/unit/engine/test_walk_forward_backtest.py \
+            tests/unit/misc/test_config_credentials_runtime.py \
             --cov=engine.backtest_engine \
             --cov=main \
             --cov-report=xml:coverage_patch.xml \
