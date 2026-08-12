@@ -8,8 +8,39 @@ updates:
     open-pull-requests-limit: 10
 
   # Enable version updates for GitHub Actions
+    groups:
+      pip_updates:
+        patterns:
+          - "*"
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      github_actions_updates:
+        patterns:
+          - "*"
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # uv VERSION updates stay disabled (limit 0) — this repo has never had
+  # them and enabling them now would ADD PRs, not remove them. The block
+  # exists solely so Dependabot SECURITY updates, which ignore this file
+  # unless their ecosystem is declared, can be batched into one PR.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
