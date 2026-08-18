@@ -96,11 +96,10 @@ class MomentumStrategyBacktest(MomentumStrategy):
 
             current_position = None
             for pos in positions:
-                pos_symbol = (
-                    getattr(pos, "symbol", None) or pos.get("symbol")
-                    if isinstance(pos, dict)
-                    else None
-                )
+                if isinstance(pos, dict):
+                    pos_symbol = pos.get("symbol")
+                else:
+                    pos_symbol = getattr(pos, "symbol", None)
                 if pos_symbol == symbol:
                     current_position = pos
                     break
