@@ -417,6 +417,24 @@ class BacktestBrokerCore:
 
         return value
 
+    def get_gross_exposure(self, date=None):
+        """Gross deployed notional (sum of |position| value) as a fraction of portfolio value.
+
+        0.0 means fully in cash; 1.0 means every dollar of equity is deployed.
+        Shorts count at absolute notional, so a hedged book still shows its
+        true footprint.
+        """
+        current_date = date or datetime.now()
+        gross = 0.0
+        for symbol, position in self.positions.items():
+            price = self.get_price(symbol, current_date)
+            gross += abs(position["quantity"]) * price
+
+        portfolio_value = self.get_portfolio_value(current_date)
+        if portfolio_value <= 0:
+            return 0.0
+        return gross / portfolio_value
+
     def get_orders(self, status=None):
         """Get orders with given status"""
         if status:

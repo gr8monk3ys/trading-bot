@@ -186,8 +186,12 @@ class BacktestRunnerMixin:
             except Exception as e:
                 logger.warning(f"Strategy initialization warning: {e}")
 
-        # Track equity curve
+        # Track equity curve and daily gross exposure (deployed notional /
+        # portfolio value). Exposure is the denominator any comparison against
+        # buy-and-hold needs: the 2020-2024 baselines ran ~25% deployed and
+        # nothing measured it.
         equity_curve = [initial_capital]
+        exposure_curve = []
 
         trading_days = (
             [
@@ -316,9 +320,15 @@ class BacktestRunnerMixin:
                             }
                         )
 
-                # Record equity at end of day
+                # Record equity and gross exposure at end of day
                 portfolio_value = backtest_broker.get_portfolio_value(current_date)
                 equity_curve.append(portfolio_value)
+                try:
+                    exposure_curve.append(float(backtest_broker.get_gross_exposure(current_date)))
+                except (TypeError, ValueError, AttributeError):
+                    # Broker without the exposure API (mocks, custom brokers):
+                    # record 0.0 rather than poisoning the series.
+                    exposure_curve.append(0.0)
 
                 if decision_log_writer:
                     decision_log_writer.write(
@@ -347,6 +357,7 @@ class BacktestRunnerMixin:
             except Exception as e:
                 logger.error(f"Error on {current_date.date()}: {e}")
                 equity_curve.append(equity_curve[-1] if equity_curve else initial_capital)
+                exposure_curve.append(exposure_curve[-1] if exposure_curve else 0.0)
 
         # Liquidate all remaining open positions at the final trading day's
         # close. Headline equity must reflect realized PnL — unrealized MTM
@@ -474,6 +485,11 @@ class BacktestRunnerMixin:
 
         result = {
             "equity_curve": equity_curve,
+            "exposure_curve": exposure_curve,
+            "avg_gross_exposure": (
+                sum(exposure_curve) / len(exposure_curve) if exposure_curve else 0.0
+            ),
+            "peak_gross_exposure": max(exposure_curve) if exposure_curve else 0.0,
             "equity_curve_series": equity_curve_series,
             "daily_returns": daily_returns,
             "trades": trade_records,

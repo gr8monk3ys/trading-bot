@@ -112,9 +112,20 @@ class MomentumStrategyBacktest(MomentumStrategy):
             quote = await self.broker.get_latest_quote(symbol)
             price = float(quote.ask_price)
 
-            # Calculate position size (10% of cash)
-            position_value = cash * 0.10
+            # Position size: a fixed fraction of *equity* by default, so target
+            # gross exposure is an explicit input (position_size_pct × universe
+            # size) rather than an accident of entry order. sizing_basis="cash"
+            # reproduces the legacy behavior (10% of remaining cash) that left
+            # the 2020-2024 baselines ~75% idle.
+            size_pct = float(self.parameters.get("position_size_pct", 0.10))
+            if self.parameters.get("sizing_basis", "equity") == "cash":
+                position_value = cash * size_pct
+            else:
+                equity = float(getattr(account, "equity", 0) or 0) or cash
+                position_value = equity * size_pct
             qty = int(position_value / price)
+            if action == "buy":
+                qty = min(qty, int(cash / price))
 
             if qty <= 0:
                 return
