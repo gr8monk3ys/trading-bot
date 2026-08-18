@@ -288,6 +288,15 @@ class BacktestBrokerExecutionMixin:
                     self.positions[symbol]["quantity"] = new_qty
                     if new_qty <= 0:
                         del self.positions[symbol]
+            elif filled_quantity > 0:
+                # Naked sell with no existing position opens a SHORT. Without
+                # this branch the proceeds were credited with no liability
+                # booked — short signals were free money in every backtest.
+                self.positions[symbol] = {
+                    "symbol": symbol,
+                    "quantity": -filled_quantity,
+                    "entry_price": execution_price,
+                }
 
         # Record the trade with actual execution details
         self.trades.append(

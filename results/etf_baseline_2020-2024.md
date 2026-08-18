@@ -1,5 +1,15 @@
 # ETF baseline 2020-2024 — survivorship-bias-free test of strategy edge
 
+> **⚠️ SUPERSEDED (2026-08-17): this run's numbers are corrupted and must not be
+> cited.** The strategy variant that produced it could never detect its own
+> positions (operator-precedence bug in `momentum_strategy_backtest.py`,
+> fixed on this date): signal-driven exits were unreachable, buys re-entered
+> held symbols, and short signals netted the book negative (see EFA going
+> 163 → -71 shares in the trade log below). It also sized off remaining
+> *cash*, averaging roughly 25% gross exposure, so the SPY comparison was
+> ~25%-deployed vs 100%-deployed. See
+> `results/etf_baseline_2020-2024_exposure_sweep.md` for the post-fix rerun.
+
 Generated: 2026-05-11T21:55:49.068307Z
 Spec: `docs/superpowers/specs/2026-05-11-honest-cleanup-design.md`
 Data source: `yfinance`
