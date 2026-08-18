@@ -88,6 +88,9 @@ ALPACA_API_KEY=your_key
 ALPACA_SECRET_KEY=your_secret
 PAPER=True
 
+# Required for the web dashboard (fails closed without it)
+DASHBOARD_TOKEN=
+
 # Optional
 DISCORD_WEBHOOK_URL=
 TELEGRAM_BOT_TOKEN=

@@ -117,8 +117,10 @@ class AlpacaBroker(
             self._reconnect_delay = 1  # Initial reconnect delay in seconds
             self._max_reconnect_delay = 60  # Max reconnect delay in seconds
 
-            # P0 FIX: Use local variables for credentials instead of storing as attributes
-            # This prevents accidental exposure through logging, serialization, or debugging
+            # NOTE: credentials ARE stored on the instance below (needed for the
+            # lazily-constructed crypto client). Anything that dumps __dict__ /
+            # vars() on a broker will expose them — never log or serialize
+            # broker instances.
             _api_key = ALPACA_CREDS["API_KEY"]
             _api_secret = ALPACA_CREDS["API_SECRET"]
 

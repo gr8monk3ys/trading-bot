@@ -44,7 +44,6 @@ dependencies = [
     "pytz>=2023.3",
 
     # Async
-    "asyncio>=3.4.3",
     "aiosqlite>=0.19.0",
 
     # Web Dashboard
@@ -55,6 +54,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx2>=0.1.0",
     "pytest>=9.0.3",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
@@ -65,6 +65,7 @@ dev = [
 ]
 
 test = [
+    "httpx2>=0.1.0",
     "pytest>=9.0.3",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",

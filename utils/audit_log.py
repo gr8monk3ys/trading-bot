@@ -7,7 +7,10 @@ forensic analysis.
 
 Key Features:
 - Append-only log entries (no modification or deletion)
-- Cryptographic hash chaining (tamper detection)
+- Hash chaining: detects accidental corruption and naive edits only.
+  There is no HMAC secret and no external anchor, so anyone with write
+  access to the log directory can rewrite entries and recompute a chain
+  that verify_chain() accepts. Not evidence-grade tamper-proofing.
 - JSON-formatted structured logging
 - Automatic rotation with archive integrity
 - Query interface for compliance reporting

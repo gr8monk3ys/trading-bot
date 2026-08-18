@@ -23,7 +23,8 @@ RUN python -m pip install --no-cache-dir --upgrade \
 # TA-Lib's 2006-era config.guess fails under QEMU emulation for ARM64,
 # so we pass --build explicitly when cross-compiling.
 ARG TARGETARCH
-RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+RUN wget -q -O ta-lib-0.4.0-src.tar.gz "https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz" && \
+    echo "9ff41efcb1c011a4b4b6dfc91610b06e39b1d7973ed5d4dee55029a0ac4dc651  ta-lib-0.4.0-src.tar.gz" | sha256sum -c - && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib/ && \
     if [ "$TARGETARCH" = "arm64" ]; then \

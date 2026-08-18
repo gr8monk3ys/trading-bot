@@ -382,6 +382,14 @@
     // ------------------------------------------------------------------
     // Render: Positions table
     // ------------------------------------------------------------------
+    // Escape untrusted strings (symbols/strategy names come from the DB and
+    // broker API) before interpolation into innerHTML.
+    function esc(s) {
+        return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+        })[c]);
+    }
+
     function renderPositions(positions) {
         const body = $("#positionsBody");
         if (!positions || positions.length === 0) {
@@ -393,7 +401,7 @@
             const plColor = pnlColor(p.unrealized_pl);
             const plPct = p.unrealized_plpc != null ? (p.unrealized_plpc * 100) : null;
             html += `<tr class="tbl-row border-b" style="border-color:var(--border-subtle);">
-                <td class="px-4 py-2 font-medium" style="color:var(--accent);">${p.symbol}</td>
+                <td class="px-4 py-2 font-medium" style="color:var(--accent);">${esc(p.symbol)}</td>
                 <td class="px-3 py-2 text-right">${fmtNumber(p.qty, 2)}</td>
                 <td class="px-3 py-2 text-right">${fmtCurrency(p.avg_entry_price)}</td>
                 <td class="px-3 py-2 text-right">${fmtCurrency(p.current_price)}</td>
@@ -421,12 +429,12 @@
             const plColor = pnlColor(t.pnl);
             html += `<tr class="tbl-row border-b" style="border-color:var(--border-subtle);">
                 <td class="px-4 py-2" style="color:var(--text-secondary);">${fmtTime(t.timestamp)}</td>
-                <td class="px-3 py-2 font-medium" style="color:var(--accent);">${t.symbol}</td>
-                <td class="px-3 py-2 font-medium" style="color:${sideColor};">${sideLabel}</td>
+                <td class="px-3 py-2 font-medium" style="color:var(--accent);">${esc(t.symbol)}</td>
+                <td class="px-3 py-2 font-medium" style="color:${sideColor};">${esc(sideLabel)}</td>
                 <td class="px-3 py-2 text-right">${fmtNumber(t.qty, 2)}</td>
                 <td class="px-3 py-2 text-right">${fmtCurrency(t.price)}</td>
                 <td class="px-3 py-2 text-right data-cell" style="color:${plColor};">${t.pnl != null ? fmtPnl(t.pnl) : "--"}</td>
-                <td class="px-3 py-2" style="color:var(--text-muted);">${t.strategy || "--"}</td>
+                <td class="px-3 py-2" style="color:var(--text-muted);">${t.strategy ? esc(t.strategy) : "--"}</td>
             </tr>`;
         }
         body.innerHTML = html;
