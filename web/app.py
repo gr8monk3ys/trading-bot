@@ -155,9 +155,9 @@ def _server_error_response(message: str, **payload: Any) -> JSONResponse:
 async def dashboard(request: Request):
     """Serve the main dashboard HTML page."""
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "paper_mode": _paper_mode,
             "version": BOT_VERSION,
         },

@@ -2,7 +2,7 @@
 # Optimized for production deployment with minimal image size
 
 # Stage 1: Builder
-FROM python:3.10-slim@sha256:4b0a8ebf16cf4563f3d3732bd4f4a464abb2f671b3b9d00aab281d705d224457 AS builder
+FROM python:3.10-slim@sha256:a78e4529630cfe8c5199cafd6e0c28ee1579a13f86274396d8b6b2d80367aa3a AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
@@ -51,7 +51,7 @@ RUN uv sync --frozen --no-dev --no-install-project && \
     uv pip install --python /app/.venv/bin/python "ib-insync>=0.9.86,<1.1"
 
 # Stage 2: Runtime
-FROM python:3.10-slim@sha256:4b0a8ebf16cf4563f3d3732bd4f4a464abb2f671b3b9d00aab281d705d224457
+FROM python:3.10-slim@sha256:a78e4529630cfe8c5199cafd6e0c28ee1579a13f86274396d8b6b2d80367aa3a
 
 # Install runtime dependencies only
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
