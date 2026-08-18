@@ -6,14 +6,11 @@ Guidance for Claude Code working in this repository.
 
 This repository is a personal algorithmic-trading sandbox. It is **paper-only** and has no proven edge. Do not deploy real capital. Previous versions of this document claimed an "institutional-grade" rating and a +42.68% backtest; both claims were unsupported by the evidence in the repo (see `docs/PROFITABILITY_RESEARCH.md` for the analysis) and have been removed.
 
-**If you are picking up this repo after a break:** read `results/where_we_landed.md` first. It is the durable summary of the May 2026 cleanup + validation work. The TL;DR is that the strategy underperforms SPY buy-and-hold on a bias-free test (+53% vs +95% over 2020-2024) and its real value is drawdown control (-7% max DD vs -33% passive), not profit maximization.
+**If you are picking up this repo after a break:** read `results/where_we_landed.md` first — especially its **2026-08-17 addendum**. The May 2026 baselines were corrupted by three backtest bugs (position detection always None, naked shorts booking no liability, cash-based sizing that left ~75% idle); all fixed 2026-08-17. The post-fix verdict is stronger, not weaker: at matched (~92%) gross exposure the strategy returns +42.9% vs SPY buy-and-hold +95.3% with a worse Sharpe (0.52 vs 0.75), on 8 trades in 5 years. Max drawdown scales ~linearly with exposure, so the old "-7% max DD" drawdown-control story was mostly an exposure artifact.
 
-Two baselines exist, both 2020-2024, both `MomentumStrategyBacktest` defaults, both yfinance daily bars:
+When citing a performance number, use `results/etf_baseline_2020-2024_exposure_sweep.md` (the like-for-like comparison). The older reports (`results/etf_baseline_2020-2024.md` +53%, `results/honest_backtest_2020-2024.md` +646%) carry SUPERSEDED banners — do not quote their headlines; the +646% is additionally survivor-biased (10 hand-picked 2026-vintage mega-caps).
 
-- `results/honest_backtest_2020-2024.md` — 10 hand-picked mega-caps (NVDA/AAPL/TSLA/MSFT/GOOGL/AMZN/META/JPM/SPY/QQQ). 102 trades, Sharpe 1.36, 47% max drawdown, profit factor 7.27, +646.00% total return. Survivor-biased: every symbol is one a 2026 retrospective would pick. This number reflects selection bias more than strategy edge.
-- `results/etf_baseline_2020-2024.md` — 4 broad-market ETFs (SPY/QQQ/IWM/EFA). 38 trades (below the 50-trade significance bar — treated as INCONCLUSIVE), Sharpe 0.78, +53.42% total return. **The strategy underperformed SPY buy-and-hold (+95.3% / Sharpe 0.75) on this bias-free universe.** ETFs can't be delisted or selection-biased, so this is the honest test of strategy edge. The directional finding — most of the hand-picked baseline's outperformance was selection bias, not alpha — is reportable even at 38 trades, but Sharpe confidence intervals at that sample size are wide and the result could be chance.
-
-When citing a performance number, lead with the ETF baseline. Both reports include caveats sections; read them before quoting.
+Also fixed 2026-08-17: the live paper path had **never placed an order** — the 2026-05 cleanup deleted the production OrderGateway while `BaseStrategy` blocks all entries/exits without one. `engine/live_order_gateway.py` restores it and wires the circuit breaker's per-order interlock (previously dead code) into the order path.
 
 ## Project overview
 

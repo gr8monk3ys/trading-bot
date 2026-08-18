@@ -1,5 +1,12 @@
 # Honest baseline backtest 2020-2024
 
+> **⚠️ SUPERSEDED (2026-08-17): do not cite this headline.** Beyond the
+> survivorship bias already documented below, this run predates three
+> backtest fixes (position detection always None, naked shorts booking no
+> liability, cash-based sizing) that invalidate its numbers. See
+> `results/where_we_landed.md` (2026-08-17 addendum) and
+> `results/etf_baseline_2020-2024_exposure_sweep.md`.
+
 Generated: 2026-05-11T21:55:40.633303Z
 Spec: `docs/superpowers/specs/2026-05-11-honest-cleanup-design.md`
 Data source: `yfinance`

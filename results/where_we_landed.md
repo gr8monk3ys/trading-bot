@@ -1,9 +1,34 @@
 # Where we landed
 
-**Date:** 2026-05-11
+**Date:** 2026-05-11 · **Addendum:** 2026-08-17 (read it first — it supersedes the numbers below)
 **Branch:** main (cleanup branch merged in commit `784e5d8`; follow-up bug-fix commits through `107c893`)
 
 This is the durable summary of the cleanup + validation work done in May 2026. Read this first if you (or a future Claude session) are returning to this repo.
+
+---
+
+## Addendum 2026-08-17: the May numbers were corrupted; the verdict got *stronger*
+
+Three defects invalidated every number in this document (all fixed on this date):
+
+1. **The backtest strategy could never see its own positions** — an operator-precedence bug in `momentum_strategy_backtest.py` made position lookup always return None for the objects `BacktestBroker` actually returns. Signal exits were unreachable, buys re-entered held symbols, shorts fired against longs.
+2. **Naked short sells booked no liability** — `place_order`'s sell path credited the proceeds and created no position, so every short signal was free money.
+3. **Sizing was 10% of *remaining cash*** — the strategy averaged ~25% gross exposure, so "-7% max drawdown" measured idle cash, not risk control, and the SPY comparison was 25%-deployed vs 100%-deployed.
+
+Separately, the **live paper path had never placed an order at all**: the 2026-05 cleanup deleted the production OrderGateway while `BaseStrategy` blocks every entry/exit without one. Restored via `engine/live_order_gateway.py` (which also wires the circuit breaker's per-order interlock, previously dead code).
+
+The post-fix rerun (`results/etf_baseline_2020-2024_exposure_sweep.md`) sweeps target gross exposure so the SPY comparison is finally like-for-like:
+
+| Target gross | Avg gross | Trades | Total return | Sharpe | Max DD |
+|---|---|---|---|---|---|
+| 25% | 23% | 8 | +9.9% | -0.02 | -6.7% |
+| 50% | 47% | 8 | +20.4% | 0.33 | -12.8% |
+| 100% | 92% | 8 | +42.9% | 0.52 | -23.3% |
+| SPY B&H | 100% | — | +95.3% | 0.75 | -33.7% |
+
+**At matched exposure the strategy earns less than half of SPY's return with a worse Sharpe, and max drawdown scales almost linearly with exposure** — the drawdown-control story was mostly an exposure artifact (at 100% target it still beats SPY's DD, but at a Sharpe cost no allocator would pay). 8 trades in 5 years is far below any significance bar; the signal barely fires on broad indices. There is no configuration of this strategy on this universe that beats holding SPY.
+
+**What this means for "maximize profit":** tuning this strategy is a dead end — the honest ceiling is below passive. The live routes that remain are (a) hold the benchmark, (b) research a genuinely different edge (the pairs-trading sleeve in `research/` is the only structurally plausible candidate, unvalidated), or (c) treat the bot as an execution/infrastructure sandbox, which is what it is.
 
 ---
 

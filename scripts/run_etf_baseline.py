@@ -634,7 +634,14 @@ def _interpret(metrics: dict, benchmarks: dict, n_trades: int, inconclusive: boo
     return header + body
 
 
-async def _run_backtest(data_broker, source_name: str) -> None:
+async def _run_backtest(data_broker, source_name: str, target_gross: float | None = None) -> dict:
+    """Run one backtest; `target_gross` sets aimed-for gross exposure (equity sizing).
+
+    target_gross=None runs the strategy defaults. Otherwise per-position size
+    is target_gross / len(SYMBOLS) of equity, so a fully-invested signal set
+    deploys ~target_gross of the portfolio. Returns a summary dict for the
+    exposure-sweep report.
+    """
     from engine.backtest_engine import BacktestEngine
     from engine.performance_metrics import PerformanceMetrics
 
@@ -644,12 +651,20 @@ async def _run_backtest(data_broker, source_name: str) -> None:
 
     engine = BacktestEngine(broker=data_broker)
 
+    strategy_params = None
+    if target_gross is not None:
+        strategy_params = {
+            "sizing_basis": "equity",
+            "position_size_pct": target_gross / len(SYMBOLS),
+        }
+
     logger.info(
-        "Starting ETF backtest: %s symbols, %s to %s, data=%s",
+        "Starting ETF backtest: %s symbols, %s to %s, data=%s, target_gross=%s",
         len(SYMBOLS),
         START,
         END,
         source_name,
+        target_gross,
     )
     result = await engine.run_backtest(
         strategy_class=MomentumStrategyBacktest,
@@ -658,6 +673,7 @@ async def _run_backtest(data_broker, source_name: str) -> None:
         end_date=datetime.strptime(END, "%Y-%m-%d"),
         initial_capital=INITIAL_CAPITAL,
         execution_profile="realistic",
+        strategy_params=strategy_params,
     )
 
     metrics = PerformanceMetrics().calculate_metrics(result)
@@ -679,7 +695,7 @@ async def _run_backtest(data_broker, source_name: str) -> None:
         )
         _write_data_unavailable_report(reason)
         print("STATUS=DATA_UNAVAILABLE  (0 symbols loaded)")
-        return
+        return {"status": "DATA_UNAVAILABLE", "target_gross": target_gross}
 
     # Compute benchmarks in parallel-ish (sequentially is fine — these are
     # fast yfinance calls and the script is one-shot).
@@ -710,6 +726,17 @@ async def _run_backtest(data_broker, source_name: str) -> None:
         },
         "n_trades": n_trades,
         "inconclusive": inconclusive or n_trades == 0,
+        "sizing": {
+            "target_gross_exposure": target_gross,
+            "basis": "equity" if target_gross is not None else "strategy default (equity, 10%)",
+            "position_size_pct": (
+                target_gross / len(SYMBOLS) if target_gross is not None else 0.10
+            ),
+        },
+        "exposure": {
+            "avg_gross_exposure": result.get("avg_gross_exposure"),
+            "peak_gross_exposure": result.get("peak_gross_exposure"),
+        },
         "metrics": metrics,
         "benchmarks": benchmarks,
         "hand_picked_reference": HAND_PICKED_BASELINE,
@@ -737,11 +764,14 @@ async def _run_backtest(data_broker, source_name: str) -> None:
     }
 
     RESULTS_DIR.mkdir(exist_ok=True)
-    JSON_PATH.write_text(json.dumps(artifact, indent=2, default=str))
-    MD_PATH.write_text(_format_markdown(artifact))
+    suffix = "" if target_gross is None else f"_gross{int(round(target_gross * 100))}"
+    json_path = RESULTS_DIR / f"etf_baseline_2020-2024{suffix}.json"
+    md_path = RESULTS_DIR / f"etf_baseline_2020-2024{suffix}.md"
+    json_path.write_text(json.dumps(artifact, indent=2, default=str))
+    md_path.write_text(_format_markdown(artifact))
 
-    print(f"Wrote {JSON_PATH.relative_to(REPO_ROOT)}")
-    print(f"Wrote {MD_PATH.relative_to(REPO_ROOT)}")
+    print(f"Wrote {json_path.relative_to(REPO_ROOT)}")
+    print(f"Wrote {md_path.relative_to(REPO_ROOT)}")
 
     status = artifact["status"]
     spy = benchmarks.get("SPY", {}) or {}
@@ -749,9 +779,23 @@ async def _run_backtest(data_broker, source_name: str) -> None:
         f"STATUS={status}  trades={n_trades}  "
         f"total_return={_format_pct(metrics.get('total_return'))}  "
         f"sharpe={_format_num(metrics.get('sharpe_ratio'))}  "
+        f"avg_gross_exposure={_format_pct(result.get('avg_gross_exposure'))}  "
         f"spy_bh={_format_pct(spy.get('total_return'))} "
         f"spy_bh_sharpe={_format_num(spy.get('sharpe'))}"
     )
+    return {
+        "status": status,
+        "target_gross": target_gross,
+        "n_trades": n_trades,
+        "total_return": metrics.get("total_return"),
+        "sharpe": metrics.get("sharpe_ratio"),
+        "max_drawdown": metrics.get("max_drawdown"),
+        "avg_gross_exposure": result.get("avg_gross_exposure"),
+        "peak_gross_exposure": result.get("peak_gross_exposure"),
+        "spy_bh_return": spy.get("total_return"),
+        "spy_bh_sharpe": spy.get("sharpe"),
+        "json_path": str(json_path.relative_to(REPO_ROOT)),
+    }
 
 
 async def main() -> int:
@@ -765,8 +809,14 @@ async def main() -> int:
         _write_data_unavailable_report(source)
         return 1
 
+    # Exposure sweep: same signals, same universe, only the sizing target
+    # varies. If the signal is real, Sharpe should be roughly flat across the
+    # sweep; if Sharpe collapses as exposure rises, the apparent edge was cash.
+    targets = [0.25, 0.50, 1.00]
+    summaries = []
     try:
-        await _run_backtest(data_broker, source)
+        for target in targets:
+            summaries.append(await _run_backtest(data_broker, source, target_gross=target))
     except Exception as exc:
         tb = traceback.format_exc()
         logger.error("Backtest crashed: %s\n%s", exc, tb)
@@ -776,7 +826,48 @@ async def main() -> int:
         )
         return 1
 
+    _write_sweep_report(summaries)
     return 0
+
+
+def _write_sweep_report(summaries: list[dict]) -> None:
+    path = RESULTS_DIR / "etf_baseline_2020-2024_exposure_sweep.md"
+    lines = [
+        "# ETF baseline exposure sweep — 2020-2024\n",
+        "\nSame `MomentumStrategyBacktest` signals on SPY/QQQ/IWM/EFA; only the",
+        "sizing target varies (equity-based, per-position = target / 4).",
+        "Prior baselines used cash-based sizing that averaged ~25% deployed,",
+        "and were additionally corrupted by the position-detection bug fixed in",
+        "this change — none of the numbers below are comparable to the old",
+        "`etf_baseline_2020-2024.md` headline.\n",
+        "\n**Reading:** Sharpe roughly flat across the sweep = the signal survives",
+        "scaling and capital deployment (not signal work) was the binding",
+        "constraint. Sharpe collapsing as exposure rises = the apparent edge",
+        "was mostly idle cash.\n",
+        "\n| Target gross | Avg gross | Peak gross | Trades | Total return | Sharpe | Max DD | SPY B&H | SPY Sharpe |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for s in summaries:
+        lines.append(
+            "| {tg:.0%} | {avg} | {peak} | {n} | {ret} | {sh} | {dd} | {spy} | {spysh} |".format(
+                tg=s.get("target_gross") or 0,
+                avg=_format_pct(s.get("avg_gross_exposure")),
+                peak=_format_pct(s.get("peak_gross_exposure")),
+                n=s.get("n_trades"),
+                ret=_format_pct(s.get("total_return")),
+                sh=_format_num(s.get("sharpe")),
+                dd=_format_pct(s.get("max_drawdown")),
+                spy=_format_pct(s.get("spy_bh_return")),
+                spysh=_format_num(s.get("spy_bh_sharpe")),
+            )
+        )
+    lines.append(
+        "\nPer-run artifacts: "
+        + ", ".join(f"`{s.get('json_path')}`" for s in summaries if s.get("json_path"))
+        + "\n"
+    )
+    path.write_text("\n".join(lines))
+    print(f"Wrote {path.relative_to(REPO_ROOT)}")
 
 
 if __name__ == "__main__":
