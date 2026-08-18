@@ -35,9 +35,7 @@ async def test_entry_order_routes_through_internal_submit_with_claimed_token():
     broker = _live_broker()
     gateway = LiveOrderGateway(broker=broker)
 
-    result = await gateway.submit_order(
-        order_request=_order_request(), strategy_name="momentum"
-    )
+    result = await gateway.submit_order(order_request=_order_request(), strategy_name="momentum")
 
     broker.enable_gateway_requirement.assert_called_once()
     broker._internal_submit_order.assert_awaited_once()
@@ -53,14 +51,10 @@ async def test_entry_order_rejected_when_circuit_breaker_halts():
 
     broker = _live_broker()
     breaker = MagicMock()
-    breaker.enforce_before_order = AsyncMock(
-        side_effect=TradingHaltedException("daily loss limit")
-    )
+    breaker.enforce_before_order = AsyncMock(side_effect=TradingHaltedException("daily loss limit"))
     gateway = LiveOrderGateway(broker=broker, circuit_breaker=breaker)
 
-    result = await gateway.submit_order(
-        order_request=_order_request(), strategy_name="momentum"
-    )
+    result = await gateway.submit_order(order_request=_order_request(), strategy_name="momentum")
 
     breaker.enforce_before_order.assert_awaited_once_with(is_exit_order=False)
     broker._internal_submit_order.assert_not_awaited()
@@ -144,9 +138,7 @@ async def test_broker_error_returns_failed_result_instead_of_raising():
     broker._internal_submit_order = AsyncMock(side_effect=RuntimeError("api down"))
     gateway = LiveOrderGateway(broker=broker)
 
-    result = await gateway.submit_order(
-        order_request=_order_request(), strategy_name="momentum"
-    )
+    result = await gateway.submit_order(order_request=_order_request(), strategy_name="momentum")
 
     assert result.success is False
     assert "api down" in result.rejection_reason
