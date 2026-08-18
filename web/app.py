@@ -9,6 +9,7 @@ Usage:
     uvicorn web.app:app --host 0.0.0.0 --port 8000
 """
 
+import hmac
 import logging
 import os
 import time
@@ -18,8 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Query, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 logger = logging.getLogger(__name__)
@@ -102,13 +102,63 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# NOTE: no CORS middleware on purpose. The dashboard is a same-origin app
+# (HTML + /api consumed by its own page); allow_origins=["*"] with
+# credentials let any page in the operator's browser read account data
+# cross-origin.
+
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+# The dashboard binds 0.0.0.0 (start.py) and serves full account state, so
+# every route except the platform healthcheck requires DASHBOARD_TOKEN.
+# Fail-closed: with no token configured, the app refuses to serve rather
+# than exposing account data unauthenticated.
+_AUTH_EXEMPT_PATHS = {"/api/health"}
+_AUTH_COOKIE = "dashboard_token"
+
+
+@app.middleware("http")
+async def _require_dashboard_token(request: Request, call_next):
+    if request.url.path in _AUTH_EXEMPT_PATHS:
+        return await call_next(request)
+
+    configured = os.environ.get("DASHBOARD_TOKEN", "")
+    if not configured:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "Dashboard auth not configured. Set DASHBOARD_TOKEN in the "
+                "environment; requests must send it as 'Authorization: Bearer <token>' "
+                "(or open /?token=<token> once in a browser)."
+            },
+        )
+
+    supplied = ""
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        supplied = auth_header[7:]
+    elif "token" in request.query_params:
+        supplied = request.query_params["token"]
+    else:
+        supplied = request.cookies.get(_AUTH_COOKIE, "")
+
+    if not supplied or not hmac.compare_digest(supplied, configured):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+
+    # Browser flow: a valid ?token= visit gets an HttpOnly session cookie so
+    # the page's own /api fetches authenticate without embedding the token.
+    # Redirect to the stripped URL immediately so the token does not linger
+    # in browser history, server logs, or Referer headers. secure=True is
+    # safe for local use too — browsers treat localhost as a secure context.
+    if request.query_params.get("token"):
+        stripped = request.url.remove_query_params("token")
+        response = RedirectResponse(url=str(stripped), status_code=302)
+        response.set_cookie(_AUTH_COOKIE, configured, httponly=True, samesite="strict", secure=True)
+        return response
+
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -155,9 +205,9 @@ def _server_error_response(message: str, **payload: Any) -> JSONResponse:
 async def dashboard(request: Request):
     """Serve the main dashboard HTML page."""
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
-            "request": request,
             "paper_mode": _paper_mode,
             "version": BOT_VERSION,
         },

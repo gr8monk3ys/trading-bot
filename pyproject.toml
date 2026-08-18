@@ -38,24 +38,27 @@ dependencies = [
     "seaborn>=0.12.0",
 
     # Utilities
-    "python-dotenv>=1.0.0",
+    "python-dotenv>=1.2.2",
     "aiohttp>=3.14.3",
-    "requests>=2.31.0",
+    "requests>=2.33.0",
     "pytz>=2023.3",
 
     # Async
-    "asyncio>=3.4.3",
     "aiosqlite>=0.19.0",
 
     # Web Dashboard
-    "fastapi>=0.104.0",
+    "fastapi>=0.141.1",
     "uvicorn[standard]>=0.24.0",
     "jinja2>=3.1.0",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=7.4.0",
+    # httpx2 is the legitimate successor of httpx (author Tom Christie,
+    # github.com/pydantic/httpx2) and the required TestClient backend for
+    # starlette>=1.x — NOT a typosquat; provenance verified 2026-08-17.
+    "httpx2>=2.10.0",
+    "pytest>=9.0.3",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "black>=23.7.0",
@@ -65,7 +68,9 @@ dev = [
 ]
 
 test = [
-    "pytest>=7.4.0",
+    # See dev group note: legitimate starlette-1.x TestClient backend.
+    "httpx2>=2.10.0",
+    "pytest>=9.0.3",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.1",
@@ -89,6 +94,18 @@ trading-bot = "main:main"
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+# Security floors for transitive dependencies (Dependabot alerts 2026-08-17):
+# starlette (via fastapi), urllib3/idna (via requests), msgpack (via alpaca-py),
+# pygments (via pytest/rich).
+constraint-dependencies = [
+    "starlette>=1.3.1",
+    "urllib3>=2.7.0",
+    "msgpack>=1.2.1",
+    "idna>=3.15",
+    "pygments>=2.20.0",
+]
 
 [tool.setuptools]
 packages = ["strategies", "brokers", "engine", "utils"]

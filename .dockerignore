@@ -76,3 +76,16 @@ backtest_*.json
 # OS files
 Thumbs.db
 .DS_Store
+
+# Operator data — must never enter published image layers
+audit_logs/
+audit_logs_*/
+data_stock/
+logs_stock/
+results_stock/
+coverage.xml
+htmlcov/
+results/
+logs/
+data/
+.remember/

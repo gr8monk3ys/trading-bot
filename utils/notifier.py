@@ -387,7 +387,9 @@ class Notifier:
         except asyncio.TimeoutError:
             logger.error("Telegram notification timed out")
         except Exception as e:
-            logger.error(f"Error sending Telegram notification: {e}")
+            logger.error(
+                "Error sending Telegram notification: %s", type(e).__name__
+            )  # exception text may embed the bot-token URL
 
     async def send_discord(self, message: str, embed: Optional[dict] = None) -> bool:
         """
@@ -467,7 +469,9 @@ class Notifier:
                     logger.error(f"Telegram error: {result}")
                     return False
         except Exception as e:
-            logger.error(f"Telegram send failed: {e}")
+            logger.error(
+                "Telegram send failed: %s", type(e).__name__
+            )  # exception text may embed the bot-token URL
             return False
 
     async def notify_trade(self, symbol: str, side: str, qty: float, price: float, strategy: str):
