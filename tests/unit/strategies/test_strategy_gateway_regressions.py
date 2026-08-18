@@ -29,8 +29,6 @@ class _FakeOrderBuilder:
         )
 
 
-
-
 class _ConcreteBaseStrategy:
     """Factory mixin for lightweight BaseStrategy concrete classes in tests."""
 

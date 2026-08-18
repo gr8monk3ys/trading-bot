@@ -21,12 +21,11 @@ from abc import ABC, abstractmethod
 # We don't actually need it - we'll create our own simple base class
 import numpy as np
 
+from strategies.base.position_sizing import BasePositionSizingMixin
 from utils.circuit_breaker import CircuitBreaker
 from utils.kelly_criterion import KellyCriterion
 from utils.streak_sizing import StreakSizer
 from utils.volatility_regime import VolatilityRegimeDetector
-
-from strategies.base.position_sizing import BasePositionSizingMixin
 
 logger = logging.getLogger(__name__)
 

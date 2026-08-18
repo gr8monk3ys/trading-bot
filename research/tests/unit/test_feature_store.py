@@ -14,7 +14,6 @@ from datetime import date, timedelta
 import numpy as np
 import pandas as pd
 import pytest
-
 from data.feature_store import (
     STANDARD_FEATURES,
     ComputeFrequency,

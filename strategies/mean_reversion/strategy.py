@@ -19,10 +19,9 @@ import talib
 
 from brokers.order_builder import OrderBuilder
 from strategies.base_strategy import BaseStrategy
+from strategies.mean_reversion.signals import MeanReversionSignalsMixin
 from strategies.risk_manager import RiskManager
 from utils.multi_timeframe import MultiTimeframeAnalyzer
-
-from strategies.mean_reversion.signals import MeanReversionSignalsMixin
 
 logger = logging.getLogger(__name__)
 

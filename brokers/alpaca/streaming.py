@@ -21,10 +21,9 @@ from typing import List, Optional
 
 from alpaca.data.live import CryptoDataStream
 
+from brokers.alpaca._retry import DEBUG_MODE
 from utils.audit_log import AuditEventType, log_order_event
 from utils.order_lifecycle import OrderState
-
-from brokers.alpaca._retry import DEBUG_MODE
 
 logger = logging.getLogger(__name__)
 

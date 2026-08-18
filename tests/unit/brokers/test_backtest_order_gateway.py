@@ -15,18 +15,19 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+)
 
 from brokers.order_builder import OrderBuilder
 from engine.backtest_engine import BacktestEngine
 from engine.backtest_order_gateway import BacktestOrderGateway, OrderResult
 from strategies.base_strategy import BaseStrategy
-
 
 # =============================================================================
 # UNIT TESTS: BacktestOrderGateway directly
@@ -184,9 +185,7 @@ async def test_engine_attaches_backtest_order_gateway_to_strategy():
     _GatewayProbeStrategy.submit_successes = 0
 
     data_broker = MagicMock()
-    data_broker.get_bars = AsyncMock(
-        return_value=_make_bars("AAPL", datetime(2024, 1, 2), n=10)
-    )
+    data_broker.get_bars = AsyncMock(return_value=_make_bars("AAPL", datetime(2024, 1, 2), n=10))
 
     engine = BacktestEngine(broker=data_broker)
     result = await engine.run_backtest(
@@ -198,9 +197,9 @@ async def test_engine_attaches_backtest_order_gateway_to_strategy():
     )
 
     # The gateway must have been attached *before* initialize ran.
-    assert _GatewayProbeStrategy.captured_gateway is not None, (
-        "BacktestEngine did not attach an order_gateway before strategy.initialize()"
-    )
+    assert (
+        _GatewayProbeStrategy.captured_gateway is not None
+    ), "BacktestEngine did not attach an order_gateway before strategy.initialize()"
     assert isinstance(_GatewayProbeStrategy.captured_gateway, BacktestOrderGateway)
 
     # The engine must produce a result dict, and the strategy must have at
@@ -208,12 +207,11 @@ async def test_engine_attaches_backtest_order_gateway_to_strategy():
     # symbols/days). Without a gateway, every attempt would have been
     # rejected with the "No OrderGateway configured" log and returned None.
     assert isinstance(result, dict)
-    assert _GatewayProbeStrategy.submit_attempts > 0, (
-        "Engine never called execute_trade — test setup is wrong"
-    )
+    assert (
+        _GatewayProbeStrategy.submit_attempts > 0
+    ), "Engine never called execute_trade — test setup is wrong"
     assert _GatewayProbeStrategy.submit_successes > 0, (
-        "submit_entry_order returned None for every attempt — the gateway "
-        "is not wired correctly"
+        "submit_entry_order returned None for every attempt — the gateway " "is not wired correctly"
     )
 
 
@@ -235,9 +233,7 @@ async def test_engine_backtest_records_trades_through_gateway():
     _GatewayProbeStrategy.submit_successes = 0
 
     data_broker = MagicMock()
-    data_broker.get_bars = AsyncMock(
-        return_value=_make_bars("AAPL", datetime(2024, 1, 2), n=10)
-    )
+    data_broker.get_bars = AsyncMock(return_value=_make_bars("AAPL", datetime(2024, 1, 2), n=10))
 
     engine = BacktestEngine(broker=data_broker)
     result = await engine.run_backtest(

@@ -12,7 +12,6 @@ Tests:
 from datetime import datetime
 
 import pytest
-
 from data.point_in_time import (
     CorporateEvent,
     DataField,

@@ -12,7 +12,6 @@ Tests:
 from datetime import datetime, timedelta
 
 import pytest
-
 from data.tick_data import (
     AggregatedBar,
     Exchange,

@@ -1,5 +1,9 @@
 # trading-bot
 
+<p align="center">
+  <img src="docs/assets/hero.png" alt="trading-bot preview" width="640">
+</p>
+
 Personal algorithmic-trading sandbox on Alpaca, async Python.
 
 **Status:** experimental, paper-only, no proven edge. Do not deploy real capital.

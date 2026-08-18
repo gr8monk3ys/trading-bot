@@ -10,7 +10,6 @@ These tests verify that:
 
 import numpy as np
 import pytest
-
 from engine.statistical_tests import (
     benjamini_hochberg_fdr,
     bonferroni_correction,

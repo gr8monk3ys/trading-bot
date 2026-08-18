@@ -18,7 +18,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import numpy as np
-
 from data.cross_asset_types import (
     AltDataSource,
     AlternativeSignal,

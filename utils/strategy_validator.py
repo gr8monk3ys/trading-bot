@@ -196,7 +196,6 @@ class StrategyValidator:
                 "reason": "engine.walk_forward quarantined to research/",
             }
             result.overfit_score = 50.0  # neutral score when no signal available
-                result.overfit_score = 50  # Unknown
 
             # 4. Check basic metrics thresholds
             logger.info("Step 4: Checking performance thresholds...")

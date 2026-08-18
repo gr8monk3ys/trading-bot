@@ -21,7 +21,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-
 from factors.base_factor import BaseFactor
 
 logger = logging.getLogger(__name__)

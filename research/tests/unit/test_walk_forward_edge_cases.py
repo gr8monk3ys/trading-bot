@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime
 
 import pytest
-
 from engine.walk_forward import WalkForwardValidator
 
 

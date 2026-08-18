@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytz
-
 from utils.extended_hours import (
     ET,
     ExtendedHoursManager,

@@ -21,7 +21,6 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
-
 from strategies.factor_models import CompositeScore, FactorModel, FactorType
 
 logger = logging.getLogger(__name__)

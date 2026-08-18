@@ -33,7 +33,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-
 from factors.base_factor import BaseFactor, FactorScore
 from factors.momentum_factor import MomentumFactor, RelativeStrengthFactor
 from factors.volatility_factor import BetaFactor, VolatilityFactor

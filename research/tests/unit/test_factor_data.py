@@ -21,7 +21,6 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-
 from utils.factor_data import (
     FactorDataProvider,
     FundamentalData,

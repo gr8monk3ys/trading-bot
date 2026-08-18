@@ -79,9 +79,7 @@ class BacktestOrderGateway:
             success=True,
             order_id=str(getattr(mock_order, "id", "")),
             side=str(side),
-            quantity=float(
-                getattr(mock_order, "filled_qty", 0) or getattr(mock_order, "qty", 0)
-            ),
+            quantity=float(getattr(mock_order, "filled_qty", 0) or getattr(mock_order, "qty", 0)),
         )
 
     async def submit_exit_order(
@@ -96,14 +94,10 @@ class BacktestOrderGateway:
         # BacktestBroker.place_order is synchronous on this codepath.
         result = self.broker.place_order(symbol, int(quantity), side, order_type="market")
         if not result:
-            return OrderResult(
-                success=False, rejection_reason="broker_place_order_failed"
-            )
+            return OrderResult(success=False, rejection_reason="broker_place_order_failed")
         return OrderResult(
             success=True,
             order_id=str(result.get("id", "")),
             side=str(result.get("side", side)),
-            quantity=float(
-                result.get("filled_qty", 0) or result.get("quantity", quantity)
-            ),
+            quantity=float(result.get("filled_qty", 0) or result.get("quantity", quantity)),
         )

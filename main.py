@@ -18,7 +18,6 @@ import logging
 import os
 import sys
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -654,7 +653,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--strategy",
         default="auto",
         help=(
-            'Strategy: class NAME (e.g. MomentumStrategy), alias (momentum, '
+            "Strategy: class NAME (e.g. MomentumStrategy), alias (momentum, "
             'mean_reversion, adaptive), or "all"/"auto".'
         ),
     )
