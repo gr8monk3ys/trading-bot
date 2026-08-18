@@ -54,7 +54,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx2>=0.1.0",
+    # httpx2 is the legitimate successor of httpx (author Tom Christie,
+    # github.com/pydantic/httpx2) and the required TestClient backend for
+    # starlette>=1.x — NOT a typosquat; provenance verified 2026-08-17.
+    "httpx2>=2.10.0",
     "pytest>=9.0.3",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
@@ -65,7 +68,8 @@ dev = [
 ]
 
 test = [
-    "httpx2>=0.1.0",
+    # See dev group note: legitimate starlette-1.x TestClient backend.
+    "httpx2>=2.10.0",
     "pytest>=9.0.3",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",

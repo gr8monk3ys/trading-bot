@@ -17,7 +17,8 @@ TOKEN = "test-dashboard-token"
 
 @pytest.fixture
 def client(monkeypatch):
-    with TestClient(web_app.app) as c:
+    # https base so the secure=True session cookie is sent back by the client.
+    with TestClient(web_app.app, base_url="https://testserver") as c:
         # The lifespan wires the real broker/database when .env has credentials;
         # auth tests must exercise the default (offline) endpoint paths, never
         # the network.
@@ -60,12 +61,20 @@ def test_correct_bearer_accepted(token_env, client):
     assert r.status_code == 200
 
 
-def test_query_token_sets_cookie_for_browser_flow(token_env, client):
-    r = client.get(f"/?token={TOKEN}")
-    assert r.status_code == 200
+def test_query_token_sets_cookie_and_redirects_to_stripped_url(token_env, client):
+    # The token must not linger in history/logs/Referer: a valid ?token= visit
+    # sets the cookie and 302-redirects to the same path without the query.
+    r = client.get(f"/?token={TOKEN}", follow_redirects=False)
+    assert r.status_code == 302
+    assert "token" not in r.headers["location"]
     assert client.cookies.get("dashboard_token") == TOKEN
+    set_cookie = r.headers.get("set-cookie", "").lower()
+    assert "httponly" in set_cookie
+    assert "secure" in set_cookie
 
-    # Subsequent same-origin requests authenticate via the cookie alone.
+    # Following the redirect lands on the page; subsequent same-origin
+    # requests authenticate via the cookie alone.
+    assert client.get(r.headers["location"]).status_code == 200
     assert client.get("/api/account").status_code == 200
 
 

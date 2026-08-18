@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 logger = logging.getLogger(__name__)
@@ -147,12 +147,18 @@ async def _require_dashboard_token(request: Request, call_next):
     if not supplied or not hmac.compare_digest(supplied, configured):
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
 
-    response = await call_next(request)
     # Browser flow: a valid ?token= visit gets an HttpOnly session cookie so
     # the page's own /api fetches authenticate without embedding the token.
+    # Redirect to the stripped URL immediately so the token does not linger
+    # in browser history, server logs, or Referer headers. secure=True is
+    # safe for local use too — browsers treat localhost as a secure context.
     if request.query_params.get("token"):
-        response.set_cookie(_AUTH_COOKIE, configured, httponly=True, samesite="strict")
-    return response
+        stripped = request.url.remove_query_params("token")
+        response = RedirectResponse(url=str(stripped), status_code=302)
+        response.set_cookie(_AUTH_COOKIE, configured, httponly=True, samesite="strict", secure=True)
+        return response
+
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
