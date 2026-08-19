@@ -21,13 +21,16 @@ def _reset_config_after_test():
 
 
 def test_get_alpaca_creds_supports_alias_env_vars(monkeypatch):
+    # Patch AFTER the reload: reloading config re-runs load_dotenv(), which
+    # would repopulate ALPACA_* from a real .env on the developer's machine.
+    # refresh=True re-reads os.environ, so post-reload patching is what counts.
+    config = _reload_config_module()
     monkeypatch.delenv("ALPACA_API_KEY", raising=False)
     monkeypatch.delenv("ALPACA_SECRET_KEY", raising=False)
     monkeypatch.setenv("API_KEY", "alias_key")
     monkeypatch.setenv("API_SECRET", "alias_secret")
     monkeypatch.setenv("PAPER", "false")
 
-    config = _reload_config_module()
     creds = config.get_alpaca_creds(refresh=True)
 
     assert creds["API_KEY"] == "alias_key"
@@ -36,12 +39,12 @@ def test_get_alpaca_creds_supports_alias_env_vars(monkeypatch):
 
 
 def test_require_alpaca_credentials_raises_when_missing(monkeypatch):
+    # Same ordering constraint as above: patch after the reload's load_dotenv().
+    config = _reload_config_module()
     monkeypatch.delenv("ALPACA_API_KEY", raising=False)
     monkeypatch.delenv("ALPACA_SECRET_KEY", raising=False)
     monkeypatch.delenv("API_KEY", raising=False)
     monkeypatch.delenv("API_SECRET", raising=False)
-
-    config = _reload_config_module()
 
     with pytest.raises(ValueError, match="Alpaca API credentials not found"):
         config.require_alpaca_credentials("unit-test mode")
