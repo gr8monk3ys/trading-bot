@@ -419,6 +419,20 @@ class AlpacaOrdersMixin:
                 f"({size_info}, type={result.type}, class={result.order_class})"
             )
 
+            if self._audit_log:
+                self._audit_log.log(
+                    AuditEventType.ORDER_SUBMITTED,
+                    {
+                        "order_id": str(result.id),
+                        "symbol": result.symbol,
+                        "qty": str(result.qty) if result.qty else None,
+                        "notional": str(result.notional) if result.notional else None,
+                        "side": str(getattr(result, "side", "")),
+                        "type": str(result.type),
+                        "order_class": str(result.order_class),
+                    },
+                )
+
             # INSTITUTIONAL: Track order for partial fill monitoring
             if result.qty:
                 qty = float(result.qty)
@@ -433,12 +447,27 @@ class AlpacaOrdersMixin:
             return result
 
         except asyncio.TimeoutError:
+            self._audit_order_rejected(order_request, "submission timed out")
             raise OrderError("Order submission timed out - check order status manually") from None
         except GatewayBypassError:
             raise  # Re-raise gateway errors
         except Exception as e:
             logger.error(f"Error in _internal_submit_order: {e}", exc_info=DEBUG_MODE)
+            self._audit_order_rejected(order_request, str(e))
             raise
+
+    def _audit_order_rejected(self, order_request, error: str) -> None:
+        if not self._audit_log:
+            return
+        self._audit_log.log(
+            AuditEventType.ORDER_REJECTED,
+            {
+                "symbol": getattr(order_request, "symbol", None),
+                "qty": str(getattr(order_request, "qty", None)),
+                "side": str(getattr(order_request, "side", "")),
+                "error": error,
+            },
+        )
 
     # =========================================================================
     # ORDER MODIFICATION / CANCELLATION
@@ -464,6 +493,8 @@ class AlpacaOrdersMixin:
                 operation_name=f"cancel_order({order_id})",
             )
             logger.info(f"Canceled order: {order_id}")
+            if self._audit_log:
+                self._audit_log.log(AuditEventType.ORDER_CANCELED, {"order_id": str(order_id)})
             return True
         except asyncio.TimeoutError:
             logger.error(f"Cancel order {order_id} timed out - check order status manually")
