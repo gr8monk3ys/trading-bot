@@ -29,11 +29,11 @@ See [`docs/architecture.md`](docs/architecture.md) for the full data-flow diagra
 - `strategies/mean_reversion_strategy.py` — pair to momentum for sideways regimes.
 - `strategies/adaptive_strategy.py` — regime-switching coordinator that picks between momentum and mean-reversion. Imports only those two strategies plus `MarketRegimeDetector`; all ensemble/ML/cross-asset branches were removed during the 2026-05 cleanup.
 - `strategies/simple_ma_strategy.py` — minimal reference strategy.
-- `strategies/risk_manager.py` — position sizing, VaR, correlation rejection.
+- `strategies/risk_manager/` — position sizing, VaR, correlation rejection.
 - `strategies/base_strategy.py` — abstract base for all strategies.
 - `brokers/alpaca_broker.py`, `brokers/backtest_broker.py`, `brokers/order_builder.py`.
-- `engine/backtest_engine.py`, `engine/performance_metrics.py`, `engine/strategy_manager.py`.
-- `utils/circuit_breaker.py`, `utils/market_regime.py`, `utils/websocket_manager.py`, `utils/database.py`, `utils/notifier.py`, `utils/audit_log.py`, `utils/multi_timeframe.py`.
+- `engine/backtest_engine.py`, `engine/performance_metrics.py`, `engine/strategy_manager.py`, `engine/live_order_gateway.py`.
+- `utils/circuit_breaker.py`, `utils/market_regime.py`, `utils/websocket_manager.py`, `utils/database/`, `utils/audit_log.py`, `utils/multi_timeframe.py`.
 - `main.py` — single canonical CLI (`live`, `backtest`, `optimize`). The previous `live_trader.py` and `run_adaptive.py` were merged in by Phase 2 of the form-cleanup refactor; pass `--strategy adaptive --regime-only` / `--scan-only` for the old `run_adaptive.py` inspection modes, and `--risk-profile {conservative,balanced,aggressive}` for the old `live_trader.py` presets.
 
 ## Quarantined (unvalidated)
@@ -48,7 +48,7 @@ pip install -r requirements.txt
 
 # Tests
 pytest tests/                            # default: excludes research/
-pytest tests/unit/test_risk_manager.py -v
+pytest tests/unit/strategies/test_risk_manager.py -v
 pytest tests/ --cov=strategies --cov=utils --cov-report=html
 
 # Backtests
@@ -76,10 +76,9 @@ mypy strategies/ brokers/ engine/ utils/
 
 ## Configuration
 
-`config.py` exposes:
-- `TRADING_PARAMS`, `RISK_PARAMS`, `TECHNICAL_PARAMS`.
+`config.py` exposes `RISK_PARAMS` (read by `StrategyManager`), `SYMBOLS`, `ALPACA_CREDS`/`get_alpaca_creds()`, and `BACKTEST_PARAMS` (read only by the quarantined `research/` harness). Strategy parameters live in each strategy's `default_parameters()`, not in config.
 
-Parameter blocks for deleted features (`ML_PARAMS`, `RL_PARAMS`, `OPTIONS_PARAMS`, `SENTIMENT_PARAMS`, `LLM_PARAMS`, `CRYPTO_PARAMS`, `OVERNIGHT_PARAMS`) were removed in the 2026-05 cleanup.
+`TRADING_PARAMS`, `TECHNICAL_PARAMS`, and `SYMBOL_SELECTION` were deleted in the 2026-08 slop sweep — nothing ever read them (as `ML_PARAMS` etc. were deleted in 2026-05).
 
 ## Environment variables (`.env`)
 
@@ -92,11 +91,10 @@ PAPER=True
 DASHBOARD_TOKEN=
 
 # Optional
-DISCORD_WEBHOOK_URL=
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
 DATABASE_URL=sqlite:///trading_bot.db
 ```
+
+(Discord/Telegram notification vars were dropped with `utils/notifier.py` in the 2026-08 slop sweep — nothing imported it, so the vars never did anything.)
 
 ## Critical gotchas
 

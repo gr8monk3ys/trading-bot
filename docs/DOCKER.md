@@ -17,14 +17,12 @@ This repository ships a multi-stage Docker image and a `docker compose` file wit
 
 ## Compose Services
 
-`docker-compose.yml` currently defines these primary services:
+`docker-compose.yml` currently defines two services:
 
 - `trading-bot-paper`: paper trading via `python main.py live --strategy MomentumStrategy --force`
-- `trading-bot-crypto`: low-resource crypto profile via `scripts/run_low_resource_profile.py`
-- `trading-bot-stock`: low-resource stock profile via `scripts/run_low_resource_profile.py`
 - `backtest`: on-demand backtest container
 
-The low-resource services are the most current containerized runtime paths.
+(The former `trading-bot-crypto` / `trading-bot-stock` low-resource services were removed 2026-08-17 — they referenced a deleted script.)
 
 ## Prerequisites
 

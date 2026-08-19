@@ -8,7 +8,7 @@ Personal algorithmic-trading sandbox on Alpaca, async Python.
 
 **Status:** experimental, paper-only, no proven edge. Do not deploy real capital.
 
-**Coming back to this repo?** Read [`results/where_we_landed.md`](results/where_we_landed.md) first — durable summary of the May 2026 cleanup + validation. Headline: strategy underperforms SPY on a bias-free test; real value is drawdown control (-7% max DD vs -33% passive), not profit maximization.
+**Coming back to this repo?** Read [`results/where_we_landed.md`](results/where_we_landed.md) first — durable summary of the May 2026 cleanup + validation, including the 2026-08-17 addendum. Headline: at matched (~92%) gross exposure the strategy returns +42.9% vs SPY buy-and-hold +95.3% with a worse Sharpe (0.52 vs 0.75). The earlier "-7% max DD drawdown control" story was an exposure artifact — max drawdown scales roughly linearly with exposure.
 
 ## What's in here
 
@@ -35,12 +35,9 @@ python main.py live --strategy adaptive
 
 ## Performance
 
-Two baselines exist, and the ETF one is the honest test of strategy edge.
+The canonical reference is `results/etf_baseline_2020-2024_exposure_sweep.md` — SPY/QQQ/IWM/EFA (broad ETFs that can't be delisted or selection-biased), run at matched gross exposure after three backtest bugs were fixed on 2026-08-17. **At ~92% gross exposure the strategy returned +42.9% / Sharpe 0.52 vs SPY buy-and-hold +95.3% / Sharpe 0.75, on 8 trades in 5 years.**
 
-- `results/honest_backtest_2020-2024.md` — 10 hand-picked mega-caps, +646%, Sharpe 1.36. Survivor-biased: every name in the universe (NVDA, TSLA, AAPL, MSFT, etc.) is one a 2026 retrospective would obviously pick. Treat this as a cautionary contrast, not as evidence of edge.
-- `results/etf_baseline_2020-2024.md` — SPY/QQQ/IWM/EFA, broad market ETFs that can't be delisted or selection-biased. **The strategy returned +53.4% / Sharpe 0.78 on this universe, underperforming SPY buy-and-hold (+95.3% / Sharpe 0.75).** 38 trades, below the 50-trade significance bar, so this is a hint not a verdict — but the direction is the most damning one: most of the hand-picked baseline's outperformance was selection bias, not strategy alpha.
-
-When citing a single performance number, prefer the ETF baseline. Earlier reports (notably `results/backtest_report_2024.md`) used 9 trades and are below the statistical-significance bar this repo's own `docs/PROFITABILITY_RESEARCH.md` calls out. Don't quote them.
+Older reports are superseded and banner-marked: `etf_baseline_2020-2024.md` (+53.4%, pre-bug-fix) and `honest_backtest_2020-2024.md` (+646%, survivor-biased hand-picked mega-caps). Don't quote their headlines.
 
 ## License
 

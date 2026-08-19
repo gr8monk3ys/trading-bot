@@ -97,15 +97,15 @@ class TestConfigImports:
 
     def test_config_constants(self):
         """Test that config constants are defined"""
-        from config import ALPACA_CREDS, SYMBOLS, TRADING_PARAMS
+        from config import ALPACA_CREDS, RISK_PARAMS, SYMBOLS
 
         assert SYMBOLS is not None
         assert isinstance(SYMBOLS, list)
         assert len(SYMBOLS) > 0
         assert ALPACA_CREDS is not None
         assert isinstance(ALPACA_CREDS, dict)
-        assert TRADING_PARAMS is not None
-        assert isinstance(TRADING_PARAMS, dict)
+        assert RISK_PARAMS is not None
+        assert isinstance(RISK_PARAMS, dict)
 
 
 class TestDependencyImports:

@@ -65,23 +65,14 @@ Use a backtest before starting the live paper runtime:
 
 ```bash
 uv run python main.py backtest \
-  --strategy MomentumStrategy \
+  --strategy MomentumStrategyBacktest \
   --symbols AAPL,MSFT \
   --start-date 2024-01-01 \
   --end-date 2024-12-31
 ```
 
-Optional validated report workflow:
-
-```bash
-uv run python scripts/validated_backtest_report.py \
-  --strategy MomentumStrategy \
-  --symbols AAPL,MSFT \
-  --start-date 2024-01-01 \
-  --end-date 2024-12-31 \
-  --output results/validated_backtest_report.md \
-  --json results/validated_backtest_report.json
-```
+(Use `MomentumStrategyBacktest`, the daily-bar variant — the live
+`MomentumStrategy` places no orders under the backtest engine.)
 
 ## 5. Start Paper Trading
 
