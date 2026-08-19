@@ -1,13 +1,34 @@
 # Where we landed
 
-**Date:** 2026-05-11 · **Addendum:** 2026-08-17 (read it first — it supersedes the numbers below)
+**Date:** 2026-05-11 · **Addenda:** 2026-08-17 and 2026-08-18 (read them first — each supersedes what's below it)
 **Branch:** main (cleanup branch merged in commit `784e5d8`; follow-up bug-fix commits through `107c893`)
 
 This is the durable summary of the cleanup + validation work done in May 2026. Read this first if you (or a future Claude session) are returning to this repo.
 
 ---
 
+## Addendum 2026-08-18: the strategy could never exit — and with exits, it's worse
+
+A day after the 2026-08-17 fixes below, a strategy audit found the backtest still wasn't testing the strategy: **the signal generator only ever emits `buy`/`short`/`neutral` — never `sell` — and the engine never calls `on_bar`, where all exit logic (trailing stops, `_check_exit_conditions`) lives.** So the "8 trades in 5 years" below were 4 entries plus 4 forced end-of-backtest liquidations; not one exit was ever the strategy's own decision. The 2026-08-17 sweep measured *enter-once-and-hold*, i.e. market beta, not the momentum system. (A second silent killer compounded it: `BaseStrategy.submit_exit_order` awaited `BacktestBroker`'s synchronous `get_positions`, so even an emitted exit died in a swallowed `TypeError`.)
+
+Both fixed 2026-08-18: opposite-signal exits (bearish signal while long closes the long; bullish while short covers) and the async mismatch. The rerun is the first backtest in this repo's history where the strategy can exit on its own signal:
+
+| Target gross | Avg gross | Trades | Total return | Sharpe | vs hold-only (08-17) |
+|---|---|---|---|---|---|
+| 25% | 14% | 26 | +4.1% | -0.50 | was +9.9% / -0.02 |
+| 50% | 28% | 26 | +8.4% | -0.06 | was +20.4% / 0.33 |
+| 100% | 59% | 26 | +16.4% | 0.16 | was +42.9% / 0.52 |
+| SPY B&H | 100% | — | +95.3% | 0.75 | — |
+
+**The strategy's own exit timing destroys value at every exposure level.** With exits active, realized exposure drops (positions spend time flat) *and* return per unit of exposure falls — +16.4% at 59% avg gross (~0.28x per-exposure) vs the hold-only +42.9% at 92% (~0.47x) vs SPY's 0.95x. The signal's timing is anti-predictive on this universe: every exit it took was, on net, a mistake it re-bought later at a worse price. 26 trades is still under the 50-trade significance bar (STATUS=INCONCLUSIVE), but the direction is consistent across all three exposure targets and both eras.
+
+**The verdict tightens:** the 2026-08-17 "+42.9%" was never the strategy — it was beta wearing the strategy's name. The actual momentum system, exits and all, delivers roughly a sixth of SPY's return. Tuning it remains a dead end; the honest routes are unchanged — hold the benchmark, validate the pairs sleeve in `research/`, or treat this repo as infrastructure practice. Notably untested still: the production trailing stops (they need intraday `on_bar` data the daily backtest can't drive), the Bollinger filter A/B, and the mean-reversion strategy standalone.
+
+---
+
 ## Addendum 2026-08-17: the May numbers were corrupted; the verdict got *stronger*
+
+*(Superseded by 2026-08-18 above — the "8 trades" here were enter-and-hold artifacts.)*
 
 Three defects invalidated every number in this document (all fixed on this date):
 

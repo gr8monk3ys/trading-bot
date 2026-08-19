@@ -35,9 +35,9 @@ python main.py live --strategy adaptive
 
 ## Performance
 
-The canonical reference is `results/etf_baseline_2020-2024_exposure_sweep.md` — SPY/QQQ/IWM/EFA (broad ETFs that can't be delisted or selection-biased), run at matched gross exposure after three backtest bugs were fixed on 2026-08-17. **At ~92% gross exposure the strategy returned +42.9% / Sharpe 0.52 vs SPY buy-and-hold +95.3% / Sharpe 0.75, on 8 trades in 5 years.**
+The canonical reference is `results/etf_baseline_2020-2024_exposure_sweep.md` — SPY/QQQ/IWM/EFA (broad ETFs that can't be delisted or selection-biased), regenerated 2026-08-18 after fixing the last structural backtest defect: the strategy could never exit a position on its own signal. **With exits working, the gross-100 run returns +16.4% / Sharpe 0.16 (26 trades, ~59% realized gross) vs SPY buy-and-hold +95.3% / Sharpe 0.75 — the strategy's own exit timing subtracts value at every exposure level.**
 
-Older reports are superseded and banner-marked: `etf_baseline_2020-2024.md` (+53.4%, pre-bug-fix) and `honest_backtest_2020-2024.md` (+646%, survivor-biased hand-picked mega-caps). Don't quote their headlines.
+Every earlier headline is superseded: "+42.9% at 92% gross" (2026-08-17) measured enter-once-and-hold — beta, not the strategy; `etf_baseline_2020-2024.md` (+53.4%) and `honest_backtest_2020-2024.md` (+646%, survivor-biased) carry SUPERSEDED banners. Don't quote any of them.
 
 ## License
 

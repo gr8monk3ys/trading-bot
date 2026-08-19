@@ -130,7 +130,21 @@ class MomentumStrategyBacktest(MomentumStrategy):
             if qty <= 0:
                 return
 
-            # Execute based on action
+            # Signed quantity of the held position (positive long, negative short).
+            pos_qty = 0
+            if current_position is not None:
+                if isinstance(current_position, dict):
+                    pos_qty = int(current_position.get("quantity", 0))
+                else:
+                    pos_qty = int(
+                        getattr(current_position, "quantity", 0)
+                        or float(getattr(current_position, "qty", 0))
+                    )
+
+            # Execute based on action. An opposite signal while holding closes
+            # the position (no stop-and-reverse); before 2026-08 there was no
+            # exit path at all — signals only ever emit buy/short/neutral, so
+            # every backtest position was held until forced liquidation.
             if action == "buy" and current_position is None:
                 # Open long position
                 await self._place_backtest_order(symbol, qty, "buy", is_exit=False)
@@ -141,15 +155,20 @@ class MomentumStrategyBacktest(MomentumStrategy):
                 await self._place_backtest_order(symbol, qty, "sell", is_exit=False)
                 logger.info(f"SHORT {qty} shares of {symbol} @ ${price:.2f}")
 
-            elif action == "sell" and current_position is not None:
-                # Close position
-                pos_qty = int(
-                    getattr(current_position, "quantity", 0)
-                    or float(getattr(current_position, "qty", 0))
-                )
-                if pos_qty > 0:
-                    await self._place_backtest_order(symbol, pos_qty, "sell", is_exit=True)
-                    logger.info(f"SELL {pos_qty} shares of {symbol} @ ${price:.2f}")
+            elif action == "short" and pos_qty > 0:
+                # Bearish signal while long: exit the long.
+                await self._place_backtest_order(symbol, pos_qty, "sell", is_exit=True)
+                logger.info(f"EXIT LONG {pos_qty} shares of {symbol} @ ${price:.2f}")
+
+            elif action == "buy" and pos_qty < 0:
+                # Bullish signal while short: cover the short.
+                await self._place_backtest_order(symbol, -pos_qty, "buy", is_exit=True)
+                logger.info(f"COVER {-pos_qty} shares of {symbol} @ ${price:.2f}")
+
+            elif action == "sell" and pos_qty > 0:
+                # Explicit close (kept for dict-signal compatibility).
+                await self._place_backtest_order(symbol, pos_qty, "sell", is_exit=True)
+                logger.info(f"SELL {pos_qty} shares of {symbol} @ ${price:.2f}")
 
         except Exception as e:
             logger.error(f"Error executing trade for {symbol}: {e}")
