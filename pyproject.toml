@@ -33,9 +33,8 @@ dependencies = [
     "ta-lib>=0.4.28",
     "yfinance>=0.2.28",
 
-    # Visualization
+    # Visualization (main.py backtest --plot)
     "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
 
     # Utilities
     "python-dotenv>=1.2.2",

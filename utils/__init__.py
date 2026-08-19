@@ -1,10 +1,4 @@
-"""
-Utilities package for the trading bot.
-
-Visualization helpers are not re-exported at package level because they
-pull in matplotlib, which is an optional dependency for headless runs.
-Import them explicitly from `utils.visualization` when needed.
-"""
+"""Utilities package for the trading bot."""
 
 from utils.database import (
     DailyMetrics,

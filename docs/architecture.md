@@ -2,7 +2,7 @@
 
 This document is the single entry point for understanding the code organization of this repo. Read it before reading code.
 
-**One-line context:** this is a paper-only experimental trading bot whose strategy has been validated as a drawdown-control sleeve rather than a profit maximizer. See [`results/where_we_landed.md`](../results/where_we_landed.md) for the full validation history and [`PROFITABILITY_RESEARCH.md`](PROFITABILITY_RESEARCH.md) for realistic performance expectations. The May 2026 honest cleanup and form-cleanup refactor reduced the repo from 193K to ~45K LOC and reorganized the remaining code into the structure described here.
+**One-line context:** this is a paper-only experimental trading bot with **no demonstrated edge** — at matched exposure the momentum strategy underperforms SPY buy-and-hold (see `results/etf_baseline_2020-2024_exposure_sweep.md`; the earlier "drawdown-control sleeve" story was an exposure artifact). See [`results/where_we_landed.md`](../results/where_we_landed.md) for the full validation history and [`PROFITABILITY_RESEARCH.md`](PROFITABILITY_RESEARCH.md) for realistic performance expectations. The May 2026 honest cleanup and form-cleanup refactor reduced the repo from 193K to ~45K LOC and reorganized the remaining code into the structure described here.
 
 ## Data flow
 
@@ -38,11 +38,11 @@ The main data-flow paths through the system:
                               │ submit_entry_order / submit_exit_order
                               ▼
               ┌───────────────────────────────────┐
-              │       OrderGateway                 │  (live mode only — backtest
-              │   (live: deleted in cleanup;       │   uses BacktestOrderGateway
-              │    backtest:                       │   wired in engine/backtest/
-              │    engine/backtest_order_gateway.  │   runner.py)
-              │    py)                             │
+              │       OrderGateway                 │  (live:
+              │   live: engine/live_order_gateway. │   LiveOrderGateway, restored
+              │   py (circuit-breaker interlock);  │   2026-08-17; backtest:
+              │   backtest: engine/backtest_order_ │   BacktestOrderGateway wired
+              │   gateway.py                       │   in engine/backtest/runner)
               └───────────────────┬───────────────┘
                                   │
                   ┌───────────────┴─────────────────┐
@@ -115,22 +115,21 @@ Trading strategies. Each is a subclass of `BaseStrategy`.
 - `strategies/risk_manager/enforcer.py` — adjust position size, limit enforcement, margin, halt decisions.
 
 ### `utils/`
-Utilities that the production path actually uses. (~30 modules. Many speculative utilities were deleted in the cleanup.)
+Utilities that the production path actually uses. (The 2026-08 slop sweep deleted ~23 modules that nothing imported; this list is now the honest inventory.)
 
 Core utilities:
-- `utils/circuit_breaker.py` — daily-loss halts.
+- `utils/circuit_breaker.py` — daily-loss halts + economic-event blocking.
+- `utils/economic_calendar.py` — FOMC/NFP/CPI event calendar (lazily imported by the circuit breaker, on by default).
 - `utils/database/core.py` + `analytics.py` — SQLite trade/position/metrics storage with aggregation queries.
 - `utils/market_regime.py` — `MarketRegimeDetector`: bull/bear/sideways/volatile detection.
 - `utils/indicators.py` + `indicator_analysis.py` — technical indicator library.
 - `utils/multi_timeframe.py` — multi-timeframe analyzer (canonical version).
-- `utils/audit_log.py` — structured event logging.
+- `utils/audit_log.py` — hash-chained event logging.
 - `utils/websocket_manager.py` — auto-reconnecting websocket abstraction.
-- `utils/notifier.py` — Discord/Telegram notifications.
 - `utils/kelly_criterion.py` — Kelly position-sizing math.
 - `utils/streak_sizing.py` — streak-based sizing adjustments.
 - `utils/volatility_regime.py` — volatility-regime classifier.
-
-Other utilities (in active use by the production path; see `git grep` for callers): `correlation_manager`, `earnings_calendar`, `economic_calendar`, `execution_quality_gate`, `execution_tracker`, `factor_exposure_limits`, `fundamental_data`, `greeks_aggregator`, `order_lifecycle`, `paper_trading_monitor`, `partial_fill_tracker`, `performance_tracker`, `pnl_attribution`, `portfolio_rebalancer`, `portfolio_stress`, `position_scaling`, `relative_strength`, `sector_rotation`, `stress_tester`, `support_resistance`, `tax_compliance`, `trading_hours`, `twap_executor`, `universe_provider`, `visualization`, `volume_filter`, `vwap_executor`.
+- `utils/order_lifecycle.py`, `utils/partial_fill_tracker.py`, `utils/performance_tracker.py`, `utils/sector_rotation.py`, `utils/portfolio_stress.py` — order/portfolio support used by the broker mixins and scanner.
 
 ### `data/`
 Data providers (small footprint after the 2026-05 cleanup quarantined most of this tree to `research/`).
@@ -141,14 +140,13 @@ Plausible-but-unvalidated quant work — factor models, pairs trading, walk-forw
 ### `scripts/`
 Operational scripts (kept minimal after the cleanup):
 
-- `scripts/run_honest_baseline.py` — produces `results/honest_backtest_2020-2024.{md,json}`. The hand-picked-mega-cap (survivor-biased) baseline.
-- `scripts/run_etf_baseline.py` — produces `results/etf_baseline_2020-2024.{md,json}`. The bias-free baseline (SPY/QQQ/IWM/EFA). This is the canonical performance reference.
+- `scripts/run_etf_baseline.py` — produces the exposure-sweep baseline (`results/etf_baseline_2020-2024_gross{25,50,100}.{md,json}` + `_exposure_sweep.md`). The bias-free SPY/QQQ/IWM/EFA comparison; **this is the canonical performance reference.**
+- `scripts/run_honest_baseline.py` — produces `results/honest_backtest_2020-2024.{md,json}`. The hand-picked-mega-cap (survivor-biased) baseline; SUPERSEDED, kept for the audit trail.
+- `scripts/paper_smoke_test.py` — end-to-end live-order-path proof against the Alpaca paper API (1-share unfillable limit, audit-log check, cancel).
 - `scripts/dashboard.py` — terminal monitoring dashboard.
 - `scripts/kill_switch.py` — emergency halt of all trading + position liquidation.
-- `scripts/simple_backtest.py` — lightweight backtest runner (separate from the canonical CLI; kept for ad-hoc use).
 - `scripts/simple_trader.py` — minimal trading-bot runner.
 - `scripts/quickstart.py` — interactive setup helper.
-- `scripts/run.py` — generic strategy runner.
 - `scripts/check_positions.py` — paper-trading account status query.
 - `scripts/monitor_bot.py` — real-time monitoring dashboard.
 
@@ -188,7 +186,7 @@ Optional FastAPI dashboard for live monitoring.
 4. `utils/circuit_breaker.py` — daily-loss halts.
 
 **If you're investigating a backtest result:**
-1. Read the report at `results/etf_baseline_2020-2024.md` (or `honest_backtest_2020-2024.md`).
+1. Read `results/etf_baseline_2020-2024_exposure_sweep.md` (the like-for-like comparison; the older `etf_baseline_2020-2024.md` and `honest_backtest_2020-2024.md` carry SUPERSEDED banners).
 2. The trade log lives in the corresponding `.json` file.
 3. `engine/backtest/core.py::_calculate_trade_pnl` is the signed-position matcher.
 
@@ -236,5 +234,5 @@ Strategy.execute_trade()
 - [`PROFITABILITY_RESEARCH.md`](PROFITABILITY_RESEARCH.md) — realistic performance expectations and limits.
 - `results/where_we_landed.md` — durable summary of the May 2026 cleanup + validation outcome.
 - `results/can_this_beat_qqq.md` — pre-validation skeptical analysis.
-- `results/etf_baseline_2020-2024.md` — canonical performance reference.
+- `results/etf_baseline_2020-2024_exposure_sweep.md` — canonical performance reference.
 - `TODO.md` — open follow-up items.
