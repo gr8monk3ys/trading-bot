@@ -222,6 +222,22 @@ class BaseStrategy(BasePositionSizingMixin, ABC):
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    async def _fetch_broker_positions(self):
+        """Return broker positions as objects with .symbol/.qty under either broker API.
+
+        AlpacaBroker exposes async get_positions(); BacktestBroker's
+        get_positions() is synchronous and returns raw dicts, but its async
+        get_all_positions() returns object-shaped positions. Prefer the
+        object-shaped API and await only when the call is actually awaitable.
+        """
+        import inspect
+
+        getter = getattr(self.broker, "get_all_positions", None) or self.broker.get_positions
+        result = getter()
+        if inspect.isawaitable(result):
+            result = await result
+        return result
+
     async def submit_exit_order(
         self,
         symbol: str,
@@ -250,7 +266,7 @@ class BaseStrategy(BasePositionSizingMixin, ABC):
             strategy_logger = getattr(self, "logger", logger)
 
             # Verify we own this position
-            positions = await self.broker.get_positions()
+            positions = await self._fetch_broker_positions()
             current_position = next((p for p in positions if p.symbol == symbol), None)
 
             if not current_position:
