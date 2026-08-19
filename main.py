@@ -39,27 +39,9 @@ _LOGGING_CONFIGURED = False
 # Risk profile presets (migrated from live_trader.py).
 RISK_PROFILE_DEFAULTS: dict[str, dict[str, float]] = {
     "custom": {},
-    "conservative": {
-        "position_size": 0.02,
-        "max_position_size": 0.03,
-        "stop_loss": 0.01,
-        "take_profit": 0.02,
-        "max_daily_loss": 0.025,
-    },
-    "balanced": {
-        "position_size": 0.05,
-        "max_position_size": 0.08,
-        "stop_loss": 0.02,
-        "take_profit": 0.05,
-        "max_daily_loss": 0.03,
-    },
-    "aggressive": {
-        "position_size": 0.10,
-        "max_position_size": 0.15,
-        "stop_loss": 0.03,
-        "take_profit": 0.08,
-        "max_daily_loss": 0.04,
-    },
+    "conservative": {"max_daily_loss": 0.025},
+    "balanced": {"max_daily_loss": 0.03},
+    "aggressive": {"max_daily_loss": 0.04},
 }
 
 
@@ -106,7 +88,6 @@ def _resolve_strategy_name(requested: str, available: list[str]) -> str | None:
 
 async def scan_for_opportunities(
     top_n: int = 15,
-    min_score: float = 1.0,
     use_sector_rotation: bool = True,
     broker: AlpacaBroker | None = None,
 ) -> list[str]:
@@ -114,16 +95,17 @@ async def scan_for_opportunities(
     Scan the market for the best trading opportunities.
 
     Uses the sector rotation pipeline (when enabled) to pick liquid stocks
-    weighted by economic phase. Falls back to a small default basket when
-    no opportunities are found.
+    weighted by economic phase, truncated to top_n. Falls back to a small
+    default basket when no opportunities are found.
 
-    Migrated from run_adaptive.py.
+    Migrated from run_adaptive.py. (A former min_score parameter and the
+    "criteria" banner it printed were removed 2026-08: neither it nor the
+    printed price/volume filters were ever applied to the selection.)
     """
     print("\n" + "=" * 60)
     print("OPPORTUNITY SCANNER")
     print("=" * 60)
     print("Scanning market for best trading opportunities...")
-    print(f"Criteria: >$10, <$500, >1M volume, momentum > {min_score}%")
     if use_sector_rotation:
         print("Sector Rotation: ENABLED (weighting by economic phase)")
     print("=" * 60 + "\n")
@@ -196,21 +178,42 @@ async def check_market_regime(broker: AlpacaBroker) -> dict[str, Any]:
     return regime
 
 
+def _plot_equity_curves(results: dict[str, Any], path: str = "backtest_equity_curves.png") -> None:
+    """Plot each strategy's equity curve to a PNG. Works for one or many."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(12, 6))
+    for name, result in results.items():
+        curve = result.get("equity_curve") or result.get("portfolio_value")
+        if curve is None:
+            continue
+        plt.plot(curve, label=name)
+    plt.title("Equity Curves")
+    plt.xlabel("Date")
+    plt.ylabel("Portfolio Value")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(path)
+    plt.close()
+
+
 def _apply_risk_profile(args: argparse.Namespace) -> dict[str, Any]:
-    """Merge risk-profile defaults with per-flag CLI overrides."""
+    """Resolve the risk profile to the settings that are actually wired.
+
+    Only max_daily_loss reaches anything (the circuit breaker). The old
+    presets also carried position_size/stop_loss/take_profit values that
+    were computed and then dropped — those knobs were removed 2026-08
+    rather than silently accepted.
+    """
     profile_name = getattr(args, "risk_profile", "custom") or "custom"
     profile = RISK_PROFILE_DEFAULTS.get(profile_name, {}).copy()
 
-    cli_overrides = {
-        "position_size": getattr(args, "position_size", None),
-        "max_position_size": getattr(args, "max_position_size", None),
-        "stop_loss": getattr(args, "stop_loss", None),
-        "take_profit": getattr(args, "take_profit", None),
-        "max_daily_loss": getattr(args, "max_daily_loss", None),
-    }
-    for key, value in cli_overrides.items():
-        if value is not None:
-            profile[key] = float(value)
+    max_daily_loss = getattr(args, "max_daily_loss", None)
+    if max_daily_loss is not None:
+        profile["max_daily_loss"] = float(max_daily_loss)
 
     return profile
 
@@ -298,26 +301,12 @@ async def run_backtest(args) -> None:
                 pd.set_option("display.float_format", "{:.2f}".format)
             print(comparison)
 
-            if args.plot:
-                try:
-                    import matplotlib.pyplot as plt
-
-                    plt.figure(figsize=(12, 6))
-                    for name, result in results.items():
-                        curve = result.get("equity_curve") or result.get("portfolio_value")
-                        if curve is None:
-                            continue
-                        plt.plot(curve, label=name)
-                    plt.title("Equity Curves")
-                    plt.xlabel("Date")
-                    plt.ylabel("Portfolio Value")
-                    plt.legend()
-                    plt.grid(True)
-                    plt.savefig("backtest_equity_curves.png")
-                    plt.close()
-                    logger.info("Wrote backtest_equity_curves.png")
-                except Exception as e:
-                    logger.error(f"Error generating plots: {e}")
+        if args.plot and results:
+            try:
+                _plot_equity_curves(results)
+                logger.info("Wrote backtest_equity_curves.png")
+            except Exception as e:
+                logger.error(f"Error generating plots: {e}")
 
         logger.info("Backtest completed")
 
@@ -366,7 +355,6 @@ async def run_live(args) -> None:
         else:
             symbols_to_use = await scan_for_opportunities(
                 top_n=args.top_n,
-                min_score=args.min_momentum,
                 use_sector_rotation=not args.no_sector_rotation,
                 broker=broker,
             )
@@ -651,10 +639,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_live = subparsers.add_parser("live", help="Start live (or paper) trading")
     p_live.add_argument(
         "--strategy",
-        default="auto",
+        default="adaptive",
         help=(
             "Strategy: class NAME (e.g. MomentumStrategy), alias (momentum, "
-            'mean_reversion, adaptive), or "all"/"auto".'
+            'mean_reversion, adaptive), or "all"/"auto". Default: adaptive. '
+            '("auto" scores strategies on a 30-day backtest; scores rarely '
+            "clear --min-score on windows that short, so expect it to start "
+            "nothing unless you lower --min-score.)"
         ),
     )
     p_live.add_argument(
@@ -678,12 +669,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Number of opportunities to keep from the auto-scan (default 15)",
     )
     p_live.add_argument(
-        "--min-momentum",
-        type=float,
-        default=1.0,
-        help="Minimum momentum %% for auto-scan (default 1.0)",
-    )
-    p_live.add_argument(
         "--no-sector-rotation",
         action="store_true",
         help="Disable sector rotation in the auto-scan",
@@ -704,20 +689,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--risk-profile",
         choices=["custom", "conservative", "balanced", "aggressive"],
         default="custom",
-        help="Risk profile preset for position size, stops, and daily-loss cap",
+        help=(
+            "Risk preset. Sets the circuit breaker's daily-loss cap "
+            "(conservative 2.5%%, balanced 3%%, aggressive 4%%) — nothing else; "
+            "position sizing and stops come from each strategy's parameters."
+        ),
     )
-    p_live.add_argument("--position-size", type=float, default=None)
-    p_live.add_argument("--max-position-size", type=float, default=None)
-    p_live.add_argument("--stop-loss", type=float, default=None)
-    p_live.add_argument("--take-profit", type=float, default=None)
     p_live.add_argument("--max-daily-loss", type=float, default=None)
 
     # --- backtest ---
     p_bt = subparsers.add_parser("backtest", help="Run a historical backtest")
     p_bt.add_argument(
         "--strategy",
-        default="auto",
-        help='Strategy: class NAME, alias (momentum/mean_reversion/adaptive), or "all".',
+        default="MomentumStrategyBacktest",
+        help=(
+            'Strategy: class NAME, alias (momentum/mean_reversion/adaptive), or "all". '
+            "Default: MomentumStrategyBacktest (the daily-bar variant; the live "
+            "MomentumStrategy places no orders under the backtest engine)."
+        ),
     )
     p_bt.add_argument("--symbols", default=None, help="Comma-separated symbols")
     p_bt.add_argument(
