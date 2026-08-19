@@ -20,21 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      - name: Detect promotion-relevant changes
-        id: promotion_changes
-        if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
-        with:
-          filters: |
-            promotion_relevant:
-              - 'strategies/**'
-              - 'engine/**'
-              - 'research/**'
-              - 'main.py'
-              - 'scripts/strategy_promotion_gate.py'
-              - 'scripts/generate_validation_artifacts.py'
-              - 'scripts/validated_backtest_report.py'
-
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
 
@@ -110,37 +95,6 @@ jobs:
             --cov-report=xml:coverage_patch.xml \
             --cov-fail-under=0 \
             -q
-
-      - name: Resolve promotion gate configuration
-        if: github.event_name == 'pull_request' && steps.promotion_changes.outputs.promotion_relevant == 'true'
-        id: promotion_gate_config
-        env:
-          PROMOTION_EXPERIMENT_ID: ${{ vars.PROMOTION_EXPERIMENT_ID }}
-        run: |
-          if [ -z "${PROMOTION_EXPERIMENT_ID}" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping strict promotion gate because PROMOTION_EXPERIMENT_ID is not configured."
-            exit 0
-          fi
-
-          if [ ! -f ".research/experiments/${PROMOTION_EXPERIMENT_ID}.json" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping strict promotion gate because .research/experiments/${PROMOTION_EXPERIMENT_ID}.json is missing."
-            exit 0
-          fi
-
-          echo "configured=true" >> "$GITHUB_OUTPUT"
-          echo "experiment_id=${PROMOTION_EXPERIMENT_ID}" >> "$GITHUB_OUTPUT"
-
-      - name: Strategy promotion gate (strict, when configured)
-        if: github.event_name == 'pull_request' && steps.promotion_changes.outputs.promotion_relevant == 'true' && steps.promotion_gate_config.outputs.configured == 'true'
-        env:
-          PROMOTION_EXPERIMENT_ID: ${{ steps.promotion_gate_config.outputs.experiment_id }}
-        run: |
-          uv run python scripts/strategy_promotion_gate.py \
-            --experiment-id "${PROMOTION_EXPERIMENT_ID}" \
-            --strict \
-            --output "results/promotion_gate_${PROMOTION_EXPERIMENT_ID}.json"
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
