@@ -1,34 +1,118 @@
 # TODO
 
-Follow-ups after the 2026-05 honest cleanup (`docs/superpowers/specs/2026-05-11-honest-cleanup-design.md`).
+Follow-ups after the 2026-05 honest cleanup and the 2026-08 slop sweep.
+Numbers here are kept current deliberately — a stale TODO is how the last
+round of fiction got in.
 
-## Direction (decide before doing more work)
+## Direction
 
-- [ ] Decide the actual goal: paper-only learning sandbox, path to live capital, public showcase, or something else. Different goals produce different next steps. Do not add features before deciding this.
+- [x] **"Maximize profit by tuning this strategy" is answered: no.** Three
+  rounds of evidence, each one fixing a defect that had been flattering the
+  previous round. Final: at gross-100 target the momentum strategy returns
+  **+16.4% / Sharpe 0.16** over 2020-2024 vs **SPY buy-and-hold +95.3% /
+  Sharpe 0.75** (`results/etf_baseline_2020-2024_exposure_sweep.md`). Its own
+  exit timing subtracts value at every exposure level.
+- [ ] **Choose what the repo is for now that profit is disconfirmed.** The
+  honest options: (a) hold the benchmark and keep this as an execution/
+  infrastructure sandbox, (b) validate the pairs-trading sleeve in `research/`
+  as a structurally different edge, (c) archive it. Do not add strategy
+  features before deciding.
 
-## Code organization (deferred from cleanup)
+## Code organization
 
-- [ ] Measure file sizes after the cleanup. If `main.py` or `adaptive_strategy.py` are still over 800 LOC, split them — one module per responsibility.
-- [ ] Audit the kept `utils/` modules. Some (e.g. `multi_timeframe.py`) may be vestigial after the deletions.
+- [x] **Measure file sizes.** Done 2026-08-19: ~25K LOC across the production
+  tree. Only two files exceed the 800-LOC soft limit —
+  `engine/performance_metrics.py` (971) and `utils/database/core.py` (873).
+  `main.py` is 781. Neither outlier is being actively worked on, so neither is
+  worth splitting yet; split them if you start touching them.
+- [x] **Audit the kept `utils/` modules.** Done 2026-08-18 (PR #83): 23 of 41
+  `utils/` modules had zero importers anywhere in the production tree and were
+  deleted, along with `brokers/ib_broker.py`, `brokers/multi_broker.py`,
+  `engine/parameter_stability.py`, and ~720 tests that only covered dead code.
+  18 modules remain. `multi_timeframe.py` is **not** vestigial — seven strategy
+  files reference it — though it is disabled by default and cannot be exercised
+  by the daily-bar backtest.
 
-## Project (engine/backtest bugs surfaced by the Task 8 baseline)
+## Engine and order-path bugs
 
-- [x] **Wire an `OrderGateway` into `BacktestEngine`.** Done in commit wiring `BacktestOrderGateway` into `engine/backtest_engine.py` (see `engine/backtest_order_gateway.py`). The shim inside `scripts/run_honest_baseline.py` has been removed; backtests now route orders through the canonical gateway automatically.
-- [x] **Fix the short-trade P&L bug in `engine/backtest_engine._calculate_trade_pnl`.** Fixed by rewriting the matcher as a signed-qty state machine that handles long open/close, short open/cover, partial closes, and immediate reversals. Adds `tests/unit/test_backtest_engine_pnl_accounting.py`. Re-running `scripts/run_honest_baseline.py` produced unchanged headline equity (still +646.64%, Sharpe 1.36 — those come from broker MTM, not trade records) but `profit_factor` collapsed from 3.03 to 0.42 and `avg_win`/`avg_loss` halved, exposing that the pre-fix zeros on short legs were silently inflating per-trade quality metrics.
+- [x] **Wire an `OrderGateway` into `BacktestEngine`** (`engine/backtest_order_gateway.py`).
+- [x] **Fix short-trade P&L in `_calculate_trade_pnl`** — signed-qty state machine.
+- [x] **Add an end-of-backtest liquidation pass** (`BacktestEngine._liquidate_open_positions`).
+- [x] **Restore the live order path** (2026-08-17). The 2026-05 cleanup deleted
+  the production OrderGateway while `BaseStrategy` blocks every order without
+  one, so the live path had never placed a single order.
+  `engine/live_order_gateway.py` restores it and wires the circuit breaker's
+  per-order interlock. Proven end-to-end against the paper API on 2026-08-18 —
+  see `scripts/paper_smoke_test.py`.
+- [x] **Audit-log the order lifecycle** (2026-08-18, PR #81). The hash-chained
+  log recorded only `ORDER_MODIFIED`; submissions, rejections, and cancels are
+  now recorded too. The first smoke-test order produced a real order ID with a
+  0-byte audit file — that is what surfaced this.
+- [x] **Unbreak backtest exits** (2026-08-18, PRs #82 and #84). Two independent
+  defects: `BaseStrategy.submit_exit_order` awaited `BacktestBroker`'s
+  *synchronous* `get_positions` (every exit died in a swallowed `TypeError`),
+  and the signal generator never emits `sell` while the engine never calls
+  `on_bar` where the exit logic lives. Every backtest before this measured
+  enter-once-and-hold.
 
 ## Validation (if continuing toward live)
 
-- [ ] Run 6+ months of paper trading on the kept core. Stop pretending shorter samples are meaningful.
-- [ ] Produce at least 50 real trades before claiming Sharpe or win rate.
-- [ ] Re-run `scripts/run_honest_baseline.py` quarterly; track drift in `results/`.
-- [x] **Replace the hand-picked baseline universe with a point-in-time universe.** Done via the simpler ETF route rather than promoting `research/historical_universe`: `scripts/run_etf_baseline.py` runs the same strategy on SPY/QQQ/IWM/EFA (broad-market ETFs that can't be delisted or selection-biased). `results/etf_baseline_2020-2024.md` posts +53.42% / Sharpe 0.78 on 38 trades, **underperforming SPY buy-and-hold (+95.3% / Sharpe 0.75)**. 38 trades is below the 50-trade significance bar, so the result is INCONCLUSIVE — but the direction (most of the hand-picked baseline's outperformance was selection bias, not alpha) is the most damning bucket the comparison could land in. The ETF route is cheaper than a point-in-time S&P 500 reconstruction and gives a directly comparable buy-and-hold benchmark; the point-in-time universe is still a valid follow-up if the next item below uncovers edge.
-- [ ] **Extend with random-stock-sample testing if the ETF baseline shows edge.** The ETF baseline currently shows no edge (underperforms SPY), so this is parked. If a future strategy tweak flips the ETF result to "beats SPY", the next test is a random sample of S&P 500 members at each point in time (using the dormant `research/historical_universe` module). ETFs are bias-free but a small universe; random S&P 500 samples would be a stronger second cut.
-- [x] **Add an end-of-backtest liquidation pass.** Done via `BacktestEngine._liquidate_open_positions`, called after the trading-day loop in `run_backtest`. All remaining positions are closed at the final bar via `BacktestBroker.place_order`, so they pick up the same spread + market-impact slippage as any other trade and land in `broker.get_trades()`. Adds `tests/unit/test_backtest_end_liquidation.py`. Re-running `scripts/run_honest_baseline.py` produced: trades 93→102, total_return 646.64%→646.00% (the engine's existing `get_portfolio_value`-based equity curve already mark-to-marketed those positions, so realizing them at ~0.5% slippage barely moved the number), profit_factor 0.42→7.27, win_rate 20.4%→25.5%. The headline is now realized cash, not unrealized MTM — but the survivor-biased universe is still uncorrected (see point-in-time universe item above).
+- [ ] Run 6+ months of paper trading. The live path finally works, so this is
+  now actually possible; it never was before 2026-08-17.
+- [ ] Produce at least 50 real trades before quoting Sharpe or win rate. The
+  current sweep has 26 and is marked `STATUS=INCONCLUSIVE`.
+- [ ] Re-run `scripts/run_etf_baseline.py` quarterly; track drift in `results/`.
+- [x] **Replace the hand-picked universe with a bias-free one.** Done via
+  `scripts/run_etf_baseline.py` (SPY/QQQ/IWM/EFA — cannot be delisted or
+  selection-biased).
+- [ ] **Random S&P 500 sample testing** — parked. Only worth doing if some
+  future change flips the ETF result to beating SPY. It currently loses by ~79
+  percentage points.
 
-## Research-tree promotion (only if a research/ module proves itself)
+## Untested corners of the production path
 
-- [ ] For any `research/` module being considered for promotion, require: (1) ≥50-trade out-of-sample backtest, (2) statistical-significance check (permutation or FDR), (3) written hypothesis, (4) evidence the signal isn't already priced. Document in `research/<module>/PROMOTION.md`.
+Surfaced by the 2026-08-18 strategy audit; each is a real gap, not a feature request.
 
-## Operational (only if scaling beyond solo paper)
+- [ ] **Production trailing stops and bracket orders have never executed in any
+  backtest.** They live in `on_bar`, which the engine never calls, and need
+  intraday data the daily backtest cannot supply. The "VALIDATED - proven to
+  capture extended moves" comment on those parameters is unsupported.
+- [ ] **`MeanReversionStrategy` has never been backtested standalone** — no
+  script runs it, no `results/` artifact exists. Its 6-clause AND entry gate is
+  stricter than momentum's, so expect very few trades.
+- [ ] **`AdaptiveStrategy` has no backtest evidence and cannot produce orders
+  under the engine** (its `execute_trade` delegates to `MomentumStrategy`'s
+  no-op, and regime routing happens in the uncalled `on_bar`). Its docstring
+  claims regime-matching "improves returns by 10-15% annually" — uncited;
+  delete the claim or prove it.
+- [ ] **The Bollinger filter may be inverted.** It subtracts from a buy score
+  when price nears the *upper* band, penalising exactly the breakout a momentum
+  strategy wants. Disabled in production defaults, force-enabled in the
+  backtest variant. One-parameter A/B.
 
-- [ ] If running unattended for extended periods, re-evaluate which of the deleted operational scripts (kill switch is already kept) actually need to come back. Don't restore wholesale.
+## Research-tree promotion
+
+- [ ] Promotion bar for any `research/` module: (1) ≥50-trade out-of-sample
+  backtest, (2) statistical-significance check (permutation or FDR), (3)
+  written hypothesis, (4) evidence the signal isn't already priced. Document in
+  `research/<module>/PROMOTION.md`.
+- [ ] **Pairs trading is the only structurally plausible candidate.**
+  `research/strategies/pairs_trading_strategy.py` is genuinely complete
+  (Engle-Granger cointegration, Hurst, OU half-life, z-score entries/exits,
+  market-neutral leg construction), and the validation harness it needs already
+  exists in `research/engine/validated_backtest.py` (walk-forward + permutation
+  tests with FDR correction, gated at 50 trades). Blockers, in order: two
+  `datetime.now()` calls that make hedge-ratio recalculation and the max-holding
+  exit no-ops in a simulated timeline; no engine adapter (all logic is in
+  `on_bar`); short-leg accounting needs verifying; pair selection must be re-run
+  inside each walk-forward window or it repeats the survivor-bias mistake; and
+  `research/tests/unit/test_pairs_trading.py` never runs (`norecursedirs`).
+
+## Operational
+
+- [ ] If running unattended for long periods, re-evaluate which deleted
+  operational scripts actually need to come back. Don't restore wholesale.
+- [ ] Decide where the bot runs. It is a long-lived asyncio process, so
+  serverless (Vercel) cannot host it; the realistic options are a local
+  LaunchAgent, Railway, or a small VPS. Not worth paying for uptime until
+  there is a strategy worth running continuously.
