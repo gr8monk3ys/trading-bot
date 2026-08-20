@@ -1,0 +1,302 @@
+{
+  "spec_ref": "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md",
+  "generated_at": "2026-08-19T04:55:38.157495Z",
+  "status": "INCONCLUSIVE",
+  "data_source": "yfinance",
+  "config": {
+    "symbols": [
+      "SPY",
+      "QQQ",
+      "IWM",
+      "EFA"
+    ],
+    "start": "2020-01-01",
+    "end": "2024-12-31",
+    "initial_capital": 100000,
+    "slippage_bps": 40,
+    "spread_bps": 10,
+    "min_trades_for_significance": 50
+  },
+  "n_trades": 26,
+  "inconclusive": true,
+  "sizing": {
+    "target_gross_exposure": 0.5,
+    "basis": "equity",
+    "position_size_pct": 0.125
+  },
+  "exposure": {
+    "avg_gross_exposure": 0.28399868172564324,
+    "peak_gross_exposure": 0.5271875299964277
+  },
+  "metrics": {
+    "total_return": 0.08365225861765757,
+    "annualized_return": 0.016199421798752445,
+    "max_drawdown": 0.0642466741731726,
+    "sharpe_ratio": -0.05594738332150973,
+    "sortino_ratio": -0.07107959800870027,
+    "win_rate": 0.3076923076923077,
+    "profit_factor": 2.645690861370948,
+    "avg_trade": 321.7394562217602,
+    "avg_win": 0.09071294584396156,
+    "avg_loss": 0.05485928664966144,
+    "volatility": 0.0029378937139448685,
+    "trade_count": 26,
+    "num_trades": 26,
+    "final_equity": 108365.22586176576,
+    "calmar_ratio": 0.2521441305286557,
+    "recovery_factor": 1.3020480778846002
+  },
+  "benchmarks": {
+    "SPY": {
+      "symbol": "SPY",
+      "start": "2020-01-01",
+      "end": "2024-12-31",
+      "total_return": 0.952954391924097,
+      "cagr": 0.14343145988125472,
+      "sharpe": 0.7450322607905898,
+      "max_drawdown": -0.3371723811794085,
+      "final_equity": 195295.4391924097,
+      "n_days": 1257,
+      "reason": null
+    },
+    "QQQ": {
+      "symbol": "QQQ",
+      "start": "2020-01-01",
+      "end": "2024-12-31",
+      "total_return": 1.4595245412347726,
+      "cagr": 0.1974755620984463,
+      "sharpe": 0.8327931164882444,
+      "max_drawdown": -0.3511873393388649,
+      "final_equity": 245952.45412347725,
+      "n_days": 1257,
+      "reason": null
+    }
+  },
+  "hand_picked_reference": {
+    "universe": "10 hand-picked mega-caps (SPY, QQQ, AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA, JPM)",
+    "total_return": 6.46,
+    "sharpe": 1.36,
+    "max_dd": 0.4696,
+    "n_trades": 102
+  },
+  "trades": [
+    {
+      "symbol": "EFA",
+      "side": "buy",
+      "quantity": 203,
+      "price": 61.308636277306576,
+      "pnl": 0.0,
+      "timestamp": "2020-06-12 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 37,
+      "price": 342.57817383680975,
+      "pnl": 0.0,
+      "timestamp": "2020-09-04 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 49,
+      "price": 283.59483917523465,
+      "pnl": 0.0,
+      "timestamp": "2020-09-04 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "sell",
+      "quantity": 203,
+      "price": 64.48323588497274,
+      "pnl": 644.4437203562319,
+      "timestamp": "2020-11-04 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "sell",
+      "quantity": 229,
+      "price": 66.0624461543291,
+      "pnl": 0.0,
+      "timestamp": "2020-11-05 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "buy",
+      "quantity": 229,
+      "price": 71.8417314814831,
+      "pnl": -1323.456339918266,
+      "timestamp": "2020-12-01 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "buy",
+      "quantity": 190,
+      "price": 78.53621761044613,
+      "pnl": 0.0,
+      "timestamp": "2021-04-21 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "sell",
+      "quantity": 190,
+      "price": 76.61272514047313,
+      "pnl": -365.4635692948698,
+      "timestamp": "2021-12-17 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "sell",
+      "quantity": 37,
+      "price": 452.82719344889,
+      "pnl": 4079.213725646969,
+      "timestamp": "2022-02-01 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "sell",
+      "quantity": 185,
+      "price": 77.10602664730511,
+      "pnl": 0.0,
+      "timestamp": "2022-02-02 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "sell",
+      "quantity": 34,
+      "price": 413.7981399836758,
+      "pnl": 0.0,
+      "timestamp": "2022-05-05 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "sell",
+      "quantity": 49,
+      "price": 312.84881269827855,
+      "pnl": 1433.444702629151,
+      "timestamp": "2022-05-05 00:00:00"
+    },
+    {
+      "symbol": "IWM",
+      "side": "sell",
+      "quantity": 66,
+      "price": 185.65708755600974,
+      "pnl": 0.0,
+      "timestamp": "2022-05-05 00:00:00"
+    },
+    {
+      "symbol": "IWM",
+      "side": "buy",
+      "quantity": 66,
+      "price": 190.7216990958795,
+      "pnl": -334.2643616314041,
+      "timestamp": "2022-08-22 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 32,
+      "price": 375.6391686673826,
+      "pnl": 0.0,
+      "timestamp": "2023-07-21 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "buy",
+      "quantity": 185,
+      "price": 72.60153130372116,
+      "pnl": 833.3316385630316,
+      "timestamp": "2023-12-06 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 34,
+      "price": 489.3038067543834,
+      "pnl": -2567.1926702040582,
+      "timestamp": "2024-02-01 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "buy",
+      "quantity": 26,
+      "price": 498.57643897742247,
+      "pnl": 0.0,
+      "timestamp": "2024-02-14 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "sell",
+      "quantity": 32,
+      "price": 473.05913399771833,
+      "pnl": 3117.4388905707438,
+      "timestamp": "2024-09-12 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "sell",
+      "quantity": 170,
+      "price": 79.15181413310587,
+      "pnl": 0.0,
+      "timestamp": "2024-11-08 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "buy",
+      "quantity": 27,
+      "price": 500.036756290546,
+      "pnl": 0.0,
+      "timestamp": "2024-11-18 00:00:00"
+    },
+    {
+      "symbol": "IWM",
+      "side": "buy",
+      "quantity": 59,
+      "price": 228.9466696661759,
+      "pnl": 0.0,
+      "timestamp": "2024-11-18 00:00:00"
+    },
+    {
+      "symbol": "SPY",
+      "side": "sell",
+      "quantity": 26,
+      "price": 588.1048665534746,
+      "pnl": 2327.7391169773555,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "EFA",
+      "side": "buy",
+      "quantity": 170,
+      "price": 75.64490409421005,
+      "pnl": 596.1747066122903,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "QQQ",
+      "side": "sell",
+      "quantity": 27,
+      "price": 515.4644695869063,
+      "pnl": 416.5482590017268,
+      "timestamp": "2024-12-30 00:00:00"
+    },
+    {
+      "symbol": "IWM",
+      "side": "sell",
+      "quantity": 59,
+      "price": 220.59528055527525,
+      "pnl": -492.7319575431378,
+      "timestamp": "2024-12-30 00:00:00"
+    }
+  ],
+  "data_quality": {
+    "symbols_loaded": 4,
+    "symbols_requested": 4,
+    "symbols_rejected": 0
+  },
+  "equity_curve_summary": {
+    "start_equity": 100000.0,
+    "end_equity": 108365.22586176576,
+    "n_days": 1258
+  }
+}
