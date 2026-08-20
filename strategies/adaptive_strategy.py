@@ -8,10 +8,14 @@ Automatically switches between strategies based on detected market regime:
 - SIDEWAYS market (ranging)    -> Mean Reversion Strategy
 - VOLATILE market (high VIX)   -> Reduced exposure across all strategies
 
-Research shows:
-- Using momentum in sideways markets loses money
-- Using mean reversion in trending markets loses money
-- Matching strategy to regime improves returns by 10-15% annually
+Status: UNVALIDATED. This coordinator has never been backtested, and neither
+has its sideways arm (MeanReversionStrategy). It cannot be backtested by the
+current engine either, because all of its routing lives in `on_bar` and the
+engine never calls it. A previous version of this docstring claimed regime
+matching "improves returns by 10-15% annually"; nothing in this repository
+supports that number, so it has been removed rather than cited.
+
+This class owns the broker's bar subscription — see `_claim_bar_subscription`.
 
 Usage:
     from strategies.adaptive_strategy import AdaptiveStrategy

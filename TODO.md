@@ -90,9 +90,11 @@ Surfaced by the 2026-08-18 strategy audit; each is a real gap, not a feature req
   (one bar → regime detected → arm switched).
 - [ ] **`AdaptiveStrategy` still has no backtest evidence and cannot produce
   orders under the backtest engine** (its `execute_trade` delegates to
-  `MomentumStrategy`'s no-op, and the engine never calls `on_bar`). Its
-  docstring claims regime-matching "improves returns by 10-15% annually" —
-  uncited; delete the claim or prove it. It is no longer the CLI default.
+  `MomentumStrategy`'s no-op, and the engine never calls `on_bar`). It is no
+  longer the CLI default. Its uncited "improves returns by 10-15% annually"
+  docstring claim was deleted 2026-08-19 (nothing in the repo supported it), as
+  was a tautological `test_research_impact_claims` asserting a hardcoded 5-8%
+  figure against itself.
 - [x] **The Bollinger filter is not inverted — it is load-bearing.** Measured
   2026-08-19 (`scripts/run_bollinger_ab.py`,
   `results/bollinger_filter_ab_2020-2024.md`): filter ON gives 26 trades and
