@@ -100,6 +100,9 @@ results/*
 !results/etf_baseline_2020-2024_gross50.json
 !results/etf_baseline_2020-2024_gross100.md
 !results/etf_baseline_2020-2024_gross100.json
+# Bollinger filter A/B — the only run here that clears the 50-trade bar.
+!results/bollinger_filter_ab_2020-2024.md
+!results/bollinger_filter_ab_2020-2024.json
 # Superseded, kept for the audit trail (both carry SUPERSEDED banners).
 !results/etf_baseline_2020-2024.md
 !results/etf_baseline_2020-2024.json

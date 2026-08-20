@@ -85,10 +85,19 @@ Surfaced by the 2026-08-18 strategy audit; each is a real gap, not a feature req
   no-op, and regime routing happens in the uncalled `on_bar`). Its docstring
   claims regime-matching "improves returns by 10-15% annually" — uncited;
   delete the claim or prove it.
-- [ ] **The Bollinger filter may be inverted.** It subtracts from a buy score
-  when price nears the *upper* band, penalising exactly the breakout a momentum
-  strategy wants. Disabled in production defaults, force-enabled in the
-  backtest variant. One-parameter A/B.
+- [x] **The Bollinger filter is not inverted — it is load-bearing.** Measured
+  2026-08-19 (`scripts/run_bollinger_ab.py`,
+  `results/bollinger_filter_ab_2020-2024.md`): filter ON gives 26 trades and
+  +16.44%; filter OFF gives 66 trades and **−1.88%** at *higher* exposure. The
+  mean-reversion overlay mostly suppresses trades, and suppressing this
+  strategy's trades is what keeps its return positive. The filter-off run is
+  also the first configuration in this repo to clear the 50-trade significance
+  bar, so "no edge" is now a measured result rather than a directional hint.
+- [ ] **Production and backtest still disagree on this flag.** Production
+  defaults keep the filter off; `MomentumStrategyBacktest` force-enables it.
+  Given the A/B, production's setting is the worse of the two — reconcile them
+  deliberately rather than leaving the backtest measuring a config that never
+  runs live.
 
 ## Research-tree promotion
 

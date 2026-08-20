@@ -226,9 +226,10 @@ def _compute_buy_and_hold(
 ) -> dict:
     """Compute buy-and-hold metrics for `symbol` over [start, end] via yfinance.
 
-    Returns a dict with total_return (fraction), cagr, sharpe (rf=0), max_dd
-    (negative fraction), final_equity, and n_days. Missing data returns None
-    fields rather than raising — benchmarks are nice-to-have, not load-bearing.
+    Returns a dict with total_return (fraction), cagr, sharpe (rf=0),
+    max_drawdown (negative fraction), final_equity, and n_days. Missing data
+    returns None fields rather than raising — benchmarks are nice-to-have,
+    not load-bearing.
     """
     try:
         import yfinance as yf

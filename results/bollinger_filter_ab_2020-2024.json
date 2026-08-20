@@ -1,0 +1,24 @@
+{
+  "source": "alpaca",
+  "target_gross": 1.0,
+  "runs": [
+    {
+      "use_bollinger_filter": true,
+      "n_trades": 26,
+      "inconclusive": true,
+      "total_return": 0.16444107135536412,
+      "sharpe": 0.15927427113711565,
+      "max_drawdown": 0.12896238618002567,
+      "avg_gross_exposure": 0.5906033890305644
+    },
+    {
+      "use_bollinger_filter": false,
+      "n_trades": 66,
+      "inconclusive": false,
+      "total_return": -0.018844637220321148,
+      "sharpe": -0.11005444425213982,
+      "max_drawdown": 0.21504292904321415,
+      "avg_gross_exposure": 0.8203174318378795
+    }
+  ]
+}
