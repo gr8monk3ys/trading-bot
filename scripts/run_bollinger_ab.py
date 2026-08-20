@@ -36,13 +36,12 @@ from scripts.run_etf_baseline import (  # noqa: E402
     RESULTS_DIR,
     START,
     SYMBOLS,
+    _compute_buy_and_hold,
     _resolve_data_broker,
 )
 from strategies.momentum_strategy_backtest import MomentumStrategyBacktest  # noqa: E402
 
 TARGET_GROSS = 1.0
-SPY_BH_RETURN = 0.9530
-SPY_BH_SHARPE = 0.75
 
 
 async def _run(data_broker, use_bollinger: bool) -> dict:
@@ -77,7 +76,7 @@ def _pct(x) -> str:
     return "n/a" if x is None else f"{x:.2%}"
 
 
-def _write_report(rows: list[dict], source: str) -> None:
+def _write_report(rows: list[dict], source: str, spy: dict) -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     on = next(r for r in rows if r["use_bollinger_filter"])
     off = next(r for r in rows if not r["use_bollinger_filter"])
@@ -97,7 +96,8 @@ def _write_report(rows: list[dict], source: str) -> None:
             f"{_pct(r['avg_gross_exposure'])} |"
         )
     lines += [
-        f"| _SPY buy-and-hold_ | — | {SPY_BH_RETURN:.2%} | {SPY_BH_SHARPE:.2f} | -33.70% | 100% |",
+        f"| _SPY buy-and-hold_ | — | {_pct(spy.get('total_return'))} | "
+        f"{spy.get('sharpe', float('nan')):.2f} | {_pct(spy.get('max_drawdown'))} | 100% |",
         "\n## What this settles\n",
         "The filter was suspected of being inverted — penalising the breakouts a",
         "momentum strategy is supposed to buy. **The opposite is true, and it matters",
@@ -116,7 +116,7 @@ def _write_report(rows: list[dict], source: str) -> None:
         f"{MIN_TRADES_FOR_SIGNIFICANCE}-trade significance bar** "
         f"({off['n_trades']} trades). Its verdict is therefore not INCONCLUSIVE: the",
         "unfiltered momentum signal loses money over five years while SPY buy-and-hold",
-        f"returns {SPY_BH_RETURN:.1%}. Every earlier 'no edge' finding was directionally",
+        f"returns {_pct(spy.get('total_return'))}. Every earlier 'no edge' finding was directionally",
         "right but statistically under-powered; this one is not.\n",
         "\nNote the two rows are not exposure-matched — the filter-off run carries *more*",
         "exposure and still returns less, so no exposure adjustment would flip the sign.\n",
@@ -136,7 +136,8 @@ async def main() -> int:
         return 1
 
     rows = [await _run(data_broker, use_bb) for use_bb in (True, False)]
-    _write_report(rows, source)
+    spy = _compute_buy_and_hold("SPY", START, END)
+    _write_report(rows, source, spy)
 
     for r in rows:
         print(
