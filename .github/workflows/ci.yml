@@ -11,6 +11,9 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    # Without this, a stalled download in the TA-Lib step runs until GitHub's
+    # 6-hour ceiling: PR #84 sat blocked overnight on exactly that.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -28,10 +31,18 @@ jobs:
 
       - name: Install TA-Lib (Ubuntu)
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y build-essential wget
-          wget -q -O ta-lib-0.4.0-src.tar.gz "https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz"
+          # GitHub releases first: SourceForge redirects to volunteer mirrors
+          # that can stall a connection indefinitely. Both sources are checked
+          # against the same pinned digest, so either is equally trusted.
+          wget --timeout=30 --tries=3 -q -O ta-lib-0.4.0-src.tar.gz \
+            "https://github.com/TA-Lib/ta-lib/releases/download/v0.4.0/ta-lib-0.4.0-src.tar.gz" || \
+          wget --timeout=30 --tries=3 -q -O ta-lib-0.4.0-src.tar.gz \
+            "https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz"
           echo "9ff41efcb1c011a4b4b6dfc91610b06e39b1d7973ed5d4dee55029a0ac4dc651  ta-lib-0.4.0-src.tar.gz" | sha256sum -c -
           tar -xzf ta-lib-0.4.0-src.tar.gz
           cd ta-lib/
@@ -106,6 +117,7 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
@@ -128,6 +140,7 @@ jobs:
 
   dependency-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
@@ -145,6 +158,7 @@ jobs:
   build:
     needs: [test, security, dependency-check]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:

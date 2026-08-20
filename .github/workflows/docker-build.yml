@@ -16,6 +16,8 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # Multi-arch builds compile TA-Lib under QEMU; generous, but bounded.
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -77,6 +79,7 @@ jobs:
 
   test-docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: build-and-push
     if: github.event_name == 'pull_request'
 
