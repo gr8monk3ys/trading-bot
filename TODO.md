@@ -80,11 +80,19 @@ Surfaced by the 2026-08-18 strategy audit; each is a real gap, not a feature req
 - [ ] **`MeanReversionStrategy` has never been backtested standalone** — no
   script runs it, no `results/` artifact exists. Its 6-clause AND entry gate is
   stricter than momentum's, so expect very few trades.
-- [ ] **`AdaptiveStrategy` has no backtest evidence and cannot produce orders
-  under the engine** (its `execute_trade` delegates to `MomentumStrategy`'s
-  no-op, and regime routing happens in the uncalled `on_bar`). Its docstring
-  claims regime-matching "improves returns by 10-15% annually" — uncited;
-  delete the claim or prove it.
+- [x] **`AdaptiveStrategy` did not switch strategies at all in live mode.**
+  Fixed 2026-08-19: both arms self-subscribed to the broker's bar feed during
+  their own `initialize()`, so they traded simultaneously — taking opposing
+  positions, since momentum buys breakouts and mean reversion buys dips —
+  while the coordinator, never subscribed, never ran `on_bar`, never called
+  `_update_regime()`, and left `current_regime` at `None` forever. Adaptive now
+  claims the subscription and detaches its arms; verified against a live broker
+  (one bar → regime detected → arm switched).
+- [ ] **`AdaptiveStrategy` still has no backtest evidence and cannot produce
+  orders under the backtest engine** (its `execute_trade` delegates to
+  `MomentumStrategy`'s no-op, and the engine never calls `on_bar`). Its
+  docstring claims regime-matching "improves returns by 10-15% annually" —
+  uncited; delete the claim or prove it. It is no longer the CLI default.
 - [x] **The Bollinger filter is not inverted — it is load-bearing.** Measured
   2026-08-19 (`scripts/run_bollinger_ab.py`,
   `results/bollinger_filter_ab_2020-2024.md`): filter ON gives 26 trades and

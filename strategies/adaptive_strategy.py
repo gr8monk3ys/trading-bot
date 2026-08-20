@@ -181,6 +181,13 @@ class AdaptiveStrategy(BaseStrategy):
             logger.info("  MomentumStrategy initialized for trending markets")
             logger.info("  MeanReversionStrategy initialized for sideways markets")
 
+            # Take ownership of the bar feed. Each sub-strategy subscribes
+            # itself during initialize(); left alone, both arms receive every
+            # bar and trade independently through their own gateways, while
+            # this coordinator never runs on_bar and so never detects a regime
+            # at all. The arms must only ever be driven via on_bar routing.
+            self._claim_bar_subscription()
+
             # Active strategy pointer
             self.active_strategy = self.momentum_strategy  # Default
             self.active_strategy_name = "momentum"
@@ -206,6 +213,15 @@ class AdaptiveStrategy(BaseStrategy):
         except Exception as e:
             logger.error(f"Error initializing AdaptiveStrategy: {e}", exc_info=True)
             return False
+
+    def _claim_bar_subscription(self):
+        """Subscribe this coordinator to bars and detach its sub-strategies."""
+        if not hasattr(self.broker, "_add_subscriber"):
+            return
+        for arm in (self.momentum_strategy, self.mean_reversion_strategy):
+            if arm is not None and hasattr(self.broker, "_remove_subscriber"):
+                self.broker._remove_subscriber(arm)
+        self.broker._add_subscriber(self)
 
     async def on_bar(
         self, symbol, open_price, high_price, low_price, close_price, volume, timestamp

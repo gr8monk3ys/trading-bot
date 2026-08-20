@@ -639,13 +639,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_live = subparsers.add_parser("live", help="Start live (or paper) trading")
     p_live.add_argument(
         "--strategy",
-        default="adaptive",
+        default="MomentumStrategy",
         help=(
-            "Strategy: class NAME (e.g. MomentumStrategy), alias (momentum, "
-            'mean_reversion, adaptive), or "all"/"auto". Default: adaptive. '
-            '("auto" scores strategies on a 30-day backtest; scores rarely '
-            "clear --min-score on windows that short, so expect it to start "
-            "nothing unless you lower --min-score.)"
+            "Strategy: class NAME, alias (momentum, mean_reversion, adaptive), "
+            'or "all"/"auto". Default: MomentumStrategy — the only live '
+            "strategy with a measured baseline (it underperforms SPY; see "
+            "results/etf_baseline_2020-2024_exposure_sweep.md). "
+            '"adaptive" routes by market regime, but its sideways arm '
+            "(MeanReversionStrategy) has never been backtested. "
+            '"auto" scores strategies on a 30-day backtest and rarely clears '
+            "--min-score on a window that short, so expect it to start nothing."
         ),
     )
     p_live.add_argument(
