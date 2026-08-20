@@ -408,16 +408,14 @@ class TestFallbackBehavior:
         assert adjustments["trade"] is True
 
 
-class TestResearch:
-    """Document research claims about volatility regime trading."""
+class TestRegimeMultiplierLogic:
+    """Verify the regime multipliers move in the directions the design claims.
 
-    def test_research_impact_claims(self):
-        """Document expected improvement from volatility regime detection."""
-        # Research: Volatility-adjusted sizing improves returns by 5-8% annually
-        # Source: Academic studies on VIX-based dynamic allocation
-
-        expected_improvement = 0.065  # 6.5% average
-        assert 0.05 <= expected_improvement <= 0.08
+    A `test_research_impact_claims` case used to sit here asserting
+    `0.05 <= 0.065 <= 0.08` against a hardcoded constant — it exercised no
+    production code, could never fail, and encoded an uncited "5-8% annually"
+    figure as though the repo had measured it. Removed 2026-08-19.
+    """
 
     def test_regime_multiplier_logic(self):
         """Verify regime multiplier logic is sound."""

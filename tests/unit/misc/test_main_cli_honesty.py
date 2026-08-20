@@ -29,9 +29,14 @@ def _parse(argv):
     return _build_parser().parse_args(argv)
 
 
-def test_live_defaults_to_adaptive_not_auto():
+def test_live_defaults_to_the_only_measured_strategy():
+    # Not "auto" (scores 0 on a 30-day window, so it starts nothing) and not
+    # "adaptive": adaptive routes by regime, and its sideways arm
+    # (MeanReversionStrategy) has never been backtested. Momentum is the only
+    # live strategy with a measured baseline, even though that baseline loses
+    # to SPY — a known quantity beats an unmeasured one as a default.
     args = _parse(["live"])
-    assert args.strategy == "adaptive"
+    assert args.strategy == "MomentumStrategy"
 
 
 def test_backtest_defaults_to_backtest_variant():

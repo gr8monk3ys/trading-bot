@@ -27,7 +27,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the full data-flow diagra
 - `strategies/momentum_strategy.py` — RSI/MACD/ADX momentum with trailing stops, Kelly gated off by default.
 - `strategies/momentum_strategy_backtest.py` — daily-data-friendly variant of the above.
 - `strategies/mean_reversion_strategy.py` — pair to momentum for sideways regimes.
-- `strategies/adaptive_strategy.py` — regime-switching coordinator that picks between momentum and mean-reversion. Imports only those two strategies plus `MarketRegimeDetector`; all ensemble/ML/cross-asset branches were removed during the 2026-05 cleanup.
+- `strategies/adaptive_strategy.py` — regime-switching coordinator that picks between momentum and mean-reversion. Imports only those two strategies plus `MarketRegimeDetector`; all ensemble/ML/cross-asset branches were removed during the 2026-05 cleanup. **It owns the bar subscription and its arms must not subscribe themselves** — until 2026-08-19 both arms self-subscribed, so they traded simultaneously (taking opposing positions) while the coordinator never ran `on_bar` and never detected a regime at all. Adaptive has no backtest evidence, and its sideways arm has never been backtested; it is not the CLI default for that reason.
 - `strategies/simple_ma_strategy.py` — minimal reference strategy.
 - `strategies/risk_manager/` — position sizing, VaR, correlation rejection.
 - `strategies/base_strategy.py` — abstract base for all strategies.
@@ -56,7 +56,8 @@ python main.py backtest --strategy MomentumStrategyBacktest --start-date 2024-01
 python main.py backtest --strategy adaptive --start-date 2024-01-01 --end-date 2024-12-31
 
 # Paper trading (requires .env with ALPACA_API_KEY, ALPACA_SECRET_KEY, PAPER=True)
-python main.py live --strategy adaptive
+python main.py live                                     # defaults to MomentumStrategy
+python main.py live --strategy adaptive                 # regime switching; unvalidated
 python main.py live --strategy MomentumStrategy --force
 python main.py live --strategy adaptive --regime-only   # inspect regime, no trading
 python main.py live --strategy adaptive --scan-only     # preview auto-scanned symbols

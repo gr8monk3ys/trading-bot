@@ -8,10 +8,14 @@ Automatically switches between strategies based on detected market regime:
 - SIDEWAYS market (ranging)    -> Mean Reversion Strategy
 - VOLATILE market (high VIX)   -> Reduced exposure across all strategies
 
-Research shows:
-- Using momentum in sideways markets loses money
-- Using mean reversion in trending markets loses money
-- Matching strategy to regime improves returns by 10-15% annually
+Status: UNVALIDATED. This coordinator has never been backtested, and neither
+has its sideways arm (MeanReversionStrategy). It cannot be backtested by the
+current engine either, because all of its routing lives in `on_bar` and the
+engine never calls it. A previous version of this docstring claimed regime
+matching "improves returns by 10-15% annually"; nothing in this repository
+supports that number, so it has been removed rather than cited.
+
+This class owns the broker's bar subscription — see `_claim_bar_subscription`.
 
 Usage:
     from strategies.adaptive_strategy import AdaptiveStrategy
@@ -181,6 +185,13 @@ class AdaptiveStrategy(BaseStrategy):
             logger.info("  MomentumStrategy initialized for trending markets")
             logger.info("  MeanReversionStrategy initialized for sideways markets")
 
+            # Take ownership of the bar feed. Each sub-strategy subscribes
+            # itself during initialize(); left alone, both arms receive every
+            # bar and trade independently through their own gateways, while
+            # this coordinator never runs on_bar and so never detects a regime
+            # at all. The arms must only ever be driven via on_bar routing.
+            self._claim_bar_subscription()
+
             # Active strategy pointer
             self.active_strategy = self.momentum_strategy  # Default
             self.active_strategy_name = "momentum"
@@ -206,6 +217,15 @@ class AdaptiveStrategy(BaseStrategy):
         except Exception as e:
             logger.error(f"Error initializing AdaptiveStrategy: {e}", exc_info=True)
             return False
+
+    def _claim_bar_subscription(self):
+        """Subscribe this coordinator to bars and detach its sub-strategies."""
+        if not hasattr(self.broker, "_add_subscriber"):
+            return
+        for arm in (self.momentum_strategy, self.mean_reversion_strategy):
+            if arm is not None and hasattr(self.broker, "_remove_subscriber"):
+                self.broker._remove_subscriber(arm)
+        self.broker._add_subscriber(self)
 
     async def on_bar(
         self, symbol, open_price, high_price, low_price, close_price, volume, timestamp
