@@ -11,8 +11,7 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    # Without this, a stalled download in the TA-Lib step runs until GitHub's
-    # 6-hour ceiling: PR #84 sat blocked overnight on exactly that.
+    # Without this, a stalled download runs to GitHub's 6-hour ceiling.
     timeout-minutes: 30
     strategy:
       fail-fast: false
