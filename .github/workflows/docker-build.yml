@@ -70,6 +70,14 @@ jobs:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
           format: 'sarif'
           output: 'trivy-results.sarif'
+          # pip bundles its own copies of setuptools and msgpack under
+          # pip/_vendor and declares them in vendor.txt, which Trivy reads as
+          # installed packages. They are pinned by whatever pip version ships,
+          # cannot be upgraded independently, and are not importable by the
+          # application -- so they alert forever and can never be actioned.
+          # The app's real setuptools (84.0.0) and msgpack (1.2.1) live
+          # elsewhere and are still scanned; this skips only pip's bundle.
+          skip-dirs: 'usr/local/lib/python3.10/site-packages/pip/_vendor'
 
       - name: Upload Trivy results to GitHub Security
         if: github.event_name != 'pull_request'
