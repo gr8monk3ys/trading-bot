@@ -48,9 +48,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.9@sha256:10902f58a1606787602f303954cea0996
 COPY pyproject.toml uv.lock* ./
 
 # Install Python dependencies with uv
-# ib-insync is required for IB backup broker runtime checks/failover.
-RUN uv sync --frozen --no-dev --no-install-project && \
-    uv pip install --python /app/.venv/bin/python "ib-insync>=0.9.86,<1.1"
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Stage 2: Runtime
 FROM python:3.10-slim@sha256:a78e4529630cfe8c5199cafd6e0c28ee1579a13f86274396d8b6b2d80367aa3a
