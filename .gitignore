@@ -125,3 +125,8 @@ secrets.yaml
 *.key
 *.secret
 :memory:/
+
+# Claude Code local state and AI-session plans
+.claude/settings.local.json
+.claude/memory/
+docs/superpowers/

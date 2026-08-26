@@ -210,12 +210,10 @@ echo "Bot restarted"
 
 ## Expected Behavior (Based on Backtests)
 
-**From BACKTEST_RESULTS.md:**
-- 3-month return: ~4% (16% annualized)
-- Sharpe ratio: 2.81-3.53
-- Max drawdown: 0.60-1.32%
-- Win rate: 67-86%
-- Trades per month: 2-5
+**From `results/etf_baseline_2020-2024_exposure_sweep.md` (the only current reference):**
+- 2020-2024, gross-100 target: +16.4% total, Sharpe 0.16, 26 trades (INCONCLUSIVE, below the 50-trade bar)
+- SPY buy-and-hold over the same window: +95.3%, Sharpe 0.75
+- Expect few trades per month and no edge over the benchmark; earlier "Sharpe 2.8-3.5 / 67-86% win rate" figures came from a broken backtest and are void
 
 **Weekly expectations:**
 - Return: ~0.3-0.5% per week
@@ -419,6 +417,6 @@ If critical issues occur:
 1. Stop the bot immediately
 2. Save logs: `cp paper_trading.log logs/error_$(date +%Y%m%d_%H%M%S).log`
 3. Document the issue
-4. Review BACKTEST_RESULTS.md and TODO.md for context
+4. Review `results/where_we_landed.md` and `TODO.md` for context
 
 **Remember:** This is PAPER TRADING. No real money at risk. Goal is validation and learning.
