@@ -136,27 +136,5 @@ RISK_PARAMS = {
     "VAR_CONFIDENCE": _parse_float_env("VAR_CONFIDENCE", 0.95),
 }
 
-# Backtest parameters (read only by the quarantined research/ harness;
-# production strategies carry their own default_parameters())
-BACKTEST_PARAMS = {
-    # Slippage modeling - critical for realistic results
-    "SLIPPAGE_PCT": 0.004,  # 0.4% slippage per trade (conservative estimate)
-    "USE_SLIPPAGE": True,  # Enable slippage in backtests
-    "BID_ASK_SPREAD": 0.001,  # 0.1% bid-ask spread
-    "COMMISSION_PER_SHARE": 0.0,  # Alpaca is commission-free
-    # Walk-forward validation settings
-    "WALK_FORWARD_ENABLED": True,
-    "TRAIN_RATIO": 0.7,  # 70% training, 30% testing
-    "N_SPLITS": 5,  # Number of walk-forward splits
-    "MIN_TRAIN_DAYS": 30,  # Minimum training period in days
-    # Statistical significance thresholds
-    "MIN_TRADES_FOR_SIGNIFICANCE": 50,  # Need 50+ trades for valid results
-    "OVERFITTING_RATIO_THRESHOLD": 2.0,  # In-sample / out-of-sample ratio threshold
-    # Realistic execution modeling
-    "EXECUTION_DELAY_BARS": 1,  # Assume 1-bar delay for order execution
-    "USE_LIMIT_ORDERS": False,  # If True, model limit order fill rates
-    "LIMIT_ORDER_FILL_RATE": 0.7,  # 70% of limit orders fill at target price
-}
-
 # Validate configuration on module load
 _validate_config()

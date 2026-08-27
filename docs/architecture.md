@@ -132,10 +132,7 @@ Core utilities:
 - `utils/order_lifecycle.py`, `utils/partial_fill_tracker.py`, `utils/performance_tracker.py`, `utils/sector_rotation.py`, `utils/portfolio_stress.py` — order/portfolio support used by the broker mixins and scanner.
 
 ### `data/`
-Data providers (small footprint after the 2026-05 cleanup quarantined most of this tree to `research/`).
-
-### `research/`
-Plausible-but-unvalidated quant work — factor models, pairs trading, walk-forward validation, cross-asset signals. **Not imported by the production path; excluded from default pytest.** See `research/README.md` for the contents and the bar for promoting anything back.
+Data providers (small footprint after the 2026-05 cleanup).
 
 ### `scripts/`
 Operational scripts (kept minimal after the cleanup):
@@ -217,22 +214,21 @@ Strategy.execute_trade()
 
 ## What's NOT in this repo
 
-- Tier-3 institutional features (LSTM, RL, factor models, LLM analysis, alt-data scrapers, options trading, news sentiment) — **all deleted or quarantined** in the May 2026 cleanup. See `results/where_we_landed.md` for the deletion list. Do not reintroduce without evidence.
+- Tier-3 institutional features (LSTM, RL, factor models, LLM analysis, alt-data scrapers, options trading, news sentiment) — **all deleted** in the May 2026 cleanup; the last unvalidated remainder (`research/`) was moved to the `archive/research` branch in August 2026. See `results/where_we_landed.md` for the deletion list. Do not reintroduce without evidence.
 - The "9 phases of institutional features" framing — **also deleted**. If you're tempted to add a "Phase 10," stop and read `results/where_we_landed.md`.
 
 ## Conventions
 
 - All broker operations are async. Use `await`.
 - New strategies inherit `BaseStrategy`, set `NAME` class attribute, live under `strategies/`.
-- Don't add features without evidence. The bar for promoting a `research/` module is in `research/README.md`.
+- Don't add features without evidence: a >=50-trade out-of-sample backtest and a significance check before anything ships.
 - Don't refactor unrelated code. The May 2026 form-cleanup refactor is complete; further large structural changes need their own plan.
 
 ## See also
 
 - `CLAUDE.md` — guidance for Claude Code working in this repo.
 - `README.md` — public-facing project description.
-- [`PROFITABILITY_RESEARCH.md`](PROFITABILITY_RESEARCH.md) — realistic performance expectations and limits.
 - `results/where_we_landed.md` — durable summary of the May 2026 cleanup + validation outcome.
 - `results/can_this_beat_qqq.md` — pre-validation skeptical analysis.
 - `results/etf_baseline_2020-2024_exposure_sweep.md` — canonical performance reference.
-- `TODO.md` — open follow-up items.
+- GitHub issues — open follow-up items.

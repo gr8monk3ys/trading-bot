@@ -3,7 +3,6 @@ Tests for config.py validation
 
 Tests cover:
 - Risk parameter validation
-- Backtest parameter validation (research/ harness input)
 - Symbols and credential structure
 
 TRADING_PARAMS / TECHNICAL_PARAMS / SYMBOL_SELECTION were deleted in the
@@ -47,61 +46,6 @@ class TestRiskParamsValidation:
 
         corr = RISK_PARAMS["MAX_CORRELATION"]
         assert -1 <= corr <= 1
-
-
-class TestBacktestParamsValidation:
-    """Test BACKTEST_PARAMS validation."""
-
-    def test_slippage_reasonable(self):
-        """Slippage should be positive and reasonable."""
-        from config import BACKTEST_PARAMS
-
-        slip = BACKTEST_PARAMS["SLIPPAGE_PCT"]
-        assert 0 <= slip <= 0.05  # Max 5% seems reasonable
-
-    def test_train_ratio_valid(self):
-        """Train ratio should be between 0 and 1."""
-        from config import BACKTEST_PARAMS
-
-        ratio = BACKTEST_PARAMS["TRAIN_RATIO"]
-        assert 0 < ratio < 1
-
-    def test_n_splits_positive(self):
-        """Number of walk-forward splits should be positive."""
-        from config import BACKTEST_PARAMS
-
-        assert BACKTEST_PARAMS["N_SPLITS"] > 0
-
-    def test_min_trades_reasonable(self):
-        """Minimum trades for significance should be reasonable."""
-        from config import BACKTEST_PARAMS
-
-        min_trades = BACKTEST_PARAMS["MIN_TRADES_FOR_SIGNIFICANCE"]
-        assert 20 <= min_trades <= 200
-
-    def test_overfitting_threshold_positive(self):
-        """Overfitting ratio threshold should be positive."""
-        from config import BACKTEST_PARAMS
-
-        assert BACKTEST_PARAMS["OVERFITTING_RATIO_THRESHOLD"] > 0
-
-    def test_slippage_enabled_by_default(self):
-        """Slippage should be enabled by default for realistic backtests."""
-        from config import BACKTEST_PARAMS
-
-        assert BACKTEST_PARAMS["USE_SLIPPAGE"] is True
-
-    def test_walk_forward_enabled_by_default(self):
-        """Walk-forward validation should be enabled."""
-        from config import BACKTEST_PARAMS
-
-        assert BACKTEST_PARAMS["WALK_FORWARD_ENABLED"] is True
-
-    def test_min_train_days_reasonable(self):
-        """Minimum training days should be at least 30."""
-        from config import BACKTEST_PARAMS
-
-        assert BACKTEST_PARAMS["MIN_TRAIN_DAYS"] >= 30
 
 
 class TestSymbolsConfiguration:
@@ -164,7 +108,6 @@ class TestConfigIntegrity:
         import config
 
         assert hasattr(config, "RISK_PARAMS")
-        assert hasattr(config, "BACKTEST_PARAMS")
         assert hasattr(config, "ALPACA_CREDS")
         assert hasattr(config, "SYMBOLS")
 
@@ -175,6 +118,7 @@ class TestConfigIntegrity:
         assert not hasattr(config, "TRADING_PARAMS")
         assert not hasattr(config, "TECHNICAL_PARAMS")
         assert not hasattr(config, "SYMBOL_SELECTION")
+        assert not hasattr(config, "BACKTEST_PARAMS")  # only research/ read it
 
 
 if __name__ == "__main__":

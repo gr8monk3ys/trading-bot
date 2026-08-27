@@ -23,7 +23,9 @@ baseline). If neither is available the script writes a DATA_UNAVAILABLE
 report rather than silently producing a 0-trade artifact.
 
 If trade count < MIN_TRADES_FOR_SIGNIFICANCE, the result is reported as
-INCONCLUSIVE per `PROFITABILITY_RESEARCH.md`'s 50-trade significance bar.
+INCONCLUSIVE. The bar is 50 trades: below that the confidence interval on
+mean trade return is wider than any plausible edge, so Sharpe and win rate
+are noise (see `scripts/run_honest_baseline.py` for the same constant).
 A 0-trade result on this universe is itself an honest finding ("strategy
 filter doesn't fire on broad indices") and is reported as such.
 """
@@ -421,7 +423,7 @@ def _format_markdown(artifact: dict) -> str:
         header += (
             f"> **Status: INCONCLUSIVE.** Strategy produced {n_trades} trades, "
             f"below the {cfg['min_trades_for_significance']}-trade significance "
-            "bar set by this repo's `PROFITABILITY_RESEARCH.md`. The numbers "
+            "bar (see the docstring of `scripts/run_etf_baseline.py`). The numbers "
             "below are reported for transparency but must not be cited as "
             "evidence of strategy edge.\n\n"
         )
@@ -612,7 +614,7 @@ def _interpret(metrics: dict, benchmarks: dict, n_trades: int, inconclusive: boo
     bullets.append(
         "- ETFs are not the *only* survivor-bias-free universe. A random sample\n"
         "  of S&P 500 members at each point in time would be stronger; this run\n"
-        "  is a cheap-to-produce first cut. Follow-up item in `TODO.md`."
+        "  is a cheap-to-produce first cut. Tracked as a GitHub issue."
     )
     bullets.append(
         "- 5 years of daily data on 4 instruments is a small sample even when\n"

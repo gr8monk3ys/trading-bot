@@ -1,6 +1,6 @@
 # Paper Trading Guide
 
-This guide is historical and contains older operational notes. Use `QUICKSTART.md` for the current supported workflow.
+This guide is historical and contains older operational notes. Use `setup.md` for the current supported workflow.
 
 **Status:** ACTIVE - Paper trading started 2025-11-10
 **Strategy:** MomentumStrategy (Simplified)
@@ -417,6 +417,6 @@ If critical issues occur:
 1. Stop the bot immediately
 2. Save logs: `cp paper_trading.log logs/error_$(date +%Y%m%d_%H%M%S).log`
 3. Document the issue
-4. Review `results/where_we_landed.md` and `TODO.md` for context
+4. Review `results/where_we_landed.md` and the open GitHub issues for context
 
 **Remember:** This is PAPER TRADING. No real money at risk. Goal is validation and learning.

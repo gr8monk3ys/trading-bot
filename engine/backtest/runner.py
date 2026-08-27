@@ -91,8 +91,7 @@ class BacktestRunnerMixin:
         # Use existing broker for data if available, otherwise create one
         data_broker = self.broker if self.broker else AlpacaBroker(paper=True)
 
-        # NOTE: Historical universe / survivorship-bias correction was quarantined
-        # to research/ in the 2026-05 cleanup. Backtests now trade the full symbol
+        # NOTE: No survivorship-bias correction. Backtests trade the full symbol
         # list for all dates; rerun on a curated symbol set if survivorship matters.
 
         # Convert dates to datetime if they are date objects
@@ -242,8 +241,7 @@ class BacktestRunnerMixin:
                 if not hasattr(strategy, "current_data"):
                     strategy.current_data = {}
 
-                # Survivorship-bias correction was quarantined to research/ in the
-                # 2026-05 cleanup. Trade the full symbol list each day.
+                # No survivorship-bias correction: trade the full symbol list each day.
                 tradeable_symbols = symbols
 
                 for symbol in tradeable_symbols:

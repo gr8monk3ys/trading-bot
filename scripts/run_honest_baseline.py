@@ -14,7 +14,9 @@ Data sources (tried in order):
        silent 0-trade INCONCLUSIVE result that looks like the strategy ran.
 
 If trade count < MIN_TRADES_FOR_SIGNIFICANCE, the result is reported as
-INCONCLUSIVE per PROFITABILITY_RESEARCH.md's 50-trade significance bar.
+INCONCLUSIVE. The bar is 50 trades: with fewer, the 95% confidence interval on
+mean trade return is wider than any plausible edge (at 7-15 trades it spans
+roughly -15% to +25%), so a Sharpe or win rate quoted from it is noise.
 """
 
 from __future__ import annotations
@@ -274,7 +276,7 @@ def _format_markdown(artifact: dict) -> str:
         header += (
             f"> **Status: INCONCLUSIVE.** Strategy produced {n_trades} trades, "
             f"below the {cfg['min_trades_for_significance']}-trade significance "
-            "bar set by this repo's `PROFITABILITY_RESEARCH.md`. The numbers "
+            "bar (see the docstring of `scripts/run_honest_baseline.py`). The numbers "
             "below are reported for transparency but must not be cited as "
             "evidence of strategy edge.\n\n"
         )
@@ -336,18 +338,16 @@ def _format_markdown(artifact: dict) -> str:
         interpretation += (
             "Because the trade count is below 50, the Sharpe/return numbers above "
             "have very wide confidence intervals and **must not be extrapolated** "
-            "into claims about future performance. `PROFITABILITY_RESEARCH.md` "
-            "calls out realistic expectations for this strategy family "
-            "(Sharpe 0.5 to 1.2 net of costs); this run is too small to confirm "
-            "or refute that. Re-run with a larger universe or longer history to "
+            "into claims about future performance. Re-run with a larger universe "
+            "or longer history to "
             "cross the significance bar before quoting edge.\n"
         )
     else:
         interpretation += (
             "**Caveats — read before quoting these numbers:**\n\n"
             "1. **Survivorship-bias correction is off.** The 10-symbol universe is "
-            "hand-picked mega-caps that survived 2020-2024; survivorship-bias "
-            "handling was quarantined to `research/` in the 2026-05 cleanup. "
+            "hand-picked mega-caps that survived 2020-2024; the engine has no "
+            "survivorship-bias correction. "
             "Numbers above are inflated by selection of known winners.\n"
             "2. **Realized P&L only — end-of-period liquidation pass enabled.** "
             "Open positions at end-of-period are closed at the final bar with "
@@ -362,10 +362,8 @@ def _format_markdown(artifact: dict) -> str:
             "engine logs — largest gap in this run was 26%).\n"
             "4. **No walk-forward validation in this artifact.** This is a single "
             "in-sample run; treat the Sharpe as an upper bound on what an "
-            "out-of-sample trader would have realized. "
-            "`PROFITABILITY_RESEARCH.md` documents realistic expectations for "
-            "this strategy family (Sharpe 0.5 to 1.2 net of costs) — anything "
-            "well above that range warrants suspicion, not celebration.\n\n"
+            "out-of-sample trader would have realized. A Sharpe well above 1 "
+            "from a retail momentum system warrants suspicion, not celebration.\n\n"
             "Do not extrapolate beyond what the trade count supports. Use this "
             "artifact as a sanity check that the pipeline runs end-to-end on "
             "real market data, not as evidence of strategy edge.\n"
