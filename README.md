@@ -4,11 +4,11 @@
   <img src="docs/assets/hero.png" alt="trading-bot preview" width="640">
 </p>
 
-Personal algorithmic-trading sandbox on Alpaca, async Python.
+Algorithmic trading research bot on Alpaca (async Python): backtests, strategy validation, and paper trading. No proven edge — not for real capital.
 
 **Status:** experimental, paper-only, no proven edge. Do not deploy real capital.
 
-**Coming back to this repo?** Read [`results/where_we_landed.md`](results/where_we_landed.md) first — durable summary of the May 2026 cleanup + validation, including the 2026-08-17 addendum. Headline: at matched (~92%) gross exposure the strategy returns +42.9% vs SPY buy-and-hold +95.3% with a worse Sharpe (0.52 vs 0.75). The earlier "-7% max DD drawdown control" story was an exposure artifact — max drawdown scales roughly linearly with exposure.
+**Coming back to this repo?** Read [`results/where_we_landed.md`](results/where_we_landed.md) first — the durable summary of the May 2026 cleanup and the August 2026 backtest fixes. The headline numbers are in [Results](#results) below.
 
 ## What's in here
 
@@ -33,11 +33,20 @@ python main.py backtest --strategy MomentumStrategyBacktest --start-date 2024-01
 python main.py live --strategy adaptive
 ```
 
-## Performance
+## Results
 
-The canonical reference is `results/etf_baseline_2020-2024_exposure_sweep.md` — SPY/QQQ/IWM/EFA (broad ETFs that can't be delisted or selection-biased), regenerated 2026-08-18 after fixing the last structural backtest defect: the strategy could never exit a position on its own signal. **With exits working, the gross-100 run returns +16.4% / Sharpe 0.16 (26 trades, ~59% realized gross) vs SPY buy-and-hold +95.3% / Sharpe 0.75 — the strategy's own exit timing subtracts value at every exposure level.**
+The question this repo set out to answer — "can the momentum strategy be tuned to beat the market?" — is answered: **no.**
 
-Every earlier headline is superseded: "+42.9% at 92% gross" (2026-08-17) measured enter-once-and-hold — beta, not the strategy; `etf_baseline_2020-2024.md` (+53.4%) and `honest_backtest_2020-2024.md` (+646%, survivor-biased) carry SUPERSEDED banners. Don't quote any of them.
+| 2020-2024, SPY/QQQ/IWM/EFA universe | Total return | Sharpe | Trades |
+|---|---|---|---|
+| Momentum strategy, gross-100 target | **+16.4%** | 0.16 | 26 (below the 50-trade significance bar) |
+| SPY buy-and-hold | **+95.3%** | 0.75 | — |
+
+Source: `results/etf_baseline_2020-2024_exposure_sweep.md`, regenerated 2026-08-18 after fixing the last structural backtest defect (the strategy could never exit a position on its own signal). The strategy's own exit timing subtracts value at every exposure level, and the Bollinger filter A/B (`results/bollinger_filter_ab_2020-2024.md`) shows that the one configuration clearing 50 trades returns −1.88%.
+
+Every earlier headline is superseded: "+42.9% at 92% gross" measured enter-once-and-hold — beta, not the strategy; `etf_baseline_2020-2024.md` (+53.4%) and `honest_backtest_2020-2024.md` (+646%, survivor-biased) carry SUPERSEDED banners. Don't quote any of them.
+
+What's left to decide is what the repo is for: an execution/infrastructure sandbox, a home for validating the pairs-trading sleeve in `research/`, or an archive. See `TODO.md`.
 
 ## License
 

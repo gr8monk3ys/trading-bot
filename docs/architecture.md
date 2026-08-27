@@ -225,7 +225,7 @@ Strategy.execute_trade()
 - All broker operations are async. Use `await`.
 - New strategies inherit `BaseStrategy`, set `NAME` class attribute, live under `strategies/`.
 - Don't add features without evidence. The bar for promoting a `research/` module is in `research/README.md`.
-- Don't refactor unrelated code. The May 2026 form-cleanup refactor (plan in `/home/codespace/.claude/plans/alright-then-lets-keep-starry-beaver.md`) is complete; further large structural changes need their own plan.
+- Don't refactor unrelated code. The May 2026 form-cleanup refactor is complete; further large structural changes need their own plan.
 
 ## See also
 

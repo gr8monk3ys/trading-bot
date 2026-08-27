@@ -11,7 +11,7 @@
 > `results/etf_baseline_2020-2024_exposure_sweep.md` for the post-fix rerun.
 
 Generated: 2026-05-11T21:55:49.068307Z
-Spec: `docs/superpowers/specs/2026-05-11-honest-cleanup-design.md`
+Spec: the May 2026 honest-cleanup design (removed from the tree; see `results/where_we_landed.md`)
 Data source: `yfinance`
 
 > **Status: INCONCLUSIVE.** Strategy produced 38 trades, below the 50-trade significance bar set by this repo's `PROFITABILITY_RESEARCH.md`. The numbers below are reported for transparency but must not be cited as evidence of strategy edge.
