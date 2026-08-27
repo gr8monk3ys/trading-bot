@@ -4,7 +4,7 @@ Generated: 2026-08-19T04:55:35.587539Z
 Spec: the May 2026 honest-cleanup design (removed from the tree; see `results/where_we_landed.md`)
 Data source: `yfinance`
 
-> **Status: INCONCLUSIVE.** Strategy produced 26 trades, below the 50-trade significance bar set by this repo's `PROFITABILITY_RESEARCH.md`. The numbers below are reported for transparency but must not be cited as evidence of strategy edge.
+> **Status: INCONCLUSIVE.** Strategy produced 26 trades, below the 50-trade significance bar (see `scripts/run_etf_baseline.py`). The numbers below are reported for transparency but must not be cited as evidence of strategy edge.
 
 ## Purpose
 
@@ -106,7 +106,7 @@ is copied from `results/honest_backtest_2020-2024.md`.
 
 - ETFs are not the *only* survivor-bias-free universe. A random sample
   of S&P 500 members at each point in time would be stronger; this run
-  is a cheap-to-produce first cut. Follow-up item in `TODO.md`.
+  is a cheap-to-produce first cut. Tracked as a GitHub issue.
 
 - 5 years of daily data on 4 instruments is a small sample even when
   the in-strategy trade count crosses 50. Don't extrapolate Sharpe

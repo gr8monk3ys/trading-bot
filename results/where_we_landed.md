@@ -22,7 +22,7 @@ Both fixed 2026-08-18: opposite-signal exits (bearish signal while long closes t
 
 **The strategy's own exit timing destroys value at every exposure level.** With exits active, realized exposure drops (positions spend time flat) *and* return per unit of exposure falls — +16.4% at 59% avg gross (~0.28x per-exposure) vs the hold-only +42.9% at 92% (~0.47x) vs SPY's 0.95x. The signal's timing is anti-predictive on this universe: every exit it took was, on net, a mistake it re-bought later at a worse price. 26 trades is still under the 50-trade significance bar (STATUS=INCONCLUSIVE), but the direction is consistent across all three exposure targets and both eras.
 
-**The verdict tightens:** the 2026-08-17 "+42.9%" was never the strategy — it was beta wearing the strategy's name. The actual momentum system, exits and all, delivers roughly a sixth of SPY's return. Tuning it remains a dead end; the honest routes are unchanged — hold the benchmark, validate the pairs sleeve in `research/`, or treat this repo as infrastructure practice. Notably untested still: the production trailing stops (they need intraday `on_bar` data the daily backtest can't drive), the Bollinger filter A/B, and the mean-reversion strategy standalone.
+**The verdict tightens:** the 2026-08-17 "+42.9%" was never the strategy — it was beta wearing the strategy's name. The actual momentum system, exits and all, delivers roughly a sixth of SPY's return. Tuning it remains a dead end; the honest routes are unchanged — hold the benchmark, validate the pairs sleeve (now on the `archive/research` branch), or treat this repo as infrastructure practice. Notably untested still: the production trailing stops (they need intraday `on_bar` data the daily backtest can't drive), the Bollinger filter A/B, and the mean-reversion strategy standalone.
 
 ---
 
@@ -49,13 +49,13 @@ The post-fix rerun (`results/etf_baseline_2020-2024_exposure_sweep.md`) sweeps t
 
 **At matched exposure the strategy earns less than half of SPY's return with a worse Sharpe, and max drawdown scales almost linearly with exposure** — the drawdown-control story was mostly an exposure artifact (at 100% target it still beats SPY's DD, but at a Sharpe cost no allocator would pay). 8 trades in 5 years is far below any significance bar; the signal barely fires on broad indices. There is no configuration of this strategy on this universe that beats holding SPY.
 
-**What this means for "maximize profit":** tuning this strategy is a dead end — the honest ceiling is below passive. The live routes that remain are (a) hold the benchmark, (b) research a genuinely different edge (the pairs-trading sleeve in `research/` is the only structurally plausible candidate, unvalidated), or (c) treat the bot as an execution/infrastructure sandbox, which is what it is.
+**What this means for "maximize profit":** tuning this strategy is a dead end — the honest ceiling is below passive. The live routes that remain are (a) hold the benchmark, (b) research a genuinely different edge (the pairs-trading sleeve on the `archive/research` branch is the only structurally plausible candidate, unvalidated), or (c) treat the bot as an execution/infrastructure sandbox, which is what it is.
 
 ---
 
 ## The journey, in one paragraph
 
-The repo was a 193K-LOC trading bot claiming "institutional-grade, 10/10, suitable for live capital deployment" backed by a +42.68% backtest with 9 trades — a number the repo's own `PROFITABILITY_RESEARCH.md` admitted was statistically meaningless. An audit cut the unjustified narrative and unvalidated surface area, reducing the repo to ~50K LOC of honest core. A first backtest on hand-picked mega-caps produced a flattering +646% number that several methodology fixes (gateway routing, short-trade PnL accounting, end-of-period liquidation) didn't change much. A bias-free ETF baseline did. **The strategy underperforms SPY buy-and-hold by ~40 percentage points on total return.** Its real value is drawdown control, not profit maximization.
+The repo was a 193K-LOC trading bot claiming "institutional-grade, 10/10, suitable for live capital deployment" backed by a +42.68% backtest with 9 trades — a number the repo's own (since deleted) `PROFITABILITY_RESEARCH.md` admitted was statistically meaningless. An audit cut the unjustified narrative and unvalidated surface area, reducing the repo to ~50K LOC of honest core. A first backtest on hand-picked mega-caps produced a flattering +646% number that several methodology fixes (gateway routing, short-trade PnL accounting, end-of-period liquidation) didn't change much. A bias-free ETF baseline did. **The strategy underperforms SPY buy-and-hold by ~40 percentage points on total return.** Its real value is drawdown control, not profit maximization.
 
 ---
 
@@ -112,11 +112,11 @@ This strategy has three distinct profiles depending on what you're trying to opt
    - `_calculate_trade_pnl` handles short positions correctly (signed-qty state machine).
    - `BacktestEngine` liquidates open positions at end-of-backtest so total-return reflects realized P&L.
 
-4. **The kept core is small and reasonable:** `MomentumStrategy` + `RiskManager` + `CircuitBreaker` + `AlpacaBroker` + `BacktestEngine` + `AdaptiveStrategy` regime switcher. Everything speculative is in `research/`.
+4. **The kept core is small and reasonable:** `MomentumStrategy` + `RiskManager` + `CircuitBreaker` + `AlpacaBroker` + `BacktestEngine` + `AdaptiveStrategy` regime switcher. Everything speculative was quarantined to `research/`, which now lives only on the `archive/research` branch.
 
 ---
 
-## What's still on the table (TODO.md)
+## What's still on the table (now tracked as GitHub issues)
 
 If you come back to this repo, the open items are:
 
@@ -135,7 +135,7 @@ Net effect of the cleanup branch (`cleanup/honest-2026-05-11`, merged to main):
 | Action | Volume | Categories |
 |---|---:|---|
 | **Deleted** | ~37,000 LOC | LSTM, DQN, ensemble predictor, LLM analysis pipeline (earnings/Fed/SEC/news), alt-data scrapers, options broker, 4 momentum-strategy variants, ensemble strategies, news sentiment (FinBERT), 30+ operational scripts, 14 ops utils, 11 GitHub workflows, infra/ tree |
-| **Quarantined** | ~10,000 LOC | `research/`: factor models, pairs trading, walk-forward, validated backtest, alpha-decay, IC tracker, historical universe, cross-asset signals, feature store, point-in-time, 13 factor files |
+| **Quarantined** (moved to branch `archive/research`, 2026-08) | ~10,000 LOC | `research/`: factor models, pairs trading, walk-forward, validated backtest, alpha-decay, IC tracker, historical universe, cross-asset signals, feature store, point-in-time, 13 factor files |
 | **Kept** | ~50,000 LOC | The honest core (momentum, risk manager, circuit breaker, broker, backtest engine) plus utilities still tied to active code |
 
 Documentation reduced from ~30 markdown files to ~7. The "Phase 1–9" / "10/10 institutional-grade" framing is gone from every file.

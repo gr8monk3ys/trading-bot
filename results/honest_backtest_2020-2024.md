@@ -149,9 +149,9 @@ This is the single performance number cited by `README.md` and `CLAUDE.md`. It s
 
 **Caveats — read before quoting these numbers:**
 
-1. **Survivorship-bias correction is off.** The 10-symbol universe is hand-picked mega-caps that survived 2020-2024; survivorship-bias handling was quarantined to `research/` in the 2026-05 cleanup. Numbers above are inflated by selection of known winners.
+1. **Survivorship-bias correction is off.** The 10-symbol universe is hand-picked mega-caps that survived 2020-2024; the engine has no survivorship-bias correction. Numbers above are inflated by selection of known winners.
 2. **Realized P&L only — end-of-period liquidation pass enabled.** Open positions at end-of-period are closed at the final bar with realistic spread + slippage (see `BacktestEngine._liquidate_open_positions`), so headline equity reflects realized cash, not unrealized MTM. Short-leg PnL is also captured correctly (Step 2B fixed the matcher). The 5-year window happens to end near all-time highs in the chosen universe; rerun ending on a different date for a different number.
 3. **Costs included: 40 bps slippage + 10 bps spread per trade.** These are realistic for retail at this universe size but do not model gap risk on positions held overnight (gap stats: see engine logs — largest gap in this run was 26%).
-4. **No walk-forward validation in this artifact.** This is a single in-sample run; treat the Sharpe as an upper bound on what an out-of-sample trader would have realized. `PROFITABILITY_RESEARCH.md` documents realistic expectations for this strategy family (Sharpe 0.5 to 1.2 net of costs) — anything well above that range warrants suspicion, not celebration.
+4. **No walk-forward validation in this artifact.** This is a single in-sample run; treat the Sharpe as an upper bound on what an out-of-sample trader would have realized. A Sharpe well above 1 from a retail momentum system warrants suspicion, not celebration.
 
 Do not extrapolate beyond what the trade count supports. Use this artifact as a sanity check that the pipeline runs end-to-end on real market data, not as evidence of strategy edge.

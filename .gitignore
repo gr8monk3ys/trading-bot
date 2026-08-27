@@ -82,6 +82,8 @@ audit_logs/
 
 # Database files
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 
@@ -127,6 +129,6 @@ secrets.yaml
 :memory:/
 
 # Claude Code local state and AI-session plans
-.claude/settings.local.json
-.claude/memory/
+.claude/
 docs/superpowers/
+.remember/

@@ -1,9 +1,9 @@
 [project]
 name = "trading-bot"
 version = "3.0.0"
-description = "Professional algorithmic trading bot with advanced strategies and institutional-grade risk management"
+description = "Alpaca paper-trading bot with a walk-forward-validated backtester; the validated strategy does not beat buy-and-hold"
 authors = [
-    {name = "gr8monk3ys", email = "your-email@example.com"}
+    {name = "gr8monk3ys"}
 ]
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
