@@ -24,6 +24,8 @@ The first backtests said +646%, then +53%, then +42.9%. Each was a measurement b
 - **`AdaptiveStrategy` never switched** ([#89](https://github.com/gr8monk3ys/trading-bot/pull/89)). Both arms subscribed to bars themselves and traded simultaneously, sometimes against each other, while the regime detector never ran.
 - **The filter carries the strategy** ([#88](https://github.com/gr8monk3ys/trading-bot/pull/88)). A/B with the Bollinger filter off was the first configuration to clear 50 trades; it is negative.
 
+Those four defects are now checked mechanically rather than remembered. `uv run python scripts/audit_results.py` runs [backtest-audit](https://github.com/gr8monk3ys/backtest-audit) over the committed artifacts. The current exposure sweep comes back **TRUSTWORTHY WITH CAVEATS** — no blocking findings, and its two warnings are the two caveats stated above: 59% average gross exposure against a 100%-invested benchmark, and 13 round trips against a 50-trade bar. Add `--all` and the two superseded runs still come back **NOT TRUSTWORTHY**, reconstructing the position-awareness and naked-short defects from the trade log alone.
+
 What remains on `main` is the code needed to reproduce that: the momentum and mean-reversion strategies, the adaptive coordinator, a backtest engine with slippage and spread, a risk manager (VaR, correlation, sizing), a daily-loss circuit breaker, and the Alpaca broker wrapper with a live order gateway. The exposure sweep compares strategy and benchmark at matched gross exposure so the comparison is like-for-like. Unvalidated quant work (factor models, pairs trading, a walk-forward/permutation harness) was moved off `main` to the [`archive/research`](https://github.com/gr8monk3ys/trading-bot/tree/archive/research) branch; the only piece worth revisiting is pairs trading, tracked in [#104](https://github.com/gr8monk3ys/trading-bot/issues/104).
 
 The full history, including which numbers are superseded and why, is in [`results/where_we_landed.md`](results/where_we_landed.md).
@@ -39,6 +41,7 @@ cp .env.example .env            # ALPACA_API_KEY, ALPACA_SECRET_KEY, PAPER=True 
 uv run pytest tests/unit/
 uv run python main.py backtest --strategy MomentumStrategyBacktest --symbols SPY,QQQ --start-date 2024-01-01 --end-date 2024-12-31
 uv run python scripts/run_etf_baseline.py     # regenerates the table above
+uv run python scripts/audit_results.py        # audits the committed artifacts
 uv run python main.py live                    # paper trading
 ```
 
