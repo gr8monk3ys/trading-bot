@@ -10,17 +10,19 @@ Usage:
     uv run python scripts/audit_results.py --all      # superseded runs too
     uv run python scripts/audit_results.py FILE ...   # specific artifacts
 
-Exit status is 1 if any audited artifact has a blocking finding, so the
-command can gate a change that silently reintroduces one.
+Exit status: 0 clean, 1 a blocking finding, 2 an artifact could not be read
+at all. The last one is deliberately not a skip — a typo in a filename must
+not drain the gate and still report success.
 
 The superseded runs (`--all`) are expected to fail: they are the pre-fix
-artifacts kept for the record, and reproducing their defects from the
-trade log alone is the point.
+artifacts kept for the record, and their defects are still visible in the
+trade log.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -44,18 +46,34 @@ SUPERSEDED = [
 ]
 
 
-def _audit(path: Path, verbose: bool) -> bool:
-    """Print one artifact's audit. Returns True if it has blocking findings."""
+# _audit outcomes, in order of how loudly they should be reported.
+CLEAN, SKIPPED, BLOCKING, ERROR = "clean", "skipped", "blocking", "error"
+
+
+def _audit(path: Path, verbose: bool) -> str:
+    """Print one artifact's audit. Returns CLEAN / SKIPPED / BLOCKING / ERROR."""
     try:
         result = audit_file(path)
-    except (OSError, ValueError) as exc:
-        # A summary-only artifact (e.g. the A/B roll-up) carries no trade
-        # log; that is not a failure, there is simply nothing to audit.
+    except OSError as exc:
+        # Missing or unreadable. Never a skip: an artifact this command was
+        # told to audit and could not open is a failure of the gate itself,
+        # and a silent skip here would report success having audited nothing.
+        print(f"  ERROR   {path}: {exc}")
+        return ERROR
+    except json.JSONDecodeError as exc:
+        # Corrupt for the same reason: a truncated artifact is not an
+        # artifact with nothing to say.
+        print(f"  ERROR   {path}: not valid JSON: {exc}")
+        return ERROR
+    except ValueError as exc:
+        # Readable, but carries no trade log — the A/B roll-up is a summary
+        # of two runs, not a run. Nothing to audit, and that is not a
+        # failure. Counted and reported so it is never silent.
         print(f"  skipped {path.name}: {exc}")
-        return False
+        return SKIPPED
 
     print(render_text(result, color=sys.stdout.isatty(), verbose=verbose))
-    return bool(result.blocking)
+    return BLOCKING if result.blocking else CLEAN
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -66,13 +84,25 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.paths:
+        if args.all:
+            parser.error("--all selects the default artifact set; drop it or drop the paths")
         targets = [Path(p) for p in args.paths]
     else:
         names = CURRENT + (SUPERSEDED if args.all else [])
         targets = [RESULTS_DIR / n for n in names]
 
-    blocking = [p.name for p in targets if _audit(p, args.verbose)]
+    outcomes = [(p, _audit(p, args.verbose)) for p in targets]
+    errors = [p.name for p, o in outcomes if o is ERROR]
+    blocking = [p.name for p, o in outcomes if o is BLOCKING]
+    skipped = [p.name for p, o in outcomes if o is SKIPPED]
 
+    print(
+        f"{len(outcomes) - len(errors) - len(skipped)} audited, "
+        f"{len(skipped)} skipped, {len(errors)} unreadable."
+    )
+    if errors:
+        print(f"Could not audit: {', '.join(errors)}")
+        return 2
     if blocking:
         print(f"Blocking findings in: {', '.join(blocking)}")
         return 1
