@@ -764,6 +764,10 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
             "end_equity": float(equity_curve[-1]) if equity_curve else INITIAL_CAPITAL,
             "n_days": len(equity_curve),
         },
+        # The full curve, not just its endpoints: `backtest-audit` reconciles
+        # it against realised trade P&L, and an artifact carrying only the
+        # summary leaves that check unjudged — which is not a pass.
+        "equity_curve": [float(v) for v in equity_curve],
     }
 
     RESULTS_DIR.mkdir(exist_ok=True)
