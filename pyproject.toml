@@ -57,7 +57,7 @@ dev = [
     # (see scripts/audit_results.py). Installed from git on purpose: the PyPI
     # name `backtest-audit` belongs to an unrelated package, so the pinned SHA
     # is the only honest source.
-    "backtest-audit @ git+https://github.com/gr8monk3ys/backtest-audit@7e15b5d625d125b414e4ba503fe6c3666fa8fa10",
+    "backtest-audit @ git+https://github.com/gr8monk3ys/backtest-audit@v0.1.0",
     # httpx2 is the legitimate successor of httpx (author Tom Christie,
     # github.com/pydantic/httpx2) and the required TestClient backend for
     # starlette>=1.x — NOT a typosquat; provenance verified 2026-08-17.
@@ -73,7 +73,7 @@ dev = [
 
 test = [
     # See dev group note: the audit wiring test imports it directly.
-    "backtest-audit @ git+https://github.com/gr8monk3ys/backtest-audit@7e15b5d625d125b414e4ba503fe6c3666fa8fa10",
+    "backtest-audit @ git+https://github.com/gr8monk3ys/backtest-audit@v0.1.0",
     # See dev group note: legitimate starlette-1.x TestClient backend.
     "httpx2>=2.10.0",
     "pytest>=9.0.3",

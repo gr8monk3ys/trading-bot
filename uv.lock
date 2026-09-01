@@ -287,7 +287,7 @@ wheels = [
 [[package]]
 name = "backtest-audit"
 version = "0.1.0"
-source = { git = "https://github.com/gr8monk3ys/backtest-audit?rev=7e15b5d625d125b414e4ba503fe6c3666fa8fa10#7e15b5d625d125b414e4ba503fe6c3666fa8fa10" }
+source = { git = "https://github.com/gr8monk3ys/backtest-audit?rev=v0.1.0#6a9eb3e18d7139a07c7312b1f91aa1eba373ea3c" }
 
 [[package]]
 name = "beautifulsoup4"
@@ -3402,7 +3402,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "backtest-audit", git = "https://github.com/gr8monk3ys/backtest-audit?rev=7e15b5d625d125b414e4ba503fe6c3666fa8fa10" },
+    { name = "backtest-audit", git = "https://github.com/gr8monk3ys/backtest-audit?rev=v0.1.0" },
     { name = "black", specifier = ">=23.7.0" },
     { name = "httpx2", specifier = ">=2.10.0" },
     { name = "mypy", specifier = ">=1.5.0" },
@@ -3418,7 +3418,7 @@ docs = [
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.22.0" },
 ]
 test = [
-    { name = "backtest-audit", git = "https://github.com/gr8monk3ys/backtest-audit?rev=7e15b5d625d125b414e4ba503fe6c3666fa8fa10" },
+    { name = "backtest-audit", git = "https://github.com/gr8monk3ys/backtest-audit?rev=v0.1.0" },
     { name = "httpx2", specifier = ">=2.10.0" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", specifier = ">=0.21.0" },
