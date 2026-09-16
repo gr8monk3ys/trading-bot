@@ -39,3 +39,17 @@ Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 - Strategy discovery is import-based; a strategy must be importable from `strategies/`.
 - Do not add features without a >=50-trade out-of-sample backtest. Delete a module's
   tests and config in the same commit as the module.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `gr8monk3ys/trading-bot`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, label string equal to role name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
