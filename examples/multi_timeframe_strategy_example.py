@@ -143,10 +143,9 @@ class MultiTimeframeStrategy(BaseStrategy):
             # Calculate position size
             position_value = buying_power * self.position_size
 
-            # CRITICAL SAFETY: Enforce maximum position size limit (5% of portfolio)
-            position_value, quantity = await self.enforce_position_size_limit(
-                symbol, position_value, price
-            )
+            # Hard cap: max_position_size of equity (engine/position_sizing.py owns this in production)
+            position_value = min(position_value, float(account.equity) * self.max_position_size)
+            quantity = position_value / price
 
             # Allow fractional shares (Alpaca minimum is typically 0.01)
             if quantity < 0.01:

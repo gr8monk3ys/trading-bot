@@ -14,16 +14,13 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import replace
-from datetime import datetime
 from typing import Optional
 
 # NOTE: Removed lumibot.strategies.Strategy import - it crashes at import time
 # We don't actually need it - we'll create our own simple base class
-import numpy as np
-
 from engine.order_submission import OrderIntent, OrderOutcome
-from utils.kelly_criterion import KellyCriterion, Trade
-from utils.streak_sizing import StreakSizer
+from engine.position_sizing import PositionSizer
+from utils.kelly_criterion import KellyCriterion
 from utils.volatility_regime import VolatilityRegimeDetector
 
 logger = logging.getLogger(__name__)
@@ -82,9 +79,6 @@ class BaseStrategy(ABC):
         else:
             self.kelly = None
 
-        # Track closed positions for Kelly Criterion
-        self.closed_positions = {}  # {symbol: {'entry_price': float, 'entry_time': datetime}}
-
         # VOLATILITY REGIME: Initialize for adaptive risk management
         use_volatility_regime = parameters.get("use_volatility_regime", False)
         if use_volatility_regime:
@@ -92,23 +86,6 @@ class BaseStrategy(ABC):
             self.logger.info("✅ Volatility Regime Detection enabled")
         else:
             self.volatility_regime = None
-
-        # STREAK SIZING: Initialize for dynamic position sizing based on recent performance
-        use_streak_sizing = parameters.get("use_streak_sizing", False)
-        if use_streak_sizing:
-            self.streak_sizer = StreakSizer(
-                lookback_trades=parameters.get("streak_lookback", 10),
-                hot_streak_threshold=parameters.get("hot_streak_threshold", 7),
-                cold_streak_threshold=parameters.get("cold_streak_threshold", 3),
-                hot_multiplier=parameters.get("hot_multiplier", 1.2),
-                cold_multiplier=parameters.get("cold_multiplier", 0.7),
-                reset_after_trades=parameters.get("streak_reset_after", 5),
-            )
-            self.logger.info(
-                f"✅ Streak-based position sizing enabled: lookback={parameters.get('streak_lookback', 10)} trades"
-            )
-        else:
-            self.streak_sizer = None
 
         # Multi-timeframe analysis lives on the concrete strategies (see
         # MomentumStrategy.mtf_analyzer / MeanReversionStrategy.mtf_analyzer).
@@ -138,6 +115,13 @@ class BaseStrategy(ABC):
 
             # Initialize any other strategy-specific parameters
             self._initialize_parameters()
+
+            # Feed the Kelly estimator from real fills (ADR 0006).
+            recorder = getattr(getattr(self, "order_submission", None), "recorder", None)
+            if recorder is not None and getattr(self, "kelly", None) is not None:
+                recorder.subscribe(
+                    getattr(self, "name", self.__class__.__name__), self.kelly.add_trade
+                )
 
             # VOLATILITY REGIME: Initialize detector with broker
             if self.parameters.get("use_volatility_regime", False) and self.broker:
@@ -373,46 +357,6 @@ class BaseStrategy(ABC):
     # Live execution as intents: brackets, cooldown, risk haircut, hard cap.
     # ------------------------------------------------------------------
 
-    def _positions_for_risk(self, positions):
-        """Held positions with their close history, in the risk manager's shape."""
-        out = {}
-        for pos in positions:
-            history = getattr(self, "price_history", {}).get(pos.symbol)
-            if history:
-                out[pos.symbol] = {
-                    "value": abs(float(pos.market_value)),
-                    "price_history": self._extract_close_price_history(pos.symbol),
-                    "risk": None,
-                }
-        return out
-
-    async def _live_position_value(self, symbol, price, view, *, is_short):
-        use_kelly = bool(self.parameters.get("use_kelly_criterion", False))
-        if use_kelly and getattr(self, "kelly", None) is not None:
-            value, _fraction, _ = await self.calculate_kelly_position_size(
-                symbol, price, equity=view.equity
-            )
-            return value * (0.8 if is_short else 1.0)
-        size_pct = (
-            float(
-                getattr(
-                    self, "short_position_size", self.parameters.get("short_position_size", 0.08)
-                )
-            )
-            if is_short
-            else float(getattr(self, "position_size", self.parameters.get("position_size", 0.1)))
-        )
-        return float(view.buying_power) * size_pct
-
-    def _risk_adjusted(self, symbol, value, view):
-        risk_manager = getattr(self, "risk_manager", None)
-        closes = self._extract_close_price_history(symbol)
-        if risk_manager is None or len(closes) <= 20:
-            return value
-        return risk_manager.adjust_position_size(
-            symbol, value, closes, self._positions_for_risk(view.positions.values())
-        )
-
     def _record_entry(self, symbol, price, when, *, stop_loss, take_profit):
         for attr, val in (
             ("stop_prices", stop_loss),
@@ -473,16 +417,21 @@ class BaseStrategy(ABC):
                     f"Max positions reached ({max_positions}), skipping {action} for {symbol}"
                 )
                 return intents
-            value = await self._live_position_value(symbol, price, view, is_short=is_short)
-            value = self._risk_adjusted(symbol, value, view)
-            if value <= 0:
-                logger.info(f"Risk manager rejected position for {symbol}")
-                return intents
-            value, qty = await self.enforce_position_size_limit(
-                symbol, value, price, equity=view.equity
+            sizing = self.sizer().size(
+                symbol,
+                price,
+                view,
+                self._extract_close_price_history(symbol),
+                is_short=is_short,
+                held_closes={
+                    held_symbol: self._extract_close_price_history(held_symbol)
+                    for held_symbol in view.positions
+                },
             )
-            if qty < 0.01:
+            if not sizing.tradeable:
+                logger.info(f"No tradeable size for {symbol}: {'; '.join(sizing.steps)}")
                 return intents
+            qty = sizing.qty
             take_profit = float(
                 getattr(self, "take_profit", self.parameters.get("take_profit", 0.05))
             )
@@ -524,6 +473,26 @@ class BaseStrategy(ABC):
                 )
             )
         return intents
+
+    def sizer(self) -> PositionSizer:
+        """The one sizing decision, built from this strategy's parameters."""
+        use_kelly = bool(self.parameters.get("use_kelly_criterion", False))
+        return PositionSizer(
+            base_fraction=float(
+                getattr(self, "position_size", self.parameters.get("position_size", 0.1))
+            ),
+            short_fraction=float(
+                getattr(
+                    self, "short_position_size", self.parameters.get("short_position_size", 0.08)
+                )
+            ),
+            max_position_fraction=float(
+                getattr(self, "max_position_size", self.parameters.get("max_position_size", 0.05))
+            ),
+            kelly=self.kelly if use_kelly and getattr(self, "kelly", None) is not None else None,
+            risk_manager=getattr(self, "risk_manager", None),
+            regime_multiplier=getattr(self, "regime_multiplier", None),
+        )
 
     async def _exit_intents(self, symbol, when, view):
         """Strategy-managed exits (trailing stops etc.). Default: none."""
@@ -568,480 +537,12 @@ class BaseStrategy(ABC):
                 continue
         return closes
 
-    async def run(self):
-        """Run the strategy."""
-        try:
-            while not self._shutdown_event.is_set():
-                # Get current positions
-                positions = await self.get_positions()
-
-                # Update stop losses for existing positions
-                for position in positions:
-                    await self._update_stop_loss(position)
-
-                # Get trading signals for each symbol
-                for symbol in self.symbols:
-                    try:
-                        signal = await self.get_signal(symbol)
-                        if signal:
-                            await self.execute_trade(symbol, signal)
-                    except Exception as e:
-                        logger.error(f"Error processing signal for {symbol}: {e}", exc_info=True)
-
-                # Sleep before next iteration
-                await asyncio.sleep(self.interval)
-
-        except Exception as e:
-            logger.error(f"Error in strategy {self.__class__.__name__}: {e}", exc_info=True)
-        finally:
-            await self.cleanup()
-
-    async def backtest(self, *args, **kwargs):
-        """Run backtesting."""
-        try:
-            self.running = True
-            # NOTE: Removed super().backtest() call - we no longer inherit from lumibot.Strategy
-            # Backtesting is now handled by engine/backtest_engine.py instead
-            raise NotImplementedError(
-                "Backtesting should be done via BacktestEngine, not directly on strategies"
-            )
-        except Exception as e:
-            logger.error(f"Error in backtesting {self.name}: {e}")
-            raise
-        finally:
-            await self.cleanup()
-
     @abstractmethod
     async def analyze_symbol(self, symbol):
         """Analyze a symbol and return trading signals."""
         pass
 
-    def create_order(
-        self, symbol, quantity, side, type="market", limit_price=None, stop_price=None
-    ):
-        """
-        Create an order object.
-
-        Args:
-            symbol (str): The symbol to trade.
-            quantity (float): The quantity to trade.
-            side (str): 'buy' or 'sell'.
-            type (str): 'market', 'limit', or 'stop'.
-            limit_price (float, optional): The limit price for limit orders.
-            stop_price (float, optional): The stop price for stop orders.
-
-        Returns:
-            dict: The order object.
-        """
-        order = {
-            "symbol": symbol,
-            "quantity": quantity,
-            "side": side,
-            "type": type,
-        }
-        if limit_price:
-            order["limit_price"] = limit_price
-        if stop_price:
-            order["stop_price"] = stop_price
-        return order
-
-    async def _update_stop_loss(self, position):
-        """
-        Update the stop-loss level for a position based on volatility.
-
-        Uses the wider (more protective) of:
-        - Volatility-based stop (2 standard deviations)
-        - Configured stop_loss_pct parameter
-
-        Note: This calculates the optimal stop loss but does not automatically
-        update broker orders. Subclasses should override to implement
-        broker-specific order modification if needed.
-        """
-        try:
-            symbol = position.symbol
-            float(position.current_price)
-            avg_entry_price = float(position.avg_entry_price)
-            volatility = self._calculate_volatility(symbol)
-
-            # Calculate volatility-based stop (2 standard deviations below entry)
-            vol_stop_loss = avg_entry_price * (1 - 2 * volatility) if volatility > 0 else 0
-
-            # Calculate parameter-based stop loss
-            param_stop_loss = avg_entry_price * (1 - self.stop_loss_pct)
-
-            # Use the wider stop loss (higher price = less likely to be triggered)
-            # This provides better protection in volatile conditions
-            stop_loss = max(vol_stop_loss, param_stop_loss)
-
-            # Only log if stop loss is meaningful (not zero or negative)
-            if stop_loss > 0:
-                self.logger.debug(
-                    f"Stop-loss for {symbol}: ${stop_loss:.2f} "
-                    f"(vol-based: ${vol_stop_loss:.2f}, param-based: ${param_stop_loss:.2f})"
-                )
-
-            # Note: Broker order updates should be handled by strategy subclasses
-            # as order modification APIs vary by broker and order type
-
-        except Exception as e:
-            self.logger.error(f"Error updating stop-loss for {symbol}: {e}", exc_info=True)
-
-    def _calculate_volatility(self, symbol):
-        """Calculate the historical volatility for a symbol."""
-        try:
-            # Assuming self.price_history is available and populated by the strategy
-            if (
-                symbol not in self.price_history
-                or len(self.price_history[symbol]) < self.price_history_window
-            ):
-                self.logger.warning(
-                    f"Insufficient price history for {symbol} to calculate volatility"
-                )
-                return 0  # Or some default value
-
-            prices = np.array(self.price_history[symbol])
-            returns = np.diff(np.log(prices))
-            volatility = np.std(returns) * np.sqrt(252)  # Annualize
-            return volatility
-
-        except Exception as e:
-            self.logger.error(f"Error calculating volatility for {symbol}: {e}", exc_info=True)
-            return 0  # Or some default value
-
     async def shutdown(self):
         """Shutdown the strategy."""
         self._shutdown_event.set()
         await self.cleanup()
-
-    async def enforce_position_size_limit(
-        self, symbol, desired_position_value, current_price, *, equity=None
-    ):
-        """
-        CRITICAL SAFETY: Enforce maximum position size limit.
-
-        Prevents over-concentration in a single position which could lead to
-        catastrophic losses. Default limit is 5% of portfolio value.
-
-        Args:
-            symbol: Stock symbol
-            desired_position_value: Dollar value of desired position
-            current_price: Current stock price
-
-        Returns:
-            Tuple of (capped_position_value, capped_quantity) that respects limits
-
-        Raises:
-            ValueError: If account information cannot be retrieved
-        """
-        # P0 FIX: Validate current_price to prevent division by zero
-        if not current_price or current_price <= 0:
-            self.logger.error(
-                f"SAFETY: Invalid current_price for {symbol}: {current_price}. "
-                "Returning 0 to prevent division by zero."
-            )
-            return 0, 0
-
-        try:
-            # Get current account value
-            account = None if equity is not None else await self.broker.get_account()
-            account_value = float(equity if equity is not None else account.equity)
-
-            # Calculate maximum allowed position value
-            max_position_value = account_value * self.max_position_size
-
-            # Check if desired position exceeds limit
-            if desired_position_value > max_position_value:
-                self.logger.warning(
-                    f"POSITION SIZE LIMIT ENFORCED for {symbol}: "
-                    f"Requested ${desired_position_value:,.2f} exceeds "
-                    f"max ${max_position_value:,.2f} ({self.max_position_size:.1%} of ${account_value:,.2f})"
-                )
-                capped_value = max_position_value
-            else:
-                capped_value = desired_position_value
-
-            # Calculate capped quantity
-            capped_quantity = capped_value / current_price
-
-            self.logger.debug(
-                f"Position size check for {symbol}: "
-                f"${capped_value:,.2f} ({capped_quantity:.2f} shares) "
-                f"= {(capped_value/account_value):.1%} of portfolio"
-            )
-
-            return capped_value, capped_quantity
-
-        except Exception as e:
-            self.logger.error(f"Error enforcing position size limit for {symbol}: {e}")
-            # FAIL SAFE: Return 0 to prevent trading on error
-            return 0, 0
-
-    async def calculate_kelly_position_size(self, symbol, current_price, *, equity=None):
-        """
-        Calculate optimal position size using Kelly Criterion.
-
-        If Kelly is enabled and we have sufficient trade history, uses Kelly formula
-        for optimal position sizing. Otherwise falls back to fixed position_size parameter.
-
-        Args:
-            symbol: Stock symbol
-            current_price: Current stock price
-
-        Returns:
-            Tuple of (position_value, position_fraction, quantity)
-        """
-        # P0 FIX: Validate current_price to prevent division by zero
-        if not current_price or current_price <= 0:
-            self.logger.error(
-                f"SAFETY: Invalid current_price for {symbol}: {current_price}. "
-                "Returning 0 position size to prevent division by zero."
-            )
-            return 0, 0, 0
-
-        try:
-            # Get current account value
-            account = None if equity is not None else await self.broker.get_account()
-            account_value = float(equity if equity is not None else account.equity)
-
-            # If Kelly not enabled, use fixed position sizing
-            if not self.kelly:
-                position_fraction = self.position_size
-                position_value = account_value * position_fraction
-                quantity = position_value / current_price
-                self.logger.debug(
-                    f"Fixed position sizing: {position_fraction:.1%} = ${position_value:,.2f}"
-                )
-                return position_value, position_fraction, quantity
-
-            # Use Kelly Criterion for optimal sizing
-            position_value, position_fraction = self.kelly.calculate_position_size(
-                current_capital=account_value, current_price=current_price
-            )
-
-            quantity = position_value / current_price
-
-            self.logger.info(
-                f"📊 Kelly position size for {symbol}: "
-                f"{position_fraction:.1%} = ${position_value:,.2f} ({quantity:.2f} shares) "
-                f"[Win rate: {self.kelly.win_rate:.1%}, Profit factor: {self.kelly.profit_factor:.2f}]"
-            )
-
-            return position_value, position_fraction, quantity
-
-        except Exception as e:
-            self.logger.error(f"Error calculating Kelly position size: {e}")
-            # P0 FIX: Safe fallback - return zeros if we can't calculate
-            # account_value may not be defined if error occurred early
-            return 0, 0, 0
-
-    def track_position_entry(self, symbol, entry_price, entry_time=None):
-        """
-        Track position entry for Kelly Criterion trade recording.
-
-        Call this when opening a position. Will be used to calculate P/L when position closes.
-
-        Args:
-            symbol: Stock symbol
-            entry_price: Entry price
-            entry_time: Entry timestamp (defaults to now)
-        """
-        if entry_time is None:
-            entry_time = datetime.now()
-
-        self.closed_positions[symbol] = {"entry_price": entry_price, "entry_time": entry_time}
-
-        self.logger.debug(f"Tracking entry for {symbol} at ${entry_price:.2f}")
-
-    def record_completed_trade(self, symbol, exit_price, exit_time, quantity, side="long"):
-        """
-        Record a completed trade for Kelly Criterion analysis.
-
-        Call this when closing a position. Calculates P/L and adds to Kelly trade history.
-
-        Args:
-            symbol: Stock symbol
-            exit_price: Exit price
-            exit_time: Exit timestamp
-            quantity: Number of shares traded
-            side: 'long' or 'short'
-        """
-        if not self.kelly:
-            return  # Kelly not enabled
-
-        # Check if we tracked the entry
-        if symbol not in self.closed_positions:
-            self.logger.warning(f"No entry tracked for {symbol}, cannot record trade for Kelly")
-            return
-
-        entry_info = self.closed_positions[symbol]
-        entry_price = entry_info["entry_price"]
-        entry_time = entry_info["entry_time"]
-
-        # Calculate P/L
-        if side == "long":
-            pnl = (exit_price - entry_price) * quantity
-            pnl_pct = (exit_price - entry_price) / entry_price
-        else:  # short
-            pnl = (entry_price - exit_price) * quantity
-            pnl_pct = (entry_price - exit_price) / entry_price
-
-        is_winner = pnl > 0
-
-        # Create Trade object
-        trade = Trade(
-            symbol=symbol,
-            entry_time=entry_time,
-            exit_time=exit_time,
-            entry_price=entry_price,
-            exit_price=exit_price,
-            quantity=quantity,
-            pnl=pnl,
-            pnl_pct=pnl_pct,
-            is_winner=is_winner,
-        )
-
-        # Add to Kelly history
-        self.kelly.add_trade(trade)
-
-        # Add to streak sizer history
-        if self.streak_sizer:
-            self.streak_sizer.record_trade(is_winner=is_winner, pnl_pct=pnl_pct, symbol=symbol)
-
-        self.logger.info(
-            f"📈 Trade recorded: {symbol} {side.upper()} "
-            f"{'WIN' if is_winner else 'LOSS'} {pnl_pct:+.2%} "
-            f"(Total trades: {len(self.kelly.trades)})"
-        )
-
-        # Remove from tracking
-        del self.closed_positions[symbol]
-
-    async def apply_volatility_adjustments(self, base_position_size: float, base_stop_loss: float):
-        """
-        Apply volatility regime adjustments to position sizing and stop-loss.
-
-        If volatility regime detection is enabled, adjusts parameters based on current market conditions.
-        Otherwise, returns base values unchanged.
-
-        Args:
-            base_position_size: Base position size (e.g., 0.10 for 10%)
-            base_stop_loss: Base stop-loss (e.g., 0.03 for 3%)
-
-        Returns:
-            Tuple of (adjusted_position_size, adjusted_stop_loss, regime_name)
-        """
-        if not self.volatility_regime:
-            return base_position_size, base_stop_loss, "normal"
-
-        try:
-            # Get current regime
-            regime, adjustments = await self.volatility_regime.get_current_regime()
-
-            # Apply adjustments
-            adjusted_position_size = self.volatility_regime.adjust_position_size(
-                base_position_size, adjustments["pos_mult"]
-            )
-
-            adjusted_stop_loss = self.volatility_regime.adjust_stop_loss(
-                base_stop_loss, adjustments["stop_mult"]
-            )
-
-            self.logger.debug(
-                f"Volatility adjustments ({regime.upper()}): "
-                f"Position: {base_position_size:.1%} → {adjusted_position_size:.1%}, "
-                f"Stop: {base_stop_loss:.1%} → {adjusted_stop_loss:.1%}"
-            )
-
-            return adjusted_position_size, adjusted_stop_loss, regime
-
-        except Exception as e:
-            self.logger.error(f"Error applying volatility adjustments: {e}", exc_info=True)
-            return base_position_size, base_stop_loss, "normal"
-
-    def apply_streak_adjustments(self, base_position_size: float) -> float:
-        """
-        Apply streak-based adjustments to position sizing.
-
-        If streak sizing is enabled, adjusts position size based on recent win/loss performance.
-        Otherwise, returns base value unchanged.
-
-        Args:
-            base_position_size: Base position size (e.g., 0.10 for 10%)
-
-        Returns:
-            Adjusted position size
-        """
-        if not self.streak_sizer:
-            return base_position_size
-
-        try:
-            # Get adjusted size based on streak
-            adjusted_position_size = self.streak_sizer.adjust_for_streak(base_position_size)
-
-            if adjusted_position_size != base_position_size:
-                self.logger.debug(
-                    f"Streak adjustments ({self.streak_sizer.current_streak.upper()}): "
-                    f"Position: {base_position_size:.1%} → {adjusted_position_size:.1%}"
-                )
-
-            return adjusted_position_size
-
-        except Exception as e:
-            self.logger.error(f"Error applying streak adjustments: {e}", exc_info=True)
-            return base_position_size
-
-    async def is_short_position(self, symbol):
-        """
-        Check if we currently have a short position in a symbol.
-
-        Args:
-            symbol: Stock symbol
-
-        Returns:
-            True if we have a short position (negative quantity), False otherwise
-        """
-        try:
-            positions = await self.broker.get_positions()
-            position = next((p for p in positions if p.symbol == symbol), None)
-
-            if position:
-                qty = float(position.qty)
-                return qty < 0
-
-            return False
-
-        except Exception as e:
-            self.logger.error(f"Error checking short position for {symbol}: {e}")
-            return False
-
-    async def get_position_pnl(self, symbol):
-        """
-        Get current P/L for a position (works for both long and short).
-
-        Args:
-            symbol: Stock symbol
-
-        Returns:
-            Dict with unrealized_pl (dollar amount) and unrealized_plpc (percentage)
-            or None if no position exists
-        """
-        try:
-            positions = await self.broker.get_positions()
-            position = next((p for p in positions if p.symbol == symbol), None)
-
-            if position:
-                return {
-                    "unrealized_pl": float(position.unrealized_pl),
-                    "unrealized_plpc": float(position.unrealized_plpc),
-                    "qty": float(position.qty),
-                    "avg_entry_price": float(position.avg_entry_price),
-                    "current_price": float(position.current_price),
-                    "market_value": float(position.market_value),
-                    "is_short": float(position.qty) < 0,
-                }
-
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Error getting position P/L for {symbol}: {e}")
-            return None

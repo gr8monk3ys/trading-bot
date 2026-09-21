@@ -81,13 +81,13 @@ def _live_momentum(**params):
         ("trailing_activation_pct", 0.02),
         ("position_size", 0.1),
         ("max_positions", 5),
+        ("max_position_size", 0.5),
         ("stop_loss", 0.03),
         ("take_profit", 0.05),
     ):
         setattr(strategy, key, params.get(key, default))
     strategy.execution_mode = "live"
     strategy.risk_manager = None
-    strategy.enforce_position_size_limit = AsyncMock(side_effect=lambda s, v, p, **k: (v, v / p))
     return strategy
 
 

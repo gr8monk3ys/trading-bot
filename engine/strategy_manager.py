@@ -291,9 +291,13 @@ class StrategyManager:
         """One shared OrderSubmission per manager (the gateway token claim is per-broker)."""
         if self._order_submission is None:
             from engine.order_submission import OrderSubmission
+            from engine.trade_recorder import TradeRecorder
 
             self._order_submission = OrderSubmission(
-                self.broker, circuit_breaker=self.circuit_breaker, audit_log=self.audit_log
+                self.broker,
+                circuit_breaker=self.circuit_breaker,
+                audit_log=self.audit_log,
+                recorder=TradeRecorder(),
             )
         return self._order_submission
 

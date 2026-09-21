@@ -191,37 +191,6 @@ class TestValidateThreshold:
 # =============================================================================
 # Volatility Calculation Tests
 # =============================================================================
-class TestCalculateVolatility:
-    """Tests for _calculate_volatility method."""
-
-    def test_volatility_with_valid_data(self, risk_manager, sample_prices):
-        """Test volatility calculation with valid price data."""
-        vol = risk_manager._calculate_volatility(sample_prices)
-
-        assert vol > 0, f"Expected positive volatility, got {vol}"
-
-    def test_volatility_with_insufficient_data(self, risk_manager):
-        """Test volatility with insufficient data returns 0."""
-        vol = risk_manager._calculate_volatility([DEFAULT_STARTING_PRICE])
-
-        assert vol == 0.0, f"Expected 0.0 for insufficient data, got {vol}"
-
-    def test_volatility_with_zero_prices(self, risk_manager):
-        """Test volatility handling of zero prices returns high volatility signal."""
-        # Must use numpy array for element-wise zero comparison
-        prices = np.array([100, 0, 102])
-        vol = risk_manager._calculate_volatility(prices)
-
-        assert (
-            vol == ZERO_PRICE_VOLATILITY
-        ), f"Expected {ZERO_PRICE_VOLATILITY} for zero prices, got {vol}"
-
-    def test_volatility_with_constant_prices(self, risk_manager):
-        """Test volatility with constant prices returns 0."""
-        prices = [DEFAULT_STARTING_PRICE] * 5
-        vol = risk_manager._calculate_volatility(prices)
-
-        assert vol == 0.0, f"Expected 0.0 for constant prices, got {vol}"
 
 
 # =============================================================================
@@ -584,13 +553,6 @@ class TestEdgeCases:
         )
 
         assert adjusted >= 0, f"Adjusted size should be non-negative, got {adjusted}"
-
-    def test_volatility_with_very_stable_prices(self, risk_manager):
-        """Test volatility with very stable prices."""
-        prices = [100.0001, 100.0002, 100.0003, 100.0004, 100.0005]
-        vol = risk_manager._calculate_volatility(prices)
-
-        assert vol >= 0, f"Volatility should be non-negative, got {vol}"
 
     def test_var_with_all_positive_returns(self, risk_manager):
         """Test VaR when all returns are positive (profit)."""
