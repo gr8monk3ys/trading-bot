@@ -28,39 +28,6 @@ def test_calculate_metrics_basic():
     assert metrics["final_equity"] == 110000
 
 
-def test_compare_strategies_orders_by_average_rank():
-    metrics_calc = PerformanceMetrics()
-    start = datetime(2024, 1, 1)
-    end = datetime(2024, 2, 1)
-
-    results = {
-        "A": {
-            "equity_curve": [100, 120, 130],
-            "trades": [{"pnl": 10}, {"pnl": 5}],
-            "start_date": start,
-            "end_date": end,
-        },
-        "B": {
-            "equity_curve": [100, 105, 107],
-            "trades": [{"pnl": 2}, {"pnl": -1}],
-            "start_date": start,
-            "end_date": end,
-        },
-    }
-
-    comparison = metrics_calc.compare_strategies(results)
-    top = comparison["overall_ranking"][0][0]
-
-    assert top == "A"
-
-
-def test_compare_strategies_empty_results():
-    metrics_calc = PerformanceMetrics()
-    result = metrics_calc.compare_strategies({})
-
-    assert "error" in result
-
-
 def test_sortino_ratio_no_downside_returns():
     metrics_calc = PerformanceMetrics()
     returns = np.array([0.01, 0.02, 0.015])

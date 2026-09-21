@@ -21,7 +21,6 @@ mixin.  Tests rely on the bound-method form (``engine._calculate_trade_pnl(...)`
 etc.), which is why mixin composition is preferred over plain helper modules.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
@@ -86,72 +85,6 @@ class BacktestCoreMixin:
         """Use actual bar timestamps when available, otherwise fall back to weekdays."""
         sessions = self._extract_trading_sessions_from_price_data(start_dt, end_dt, price_data)
         return sessions if sessions else self._build_weekday_sessions(start_dt, end_dt)
-
-    def _cached_sessions_cover_requested_range(
-        self,
-        start_dt: datetime,
-        end_dt: datetime,
-        sessions: List[datetime],
-    ) -> bool:
-        """Only trust cached sessions when they span the full requested window."""
-        if not sessions or start_dt > end_dt:
-            return False
-
-        return sessions[0].date() <= start_dt.date() and sessions[-1].date() >= end_dt.date()
-
-    async def _fetch_trading_sessions_from_data_broker(
-        self,
-        data_broker,
-        symbols: List[str],
-        start_dt: datetime,
-        end_dt: datetime,
-    ) -> List[datetime]:
-        """Fetch session timestamps for a date range to build an exchange-aware fold calendar."""
-        cached_price_data = getattr(data_broker, "price_data", None)
-        cached_sessions = self._extract_trading_sessions_from_price_data(
-            start_dt, end_dt, cached_price_data
-        )
-        if self._cached_sessions_cover_requested_range(start_dt, end_dt, cached_sessions):
-            return cached_sessions
-
-        if not hasattr(data_broker, "get_bars"):
-            return self._build_weekday_sessions(start_dt, end_dt)
-
-        sessions_by_date = {}
-        start_date = start_dt.date()
-        end_date = end_dt.date()
-
-        async def _load_symbol_sessions(symbol: str) -> None:
-            try:
-                bars = await data_broker.get_bars(
-                    symbol,
-                    start=start_dt.strftime("%Y-%m-%d"),
-                    end=end_dt.strftime("%Y-%m-%d"),
-                    timeframe="1Day",
-                )
-            except Exception as exc:
-                logger.warning(f"Failed to load session calendar for {symbol}: {exc}")
-                return
-
-            for bar in bars or []:
-                timestamp = getattr(bar, "timestamp", None)
-                if timestamp is None:
-                    continue
-                session_ts = pd.Timestamp(timestamp).to_pydatetime()
-                session_date = session_ts.date()
-                if start_date <= session_date <= end_date:
-                    sessions_by_date.setdefault(session_date, session_ts)
-
-        await asyncio.gather(
-            *[_load_symbol_sessions(symbol) for symbol in symbols],
-            return_exceptions=True,
-        )
-
-        return (
-            [sessions_by_date[session_date] for session_date in sorted(sessions_by_date)]
-            if sessions_by_date
-            else self._build_weekday_sessions(start_dt, end_dt)
-        )
 
     # ------------------------------------------------------------------
     # Strategy.run() orchestration (simple loop)

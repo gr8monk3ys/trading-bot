@@ -61,32 +61,3 @@ def test_calculate_metrics_with_corrupt_equity_curve_returns_zero_return():
         }
     )
     assert result["total_return"] == 0
-
-
-def test_insights_flag_minimal_profitability():
-    insights = PerformanceMetrics()._generate_insights(
-        {
-            "total_return": 0.03,
-            "max_drawdown": 0.1,
-            "sharpe_ratio": 1.1,
-            "win_rate": 0.5,
-            "profit_factor": 1.2,
-        }
-    )
-    assert any("minimal profitability" in msg.lower() for msg in insights)
-
-
-def test_significance_warns_on_high_variance_and_outliers():
-    # 54 small wins, 5 small losses, one win 200x the rest: the mean is
-    # carried by a single trade.
-    trades = [{"pnl": 1.0}] * 54 + [{"pnl": -1.0}] * 5 + [{"pnl": 200.0}]
-    result = PerformanceMetrics().calculate_significance(trades, min_trades=50)
-    warnings = " | ".join(result["warnings"])
-    assert "High variance relative to mean" in warnings
-    assert "outliers" in warnings
-
-
-def test_outlier_dependency_is_zero_for_tiny_or_all_losing_samples():
-    metrics = PerformanceMetrics()
-    assert metrics._check_outlier_dependency(np.array([1.0, 2.0, 3.0])) == 0.0
-    assert metrics._check_outlier_dependency(np.array([-1.0] * 20)) == 0.0

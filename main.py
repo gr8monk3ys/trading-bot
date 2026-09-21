@@ -27,6 +27,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from brokers.alpaca_broker import AlpacaBroker
 from config import SYMBOLS
+from engine.historical_bars import DataUnavailableError
 from engine.strategy_manager import StrategyManager
 from utils.audit_log import AuditEventType, AuditLog
 from utils.circuit_breaker import CircuitBreaker
@@ -310,6 +311,9 @@ async def run_backtest(args) -> None:
 
         logger.info("Backtest completed")
 
+    except DataUnavailableError as e:
+        logger.error(f"Backtest aborted, data unavailable: {e}")
+        raise SystemExit(2) from e
     except Exception as e:
         logger.error(f"Error in backtest mode: {e}", exc_info=True)
     finally:

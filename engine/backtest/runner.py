@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Type
 import pandas as pd
 import pytz
 
+from engine.historical_bars import BrokerBars, DataUnavailableError, YFinanceBars, load_bars
 from engine.order_submission import OrderIntent
 from utils.portfolio_stress import run_portfolio_stress_test
 
@@ -105,58 +106,28 @@ class BacktestRunnerMixin:
         logger.info(
             f"Loading historical data for {len(symbols)} symbols from {start_dt.date()} to {end_dt.date()}..."
         )
-        data_quality_reports: dict[str, dict] = {}
-        loaded_price_data: dict[str, pd.DataFrame] = {}
-        loaded_sessions_by_date: dict = {}
-
-        async def _load_symbol_data(symbol: str) -> None:
-            """Load historical data for a single symbol."""
-            try:
-                bars = await data_broker.get_bars(
-                    symbol,
-                    start=start_dt.strftime("%Y-%m-%d"),
-                    end=end_dt.strftime("%Y-%m-%d"),
-                    timeframe="1Day",
-                )
-
-                if bars and len(bars) > 0:
-                    for bar in bars:
-                        timestamp = getattr(bar, "timestamp", None)
-                        if timestamp is None:
-                            continue
-                        session_ts = pd.Timestamp(timestamp).to_pydatetime()
-                        loaded_sessions_by_date.setdefault(session_ts.date(), session_ts)
-
-                    # Convert to DataFrame format expected by BacktestBroker
-                    # Note: volume must be float for talib SMA compatibility
-                    data = pd.DataFrame(
-                        {
-                            "open": [float(b.open) for b in bars],
-                            "high": [float(b.high) for b in bars],
-                            "low": [float(b.low) for b in bars],
-                            "close": [float(b.close) for b in bars],
-                            "volume": [float(b.volume) for b in bars],
-                        },
-                        index=pd.DatetimeIndex([b.timestamp for b in bars]),
-                    )
-
-                    backtest_broker.set_price_data(symbol, data)
-                    loaded_price_data[symbol] = data
-                    data_quality_reports[symbol] = {"rows": len(data), "loaded": True}
-                    logger.debug(f"Loaded {len(bars)} bars for {symbol}")
-                else:
-                    logger.warning(f"No data available for {symbol}")
-                    data_quality_reports[symbol] = {"rows": 0, "loaded": False}
-
-            except Exception as e:
-                logger.warning(f"Failed to load data for {symbol}: {e}")
-                data_quality_reports[symbol] = {"rows": 0, "loaded": False, "error": str(e)}
-
-        # Load all symbols in parallel for faster data fetching
-        await asyncio.gather(
-            *[_load_symbol_data(symbol) for symbol in symbols],
-            return_exceptions=True,
+        # A bars source (YFinanceBars / BrokerBars) is used as-is; a raw broker
+        # with ``get_bars(symbol, start=, end=, timeframe=)`` gets the adapter.
+        source = (
+            data_broker
+            if isinstance(data_broker, (YFinanceBars, BrokerBars))
+            else BrokerBars(data_broker, type(data_broker).__name__)
         )
+        bars = await load_bars(
+            source,
+            list(symbols),
+            start_dt.strftime("%Y-%m-%d"),
+            end_dt.strftime("%Y-%m-%d"),
+        )
+        if not bars.ok:
+            # Partial success is not a run (ADR 0008).
+            raise DataUnavailableError(bars)
+        loaded_price_data = bars.frames()
+        for symbol, data in loaded_price_data.items():
+            backtest_broker.set_price_data(symbol, data)
+            logger.debug(f"Loaded {len(data)} bars for {symbol}")
+        data_quality_reports = bars.report()
+        loaded_sessions = bars.sessions()
 
         # Instantiate strategy with backtest broker and symbols
         params = {"symbols": symbols}
@@ -185,17 +156,8 @@ class BacktestRunnerMixin:
         equity_curve = [initial_capital]
         exposure_curve = []
 
-        trading_days = (
-            [
-                loaded_sessions_by_date[session_date]
-                for session_date in sorted(loaded_sessions_by_date)
-            ]
-            if loaded_sessions_by_date
-            else self._resolve_trading_sessions(
-                start_dt,
-                end_dt,
-                loaded_price_data or getattr(backtest_broker, "price_data", None),
-            )
+        trading_days = loaded_sessions or self._resolve_trading_sessions(
+            start_dt, end_dt, loaded_price_data
         )
 
         logger.info(f"Running backtest over {len(trading_days)} trading days...")
@@ -447,9 +409,10 @@ class BacktestRunnerMixin:
             },
             "data_quality": {
                 "reports": data_quality_reports,
-                "symbols_loaded": len(backtest_broker.price_data),
+                "source": bars.source,
+                "symbols_loaded": len(bars.loaded),
                 "symbols_requested": len(symbols),
-                "symbols_rejected": len(symbols) - len(backtest_broker.price_data),
+                "symbols_rejected": len(symbols) - len(bars.loaded),
             },
             # Gap risk modeling results
             "gap_statistics": {
