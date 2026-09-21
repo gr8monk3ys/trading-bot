@@ -160,7 +160,7 @@ async def test_daily_mode_ignores_trailing_stops_unless_asked():
     strategy.signals["AAPL"] = "neutral"
     strategy.entry_prices["AAPL"] = 100.0
     strategy.peak_prices["AAPL"] = 110.0
-    strategy.current_prices["AAPL"] = 100.0
+    strategy.current_prices["AAPL"] = 105.0  # in profit, but 4.5% below the peak
     held = _view(positions=[Position("AAPL", 10, 100.0)])
     assert await strategy.decide("AAPL", WHEN, held) == []
     strategy.parameters["daily_exits"] = True

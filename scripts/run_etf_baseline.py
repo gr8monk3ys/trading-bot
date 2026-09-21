@@ -78,6 +78,11 @@ HAND_PICKED_BASELINE = {
 from engine.historical_bars import DataUnavailableError, resolve_bars_source  # noqa: E402
 
 RESULTS_DIR = REPO_ROOT / "results"
+
+# `--exits` runs the strategy with its own trailing stops active (daily_exits)
+# and writes every artifact with an `_exits` suffix (ADR 0002).
+EXITS = "--exits" in sys.argv[1:]
+VARIANT = "_exits" if EXITS else ""
 MD_PATH = RESULTS_DIR / "etf_baseline_2020-2024.md"
 JSON_PATH = RESULTS_DIR / "etf_baseline_2020-2024.json"
 
@@ -379,6 +384,11 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
             "sizing_basis": "equity",
             "position_size_pct": target_gross / len(SYMBOLS),
         }
+    if EXITS:
+        # ADR 0002's second run: the strategy's own trailing stops active in
+        # daily mode. Artifacts carry the _exits suffix; the canonical
+        # verdict stays the run without them until this one is reviewed.
+        strategy_params["daily_exits"] = True
 
     logger.info(
         "Starting ETF backtest: %s symbols, %s to %s, data=%s, target_gross=%s",
@@ -483,7 +493,7 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
     }
 
     RESULTS_DIR.mkdir(exist_ok=True)
-    suffix = "" if target_gross is None else f"_gross{int(round(target_gross * 100))}"
+    suffix = ("" if target_gross is None else f"_gross{int(round(target_gross * 100))}") + VARIANT
     json_path = RESULTS_DIR / f"etf_baseline_2020-2024{suffix}.json"
     md_path = RESULTS_DIR / f"etf_baseline_2020-2024{suffix}.md"
     json_path.write_text(json.dumps(artifact, indent=2, default=str))
@@ -550,12 +560,12 @@ async def main() -> int:
         "producer": "scripts/run_etf_baseline.py",
         "artifacts": [row["json_path"] for row in summaries if row.get("json_path")],
     }
-    (RESULTS_DIR / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (RESULTS_DIR / f"manifest{VARIANT}.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return 0
 
 
 def _write_sweep_report(summaries: list[dict]) -> None:
-    path = RESULTS_DIR / "etf_baseline_2020-2024_exposure_sweep.md"
+    path = RESULTS_DIR / f"etf_baseline_2020-2024_exposure_sweep{VARIANT}.md"
     lines = [
         "# ETF baseline exposure sweep — 2020-2024\n",
         "\nSame `MomentumStrategyBacktest` signals on SPY/QQQ/IWM/EFA; only the",

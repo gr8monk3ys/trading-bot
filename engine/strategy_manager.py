@@ -372,7 +372,11 @@ class StrategyManager:
                 strategy,
                 self.broker,
                 getattr(strategy, "order_submission", None),
-                list(getattr(strategy, "symbols", None) or symbols),
+                (
+                    list(strategy.symbols)
+                    if isinstance(getattr(strategy, "symbols", None), (list, tuple, set))
+                    else list(symbols)
+                ),
             )
             live.subscribe()
             self.sessions[strategy_name] = live
