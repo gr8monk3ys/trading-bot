@@ -1,7 +1,7 @@
 [project]
 name = "trading-bot"
 version = "3.0.0"
-description = "Alpaca paper-trading bot with a walk-forward-validated backtester; the validated strategy does not beat buy-and-hold"
+description = "Alpaca paper-trading bot with a backtester; the validated strategy does not beat buy-and-hold"
 authors = [
     {name = "gr8monk3ys"}
 ]

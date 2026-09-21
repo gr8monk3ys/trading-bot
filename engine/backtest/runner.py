@@ -49,7 +49,6 @@ class BacktestRunnerMixin:
         strategy_params: Dict[str, Any] | None = None,
         execution_profile: str = "realistic",
         run_id: str | None = None,
-        persist_artifacts: bool = False,
         artifacts_dir: str = "results/runs",
     ) -> Dict[str, Any]:
         """
@@ -64,20 +63,16 @@ class BacktestRunnerMixin:
             strategy_params: Optional strategy parameter overrides
             execution_profile: Backtest execution realism profile
             run_id: Optional externally provided run ID
-            persist_artifacts: If True, persist run artifacts to disk
             artifacts_dir: Base path for run artifact directories
 
         Returns:
             Dictionary with backtest results including equity_curve and trades
         """
         from brokers.alpaca_broker import AlpacaBroker
-        from brokers.backtest_broker import BacktestBroker
+        from brokers.backtest import BacktestBroker
 
         run_started_at = datetime.utcnow()
         run_id = run_id or f"backtest_{run_started_at.strftime('%Y%m%d_%H%M%S')}"
-        run_dir = None
-        decision_log_writer = None
-        trades_log_writer = None
         decision_event_count = 0
         decision_error_count = 0
 
@@ -172,8 +167,7 @@ class BacktestRunnerMixin:
         # mandatory for BaseStrategy.submit_entry_order / submit_exit_order; the
         # backtest engine has to attach one or every order is rejected with
         # "No OrderGateway configured" and the run looks like a data-fetch
-        # failure. See engine/backtest_order_gateway.py for rationale. Both
-        # run_backtest and run_walk_forward_backtest funnel through here.
+        # failure. See engine/backtest_order_gateway.py for rationale.
         from engine.backtest_order_gateway import BacktestOrderGateway
 
         strategy.order_gateway = BacktestOrderGateway(broker=backtest_broker)
@@ -289,15 +283,6 @@ class BacktestRunnerMixin:
                 for event in decision_events:
                     if isinstance(event, Exception):
                         decision_error_count += 1
-                        if decision_log_writer:
-                            decision_log_writer.write(
-                                {
-                                    "event_type": "decision",
-                                    "run_id": run_id,
-                                    "date": current_date.date().isoformat(),
-                                    "error": str(event),
-                                }
-                            )
                         continue
 
                     if not isinstance(event, dict):
@@ -307,16 +292,6 @@ class BacktestRunnerMixin:
                     if event.get("error"):
                         decision_error_count += 1
 
-                    if decision_log_writer:
-                        decision_log_writer.write(
-                            {
-                                "run_id": run_id,
-                                "date": current_date.date().isoformat(),
-                                "strategy": strategy_class.__name__,
-                                "execution_profile": execution_profile,
-                                **event,
-                            }
-                        )
 
                 # Record equity and gross exposure at end of day
                 portfolio_value = backtest_broker.get_portfolio_value(current_date)
@@ -328,17 +303,6 @@ class BacktestRunnerMixin:
                     # record 0.0 rather than poisoning the series.
                     exposure_curve.append(0.0)
 
-                if decision_log_writer:
-                    decision_log_writer.write(
-                        {
-                            "event_type": "portfolio_snapshot",
-                            "run_id": run_id,
-                            "date": current_date.date().isoformat(),
-                            "equity": portfolio_value,
-                            "cash": backtest_broker.get_balance(),
-                            "open_positions": len(backtest_broker.get_positions()),
-                        }
-                    )
 
                 # ==========================================
                 # GAP RISK MODELING: Update previous closes
@@ -435,31 +399,6 @@ class BacktestRunnerMixin:
 
         run_completed_at = datetime.utcnow()
 
-        for trade in trade_records:
-            if trades_log_writer:
-                trades_log_writer.write(
-                    {
-                        "event_type": "trade",
-                        "run_id": run_id,
-                        "date": str(trade.get("timestamp", ""))[:10],
-                        **trade,
-                    }
-                )
-
-        order_records = (
-            backtest_broker.get_orders() if hasattr(backtest_broker, "get_orders") else []
-        )
-        for order in order_records:
-            if trades_log_writer:
-                trades_log_writer.write(
-                    {
-                        "event_type": "order",
-                        "run_id": run_id,
-                        "date": str(order.get("created_at", ""))[:10],
-                        **order,
-                    }
-                )
-
         if trading_days:
             equity_curve_series = pd.Series(
                 [float(value) for value in equity_curve[1:]],
@@ -503,8 +442,6 @@ class BacktestRunnerMixin:
                 "run_id": run_id,
                 "started_at": run_started_at.isoformat(),
                 "completed_at": run_completed_at.isoformat(),
-                "persist_artifacts": persist_artifacts,
-                "artifacts_dir": str(run_dir) if run_dir else None,
                 "decision_events": decision_event_count,
                 "decision_errors": decision_error_count,
                 "execution_profile": execution_profile,

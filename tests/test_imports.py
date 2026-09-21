@@ -48,7 +48,7 @@ class TestBrokerImports:
 
     def test_backtest_broker_import(self):
         """Test that BacktestBroker can be imported"""
-        from brokers.backtest_broker import BacktestBroker
+        from brokers.backtest import BacktestBroker
 
         assert BacktestBroker is not None
         assert callable(BacktestBroker)

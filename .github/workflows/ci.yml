@@ -98,7 +98,6 @@ jobs:
         run: |
           uv run pytest \
             tests/unit/engine/test_backtest_engine.py \
-            tests/unit/engine/test_walk_forward_backtest.py \
             tests/unit/misc/test_config_credentials_runtime.py \
             --cov=engine.backtest_engine \
             --cov=main \
