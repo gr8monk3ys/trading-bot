@@ -102,19 +102,6 @@ class TestBaseStrategyInit:
 
         assert strategy.kelly is not None
 
-    def test_init_volatility_regime_disabled_by_default(self):
-        """Volatility regime should be None when not enabled."""
-        strategy = ConcreteStrategy()
-
-        assert strategy.volatility_regime is None
-
-    def test_init_volatility_regime_enabled(self):
-        """Volatility regime should be marked for init when enabled."""
-        strategy = ConcreteStrategy(parameters={"use_volatility_regime": True})
-
-        # Gets initialized in async initialize(), so it's None here
-        assert strategy.volatility_regime is None
-
 
 # ============================================================================
 # Test Initialize Method

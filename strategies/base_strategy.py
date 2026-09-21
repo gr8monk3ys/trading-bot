@@ -22,7 +22,6 @@ from engine.order_submission import OrderIntent, OrderOutcome
 from engine.position_sizing import PositionSizer
 from strategies.params import BaseParams
 from utils.kelly_criterion import KellyCriterion
-from utils.volatility_regime import VolatilityRegimeDetector
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +79,6 @@ class BaseStrategy(ABC):
         else:
             self.kelly = None
 
-        # VOLATILITY REGIME: Initialize for adaptive risk management
-        use_volatility_regime = parameters["use_volatility_regime"]
-        if use_volatility_regime:
-            self.volatility_regime = None  # Initialized in async initialize()
-            self.logger.info("✅ Volatility Regime Detection enabled")
-        else:
-            self.volatility_regime = None
-
         # Multi-timeframe analysis lives on the concrete strategies (see
         # MomentumStrategy.mtf_analyzer / MeanReversionStrategy.mtf_analyzer).
         # The base-class wiring previously here imported a parallel
@@ -122,16 +113,6 @@ class BaseStrategy(ABC):
             if recorder is not None and getattr(self, "kelly", None) is not None:
                 recorder.subscribe(
                     getattr(self, "name", self.__class__.__name__), self.kelly.add_trade
-                )
-
-            # VOLATILITY REGIME: Initialize detector with broker
-            if self.parameters["use_volatility_regime"] and self.broker:
-                self.volatility_regime = VolatilityRegimeDetector(self.broker)
-                regime, adjustments = await self.volatility_regime.get_current_regime()
-                self.logger.info(
-                    f"✅ Volatility regime detector initialized: "
-                    f"{regime.upper()} (Position: {adjustments['pos_mult']:.1f}x, "
-                    f"Stop: {adjustments['stop_mult']:.1f}x)"
                 )
 
             return True
