@@ -12,13 +12,15 @@ common, low-dependency location without circularity.
 
 import asyncio
 import logging
-import os
 import random
 from functools import wraps
 
+from config import DEBUG  # noqa: E402
+
+DEBUG_MODE = DEBUG  # the settings module is the only reader of the environment
+
 # P2 FIX: Environment-aware logging - only show full tracebacks in debug mode
 # This prevents sensitive information from leaking in production logs
-DEBUG_MODE = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
 
 logger = logging.getLogger(__name__)
 

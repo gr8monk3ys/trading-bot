@@ -21,6 +21,7 @@ import talib
 
 from engine.order_submission import OrderIntent
 from strategies.base_strategy import BaseStrategy
+from strategies.params import MomentumParams
 from strategies.risk_manager import RiskManager
 from utils.multi_timeframe import MultiTimeframeAnalyzer
 
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class MomentumStrategy(BaseStrategy):
+    Params = MomentumParams
     """
     Momentum-based trading strategy that uses technical indicators to identify
     trend strength and momentum for making buy/sell decisions. This strategy combines
@@ -37,98 +39,8 @@ class MomentumStrategy(BaseStrategy):
     NAME = "MomentumStrategy"
 
     def default_parameters(self):
-        """
-        Return default parameters for the strategy.
-
-        CONSERVATIVE DEFAULTS (reduced overfitting risk):
-        Features are disabled by default until validated with sufficient trades.
-
-        VALIDATED FEATURES (enabled by default):
-        - RSI-14 standard mode (proven, well-studied)
-        - MACD confirmation (standard momentum indicator)
-        - ADX trend strength (standard)
-        - Trailing stops (captures extended moves)
-        - Volatility regime detection (adaptive risk)
-
-        EXPERIMENTAL FEATURES (disabled by default, enable after 100+ trades):
-        - Kelly Criterion (requires win rate/payoff data)
-        - Streak sizing (requires trade history)
-        - Multi-timeframe (not useful for daily data)
-        - RSI-2 aggressive mode (high win rate but needs validation)
-        - Short selling (requires separate validation)
-        - Bollinger Band filter (mean reversion overlay)
-
-        To enable experimental features after validation:
-            strategy = MomentumStrategy(broker, symbols, config={
-                "use_kelly_criterion": True,
-                ...
-            })
-        """
-        return {
-            # === CORE PARAMETERS (VALIDATED) ===
-            "position_size": 0.05,  # 5% per position (conservative start)
-            "max_positions": 5,  # Maximum concurrent positions
-            "max_portfolio_risk": 0.02,  # 2% max portfolio risk
-            "stop_loss": 0.03,  # 3% stop loss
-            "take_profit": 0.05,  # 5% take profit (if not using trailing)
-            # === MOMENTUM INDICATORS (VALIDATED - CORE STRATEGY) ===
-            # Using standard RSI-14 by default for proven reliability
-            "rsi_mode": "standard",  # Use proven RSI-14 (enable 'aggressive' after validation)
-            "rsi_period": 14,  # Standard RSI period
-            "rsi_overbought": 70,  # Standard overbought
-            "rsi_oversold": 30,  # Standard oversold
-            "macd_fast_period": 12,  # Standard MACD
-            "macd_slow_period": 26,
-            "macd_signal_period": 9,
-            "adx_period": 14,  # Standard ADX
-            "adx_threshold": 25,  # ADX > 25 = trending
-            # === VOLUME PARAMETERS (VALIDATED) ===
-            "volume_ma_period": 20,
-            "volume_factor": 1.5,
-            # === PRICE MA PARAMETERS (VALIDATED) ===
-            "fast_ma_period": 10,
-            "medium_ma_period": 20,
-            "slow_ma_period": 50,
-            # === VOLATILITY PARAMETERS (VALIDATED) ===
-            "atr_period": 14,
-            "atr_multiplier": 2.0,
-            # === RISK MANAGEMENT (VALIDATED) ===
-            "max_correlation": 0.7,
-            "max_sector_exposure": 0.3,
-            # === TRAILING STOPS (VALIDATED - let winners run) ===
-            "use_trailing_stop": True,  # ENABLED - proven to capture extended moves
-            "trailing_stop_pct": 0.02,  # 2% trailing distance
-            "trailing_activation_pct": 0.02,  # Activate after 2% profit
-            # === VOLATILITY REGIME (VALIDATED - adaptive risk) ===
-            "use_volatility_regime": True,  # ENABLED - adjusts to market conditions
-            # === EXPERIMENTAL FEATURES (DISABLED until validated) ===
-            # These require 100+ trades before enabling to avoid overfitting
-            "use_bollinger_filter": False,  # DISABLED - enable after validation
-            "bb_period": 20,
-            "bb_std": 2.0,
-            "bb_buy_threshold": 0.3,
-            "bb_sell_threshold": 0.7,
-            "use_multi_timeframe": False,  # DISABLED - not useful for daily data
-            "mtf_timeframes": ["5Min", "15Min", "1Hour"],
-            "mtf_require_alignment": True,
-            "enable_short_selling": False,  # DISABLED - requires separate validation
-            # In long-only spot crypto sessions, allow moderately bullish setups
-            # (score >= 1) to avoid remaining neutral for extended bearish regimes.
-            "crypto_long_only_relaxed_entry": True,
-            "crypto_long_only_buy_score_threshold": 1.0,
-            # Controlled dip-buy mode for long-only crypto:
-            # require oversold RSI + improving MACD histogram + price rebound.
-            "crypto_long_only_dip_buy_enabled": True,
-            "crypto_long_only_dip_rsi_max": 35.0,
-            "crypto_long_only_dip_min_macd_hist_delta": 0.02,
-            "crypto_long_only_dip_min_rebound_pct": 0.001,
-            "short_position_size": 0.08,
-            "short_stop_loss": 0.04,
-            "use_kelly_criterion": False,  # DISABLED - requires 100+ trades for win rate data
-            "kelly_fraction": 0.5,
-            "kelly_min_trades": 100,  # Increased from 30 to 100 for statistical significance
-            "kelly_lookback": 50,
-        }
+        """The defaults live once, on ``Params`` (strategies/params.py)."""
+        return dict(self.Params.defaults())
 
     async def initialize(self, **kwargs):
         """Initialize the momentum strategy."""
@@ -150,7 +62,7 @@ class MomentumStrategy(BaseStrategy):
             # Technical indicator parameters
             # RSI-2 Optimization: Apply aggressive settings if mode is 'aggressive'
             # Research: RSI-2 with extreme thresholds (10/90) achieves 91% win rate
-            self.rsi_mode = self.parameters.get("rsi_mode", "standard")
+            self.rsi_mode = self.parameters["rsi_mode"]
 
             if self.rsi_mode == "aggressive":
                 # RSI-2 Strategy (Larry Connors style)
@@ -188,11 +100,11 @@ class MomentumStrategy(BaseStrategy):
             self._last_macd_hist = {}
 
             # Trailing stop parameters (NEW FEATURE - let winners run)
-            self.use_trailing_stop = self.parameters.get("use_trailing_stop", True)
-            self.trailing_stop_pct = self.parameters.get("trailing_stop_pct", 0.02)  # 2% trail
-            self.trailing_activation_pct = self.parameters.get(
-                "trailing_activation_pct", 0.02
-            )  # Activate after 2% profit
+            self.use_trailing_stop = self.parameters["use_trailing_stop"]
+            self.trailing_stop_pct = self.parameters["trailing_stop_pct"]  # 2% trail
+            self.trailing_activation_pct = self.parameters[
+                "trailing_activation_pct"
+            ]  # Activate after 2% profit
             self.peak_prices = {}  # Track highest price since entry for trailing stops
             self.entry_prices = {}  # Track entry prices for profit calculation
 
@@ -203,26 +115,26 @@ class MomentumStrategy(BaseStrategy):
 
             # Short selling parameters (NEW FEATURE)
             # Default matches default_parameters() which has True for maximum profit mode
-            self.enable_short_selling = self.parameters.get("enable_short_selling", True)
-            self.short_position_size = self.parameters.get("short_position_size", 0.08)
-            self.short_stop_loss = self.parameters.get("short_stop_loss", 0.04)
+            self.enable_short_selling = self.parameters["enable_short_selling"]
+            self.short_position_size = self.parameters["short_position_size"]
+            self.short_stop_loss = self.parameters["short_stop_loss"]
             self.crypto_long_only_relaxed_entry = bool(
-                self.parameters.get("crypto_long_only_relaxed_entry", True)
+                self.parameters["crypto_long_only_relaxed_entry"]
             )
             self.crypto_long_only_buy_score_threshold = float(
-                self.parameters.get("crypto_long_only_buy_score_threshold", 1.0)
+                self.parameters["crypto_long_only_buy_score_threshold"]
             )
             self.crypto_long_only_dip_buy_enabled = bool(
-                self.parameters.get("crypto_long_only_dip_buy_enabled", True)
+                self.parameters["crypto_long_only_dip_buy_enabled"]
             )
             self.crypto_long_only_dip_rsi_max = float(
-                self.parameters.get("crypto_long_only_dip_rsi_max", 35.0)
+                self.parameters["crypto_long_only_dip_rsi_max"]
             )
             self.crypto_long_only_dip_min_macd_hist_delta = float(
-                self.parameters.get("crypto_long_only_dip_min_macd_hist_delta", 0.02)
+                self.parameters["crypto_long_only_dip_min_macd_hist_delta"]
             )
             self.crypto_long_only_dip_min_rebound_pct = float(
-                self.parameters.get("crypto_long_only_dip_min_rebound_pct", 0.001)
+                self.parameters["crypto_long_only_dip_min_rebound_pct"]
             )
 
             if self.enable_short_selling:
@@ -242,23 +154,23 @@ class MomentumStrategy(BaseStrategy):
 
             # Multi-timeframe analysis (NEW FEATURE)
             # Default matches default_parameters() which has True for maximum profit mode
-            self.use_multi_timeframe = self.parameters.get("use_multi_timeframe", True)
-            self.mtf_require_alignment = self.parameters.get("mtf_require_alignment", True)
+            self.use_multi_timeframe = self.parameters["use_multi_timeframe"]
+            self.mtf_require_alignment = self.parameters["mtf_require_alignment"]
             self.mtf_analyzer = None
 
             if self.use_multi_timeframe:
-                mtf_timeframes = self.parameters.get("mtf_timeframes", ["5Min", "15Min", "1Hour"])
+                mtf_timeframes = self.parameters["mtf_timeframes"]
                 self.mtf_analyzer = MultiTimeframeAnalyzer(
                     timeframes=mtf_timeframes, history_length=200
                 )
                 logger.info(f"✅ Multi-timeframe filtering enabled: {', '.join(mtf_timeframes)}")
 
             # Bollinger Band mean reversion filter (NEW FEATURE)
-            self.use_bollinger_filter = self.parameters.get("use_bollinger_filter", True)
-            self.bb_period = self.parameters.get("bb_period", 20)
-            self.bb_std = self.parameters.get("bb_std", 2.0)
-            self.bb_buy_threshold = self.parameters.get("bb_buy_threshold", 0.3)
-            self.bb_sell_threshold = self.parameters.get("bb_sell_threshold", 0.7)
+            self.use_bollinger_filter = self.parameters["use_bollinger_filter"]
+            self.bb_period = self.parameters["bb_period"]
+            self.bb_std = self.parameters["bb_std"]
+            self.bb_buy_threshold = self.parameters["bb_buy_threshold"]
+            self.bb_sell_threshold = self.parameters["bb_sell_threshold"]
 
             if self.use_bollinger_filter:
                 logger.info(
@@ -290,7 +202,7 @@ class MomentumStrategy(BaseStrategy):
             # Risk manager initialization
             self.risk_manager = RiskManager(
                 max_portfolio_risk=self.parameters["max_portfolio_risk"],
-                max_position_risk=self.parameters.get("max_position_risk", 0.01),
+                max_position_risk=self.parameters["max_position_risk"],
                 max_correlation=self.parameters["max_correlation"],
             )
 
@@ -364,8 +276,8 @@ class MomentumStrategy(BaseStrategy):
             symbol,
             when,
             portfolio,
-            size_pct=float(self.parameters.get("position_size_pct", 0.10)),
-            sizing_basis=self.parameters.get("sizing_basis", "equity"),
+            size_pct=float(self.parameters["position_size_pct"]),
+            sizing_basis=self.parameters["sizing_basis"],
             reason="momentum_backtest",
         )
 
@@ -704,9 +616,7 @@ class MomentumStrategy(BaseStrategy):
                 else:
                     # SOFT: Just check if higher timeframe trend agrees
                     # Get highest timeframe trend (e.g., 1Hour)
-                    mtf_timeframes = self.parameters.get(
-                        "mtf_timeframes", ["5Min", "15Min", "1Hour"]
-                    )
+                    mtf_timeframes = self.parameters["mtf_timeframes"]
                     highest_tf = mtf_timeframes[-1]  # Last one is highest
                     higher_tf_trend = self.mtf_analyzer.get_trend(symbol, highest_tf)
 

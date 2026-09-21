@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -219,7 +218,9 @@ async def load_bars(source: Any, symbols: List[str], start: str, end: str) -> Ba
 async def resolve_bars_source(probe_symbol: str = "SPY") -> Tuple[Any, str]:
     """Alpaca when credentials work, else yfinance. Raises DataUnavailableError when neither."""
     tried = []
-    if os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY"):
+    from config import alpaca_credentials_present
+
+    if alpaca_credentials_present():
         try:
             from brokers.alpaca_broker import AlpacaBroker
 

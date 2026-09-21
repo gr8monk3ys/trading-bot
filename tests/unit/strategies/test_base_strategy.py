@@ -59,7 +59,9 @@ class TestBaseStrategyInit:
 
         assert strategy.name == "ConcreteStrategy"
         assert strategy.broker is None
-        assert strategy.parameters == {}
+        from strategies.params import BaseParams
+
+        assert strategy.parameters == BaseParams.defaults()
         assert strategy.interval == 60
         assert strategy.symbols == []
         assert strategy.running is False

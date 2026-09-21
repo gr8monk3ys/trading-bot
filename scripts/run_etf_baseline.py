@@ -51,17 +51,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("etf_baseline")
 
-SYMBOLS = ["SPY", "QQQ", "IWM", "EFA"]
-START = "2020-01-01"
-END = "2024-12-31"
-INITIAL_CAPITAL = 100_000
-SLIPPAGE_BPS = 40  # 0.40% per trade
-SPREAD_BPS = 10  # 0.10%
-MIN_TRADES_FOR_SIGNIFICANCE = 50
-SPEC_REF = "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md"
-
-# Benchmarks to compute and compare against the strategy.
-BENCHMARK_SYMBOLS = ["SPY", "QQQ"]
 
 # Reference numbers from the existing hand-picked baseline for the comparison
 # section in the markdown. These come from `results/honest_backtest_2020-2024.md`.
@@ -75,9 +64,22 @@ HAND_PICKED_BASELINE = {
     "n_trades": 102,
 }
 
+from config import BASELINE  # noqa: E402
 from engine.historical_bars import DataUnavailableError, resolve_bars_source  # noqa: E402
 
 RESULTS_DIR = REPO_ROOT / "results"
+
+SYMBOLS = list(BASELINE["symbols"])
+START = BASELINE["start"]
+END = BASELINE["end"]
+INITIAL_CAPITAL = BASELINE["initial_capital"]
+SLIPPAGE_BPS = BASELINE["slippage_bps"]
+SPREAD_BPS = BASELINE["spread_bps"]
+MIN_TRADES_FOR_SIGNIFICANCE = BASELINE["min_trades_for_significance"]
+SPEC_REF = "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md"
+
+# Benchmarks to compute and compare against the strategy.
+BENCHMARK_SYMBOLS = list(BASELINE["benchmark_symbols"])
 
 # `--exits` runs the strategy with its own trailing stops active (daily_exits)
 # and writes every artifact with an `_exits` suffix (ADR 0002).

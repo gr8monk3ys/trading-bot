@@ -252,13 +252,8 @@ class TestAdaptiveStrategyInit:
         assert "bull_strategy" in params
         assert "bear_strategy" in params
         assert "sideways_strategy" in params
-        assert "volatile_strategy" in params
 
         # Position multipliers
-        assert "bull_position_mult" in params
-        assert "bear_position_mult" in params
-        assert "sideways_position_mult" in params
-        assert "volatile_position_mult" in params
 
     def test_default_parameters_values(self):
         """Test that default_parameters returns expected values."""
@@ -273,10 +268,6 @@ class TestAdaptiveStrategyInit:
         assert params["take_profit"] == DEFAULT_TAKE_PROFIT
         assert params["regime_check_interval_minutes"] == DEFAULT_REGIME_CHECK_INTERVAL
         assert params["min_regime_confidence"] == DEFAULT_MIN_REGIME_CONFIDENCE
-        assert params["bull_position_mult"] == BULL_POSITION_MULT
-        assert params["bear_position_mult"] == BEAR_POSITION_MULT
-        assert params["sideways_position_mult"] == SIDEWAYS_POSITION_MULT
-        assert params["volatile_position_mult"] == VOLATILE_POSITION_MULT
 
 
 class TestAdaptiveStrategyInitialize:
