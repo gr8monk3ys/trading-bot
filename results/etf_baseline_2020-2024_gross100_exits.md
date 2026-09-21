@@ -1,10 +1,10 @@
 # ETF baseline 2020-2024 — survivorship-bias-free test of strategy edge
 
-Generated: 2026-09-21T06:53:07.781480Z
+Generated: 2026-09-21T06:54:57.769068Z
 Spec: `docs/superpowers/specs/2026-05-11-honest-cleanup-design.md`
 Data source: `yfinance`
 
-> **Status: INCONCLUSIVE.** Strategy produced 26 trades, below the 50-trade significance bar (see the docstring of `scripts/run_etf_baseline.py`). The numbers below are reported for transparency but must not be cited as evidence of strategy edge.
+> **Status: backtest produced 50 trades** (meets the 50-trade significance bar).
 
 ## Purpose
 
@@ -31,16 +31,16 @@ can't beat SPY buy-and-hold on this universe, it has no real edge.
 
 ## Headline metrics
 
-- **Total return:** 16.26%
-- **Annualized return:** 3.06%
-- **Sharpe ratio:** 0.16
-- **Sortino ratio:** 0.20
-- **Calmar ratio:** 0.24
-- **Max drawdown:** 12.91%
-- **Win rate:** 30.77%
-- **Profit factor:** 2.37
-- **Trade count:** 26
-- **Final equity:** $116,255.82
+- **Total return:** 9.09%
+- **Annualized return:** 1.76%
+- **Sharpe ratio:** -0.02
+- **Sortino ratio:** -0.02
+- **Calmar ratio:** 0.38
+- **Max drawdown:** 4.59%
+- **Win rate:** 38.00%
+- **Profit factor:** 1.70
+- **Trade count:** 50
+- **Final equity:** $109,087.47
 
 ## Trade log
 
@@ -49,35 +49,59 @@ can't beat SPY buy-and-hold on this universe, it has no real edge.
 | 1 | EFA | buy | 407.0 | 61.36 | 0.00 | 2020-06-12 00:00:00 |
 | 2 | SPY | buy | 77.0 | 342.68 | 0.00 | 2020-09-04 00:00:00 |
 | 3 | QQQ | buy | 109.0 | 283.71 | 0.00 | 2020-09-04 00:00:00 |
-| 4 | EFA | sell | 407.0 | 64.47 | 1267.19 | 2020-11-04 00:00:00 |
-| 5 | EFA | sell | 550.0 | 66.02 | 0.00 | 2020-11-05 00:00:00 |
-| 6 | EFA | buy | 550.0 | 71.86 | -3211.62 | 2020-12-01 00:00:00 |
-| 7 | EFA | buy | 452.0 | 78.58 | 0.00 | 2021-04-21 00:00:00 |
-| 8 | EFA | sell | 452.0 | 76.60 | -892.23 | 2021-12-17 00:00:00 |
-| 9 | SPY | sell | 77.0 | 452.81 | 8480.30 | 2022-02-01 00:00:00 |
-| 10 | EFA | sell | 424.0 | 77.08 | 0.00 | 2022-02-02 00:00:00 |
-| 11 | SPY | sell | 79.0 | 413.66 | 0.00 | 2022-05-05 00:00:00 |
-| 12 | QQQ | sell | 109.0 | 312.82 | 3172.94 | 2022-05-05 00:00:00 |
-| 13 | IWM | sell | 128.0 | 185.57 | 0.00 | 2022-05-05 00:00:00 |
-| 14 | IWM | buy | 128.0 | 190.74 | -661.38 | 2022-08-22 00:00:00 |
-| 15 | QQQ | buy | 63.0 | 375.75 | 0.00 | 2023-07-21 00:00:00 |
-| 16 | EFA | buy | 424.0 | 72.61 | 1893.37 | 2023-12-06 00:00:00 |
-| 17 | SPY | buy | 79.0 | 489.32 | -5976.53 | 2024-02-01 00:00:00 |
-| 18 | SPY | buy | 56.0 | 498.69 | 0.00 | 2024-02-14 00:00:00 |
-| 19 | QQQ | sell | 63.0 | 473.03 | 6128.80 | 2024-09-12 00:00:00 |
-| 20 | EFA | sell | 363.0 | 79.10 | 0.00 | 2024-11-08 00:00:00 |
-| 21 | QQQ | buy | 58.0 | 500.21 | 0.00 | 2024-11-18 00:00:00 |
-| 22 | IWM | buy | 128.0 | 229.06 | 0.00 | 2024-11-18 00:00:00 |
-| 23 | SPY | sell | 56.0 | 588.09 | 5006.56 | 2024-12-30 00:00:00 |
-| 24 | EFA | buy | 363.0 | 75.66 | 1250.88 | 2024-12-30 00:00:00 |
-| 25 | QQQ | sell | 58.0 | 515.44 | 883.35 | 2024-12-30 00:00:00 |
-| 26 | IWM | sell | 128.0 | 220.58 | -1085.80 | 2024-12-30 00:00:00 |
+| 4 | EFA | sell | 407.0 | 64.48 | 1269.63 | 2020-09-04 00:00:00 |
+| 5 | EFA | sell | 563.0 | 64.47 | 0.00 | 2020-11-04 00:00:00 |
+| 6 | EFA | buy | 563.0 | 71.86 | -4160.07 | 2020-12-01 00:00:00 |
+| 7 | QQQ | sell | 109.0 | 302.40 | 2036.93 | 2020-12-10 00:00:00 |
+| 8 | SPY | sell | 77.0 | 377.53 | 2683.51 | 2021-01-28 00:00:00 |
+| 9 | EFA | buy | 324.0 | 78.57 | 0.00 | 2021-04-21 00:00:00 |
+| 10 | SPY | buy | 60.0 | 416.83 | 0.00 | 2021-04-23 00:00:00 |
+| 11 | EFA | sell | 324.0 | 78.49 | -26.14 | 2021-06-18 00:00:00 |
+| 12 | SPY | sell | 60.0 | 433.94 | 1026.57 | 2021-09-20 00:00:00 |
+| 13 | QQQ | buy | 65.0 | 390.69 | 0.00 | 2021-11-11 00:00:00 |
+| 14 | EFA | sell | 361.0 | 76.60 | 0.00 | 2021-12-17 00:00:00 |
+| 15 | SPY | sell | 61.0 | 452.82 | 0.00 | 2022-02-01 00:00:00 |
+| 16 | SPY | buy | 61.0 | 436.77 | 979.19 | 2022-02-28 00:00:00 |
+| 17 | EFA | buy | 361.0 | 73.26 | 1206.59 | 2022-02-28 00:00:00 |
+| 18 | SPY | sell | 68.0 | 413.67 | 0.00 | 2022-05-05 00:00:00 |
+| 19 | QQQ | sell | 65.0 | 312.84 | -5060.46 | 2022-05-05 00:00:00 |
+| 20 | IWM | sell | 118.0 | 185.57 | 0.00 | 2022-05-05 00:00:00 |
+| 21 | EFA | sell | 308.0 | 67.89 | 0.00 | 2022-05-05 00:00:00 |
+| 22 | SPY | buy | 68.0 | 400.27 | 910.70 | 2022-05-16 00:00:00 |
+| 23 | IWM | buy | 118.0 | 177.34 | 971.31 | 2022-05-16 00:00:00 |
+| 24 | IWM | sell | 141.0 | 175.60 | 0.00 | 2022-06-27 00:00:00 |
+| 25 | EFA | buy | 308.0 | 63.55 | 1337.80 | 2022-06-27 00:00:00 |
+| 26 | IWM | buy | 141.0 | 190.74 | -2134.71 | 2022-08-22 00:00:00 |
+| 27 | QQQ | buy | 67.0 | 375.75 | 0.00 | 2023-07-21 00:00:00 |
+| 28 | SPY | sell | 63.0 | 432.19 | 0.00 | 2023-10-09 00:00:00 |
+| 29 | SPY | buy | 63.0 | 430.86 | 83.47 | 2023-11-02 00:00:00 |
+| 30 | EFA | buy | 380.0 | 72.61 | 0.00 | 2023-12-06 00:00:00 |
+| 31 | QQQ | sell | 67.0 | 398.22 | 1505.52 | 2024-01-03 00:00:00 |
+| 32 | SPY | buy | 53.0 | 489.31 | 0.00 | 2024-02-01 00:00:00 |
+| 33 | QQQ | buy | 64.0 | 422.01 | 0.00 | 2024-02-01 00:00:00 |
+| 34 | QQQ | sell | 64.0 | 438.64 | 1064.12 | 2024-03-06 00:00:00 |
+| 35 | EFA | sell | 380.0 | 78.48 | 2229.22 | 2024-04-11 00:00:00 |
+| 36 | SPY | sell | 53.0 | 504.35 | 797.31 | 2024-04-15 00:00:00 |
+| 37 | QQQ | buy | 55.0 | 479.51 | 0.00 | 2024-06-25 00:00:00 |
+| 38 | QQQ | sell | 55.0 | 494.68 | 834.19 | 2024-07-12 00:00:00 |
+| 39 | SPY | buy | 48.0 | 552.77 | 0.00 | 2024-07-18 00:00:00 |
+| 40 | QQQ | sell | 57.0 | 473.04 | 0.00 | 2024-09-12 00:00:00 |
+| 41 | SPY | sell | 48.0 | 570.92 | 871.46 | 2024-11-01 00:00:00 |
+| 42 | EFA | sell | 334.0 | 79.10 | 0.00 | 2024-11-08 00:00:00 |
+| 43 | SPY | buy | 45.0 | 588.28 | 0.00 | 2024-11-18 00:00:00 |
+| 44 | QQQ | buy | 57.0 | 500.21 | -1548.56 | 2024-11-18 00:00:00 |
+| 45 | IWM | buy | 117.0 | 229.06 | 0.00 | 2024-11-18 00:00:00 |
+| 46 | IWM | sell | 117.0 | 237.67 | 1007.77 | 2024-12-11 00:00:00 |
+| 47 | QQQ | buy | 53.0 | 514.34 | 0.00 | 2024-12-19 00:00:00 |
+| 48 | EFA | buy | 334.0 | 75.65 | 1151.93 | 2024-12-30 00:00:00 |
+| 49 | SPY | sell | 45.0 | 588.09 | -8.39 | 2024-12-30 00:00:00 |
+| 50 | QQQ | sell | 53.0 | 515.44 | 58.56 | 2024-12-30 00:00:00 |
 
 ## Comparison: ETF baseline vs hand-picked vs buy-and-hold
 
 | Run | Universe | Total return | Sharpe | Max DD | Trades |
 |-----|----------|--------------|--------|--------|--------|
-| **ETF baseline (this run)** | SPY, QQQ, IWM, EFA | 16.26% | 0.16 | 12.91% | 26 |
+| **ETF baseline (this run)** | SPY, QQQ, IWM, EFA | 9.09% | -0.02 | 4.59% | 50 |
 | Hand-picked baseline (survivor-biased) | 10 hand-picked mega-caps (SPY, QQQ, AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA, JPM) | 646.00% | 1.36 | 46.96% | 102 |
 | SPY buy-and-hold | SPY | 95.30% | 0.75 | 33.72% | 1 |
 | QQQ buy-and-hold | QQQ | 145.95% | 0.83 | 35.12% | 1 |
@@ -88,12 +112,6 @@ for the Sharpe (matching the strategy convention). The hand-picked row
 is copied from `results/honest_backtest_2020-2024.md`.
 
 ## Interpretation
-
-**Trade count (26) is below the 50-trade significance bar.**
-  The directional comparison below is reported because that is the whole
-  point of this script — but treat it as a hint, not as evidence. Sharpe
-  confidence intervals at 38 trades are very wide; the strategy could be
-  underperforming SPY by chance alone.
 
 **Directional finding: the strategy underperformed SPY buy-and-hold on
   a bias-free universe.** This is the most damning bucket the script

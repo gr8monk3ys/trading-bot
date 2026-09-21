@@ -290,12 +290,17 @@ class BaseStrategy(ABC):
         """
         if not hasattr(self, "current_data"):
             self.current_data = {}
+        prices = getattr(self, "current_prices", None)
         for symbol, df in histories.items():
             if len(df) == 0:
                 continue
             self.current_data[symbol] = df
             if hasattr(self, "price_history"):
                 self.price_history[symbol] = df["close"].tolist()[-30:]
+            if isinstance(prices, dict):
+                # The last close before this session: what strategy-managed
+                # exits (trailing stops etc.) compare against in daily mode.
+                prices[symbol] = float(df["close"].iloc[-1])
         generate = getattr(self, "generate_signals", None)
         if callable(generate):
             await generate()
@@ -310,7 +315,9 @@ class BaseStrategy(ABC):
             signal = signal.get("action", "neutral")
         return signal or "neutral"
 
-    async def _daily_intents(self, symbol, action, portfolio, *, size_pct, sizing_basis, reason):
+    async def _daily_intents(
+        self, symbol, action, portfolio, *, size_pct, sizing_basis, reason, when=None
+    ):
         """Fixed-fraction daily execution: enter when flat, exit on the opposite signal.
 
         Reproduces the 2020-2024 baseline semantics exactly (integer shares,
@@ -348,15 +355,17 @@ class BaseStrategy(ABC):
                 reason=f"{reason}_exit",
             )
 
-        if action == "buy" and held is None:
-            return [entry("buy")]
-        if action == "short" and held is None:
-            return [entry("sell")]
+        if action in ("buy", "short") and held is None:
+            self._record_entry(symbol, price, when, stop_loss=None, take_profit=None)
+            return [entry("buy" if action == "buy" else "sell")]
         if action == "short" and pos_qty > 0:
+            self._clear_entry(symbol)
             return [exit_("sell", pos_qty)]
         if action == "buy" and pos_qty < 0:
+            self._clear_entry(symbol)
             return [exit_("buy", -pos_qty)]
         if action == "sell" and pos_qty > 0:
+            self._clear_entry(symbol)
             return [exit_("sell", pos_qty)]
         return []
 

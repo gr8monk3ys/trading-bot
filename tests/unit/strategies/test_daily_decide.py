@@ -135,3 +135,32 @@ async def test_simple_ma_buys_a_fifth_of_cash_and_sells_the_position():
     assert sell.qty == 40 and sell.is_exit
     strategy.signals = {"SPY": "sell"}
     assert await strategy.decide("SPY", WHEN, _view()) == []
+
+
+async def test_daily_exits_run_the_strategy_exit_rules_after_an_entry():
+    """With daily_exits=True the strategy's own exits (trailing stop) apply in backtests."""
+    strategy = _momentum(
+        "buy",
+        daily_exits=True,
+        use_trailing_stop=True,
+        trailing_stop_pct=0.02,
+        trailing_activation_pct=0.02,
+    )
+    strategy.current_prices = {}
+    strategy.stop_prices, strategy.target_prices, strategy.entry_prices = {}, {}, {}
+    strategy.peak_prices, strategy.last_signal_time = {}, {}
+    strategy.use_trailing_stop, strategy.trailing_stop_pct, strategy.trailing_activation_pct = (
+        True,
+        0.02,
+        0.02,
+    )
+    (entry,) = await strategy.decide("SPY", WHEN, _view(price=100.0))
+    assert entry.side == "buy" and strategy.entry_prices["SPY"] == 100.0
+
+    held = (_long(entry.qty),)
+    strategy.signals = {"SPY": "neutral"}
+    strategy.current_prices["SPY"] = 110.0
+    assert await strategy.decide("SPY", WHEN, _view(positions=held)) == []  # sets the peak
+    strategy.current_prices["SPY"] = 107.0
+    (exit_,) = await strategy.decide("SPY", WHEN, _view(positions=held))
+    assert exit_.is_exit and exit_.reason == "trailing_stop_long"

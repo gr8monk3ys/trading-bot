@@ -22,8 +22,8 @@ timing subtracts value.
 
 | Target gross | Avg gross | Peak gross | Trades | Total return | Sharpe | Max DD | SPY B&H | SPY Sharpe |
 |---|---|---|---|---|---|---|---|---|
-| 25% | 13.86% | 26.11% | 26 | 4.09% | -0.50 | 3.21% | 95.30% | 0.75 |
-| 50% | 28.41% | 52.75% | 26 | 8.30% | -0.06 | 6.43% | 95.30% | 0.75 |
-| 100% | 59.11% | 104.64% | 26 | 16.26% | 0.16 | 12.91% | 95.30% | 0.75 |
+| 25% | 5.80% | 20.96% | 50 | 2.34% | -1.29 | 1.10% | 95.30% | 0.75 |
+| 50% | 11.83% | 44.68% | 50 | 4.72% | -0.43 | 2.20% | 95.30% | 0.75 |
+| 100% | 24.09% | 100.49% | 50 | 9.09% | -0.02 | 4.59% | 95.30% | 0.75 |
 
 Per-run artifacts: `results/etf_baseline_2020-2024_gross25_exits.json`, `results/etf_baseline_2020-2024_gross50_exits.json`, `results/etf_baseline_2020-2024_gross100_exits.json`

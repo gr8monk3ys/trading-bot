@@ -26,6 +26,20 @@ Both fixed 2026-08-18: opposite-signal exits (bearish signal while long closes t
 
 ---
 
+## Addendum 2026-09-21 (later): the strategy's own trailing stops, measured for the first time
+
+Until the session runner (arch 4) the backtest engine never ran the exit rules that live inside the strategies; only opposite-signal exits existed in backtests. `scripts/run_etf_baseline.py --exits` now runs the same 2020–2024 sweep with the momentum trailing stop active (`daily_exits=True`; artifacts suffixed `_exits`):
+
+| Target gross | Avg gross | Trades | Total return | Sharpe | without trailing stops |
+|---|---|---|---|---|---|
+| 25% | 6% | 50 | +2.3% | -1.29 | +4.1% / -0.50 |
+| 50% | 12% | 50 | +4.7% | -0.43 | +8.3% / -0.06 |
+| 100% | 24% | 50 | +9.1% | -0.02 | +16.3% / 0.16 |
+
+Trailing stops double the trade count to exactly the 50-trade bar, halve realised exposure, and cut the return roughly in half at every target. They do not rescue the strategy; they make the timing verdict worse. The canonical numbers stay the run without them.
+
+---
+
 ## Addendum 2026-09-21: builder-built orders were priced as limit orders
 
 `BacktestBroker.submit_order_advanced` compared `str(OrderType.MARKET)` ("OrderType.MARKET") with `"market"`, so every entry the strategy built through `OrderBuilder` took the reduced limit-order impact branch of the slippage model while exits and liquidations, placed directly, paid full market impact. Fixed in the arch-3 order-submission refactor (enum values are normalised). Rerun of the same 2020–2024 sweep with every order paying market slippage:

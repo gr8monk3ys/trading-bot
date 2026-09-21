@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-21T06:53:07.783962Z",
+  "generated_at": "2026-09-21T06:54:57.771390Z",
   "producer": "scripts/run_etf_baseline.py",
   "artifacts": [
     "results/etf_baseline_2020-2024_gross25_exits.json",
