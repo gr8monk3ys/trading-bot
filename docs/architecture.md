@@ -96,7 +96,7 @@ Backtest engine and performance analytics.
 ### `strategies/`
 Trading strategies. Each is a subclass of `BaseStrategy`.
 
-- `strategies/base_strategy.py` — `BaseStrategy`: init, lifecycle, state, order submission scaffolding, Kelly / position-size / volatility / streak sizing helpers.
+- `strategies/base_strategy.py` — `BaseStrategy`: init, lifecycle, state, the decider interface (`prepare`/`decide`), the daily and live intent rules, and `sizer()`.
 - `strategies/momentum_strategy.py` — `MomentumStrategy`: state, on-bar dispatch, TA-Lib indicators, entry/exit signals, trailing stops, execute.
 - `strategies/momentum_strategy_backtest.py` — daily-bar variant of `MomentumStrategy`.
 - `strategies/mean_reversion_strategy.py` — `MeanReversionStrategy`: indicator updates, signal generation, exits, execute.
@@ -118,7 +118,6 @@ Core utilities:
 - `utils/audit_log.py` — hash-chained event logging.
 - `utils/websocket_manager.py` — auto-reconnecting websocket abstraction.
 - `utils/kelly_criterion.py` — Kelly position-sizing math.
-- `utils/streak_sizing.py` — streak-based sizing adjustments.
 - `utils/volatility_regime.py` — volatility-regime classifier.
 - `utils/order_lifecycle.py`, `utils/partial_fill_tracker.py`, `utils/performance_tracker.py`, `utils/sector_rotation.py`, `utils/portfolio_stress.py` — order/portfolio support used by the broker mixins and scanner.
 
@@ -168,7 +167,7 @@ Optional FastAPI dashboard for live monitoring.
 5. `engine/order_submission.py` — how intents become outcomes in both modes.
 
 **If you're touching risk management:**
-1. `strategies/base_strategy.py` — base-class sizing helpers.
+1. `engine/position_sizing.py` — the one sizing decision (base or Kelly → regime → risk haircut → cap); `engine/trade_recorder.py` feeds Kelly from fills.
 2. `strategies/risk_manager/calculator.py` — risk math.
 3. `strategies/risk_manager/enforcer.py` — sizing decisions and halts.
 4. `utils/circuit_breaker.py` — daily-loss halts.

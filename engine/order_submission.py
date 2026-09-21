@@ -72,10 +72,18 @@ class OrderSubmission:
     the broker's public submit methods against un-gated use.
     """
 
-    def __init__(self, broker: Any, *, circuit_breaker: Any = None, audit_log: Any = None):
+    def __init__(
+        self,
+        broker: Any,
+        *,
+        circuit_breaker: Any = None,
+        audit_log: Any = None,
+        recorder: Any = None,
+    ):
         self.broker = broker
         self.circuit_breaker = circuit_breaker
         self.audit_log = audit_log
+        self.recorder = recorder
         self.history: List[OrderOutcome] = []
         enable = getattr(broker, "enable_gateway_requirement", None)
         self._gateway_token: Optional[str] = enable() if callable(enable) else None
@@ -109,6 +117,11 @@ class OrderSubmission:
         outcome = self._normalise(intent, reply)
         if outcome.ok and outcome.qty_filled > 0:
             self._register_protective_levels(intent, outcome)
+            if self.recorder is not None:
+                try:
+                    self.recorder.on_outcome(intent, outcome)
+                except Exception as e:  # recording must never block trading
+                    logger.error(f"trade recorder failed for {intent.symbol}: {e}")
         if outcome.status is OrderStatus.REJECTED:
             logger.warning(f"Order for {intent.symbol} rejected: {outcome.reason}")
         return outcome

@@ -58,7 +58,6 @@ class MomentumStrategyBacktest(MomentumStrategy):
         params["enable_short_selling"] = True
         params["use_kelly_criterion"] = False  # Disable for clean backtest
         params["use_volatility_regime"] = False  # Simpler for backtesting
-        params["use_streak_sizing"] = False  # Use fixed sizing
 
         logger.info("MomentumStrategyBacktest: Using daily-data optimized parameters")
         logger.info("  RSI mode: standard (14-period, 30/70 thresholds)")

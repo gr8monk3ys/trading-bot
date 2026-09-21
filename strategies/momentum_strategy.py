@@ -61,7 +61,6 @@ class MomentumStrategy(BaseStrategy):
         To enable experimental features after validation:
             strategy = MomentumStrategy(broker, symbols, config={
                 "use_kelly_criterion": True,
-                "use_streak_sizing": True,
                 ...
             })
         """
@@ -129,7 +128,6 @@ class MomentumStrategy(BaseStrategy):
             "kelly_fraction": 0.5,
             "kelly_min_trades": 100,  # Increased from 30 to 100 for statistical significance
             "kelly_lookback": 50,
-            "use_streak_sizing": False,  # DISABLED - requires trade history validation
         }
 
     async def initialize(self, **kwargs):

@@ -33,6 +33,7 @@ import pytz
 from engine.historical_bars import BrokerBars, DataUnavailableError, YFinanceBars, load_bars
 from engine.order_submission import OrderIntent
 from engine.session import Session
+from engine.trade_recorder import TradeRecorder
 from utils.portfolio_stress import run_portfolio_stress_test
 
 logger = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ class BacktestRunnerMixin:
         # and the end-of-run liquidation all go through it (ADR 0004).
         from engine.order_submission import OrderSubmission
 
-        order_submission = OrderSubmission(backtest_broker)
+        order_submission = OrderSubmission(backtest_broker, recorder=TradeRecorder())
         strategy.order_submission = order_submission
         session = Session(strategy, backtest_broker, order_submission, symbols)
 

@@ -5,7 +5,7 @@ Tests cover:
 - Kelly Criterion parameter configuration
 - Position sizing calculation with Kelly
 - Half-Kelly vs Full-Kelly behavior
-- Integration with BaseStrategy.calculate_kelly_position_size
+- Kelly fed by engine.trade_recorder (see tests/unit/engine/test_trade_recorder.py)
 """
 
 import os
