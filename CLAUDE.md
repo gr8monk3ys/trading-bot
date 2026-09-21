@@ -34,8 +34,9 @@ Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 
 - Every broker call is async. `OrderBuilder` is imported inside methods (circular import).
 - `AdaptiveStrategy` owns the bar subscription; its arms must not subscribe themselves (#89).
-- The backtest engine never calls `on_bar`: trailing stops and bracket orders are
-  untested in backtests. Exits come from opposite signals (#84).
+- Both paths run through `engine/session.py`: strategies `prepare()`/`decide()`, the
+  session submits. Backtests use the daily rules (opposite-signal exits, no trailing
+  stops) unless `daily_exits=True`; live sessions use brackets and trailing stops.
 - Strategy discovery is import-based; a strategy must be importable from `strategies/`.
 - Do not add features without a >=50-trade out-of-sample backtest. Delete a module's
   tests and config in the same commit as the module.

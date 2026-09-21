@@ -54,6 +54,7 @@ class StrategyManager:
         self.circuit_breaker = circuit_breaker
         self._closed = False
         self._order_submission = None
+        self.sessions = {}
 
         # Initialize broker first (required by downstream components/logging)
         self.broker = broker
@@ -363,6 +364,19 @@ class StrategyManager:
                 logger.error(f"Failed to initialize strategy {strategy_name}")
                 return False
 
+            # Drive the strategy from the bar stream: the session subscribes,
+            # the strategy only decides (ADR 0001).
+            from engine.session import LiveSession
+
+            live = LiveSession(
+                strategy,
+                self.broker,
+                getattr(strategy, "order_submission", None),
+                list(getattr(strategy, "symbols", None) or symbols),
+            )
+            live.subscribe()
+            self.sessions[strategy_name] = live
+
             # Store the active strategy
             self.active_strategies[strategy_name] = strategy
             self.strategy_status[strategy_name] = "running"
@@ -391,6 +405,9 @@ class StrategyManager:
 
         try:
             strategy = self.active_strategies[strategy_name]
+            live = self.sessions.pop(strategy_name, None)
+            if live is not None:
+                live.unsubscribe()
 
             # Liquidate positions if requested
             if liquidate:

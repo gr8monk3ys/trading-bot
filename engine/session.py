@@ -10,9 +10,10 @@ the live path is wired in the next step (ADR 0002).
 from __future__ import annotations
 
 import logging
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Deque, Dict, List, Optional
 
 import pandas as pd
 
@@ -29,6 +30,7 @@ class PortfolioView:
     equity: float
     cash: float
     positions: Dict[str, Position]
+    buying_power: float = 0.0
     _ask: Callable[[str], Awaitable[float]] = field(repr=False, default=None)  # type: ignore[assignment]
 
     def position(self, symbol: str) -> Optional[Position]:
@@ -66,7 +68,10 @@ class Session:
             quote = await self.broker.get_latest_quote(symbol)
             return float(quote.ask_price)
 
-        return PortfolioView(equity=equity, cash=cash, positions=positions, _ask=ask)
+        buying_power = float(getattr(account, "buying_power", 0) or 0) or cash
+        return PortfolioView(
+            equity=equity, cash=cash, positions=positions, buying_power=buying_power, _ask=ask
+        )
 
     async def run_session(
         self, when: datetime, histories: Dict[str, pd.DataFrame]
@@ -103,3 +108,56 @@ class Session:
                         f"{symbol}: {intent.side} {intent.qty} {outcome.status.value}: {outcome.reason}"
                     )
         return report
+
+
+class LiveSession(Session):
+    """The websocket clock: one bar at a time, histories kept per symbol.
+
+    Subscribes itself to the broker's bar stream (the strategy never does)
+    and runs a session for the symbol each bar arrives for. Marks the
+    strategy ``execution_mode = "live"`` so its decide() uses the live
+    sizing, brackets and exit rules rather than the daily baseline ones.
+    """
+
+    def __init__(
+        self,
+        strategy: Any,
+        broker: Any,
+        order_submission: Any,
+        symbols: List[str],
+        *,
+        history: int = 200,
+    ):
+        super().__init__(strategy, broker, order_submission, symbols)
+        self.bars: Dict[str, Deque[dict]] = {s: deque(maxlen=history) for s in self.symbols}
+        strategy.execution_mode = "live"
+
+    def subscribe(self) -> None:
+        add = getattr(self.broker, "_add_subscriber", None)
+        if callable(add):
+            add(self)
+
+    def unsubscribe(self) -> None:
+        remove = getattr(self.broker, "_remove_subscriber", None)
+        if callable(remove):
+            remove(self)
+
+    async def on_bar(
+        self, symbol, open_price, high_price, low_price, close_price, volume, timestamp
+    ):
+        if symbol not in self.bars:
+            return None
+        self.bars[symbol].append(
+            {
+                "timestamp": timestamp,
+                "open": float(open_price),
+                "high": float(high_price),
+                "low": float(low_price),
+                "close": float(close_price),
+                "volume": float(volume or 0.0),
+            }
+        )
+        rows = list(self.bars[symbol])
+        df = pd.DataFrame(rows).set_index(pd.DatetimeIndex([r["timestamp"] for r in rows]))
+        when = timestamp if isinstance(timestamp, datetime) else datetime.now()
+        return await self.run_session(when, {symbol: df})
