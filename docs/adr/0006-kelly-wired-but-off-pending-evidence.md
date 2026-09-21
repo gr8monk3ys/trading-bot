@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # Kelly sizing is wired to real fills but disabled by default
 

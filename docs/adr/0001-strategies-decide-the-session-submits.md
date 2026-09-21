@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # Strategies decide; the session submits
 

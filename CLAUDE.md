@@ -33,13 +33,19 @@ Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 ## Gotchas
 
 - Every broker call is async. `OrderBuilder` is imported inside methods (circular import).
-- `AdaptiveStrategy` owns the bar subscription; its arms must not subscribe themselves (#89).
+- No strategy subscribes to bars: `LiveSession` is the only subscriber and drives
+  `prepare()`/`decide()`; strategies never hold a broker for orders (ADR 0001).
 - Both paths run through `engine/session.py`: strategies `prepare()`/`decide()`, the
   session submits. Backtests use the daily rules (opposite-signal exits, no trailing
   stops) unless `daily_exits=True`; live sessions use brackets and trailing stops.
 - Strategy discovery is import-based; a strategy must be importable from `strategies/`.
 - Do not add features without a >=50-trade out-of-sample backtest. Delete a module's
   tests and config in the same commit as the module.
+- Every refactor step must reproduce the committed baseline JSON before merge; the
+  baseline pins `data_source: yfinance` in `config.BASELINE` (ADR 0002, 0008).
+- Strategy parameters are declared once in `strategies/params.py`; an unknown key
+  raises. Kelly sizing is off by default until a >=50-trade backtest says otherwise
+  (ADR 0006, 0010).
 
 ## Agent skills
 

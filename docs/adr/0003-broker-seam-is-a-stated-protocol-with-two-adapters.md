@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # The broker seam is a stated protocol with exactly two adapters
 
