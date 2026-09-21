@@ -87,22 +87,8 @@ class MomentumStrategyBacktest(MomentumStrategy):
                 return
 
             # Get current position
-            if hasattr(self.broker, "get_all_positions"):
-                positions = await self.broker.get_all_positions()
-            else:
-                positions = (
-                    self.broker.get_positions() if hasattr(self.broker, "get_positions") else []
-                )
-
-            current_position = None
-            for pos in positions:
-                if isinstance(pos, dict):
-                    pos_symbol = pos.get("symbol")
-                else:
-                    pos_symbol = getattr(pos, "symbol", None)
-                if pos_symbol == symbol:
-                    current_position = pos
-                    break
+            positions = await self.broker.get_positions()
+            current_position = next((p for p in positions if p.symbol == symbol), None)
 
             # Get account info
             account = await self.broker.get_account()
@@ -131,15 +117,7 @@ class MomentumStrategyBacktest(MomentumStrategy):
                 return
 
             # Signed quantity of the held position (positive long, negative short).
-            pos_qty = 0
-            if current_position is not None:
-                if isinstance(current_position, dict):
-                    pos_qty = int(current_position.get("quantity", 0))
-                else:
-                    pos_qty = int(
-                        getattr(current_position, "quantity", 0)
-                        or float(getattr(current_position, "qty", 0))
-                    )
+            pos_qty = int(current_position.qty) if current_position is not None else 0
 
             # Execute based on action. An opposite signal while holding closes
             # the position (no stop-and-reverse); before 2026-08 there was no

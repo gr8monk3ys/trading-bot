@@ -86,7 +86,7 @@ class BacktestBrokerGapsMixin:
         """Update previous day's closing price for gap calculation."""
         self._prev_day_close[symbol] = close_price
 
-    def simulate_overnight_gap(
+    async def simulate_overnight_gap(
         self,
         symbol: str,
         open_price: float,
@@ -176,11 +176,11 @@ class BacktestBrokerGapsMixin:
 
         # If stop was gapped through, execute at OPEN price (not stop price)
         if stop_triggered:
-            self._execute_gap_stop(symbol, open_price, stop_order)
+            await self._execute_gap_stop(symbol, open_price, stop_order)
 
         return gap_event
 
-    def _execute_gap_stop(self, symbol: str, fill_price: float, stop_order: Dict) -> None:
+    async def _execute_gap_stop(self, symbol: str, fill_price: float, stop_order: Dict) -> None:
         """
         Execute a stop order that was gapped through at the open price.
 
@@ -202,7 +202,7 @@ class BacktestBrokerGapsMixin:
         )
 
         # Place the order at the fill price (the open)
-        self.place_order(
+        await self.place_order(
             symbol=symbol,
             quantity=quantity,
             side=side,
@@ -213,7 +213,7 @@ class BacktestBrokerGapsMixin:
         # Clear the stop order
         self.clear_stop_order(symbol)
 
-    def process_day_start_gaps(self, date: datetime) -> List[GapEvent]:
+    async def process_day_start_gaps(self, date: datetime) -> List[GapEvent]:
         """
         Process overnight gaps for all positions at the start of trading day.
 
@@ -237,7 +237,7 @@ class BacktestBrokerGapsMixin:
                 if open_price is None:
                     continue
 
-                gap_event = self.simulate_overnight_gap(symbol, open_price, date)
+                gap_event = await self.simulate_overnight_gap(symbol, open_price, date)
                 if gap_event:
                     gap_events.append(gap_event)
 

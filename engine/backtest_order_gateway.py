@@ -91,8 +91,7 @@ class BacktestOrderGateway:
         side: str = "sell",
         reason: str = "exit",
     ) -> OrderResult:
-        # BacktestBroker.place_order is synchronous on this codepath.
-        result = self.broker.place_order(symbol, int(quantity), side, order_type="market")
+        result = await self.broker.place_order(symbol, int(quantity), side, order_type="market")
         if not result:
             return OrderResult(success=False, rejection_reason="broker_place_order_failed")
         return OrderResult(

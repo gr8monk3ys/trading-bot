@@ -151,7 +151,7 @@ class BacktestBrokerExecutionMixin:
             )
         )
 
-    def place_order(self, symbol, quantity, side, price=None, order_type="market"):
+    async def place_order(self, symbol, quantity, side, price=None, order_type="market"):
         """
         Place an order with realistic slippage and partial fills.
 

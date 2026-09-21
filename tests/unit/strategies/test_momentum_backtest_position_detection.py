@@ -17,12 +17,13 @@ corrected behavior with object positions, dict positions, and an empty book.
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from brokers.protocol import Position
 from strategies.momentum_strategy_backtest import MomentumStrategyBacktest
 
 
 def _strategy_with_positions(positions):
     broker = AsyncMock()
-    broker.get_all_positions = AsyncMock(return_value=positions)
+    broker.get_positions = AsyncMock(return_value=positions)
     broker.get_account = AsyncMock(return_value=SimpleNamespace(cash=100_000.0))
     broker.get_latest_quote = AsyncMock(return_value=SimpleNamespace(ask_price=100.0))
     strategy = MomentumStrategyBacktest(broker=broker, parameters={})
@@ -31,7 +32,7 @@ def _strategy_with_positions(positions):
 
 
 async def test_buy_signal_does_not_reenter_symbol_held_as_object_position():
-    strategy = _strategy_with_positions([SimpleNamespace(symbol="SPY", qty=100, quantity=100)])
+    strategy = _strategy_with_positions([Position("SPY", 100.0, 90.0)])
 
     await strategy.execute_trade("SPY", "buy")
 
@@ -39,7 +40,7 @@ async def test_buy_signal_does_not_reenter_symbol_held_as_object_position():
 
 
 async def test_sell_signal_closes_symbol_held_as_object_position():
-    strategy = _strategy_with_positions([SimpleNamespace(symbol="SPY", qty=100, quantity=100)])
+    strategy = _strategy_with_positions([Position("SPY", 100.0, 90.0)])
 
     await strategy.execute_trade("SPY", "sell")
 
@@ -50,7 +51,7 @@ async def test_short_signal_against_existing_long_exits_instead_of_shorting():
     # The original intent of this test stands — a bearish signal must never
     # stack a naked short on top of a held long. Since the 2026-08 exit fix
     # the correct response is to close the long (opposite-signal exit).
-    strategy = _strategy_with_positions([SimpleNamespace(symbol="SPY", qty=100, quantity=100)])
+    strategy = _strategy_with_positions([Position("SPY", 100.0, 90.0)])
 
     await strategy.execute_trade("SPY", "short")
 
@@ -63,11 +64,3 @@ async def test_buy_signal_enters_when_book_is_empty():
     await strategy.execute_trade("SPY", "buy")
 
     strategy._place_backtest_order.assert_awaited_once_with("SPY", 100, "buy", is_exit=False)
-
-
-async def test_dict_positions_still_detected():
-    strategy = _strategy_with_positions([{"symbol": "SPY", "qty": 100, "quantity": 100}])
-
-    await strategy.execute_trade("SPY", "buy")
-
-    strategy._place_backtest_order.assert_not_awaited()

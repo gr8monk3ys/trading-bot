@@ -283,7 +283,7 @@ class TestExecuteTrade:
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
         mock_broker = AsyncMock()
-        mock_broker.get_all_positions.return_value = []
+        mock_broker.get_positions = AsyncMock(return_value=[])
         mock_account = MagicMock()
         mock_account.cash = "100000"
         mock_broker.get_account.return_value = mock_account
@@ -315,8 +315,7 @@ class TestExecuteTrade:
         mock_position.quantity = 0
 
         mock_broker = AsyncMock()
-        mock_broker.get_all_positions.return_value = [mock_position]
-        mock_broker.get_positions.return_value = [mock_position]
+        mock_broker.get_positions = AsyncMock(return_value=[mock_position])
         mock_account = MagicMock()
         mock_account.cash = "100000"
         mock_broker.get_account.return_value = mock_account
@@ -343,8 +342,7 @@ class TestExecuteTrade:
         mock_position.quantity = 0
 
         mock_broker = AsyncMock()
-        mock_broker.get_all_positions.return_value = [mock_position]
-        mock_broker.get_positions.return_value = [mock_position]
+        mock_broker.get_positions = AsyncMock(return_value=[mock_position])
         mock_account = MagicMock()
         mock_account.cash = "100000"
         mock_broker.get_account.return_value = mock_account
@@ -370,7 +368,7 @@ class TestExecuteTrade:
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
         mock_broker = AsyncMock()
-        mock_broker.get_all_positions.return_value = []
+        mock_broker.get_positions = AsyncMock(return_value=[])
         mock_account = MagicMock()
         mock_account.cash = "100000"
         mock_broker.get_account.return_value = mock_account
@@ -386,66 +384,12 @@ class TestExecuteTrade:
         strategy.submit_exit_order.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_execute_trade_with_dict_position(self):
-        """Test trade execution with dict-style position."""
-        from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
-
-        mock_broker = AsyncMock()
-        mock_broker.get_all_positions.return_value = [{"symbol": "AAPL", "quantity": 50}]
-        broker_position = MagicMock()
-        broker_position.symbol = "AAPL"
-        broker_position.qty = "50"
-        mock_broker.get_positions.return_value = [broker_position]
-        mock_account = MagicMock()
-        mock_account.cash = "100000"
-        mock_broker.get_account.return_value = mock_account
-        mock_quote = MagicMock()
-        mock_quote.ask_price = "150.00"
-        mock_broker.get_latest_quote.return_value = mock_quote
-
-        strategy = SimpleMACrossoverStrategy(broker=mock_broker)
-        strategy.submit_exit_order = AsyncMock(return_value=MagicMock(success=True))
-
-        await strategy.execute_trade("AAPL", {"action": "sell"})
-
-        strategy.submit_exit_order.assert_awaited_once_with(
-            symbol="AAPL",
-            qty=50,
-            side="sell",
-            reason="simple_ma_exit",
-        )
-
-    @pytest.mark.asyncio
-    async def test_execute_trade_uses_get_positions_fallback(self):
-        """Test fallback to get_positions if get_all_positions not available."""
-        from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
-
-        mock_broker = MagicMock()
-        # Remove get_all_positions
-        del mock_broker.get_all_positions
-        mock_broker.get_positions.return_value = []
-        mock_account = MagicMock()
-        mock_account.cash = "100000"
-        mock_broker.get_account = AsyncMock(return_value=mock_account)
-        mock_quote = MagicMock()
-        mock_quote.ask_price = "150.00"
-        mock_broker.get_latest_quote = AsyncMock(return_value=mock_quote)
-
-        strategy = SimpleMACrossoverStrategy(broker=mock_broker)
-        strategy.submit_entry_order = AsyncMock(return_value=MagicMock(success=True))
-
-        await strategy.execute_trade("AAPL", {"action": "buy"})
-
-        mock_broker.get_positions.assert_called_once()
-        strategy.submit_entry_order.assert_awaited_once()
-
-    @pytest.mark.asyncio
     async def test_execute_trade_handles_exception(self):
         """Test error handling in trade execution."""
         from strategies.simple_ma_strategy import SimpleMACrossoverStrategy
 
         mock_broker = AsyncMock()
-        mock_broker.get_all_positions.side_effect = Exception("API Error")
+        mock_broker.get_positions = AsyncMock(side_effect=Exception("API Error"))
 
         strategy = SimpleMACrossoverStrategy(broker=mock_broker)
 
