@@ -44,7 +44,6 @@ class BaseParams:
     take_profit: float = 0.05
     take_profit_pct: float = 0.05
     use_kelly_criterion: bool = False
-    use_volatility_regime: bool = False
     var_confidence: float = field(default_factory=lambda: float(RISK_PARAMS["VAR_CONFIDENCE"]))
     var_threshold: float = 0.03
     volatility_threshold: float = 0.4
@@ -111,7 +110,6 @@ class MomentumParams(BaseParams):
     use_bollinger_filter: bool = False
     use_multi_timeframe: bool = False
     use_trailing_stop: bool = True
-    use_volatility_regime: bool = True
     volume_factor: float = 1.5
     volume_ma_period: int = 20
 
@@ -130,7 +128,6 @@ class MomentumBacktestParams(MomentumParams):
     use_bollinger_filter: bool = True
     use_kelly_criterion: bool = False
     use_multi_timeframe: bool = False
-    use_volatility_regime: bool = False
     volume_factor: float = 1.2
 
 
@@ -172,7 +169,6 @@ class AdaptiveParams(BaseParams):
     use_kelly_criterion: bool = True
     use_multi_timeframe: bool = True
     use_trailing_stop: bool = True
-    use_volatility_regime: bool = True
 
 
 @dataclass

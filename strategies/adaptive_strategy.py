@@ -32,6 +32,7 @@ from collections import deque
 from datetime import datetime
 from typing import Any, Dict, List
 
+from engine.order_submission import OrderIntent
 from strategies.base_strategy import BaseStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 from strategies.momentum_strategy import MomentumStrategy
@@ -85,6 +86,8 @@ class AdaptiveStrategy(BaseStrategy):
             parameters=parameters,
             order_submission=order_submission,
         )
+        self._position_multiplier = 1.0
+        self._flatten_pending = set()
 
     def default_parameters(self):
         """The defaults live once, on ``Params`` (strategies/params.py)."""
@@ -125,7 +128,6 @@ class AdaptiveStrategy(BaseStrategy):
                 "stop_loss": self.stop_loss,
                 "take_profit": self.take_profit,
                 "use_kelly_criterion": self.parameters["use_kelly_criterion"],
-                "use_volatility_regime": self.parameters["use_volatility_regime"],
                 "use_trailing_stop": self.parameters["use_trailing_stop"],
                 "use_multi_timeframe": self.parameters["use_multi_timeframe"],
                 "enable_short_selling": True,  # Enable for bear markets
@@ -135,6 +137,8 @@ class AdaptiveStrategy(BaseStrategy):
                 parameters=momentum_params,
                 order_submission=self.order_submission,
             )
+            # One regime per bar, one multiplier: the arms' sizers read it (ADR 0009).
+            self.momentum_strategy.regime_multiplier = self._regime_multiplier
 
             # Mean reversion strategy for sideways markets
             mean_rev_params = {
@@ -151,6 +155,7 @@ class AdaptiveStrategy(BaseStrategy):
                 parameters=mean_rev_params,
                 order_submission=self.order_submission,
             )
+            self.mean_reversion_strategy.regime_multiplier = self._regime_multiplier
 
             # Performance optimization: Initialize sub-strategies in parallel
             await asyncio.gather(
@@ -176,6 +181,8 @@ class AdaptiveStrategy(BaseStrategy):
             # Performance optimization: Use deque with maxlen for O(1) append and auto-trimming
             self.price_history = {symbol: deque(maxlen=100) for symbol in self.symbols}
             self.regime_switches = 0
+            self._position_multiplier = 1.0
+            self._flatten_pending = set()
             self.last_regime_switch = None
 
             logger.info(f"AdaptiveStrategy initialized with {len(self.symbols)} symbols")
@@ -220,53 +227,46 @@ class AdaptiveStrategy(BaseStrategy):
             logger.error(f"Error updating regime: {e}", exc_info=True)
 
     async def _switch_strategy(self, regime_info: Dict):
-        """Switch active strategy based on regime."""
+        """Pick the arm for the regime; never mutate the arm.
+
+        Returns True when the active arm changed, in which case the outgoing
+        arm's positions are flattened on the next session (see decide()).
+        """
         regime_type = regime_info["type"]
         confidence = regime_info["confidence"]
-
-        # Don't switch if confidence is too low
         if confidence < self.parameters["min_regime_confidence"]:
             logger.info(
-                f"Regime confidence ({confidence:.0%}) below threshold, keeping {self.active_strategy_name}"
+                f"Regime confidence ({confidence:.0%}) below threshold, "
+                f"keeping {self.active_strategy_name}"
             )
-            return
-
-        # Select strategy based on regime
+            return False
+        previous = self.active_strategy
         if regime_type == "bull":
-            self.active_strategy = self.momentum_strategy
-            self.active_strategy_name = "momentum_long"
-            # Adjust for bull market (favor longs)
-            self.momentum_strategy.enable_short_selling = False
-            logger.info("BULL REGIME: Switched to MomentumStrategy (long bias)")
-
+            self.active_strategy, self.active_strategy_name = (
+                self.momentum_strategy,
+                "momentum_long",
+            )
+            logger.info("BULL REGIME: MomentumStrategy, long bias (short entries dropped)")
         elif regime_type == "bear":
-            self.active_strategy = self.momentum_strategy
-            self.active_strategy_name = "momentum_short"
-            # Adjust for bear market (enable shorts)
-            self.momentum_strategy.enable_short_selling = True
-            logger.info("BEAR REGIME: Switched to MomentumStrategy (short enabled)")
-
+            self.active_strategy, self.active_strategy_name = (
+                self.momentum_strategy,
+                "momentum_short",
+            )
+            logger.info("BEAR REGIME: MomentumStrategy, shorts allowed")
         elif regime_type == "sideways":
-            self.active_strategy = self.mean_reversion_strategy
-            self.active_strategy_name = "mean_reversion"
-            logger.info("SIDEWAYS REGIME: Switched to MeanReversionStrategy")
-
+            self.active_strategy, self.active_strategy_name = (
+                self.mean_reversion_strategy,
+                "mean_reversion",
+            )
+            logger.info("SIDEWAYS REGIME: MeanReversionStrategy")
         elif regime_type == "volatile":
-            # Keep current strategy but reduce exposure
-            logger.info(
-                f"VOLATILE REGIME: Keeping {self.active_strategy_name} with reduced exposure"
-            )
-            # Position multiplier from regime_info already handles reduction
-
-        # Apply position multiplier from regime
-        multiplier = regime_info.get("position_multiplier", 1.0)
-        adjusted_size = self.parameters["position_size"] * multiplier
-
-        if self.active_strategy:
-            self.active_strategy.position_size = adjusted_size
-            logger.info(
-                f"  Position size adjusted to {adjusted_size:.1%} (mult: {multiplier:.1f}x)"
-            )
+            logger.info(f"VOLATILE REGIME: keeping {self.active_strategy_name} at reduced size")
+        self._position_multiplier = float(regime_info.get("position_multiplier", 1.0))
+        logger.info(f"  Regime position multiplier: {self._position_multiplier:.2f}x")
+        changed = previous is not None and previous is not self.active_strategy
+        if changed:
+            self._flatten_pending = set(self.symbols)
+        return changed
 
     async def analyze_symbol(self, symbol: str) -> Dict[str, Any]:
         """
@@ -306,10 +306,35 @@ class AdaptiveStrategy(BaseStrategy):
             await self.active_strategy.prepare(when, histories)
             self.signals = self.active_strategy.signals.copy()
 
+    def _regime_multiplier(self, symbol: str) -> float:
+        """The single position multiplier of the current regime (1.0 until one is known)."""
+        return float(self._position_multiplier)
+
     async def decide(self, symbol, when, portfolio):
         if not self.active_strategy:
             return []
-        return await self.active_strategy.decide(symbol, when, portfolio)
+        # A switch flattens the outgoing arm first: no arm's exit rules are
+        # defined for another arm's entries (ADR 0009).
+        if symbol in self._flatten_pending:
+            self._flatten_pending.discard(symbol)
+            held = portfolio.position(symbol)
+            if held is not None and float(held.qty) != 0:
+                qty = float(held.qty)
+                return [
+                    OrderIntent(
+                        symbol=symbol,
+                        side="sell" if qty > 0 else "buy",
+                        qty=abs(qty),
+                        is_exit=True,
+                        strategy_name=self.name,
+                        reason=f"regime_switch_flatten_{self.active_strategy_name}",
+                    )
+                ]
+        intents = await self.active_strategy.decide(symbol, when, portfolio)
+        if self.current_regime == "bull":
+            # Long bias in a bull regime: drop short entries instead of reaching into the arm.
+            intents = [i for i in intents if i.is_exit or not i.side.lower().startswith("sell")]
+        return intents
 
     async def generate_signals(self):
         """Generate signals for all symbols using active strategy."""

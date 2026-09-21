@@ -114,12 +114,11 @@ Utilities that the production path actually uses. (The 2026-08 slop sweep delete
 Core utilities:
 - `utils/circuit_breaker.py` — daily-loss halts + economic-event blocking.
 - `utils/economic_calendar.py` — FOMC/NFP/CPI event calendar (lazily imported by the circuit breaker, on by default).
-- `utils/market_regime.py` — `MarketRegimeDetector`: bull/bear/sideways/volatile detection.
+- `utils/market_regime.py` — `MarketRegimeDetector`: the one regime reading (bull/bear/sideways/volatile + volatility), one position multiplier, applied once in sizing via `AdaptiveStrategy._regime_multiplier` (ADR 0009).
 - `utils/multi_timeframe.py` — multi-timeframe analyzer (canonical version).
 - `utils/audit_log.py` — hash-chained event logging.
 - `utils/websocket_manager.py` — auto-reconnecting websocket abstraction.
 - `utils/kelly_criterion.py` — Kelly position-sizing math.
-- `utils/volatility_regime.py` — volatility-regime classifier.
 - `utils/order_lifecycle.py`, `utils/partial_fill_tracker.py`, `utils/performance_tracker.py`, `utils/sector_rotation.py`, `utils/portfolio_stress.py` — order/portfolio support used by the broker mixins and scanner.
 
 ### `data/`
