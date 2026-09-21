@@ -84,7 +84,8 @@ Broker abstractions. `brokers/protocol.py` states the seam both brokers satisfy 
 Backtest engine and performance analytics.
 
 - `engine/backtest_engine.py` — `BacktestEngine` facade.
-- `engine/backtest/core.py` — session resolution, per-symbol signal processing, signed-position P&L calculator.
+- `engine/backtest/core.py` — session resolution and the signed-position P&L calculator.
+- `engine/session.py` — `Session`: one strategy over sessions of bars. `prepare()` once per session, then `decide()` per symbol against a fresh `PortfolioView`, submitting the returned intents (ADR 0001). The backtest runner drives it day by day with `Session`; `StrategyManager` drives `LiveSession` from the websocket bar stream, which is the only bar subscriber (ADR 0002). Strategies have no `on_bar`.
 - `engine/historical_bars.py` — the one way to load bars: Alpaca or yfinance adapter behind `load_bars`, a data outcome per symbol (loaded / empty / failed), and `DataUnavailableError` when any symbol is missing. The baseline scripts and the runner all use it (ADR 0008). Also hosts `compute_buy_and_hold`.
 - `engine/backtest/runner.py` — comprehensive backtest driver (data loading, broker setup, OrderSubmission wiring, end-of-period liquidation, result assembly).
 - `engine/order_submission.py` — `OrderSubmission`: the one path from an `OrderIntent` to an `OrderOutcome` (halt gate, build, dispatch, normalise, protective levels). Live and backtest differ only in the broker behind it (ADR 0004).
@@ -162,7 +163,7 @@ Optional FastAPI dashboard for live monitoring.
 **If you're touching the backtest path:**
 1. `scripts/run_etf_baseline.py` — the canonical baseline script (read it as the reference invocation). It writes `results/manifest.json`, which `scripts/audit_results.py` reads.
 2. `engine/backtest/runner.py` — `run_backtest` driver.
-3. `engine/backtest/core.py` — per-symbol signal processing and P&L matching.
+3. `engine/session.py` — prepare / decide / submit per session; `engine/backtest/core.py` for P&L matching.
 4. `brokers/backtest/execution.py` — how simulated orders fill.
 5. `engine/order_submission.py` — how intents become outcomes in both modes.
 

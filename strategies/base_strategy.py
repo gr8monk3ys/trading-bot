@@ -278,6 +278,269 @@ class BaseStrategy(ABC):
             )
         return outcome
 
+    # ------------------------------------------------------------------
+    # Decider interface: the session calls these; strategies never submit.
+    # ------------------------------------------------------------------
+
+    async def prepare(self, when, histories) -> None:
+        """Compute this session's signals from bar histories (bars strictly before ``when``).
+
+        The default feeds the legacy per-symbol structures and runs
+        ``generate_signals`` so existing signal code keeps working unchanged.
+        """
+        if not hasattr(self, "current_data"):
+            self.current_data = {}
+        prices = getattr(self, "current_prices", None)
+        for symbol, df in histories.items():
+            if len(df) == 0:
+                continue
+            self.current_data[symbol] = df
+            if hasattr(self, "price_history"):
+                self.price_history[symbol] = df["close"].tolist()[-30:]
+            if isinstance(prices, dict):
+                # The last close before this session: what strategy-managed
+                # exits (trailing stops etc.) compare against in daily mode.
+                prices[symbol] = float(df["close"].iloc[-1])
+        generate = getattr(self, "generate_signals", None)
+        if callable(generate):
+            await generate()
+
+    async def decide(self, symbol, when, portfolio) -> list:
+        """Order intents for ``symbol`` this session. Default: none."""
+        return []
+
+    def _signal_action(self, symbol) -> str:
+        signal = getattr(self, "signals", {}).get(symbol, "neutral")
+        if isinstance(signal, dict):
+            signal = signal.get("action", "neutral")
+        return signal or "neutral"
+
+    async def _daily_intents(
+        self, symbol, action, portfolio, *, size_pct, sizing_basis, reason, when=None
+    ):
+        """Fixed-fraction daily execution: enter when flat, exit on the opposite signal.
+
+        Reproduces the 2020-2024 baseline semantics exactly (integer shares,
+        equity- or cash-based sizing, no stop-and-reverse).
+        """
+        if action in ("neutral", "hold", None):
+            return []
+        held = portfolio.position(symbol)
+        cash = float(portfolio.cash)
+        price = await portfolio.ask_price(symbol)
+        if sizing_basis == "cash":
+            position_value = cash * size_pct
+        else:
+            position_value = (float(portfolio.equity) or cash) * size_pct
+        qty = int(position_value / price)
+        if action == "buy":
+            qty = min(qty, int(cash / price))
+        if qty <= 0:
+            return []
+        pos_qty = int(held.qty) if held is not None else 0
+        name = getattr(self, "name", self.__class__.__name__)
+
+        def entry(side):
+            return OrderIntent(
+                symbol=symbol, side=side, qty=qty, strategy_name=name, reason=f"{reason}_entry"
+            )
+
+        def exit_(side, q):
+            return OrderIntent(
+                symbol=symbol,
+                side=side,
+                qty=q,
+                is_exit=True,
+                strategy_name=name,
+                reason=f"{reason}_exit",
+            )
+
+        if action in ("buy", "short") and held is None:
+            self._record_entry(symbol, price, when, stop_loss=None, take_profit=None)
+            return [entry("buy" if action == "buy" else "sell")]
+        if action == "short" and pos_qty > 0:
+            self._clear_entry(symbol)
+            return [exit_("sell", pos_qty)]
+        if action == "buy" and pos_qty < 0:
+            self._clear_entry(symbol)
+            return [exit_("buy", -pos_qty)]
+        if action == "sell" and pos_qty > 0:
+            self._clear_entry(symbol)
+            return [exit_("sell", pos_qty)]
+        return []
+
+    # ------------------------------------------------------------------
+    # Live execution as intents: brackets, cooldown, risk haircut, hard cap.
+    # ------------------------------------------------------------------
+
+    def _positions_for_risk(self, positions):
+        """Held positions with their close history, in the risk manager's shape."""
+        out = {}
+        for pos in positions:
+            history = getattr(self, "price_history", {}).get(pos.symbol)
+            if history:
+                out[pos.symbol] = {
+                    "value": abs(float(pos.market_value)),
+                    "price_history": self._extract_close_price_history(pos.symbol),
+                    "risk": None,
+                }
+        return out
+
+    async def _live_position_value(self, symbol, price, view, *, is_short):
+        use_kelly = bool(self.parameters.get("use_kelly_criterion", False))
+        if use_kelly and getattr(self, "kelly", None) is not None:
+            value, _fraction, _ = await self.calculate_kelly_position_size(
+                symbol, price, equity=view.equity
+            )
+            return value * (0.8 if is_short else 1.0)
+        size_pct = (
+            float(
+                getattr(
+                    self, "short_position_size", self.parameters.get("short_position_size", 0.08)
+                )
+            )
+            if is_short
+            else float(getattr(self, "position_size", self.parameters.get("position_size", 0.1)))
+        )
+        return float(view.buying_power) * size_pct
+
+    def _risk_adjusted(self, symbol, value, view):
+        risk_manager = getattr(self, "risk_manager", None)
+        closes = self._extract_close_price_history(symbol)
+        if risk_manager is None or len(closes) <= 20:
+            return value
+        return risk_manager.adjust_position_size(
+            symbol, value, closes, self._positions_for_risk(view.positions.values())
+        )
+
+    def _record_entry(self, symbol, price, when, *, stop_loss, take_profit):
+        for attr, val in (
+            ("stop_prices", stop_loss),
+            ("target_prices", take_profit),
+            ("entry_prices", price),
+            ("peak_prices", price),
+            ("lowest_prices", price),
+            ("highest_prices", price),
+            ("last_signal_time", when),
+        ):
+            store = getattr(self, attr, None)
+            if isinstance(store, dict):
+                store[symbol] = val
+        entries = getattr(self, "position_entries", None)
+        if isinstance(entries, dict):
+            entries[symbol] = {
+                "time": when,
+                "price": price,
+                "stop_loss": stop_loss,
+                "take_profit": take_profit,
+            }
+
+    def _clear_entry(self, symbol):
+        for attr in (
+            "stop_prices",
+            "target_prices",
+            "entry_prices",
+            "peak_prices",
+            "lowest_prices",
+            "highest_prices",
+            "position_entries",
+        ):
+            store = getattr(self, attr, None)
+            if isinstance(store, dict):
+                store.pop(symbol, None)
+
+    async def _live_intents(self, symbol, when, view):
+        """Signal → intents under the live rules. Exits from _exit_intents run first."""
+        intents = list(await self._exit_intents(symbol, when, view))
+        action = self._signal_action(symbol)
+        if action in ("neutral", "hold", None):
+            return intents
+        last = getattr(self, "last_signal_time", {}).get(symbol)
+        if last and (when - last).total_seconds() < 3600:
+            return intents
+        held = view.position(symbol)
+        price = getattr(self, "current_prices", {}).get(symbol) or await view.ask_price(symbol)
+        name = getattr(self, "name", self.__class__.__name__)
+        max_positions = int(getattr(self, "max_positions", self.parameters.get("max_positions", 5)))
+        if action in ("buy", "short") and held is None:
+            is_short = action == "short"
+            if is_short and not getattr(
+                self, "enable_short_selling", self.parameters.get("enable_short_selling", False)
+            ):
+                return intents
+            if len(view.positions) >= max_positions:
+                logger.info(
+                    f"Max positions reached ({max_positions}), skipping {action} for {symbol}"
+                )
+                return intents
+            value = await self._live_position_value(symbol, price, view, is_short=is_short)
+            value = self._risk_adjusted(symbol, value, view)
+            if value <= 0:
+                logger.info(f"Risk manager rejected position for {symbol}")
+                return intents
+            value, qty = await self.enforce_position_size_limit(
+                symbol, value, price, equity=view.equity
+            )
+            if qty < 0.01:
+                return intents
+            take_profit = float(
+                getattr(self, "take_profit", self.parameters.get("take_profit", 0.05))
+            )
+            stop_loss = float(
+                getattr(self, "short_stop_loss", self.parameters.get("short_stop_loss", 0.04))
+                if is_short
+                else getattr(self, "stop_loss", self.parameters.get("stop_loss", 0.03))
+            )
+            if is_short:
+                tp_price, sl_price = price * (1 - take_profit), price * (1 + stop_loss)
+            else:
+                tp_price, sl_price = price * (1 + take_profit), price * (1 - stop_loss)
+            self._record_entry(symbol, price, when, stop_loss=sl_price, take_profit=tp_price)
+            intents.append(
+                OrderIntent(
+                    symbol=symbol,
+                    side="sell" if is_short else "buy",
+                    qty=qty,
+                    stop_loss=sl_price,
+                    take_profit=tp_price,
+                    time_in_force="gtc",
+                    strategy_name=name,
+                    reason=f"{name}_{'short_' if is_short else ''}entry",
+                )
+            )
+        elif action == "sell" and held is not None and float(held.qty) > 0:
+            self._clear_entry(symbol)
+            store = getattr(self, "last_signal_time", None)
+            if isinstance(store, dict):
+                store[symbol] = when
+            intents.append(
+                OrderIntent(
+                    symbol=symbol,
+                    side="sell",
+                    qty=float(held.qty),
+                    is_exit=True,
+                    strategy_name=name,
+                    reason="signal_exit",
+                )
+            )
+        return intents
+
+    async def _exit_intents(self, symbol, when, view):
+        """Strategy-managed exits (trailing stops etc.). Default: none."""
+        return []
+
+    async def _decide(self, symbol, when, view, **daily):
+        """Dispatch: live rules under a LiveSession, daily baseline rules otherwise."""
+        if getattr(self, "execution_mode", "daily") == "live":
+            return await self._live_intents(symbol, when, view)
+        intents = []
+        if self.parameters.get("daily_exits", False):
+            intents.extend(await self._exit_intents(symbol, when, view))
+        intents.extend(
+            await self._daily_intents(symbol, self._signal_action(symbol), view, **daily)
+        )
+        return intents
+
     def _extract_close_price_history(self, symbol: str) -> list[float]:
         """
         Normalize symbol history into a close-price series for risk calculations.
@@ -351,14 +614,6 @@ class BaseStrategy(ABC):
     @abstractmethod
     async def analyze_symbol(self, symbol):
         """Analyze a symbol and return trading signals."""
-        pass
-
-    @abstractmethod
-    async def execute_trade(self, symbol, signal):
-        """Execute a trade based on the signal.
-
-        P1 FIX: Added async to match implementations in subclasses.
-        """
         pass
 
     def create_order(
@@ -458,7 +713,9 @@ class BaseStrategy(ABC):
         self._shutdown_event.set()
         await self.cleanup()
 
-    async def enforce_position_size_limit(self, symbol, desired_position_value, current_price):
+    async def enforce_position_size_limit(
+        self, symbol, desired_position_value, current_price, *, equity=None
+    ):
         """
         CRITICAL SAFETY: Enforce maximum position size limit.
 
@@ -486,8 +743,8 @@ class BaseStrategy(ABC):
 
         try:
             # Get current account value
-            account = await self.broker.get_account()
-            account_value = float(account.equity)
+            account = None if equity is not None else await self.broker.get_account()
+            account_value = float(equity if equity is not None else account.equity)
 
             # Calculate maximum allowed position value
             max_position_value = account_value * self.max_position_size
@@ -519,7 +776,7 @@ class BaseStrategy(ABC):
             # FAIL SAFE: Return 0 to prevent trading on error
             return 0, 0
 
-    async def calculate_kelly_position_size(self, symbol, current_price):
+    async def calculate_kelly_position_size(self, symbol, current_price, *, equity=None):
         """
         Calculate optimal position size using Kelly Criterion.
 
@@ -543,8 +800,8 @@ class BaseStrategy(ABC):
 
         try:
             # Get current account value
-            account = await self.broker.get_account()
-            account_value = float(account.equity)
+            account = None if equity is not None else await self.broker.get_account()
+            account_value = float(equity if equity is not None else account.equity)
 
             # If Kelly not enabled, use fixed position sizing
             if not self.kelly:

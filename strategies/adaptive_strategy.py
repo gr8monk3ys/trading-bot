@@ -15,7 +15,7 @@ engine never calls it. A previous version of this docstring claimed regime
 matching "improves returns by 10-15% annually"; nothing in this repository
 supports that number, so it has been removed rather than cited.
 
-This class owns the broker's bar subscription — see `_claim_bar_subscription`.
+Arms never subscribe to bars; the LiveSession that drives this coordinator does.
 
 Usage:
     from strategies.adaptive_strategy import AdaptiveStrategy
@@ -190,7 +190,6 @@ class AdaptiveStrategy(BaseStrategy):
             # bar and trade independently through their own gateways, while
             # this coordinator never runs on_bar and so never detects a regime
             # at all. The arms must only ever be driven via on_bar routing.
-            self._claim_bar_subscription()
 
             # Active strategy pointer
             self.active_strategy = self.momentum_strategy  # Default
@@ -217,54 +216,6 @@ class AdaptiveStrategy(BaseStrategy):
         except Exception as e:
             logger.error(f"Error initializing AdaptiveStrategy: {e}", exc_info=True)
             return False
-
-    def _claim_bar_subscription(self):
-        """Subscribe this coordinator to bars and detach its sub-strategies."""
-        if not hasattr(self.broker, "_add_subscriber"):
-            return
-        for arm in (self.momentum_strategy, self.mean_reversion_strategy):
-            if arm is not None and hasattr(self.broker, "_remove_subscriber"):
-                self.broker._remove_subscriber(arm)
-        self.broker._add_subscriber(self)
-
-    async def on_bar(
-        self, symbol, open_price, high_price, low_price, close_price, volume, timestamp
-    ):
-        """Handle incoming bar data with regime-aware routing."""
-        try:
-            if symbol not in self.symbols:
-                return
-
-            # Store current price
-            self.current_prices[symbol] = close_price
-
-            # Update price history (deque auto-trims to maxlen=100 via maxlen)
-            self.price_history[symbol].append(
-                {
-                    "timestamp": timestamp,
-                    "open": open_price,
-                    "high": high_price,
-                    "low": low_price,
-                    "close": close_price,
-                    "volume": volume,
-                }
-            )
-
-            # Check and update market regime (cached, not every bar)
-            await self._update_regime()
-
-            # Route to appropriate sub-strategy based on regime
-            if self.active_strategy:
-                await self.active_strategy.on_bar(
-                    symbol, open_price, high_price, low_price, close_price, volume, timestamp
-                )
-
-                # Copy signals and indicators from active strategy
-                self.signals[symbol] = self.active_strategy.signals.get(symbol, "neutral")
-                self.indicators[symbol] = self.active_strategy.indicators.get(symbol, {})
-
-        except Exception as e:
-            logger.error(f"Error in AdaptiveStrategy on_bar for {symbol}: {e}", exc_info=True)
 
     async def _update_regime(self):
         """Update market regime and switch strategies if needed."""
@@ -367,24 +318,24 @@ class AdaptiveStrategy(BaseStrategy):
             return technical_result
         return {"action": "neutral", "confidence": 0.0}
 
-    async def execute_trade(self, symbol: str, signal):
-        """
-        Execute trade using the active strategy.
+    async def prepare(self, when, histories) -> None:
+        mode = getattr(self, "execution_mode", "daily")
+        for arm in (self.momentum_strategy, self.mean_reversion_strategy):
+            if arm is not None:
+                arm.execution_mode = mode
+        if mode == "live":
+            for symbol, df in histories.items():
+                if len(df):
+                    self.current_prices[symbol] = float(df["close"].iloc[-1])
+            await self._update_regime()
+        if self.active_strategy:
+            await self.active_strategy.prepare(when, histories)
+            self.signals = self.active_strategy.signals.copy()
 
-        Args:
-            symbol: Stock symbol
-            signal: Signal dict with action / confidence, or a legacy string.
-        """
+    async def decide(self, symbol, when, portfolio):
         if not self.active_strategy:
-            return
-
-        # Extract action from signal
-        if isinstance(signal, dict):
-            action = signal.get("action", "neutral")
-            await self.active_strategy.execute_trade(symbol, action)
-        else:
-            # Legacy string signal
-            await self.active_strategy.execute_trade(symbol, signal)
+            return []
+        return await self.active_strategy.decide(symbol, when, portfolio)
 
     async def generate_signals(self):
         """Generate signals for all symbols using active strategy."""

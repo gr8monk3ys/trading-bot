@@ -97,6 +97,14 @@ results/*
 # Canonical performance reference (exposure sweep, exits active).
 !results/etf_baseline_2020-2024_exposure_sweep.md
 !results/manifest.json
+!results/manifest_exits.json
+!results/etf_baseline_2020-2024_exposure_sweep_exits.md
+!results/etf_baseline_2020-2024_gross25_exits.md
+!results/etf_baseline_2020-2024_gross25_exits.json
+!results/etf_baseline_2020-2024_gross50_exits.md
+!results/etf_baseline_2020-2024_gross50_exits.json
+!results/etf_baseline_2020-2024_gross100_exits.md
+!results/etf_baseline_2020-2024_gross100_exits.json
 !results/etf_baseline_2020-2024_gross25.md
 !results/etf_baseline_2020-2024_gross25.json
 !results/etf_baseline_2020-2024_gross50.md

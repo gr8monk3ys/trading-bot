@@ -12,7 +12,6 @@ The TA-Lib indicator pipeline and the signal-generation / exit-condition
 checks sit at the end of the class.
 """
 
-import asyncio
 import logging
 from collections import deque
 from datetime import datetime, timedelta
@@ -298,8 +297,6 @@ class MomentumStrategy(BaseStrategy):
             )
 
             # Add strategy as subscriber to broker
-            if hasattr(self.broker, "_add_subscriber"):
-                self.broker._add_subscriber(self)
 
             logger.info(f"Initialized {self.NAME} with {len(self.symbols)} symbols")
             return True
@@ -324,7 +321,6 @@ class MomentumStrategy(BaseStrategy):
 
     async def import_state(self, state: dict) -> None:
         """Restore lightweight state after restart."""
-        from datetime import datetime
 
         def _parse_dt(v):
             return datetime.fromisoformat(v) if isinstance(v, str) else v
@@ -336,52 +332,6 @@ class MomentumStrategy(BaseStrategy):
         self.last_signal_time = {
             k: _parse_dt(v) for k, v in state.get("last_signal_time", {}).items()
         }
-
-    async def on_bar(
-        self, symbol, open_price, high_price, low_price, close_price, volume, timestamp
-    ):
-        """Handle incoming bar data."""
-        try:
-            if symbol not in self.symbols:
-                return
-
-            # Store latest price
-            self.current_prices[symbol] = close_price
-
-            # Update multi-timeframe analyzer (if enabled)
-            if self.use_multi_timeframe and self.mtf_analyzer:
-                await self.mtf_analyzer.update(symbol, timestamp, close_price, volume)
-
-            # Update price history (deque auto-trims to max_history via maxlen)
-            # Performance optimization: O(1) append, no list slicing needed
-            self.price_history[symbol].append(
-                {
-                    "timestamp": timestamp,
-                    "open": open_price,
-                    "high": high_price,
-                    "low": low_price,
-                    "close": close_price,
-                    "volume": volume,
-                }
-            )
-
-            # Update technical indicators
-            await self._update_indicators(symbol)
-
-            # Check for signals
-            signal = await self._generate_signal(symbol)
-            self.signals[symbol] = signal
-
-            # Execute trades if needed
-            # Note: 'buy', 'short', and 'sell' are all valid signals
-            if signal != "neutral":
-                await self._execute_signal(symbol, signal)
-
-            # Check stop losses and take profits for existing positions
-            await self._check_exit_conditions(symbol)
-
-        except Exception as e:
-            logger.error(f"Error in on_bar for {symbol}: {e}", exc_info=True)
 
     @staticmethod
     def _is_crypto_symbol(symbol: str) -> bool:
@@ -405,282 +355,66 @@ class MomentumStrategy(BaseStrategy):
         previous_close = previous_bar.get("close")
         return float(previous_close) if previous_close is not None else None
 
-    def _build_current_positions_dict(self, positions):
-        """Build a dictionary of current positions with price history for risk analysis."""
-        current_positions = {}
-        for pos in positions:
-            pos_symbol = pos.symbol
-            if pos_symbol in self.price_history:
-                price_history = self.price_history[pos_symbol]
-                close_prices = [bar["close"] for bar in price_history]
-                current_positions[pos_symbol] = {
-                    "value": abs(float(pos.market_value)),
-                    "price_history": close_prices,
-                    "risk": None,
-                }
-        return current_positions
-
-    async def _calculate_position_value(self, symbol, price, buying_power, is_short=False):
-        """
-        Calculate position value using Kelly criterion or fixed sizing.
-
-        Returns:
-            float: The calculated position value
-        """
-        use_kelly = self.parameters.get("use_kelly_criterion", True)
-
-        if use_kelly and hasattr(self, "kelly") and self.kelly is not None:
-            position_value, position_fraction, _ = await self.calculate_kelly_position_size(
-                symbol, price
-            )
-            if is_short:
-                # Apply short position reduction (shorts use 80% of Kelly size)
-                position_value = position_value * 0.8
-                logger.info(
-                    f"📊 KELLY SHORT: {symbol} position = {position_fraction * 0.8:.1%} (${position_value:,.2f})"
-                )
-            else:
-                logger.info(
-                    f"📊 KELLY SIZING: {symbol} position = {position_fraction:.1%} (${position_value:,.2f})"
-                )
-        else:
-            # Use fixed position sizing
-            size_pct = self.short_position_size if is_short else self.position_size
-            position_value = buying_power * size_pct
-
-        return position_value
-
-    async def _apply_risk_adjustments(self, symbol, position_value, positions):
-        """Apply risk manager adjustments to position value."""
-        current_positions = self._build_current_positions_dict(positions)
-
-        if len(self.price_history[symbol]) > 20:
-            close_prices = [bar["close"] for bar in self.price_history[symbol]]
-            position_value = self.risk_manager.adjust_position_size(
-                symbol, position_value, close_prices, current_positions
-            )
-
-        return position_value
-
-    async def _execute_buy_signal(self, symbol, positions, buying_power, current_time):
-        """Execute a buy signal for the given symbol."""
-        if len(positions) >= self.max_positions:
-            logger.info(f"Max positions reached ({self.max_positions}), skipping buy for {symbol}")
-            return
-
-        price = self.current_prices[symbol]
-        position_value = await self._calculate_position_value(symbol, price, buying_power)
-        position_value = await self._apply_risk_adjustments(symbol, position_value, positions)
-
-        if position_value <= 0:
-            logger.info(f"Risk manager rejected position for {symbol}")
-            return
-
-        # Enforce maximum position size limit
-        position_value, quantity = await self.enforce_position_size_limit(
-            symbol, position_value, price
-        )
-
-        if quantity < 0.01:
-            logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
-            return
-
-        # Calculate take-profit and stop-loss levels
-        take_profit_price = price * (1 + self.take_profit)
-        stop_loss_price = price * (1 - self.stop_loss)
-
-        if self._is_crypto_symbol(symbol):
-            # Alpaca crypto does not support advanced order classes (e.g. bracket/OTOCO).
-            logger.info(f"Creating market entry order for {symbol} (crypto):")
-            logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} units")
-            logger.info(f"  Managed TP: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
-            logger.info(f"  Managed SL: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
-        else:
-            logger.info(f"Creating bracket order for {symbol}:")
-            logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} shares")
-            logger.info(f"  Take-profit: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
-            logger.info(f"  Stop-loss: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
-
-        result = await self.submit_entry_order(
-            OrderIntent(
-                symbol=symbol,
-                side="buy",
-                qty=quantity,
-                stop_loss=stop_loss_price,
-                take_profit=take_profit_price,
-                time_in_force="gtc",
-                reason="momentum_entry",
-            )
-        )
-
-        if result is not None and result.ok:
-            logger.info(
-                f"BUY bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
-            )
-            self.stop_prices[symbol] = stop_loss_price
-            self.target_prices[symbol] = take_profit_price
-            self.entry_prices[symbol] = price
-            self.peak_prices[symbol] = price
-            self.last_signal_time[symbol] = current_time
-
-    async def _execute_short_signal(self, symbol, positions, buying_power, current_time):
-        """Execute a short signal for the given symbol."""
-        if len(positions) >= self.max_positions:
-            logger.info(
-                f"Max positions reached ({self.max_positions}), skipping short for {symbol}"
-            )
-            return
-
-        price = self.current_prices[symbol]
-        position_value = await self._calculate_position_value(
-            symbol, price, buying_power, is_short=True
-        )
-        position_value = await self._apply_risk_adjustments(symbol, position_value, positions)
-
-        if position_value <= 0:
-            logger.info(f"Risk manager rejected SHORT position for {symbol}")
-            return
-
-        # Enforce maximum position size limit
-        position_value, quantity = await self.enforce_position_size_limit(
-            symbol, position_value, price
-        )
-
-        if quantity < 0.01:
-            logger.info(f"Position size too small for {symbol}, need at least 0.01 shares")
-            return
-
-        # For shorts: profit when price DROPS, loss when price RISES
-        take_profit_price = price * (1 - self.take_profit)
-        stop_loss_price = price * (1 + self.short_stop_loss)
-
-        if self._is_crypto_symbol(symbol):
-            logger.info(f"🔻 Creating SHORT market order for {symbol} (crypto):")
-            logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} units")
-            logger.info(
-                f"  Managed take-profit: BUY at ${take_profit_price:.2f} "
-                f"(-{self.take_profit:.1%} price drop)"
-            )
-            logger.info(
-                f"  Managed stop-loss: BUY at ${stop_loss_price:.2f} "
-                f"(+{self.short_stop_loss:.1%} price rise)"
-            )
-        else:
-            logger.info(f"🔻 Creating SHORT bracket order for {symbol}:")
-            logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
-            logger.info(
-                f"  Take-profit: BUY at ${take_profit_price:.2f} (-{self.take_profit:.1%} price drop)"
-            )
-            logger.info(
-                f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)"
-            )
-
-        result = await self.submit_entry_order(
-            OrderIntent(
-                symbol=symbol,
-                side="sell",
-                qty=quantity,
-                stop_loss=stop_loss_price,
-                take_profit=take_profit_price,
-                time_in_force="gtc",
-                reason="momentum_short_entry",
-            )
-        )
-
-        if result is not None and result.ok:
-            logger.info(
-                f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
-            )
-            logger.info(f"   (Will profit if price drops below ${take_profit_price:.2f})")
-            self.stop_prices[symbol] = stop_loss_price
-            self.target_prices[symbol] = take_profit_price
-            self.entry_prices[symbol] = price
-            self.peak_prices[symbol] = price
-            self.last_signal_time[symbol] = current_time
-
-    async def _execute_sell_signal(self, symbol, current_position, current_time):
-        """Execute a sell signal to close an existing long position."""
-        quantity = float(current_position.qty)
-        price = self.current_prices[symbol]
-
-        result = await self.submit_exit_order(
-            symbol=symbol,
-            qty=quantity,
-            side="sell",
-            reason="signal_exit",
-        )
-
-        if result is not None and result.ok:
-            logger.info(f"SELL order submitted for {symbol}: {quantity} shares at ~${price:.2f}")
-            self.stop_prices.pop(symbol, None)
-            self.target_prices.pop(symbol, None)
-            self.last_signal_time[symbol] = current_time
-
-    async def _execute_signal(self, symbol, signal):
-        """Execute a trading signal by dispatching to the appropriate handler."""
-        try:
-            # Check cooldown to avoid overtrading
-            current_time = datetime.now()
-            if (
-                self.last_signal_time.get(symbol)
-                and (current_time - self.last_signal_time[symbol]).total_seconds() < 3600
-            ):
-                return
-
-            # Performance optimization: Fetch positions and account info in parallel
-            positions, account = await asyncio.gather(
-                self.broker.get_positions(), self.broker.get_account()
-            )
-            current_position = next((p for p in positions if p.symbol == symbol), None)
-            buying_power = float(account.buying_power)
-
-            # Dispatch to appropriate handler
-            if signal == "buy" and not current_position:
-                await self._execute_buy_signal(symbol, positions, buying_power, current_time)
-            elif signal == "short" and not current_position and self.enable_short_selling:
-                await self._execute_short_signal(symbol, positions, buying_power, current_time)
-            elif signal == "sell" and current_position and float(current_position.qty) > 0:
-                await self._execute_sell_signal(symbol, current_position, current_time)
-
-        except Exception as e:
-            logger.error(f"Error executing signal for {symbol}: {e}", exc_info=True)
-
-    async def _get_cached_positions(self):
-        """Get positions with 1-second cache to reduce API calls.
-
-        Performance optimization: When checking exit conditions for multiple symbols,
-        this prevents redundant API calls by caching position data for 1 second.
-        """
-        now = datetime.now()
-        if (
-            self._positions_cache is None
-            or self._positions_cache_time is None
-            or now - self._positions_cache_time > self._positions_cache_ttl
-        ):
-            self._positions_cache = await self.broker.get_positions()
-            self._positions_cache_time = now
-        return self._positions_cache
-
-    def _cleanup_position_tracking(self, symbol: str):
-        """Clean up all tracking data for a closed position."""
-        for tracking_dict in [
-            self.stop_prices,
-            self.target_prices,
-            self.entry_prices,
-            self.peak_prices,
-        ]:
-            if symbol in tracking_dict:
-                del tracking_dict[symbol]
-
     async def analyze_symbol(self, symbol):
         """Analyze a symbol and determine if we should trade it."""
         # This is already handled in _generate_signal
         return self.signals.get(symbol, "neutral")
 
-    async def execute_trade(self, symbol, signal):
-        """Execute a trade based on the signal."""
-        # This is already handled in _execute_signal
-        pass
+    async def decide(self, symbol, when, portfolio):
+        """Daily execution of this session's signal (see BaseStrategy._daily_intents)."""
+        return await self._decide(
+            symbol,
+            when,
+            portfolio,
+            size_pct=float(self.parameters.get("position_size_pct", 0.10)),
+            sizing_basis=self.parameters.get("sizing_basis", "equity"),
+            reason="momentum_backtest",
+        )
+
+    async def _exit_intents(self, symbol, when, view):
+        """Trailing stop: once in profit by trailing_activation_pct, trail the peak
+        (long) or trough (short) by trailing_stop_pct and exit when it gives back."""
+        held = view.position(symbol)
+        if held is None:
+            self._clear_entry(symbol)
+            return []
+        price = self.current_prices.get(symbol)
+        entry_price = self.entry_prices.get(symbol)
+        if not price or not entry_price or not getattr(self, "use_trailing_stop", False):
+            return []
+        qty = float(held.qty)
+        is_long = qty > 0
+        profit_pct = (
+            (price - entry_price) / entry_price if is_long else (entry_price - price) / entry_price
+        )
+        if profit_pct < self.trailing_activation_pct:
+            return []
+        if is_long:
+            peak = max(self.peak_prices.get(symbol, price), price)
+            self.peak_prices[symbol] = peak
+            if price > peak * (1 - self.trailing_stop_pct):
+                return []
+            locked = (peak * (1 - self.trailing_stop_pct) - entry_price) / entry_price
+            side = "sell"
+        else:
+            trough = min(self.peak_prices.get(symbol, price), price)
+            self.peak_prices[symbol] = trough
+            if price < trough * (1 + self.trailing_stop_pct):
+                return []
+            locked = (entry_price - trough * (1 + self.trailing_stop_pct)) / entry_price
+            side = "buy"
+        logger.info(f"TRAILING STOP TRIGGERED for {symbol} (locked profit: {locked:.1%})")
+        self._clear_entry(symbol)
+        return [
+            OrderIntent(
+                symbol=symbol,
+                side=side,
+                qty=abs(qty),
+                is_exit=True,
+                strategy_name=getattr(self, "name", self.NAME),
+                reason=f"trailing_stop_{'long' if is_long else 'short'}",
+            )
+        ]
 
     async def generate_signals(self):
         """Generate signals for all symbols (used in backtest mode)."""
@@ -843,27 +577,6 @@ class MomentumStrategy(BaseStrategy):
             "bb_lower": self._safe_last(bb_lower) if bb_lower is not None else None,
             "bb_position": bb_position,
         }
-
-    async def _update_indicators(self, symbol):
-        """Update technical indicators for a symbol."""
-        try:
-            # Ensure we have enough price history
-            if len(self.price_history[symbol]) < self.slow_ma:
-                return
-
-            # Extract price data into arrays
-            closes = np.array([bar["close"] for bar in self.price_history[symbol]])
-            highs = np.array([bar["high"] for bar in self.price_history[symbol]])
-            lows = np.array([bar["low"] for bar in self.price_history[symbol]])
-            volumes = np.array([bar["volume"] for bar in self.price_history[symbol]])
-
-            # Calculate and store indicators using shared method
-            self.indicators[symbol] = self._calculate_indicators_from_arrays(
-                closes, highs, lows, volumes
-            )
-
-        except Exception as e:
-            logger.error(f"Error updating indicators for {symbol}: {e}", exc_info=True)
 
     async def _generate_signal(self, symbol):
         """Generate trading signal based on indicators."""
@@ -1082,158 +795,3 @@ class MomentumStrategy(BaseStrategy):
                 if not isinstance(getattr(self, "_last_macd_hist", None), dict):
                     self._last_macd_hist = {}
                 self._last_macd_hist[symbol] = macd_hist
-
-    async def _check_exit_conditions(self, symbol):
-        """
-        Check exit conditions including TRAILING STOPS.
-
-        Implements a hybrid exit strategy:
-        1. Bracket orders handle basic stop-loss and take-profit at broker level
-        2. This method implements TRAILING STOPS to let winners run beyond fixed take-profit
-
-        Trailing Stop Logic:
-        - Activates when position is in profit by trailing_activation_pct (default 2%)
-        - Trails the peak price by trailing_stop_pct (default 2%)
-        - If price drops 2% from peak, exit to lock in profits
-        - This allows capturing 10%+ moves instead of always exiting at 5%
-        """
-        try:
-            # Get current position (uses 1-second cache to reduce API calls)
-            positions = await self._get_cached_positions()
-            current_position = next((p for p in positions if p.symbol == symbol), None)
-
-            if not current_position:
-                # Position was closed (likely by bracket order), clean up tracking
-                if symbol in self.stop_prices:
-                    del self.stop_prices[symbol]
-                if symbol in self.target_prices:
-                    del self.target_prices[symbol]
-                if symbol in self.entry_prices:
-                    del self.entry_prices[symbol]
-                if symbol in self.peak_prices:
-                    del self.peak_prices[symbol]
-                return
-
-            current_price = self.current_prices.get(symbol)
-            if not current_price:
-                return
-
-            # Get entry price for profit calculation
-            entry_price = self.entry_prices.get(symbol)
-            if not entry_price:
-                return
-
-            # Determine if this is a long or short position
-            qty = float(current_position.qty)
-            is_long = qty > 0
-
-            # Calculate current profit/loss percentage
-            if is_long:
-                profit_pct = (current_price - entry_price) / entry_price
-            else:  # Short position
-                profit_pct = (entry_price - current_price) / entry_price
-
-            # === TRAILING STOP LOGIC ===
-            if self.use_trailing_stop:
-                # Check if trailing stop should be activated (position is in profit)
-                trailing_activated = profit_pct >= self.trailing_activation_pct
-
-                if trailing_activated:
-                    if is_long:
-                        # LONG: Track highest price, sell if it drops trailing_stop_pct below peak
-                        if (
-                            symbol not in self.peak_prices
-                            or current_price > self.peak_prices[symbol]
-                        ):
-                            self.peak_prices[symbol] = current_price
-                            logger.debug(
-                                f"{symbol} new peak: ${current_price:.2f} (profit: {profit_pct:.1%})"
-                            )
-
-                        peak = self.peak_prices[symbol]
-                        trailing_stop_price = peak * (1 - self.trailing_stop_pct)
-
-                        # Check if trailing stop triggered
-                        if current_price <= trailing_stop_price:
-                            # Calculate actual profit locked in
-                            locked_profit_pct = (trailing_stop_price - entry_price) / entry_price
-
-                            logger.info(
-                                f"TRAILING STOP TRIGGERED for {symbol}! "
-                                f"Peak: ${peak:.2f} -> Current: ${current_price:.2f} "
-                                f"(locked profit: {locked_profit_pct:.1%})"
-                            )
-
-                            # Exit the position using safe exit method
-                            result = await self.submit_exit_order(
-                                symbol=symbol,
-                                qty=abs(qty),
-                                side="sell",
-                                reason=f"trailing_stop_long (locked profit: {locked_profit_pct:.1%})",
-                            )
-
-                            if result:
-                                logger.info(
-                                    f"Trailing stop exit for {symbol}: sold {abs(qty):.4f} shares at ~${current_price:.2f}"
-                                )
-                                # Clean up tracking
-                                self._cleanup_position_tracking(symbol)
-                            return
-
-                    else:  # SHORT position
-                        # SHORT: Track lowest price, cover if it rises trailing_stop_pct above trough
-                        if (
-                            symbol not in self.peak_prices
-                            or current_price < self.peak_prices[symbol]
-                        ):
-                            self.peak_prices[symbol] = (
-                                current_price  # For shorts, track the lowest (best) price
-                            )
-                            logger.debug(
-                                f"{symbol} SHORT new trough: ${current_price:.2f} (profit: {profit_pct:.1%})"
-                            )
-
-                        trough = self.peak_prices[symbol]
-                        trailing_stop_price = trough * (1 + self.trailing_stop_pct)
-
-                        # Check if trailing stop triggered (price rose above trailing stop)
-                        if current_price >= trailing_stop_price:
-                            locked_profit_pct = (entry_price - trailing_stop_price) / entry_price
-
-                            logger.info(
-                                f"TRAILING STOP TRIGGERED for SHORT {symbol}! "
-                                f"Trough: ${trough:.2f} -> Current: ${current_price:.2f} "
-                                f"(locked profit: {locked_profit_pct:.1%})"
-                            )
-
-                            # Cover the short position using safe exit method
-                            result = await self.submit_exit_order(
-                                symbol=symbol,
-                                qty=abs(qty),
-                                side="buy",
-                                reason=f"trailing_stop_short (locked profit: {locked_profit_pct:.1%})",
-                            )
-
-                            if result:
-                                logger.info(
-                                    f"Trailing stop exit for SHORT {symbol}: bought {abs(qty):.4f} shares at ~${current_price:.2f}"
-                                )
-                                self._cleanup_position_tracking(symbol)
-                            return
-
-            # Log monitoring info (even without trailing stops)
-            stop_price = self.stop_prices.get(symbol)
-            target_price = self.target_prices.get(symbol)
-
-            if stop_price and is_long and current_price <= stop_price * 1.01:
-                logger.debug(
-                    f"{symbol} approaching stop-loss: ${current_price:.2f} near ${stop_price:.2f}"
-                )
-
-            if target_price and is_long and current_price >= target_price * 0.99:
-                logger.debug(
-                    f"{symbol} approaching take-profit: ${current_price:.2f} near ${target_price:.2f}"
-                )
-
-        except Exception as e:
-            logger.error(f"Error checking exit conditions for {symbol}: {e}", exc_info=True)
