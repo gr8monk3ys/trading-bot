@@ -129,20 +129,14 @@ class TestBacktestEngineInit:
 # =============================================================================
 
 
-
-
 # =============================================================================
 # TEST STRATEGY ITERATION
 # =============================================================================
 
 
-
-
 # =============================================================================
 # TEST PERFORMANCE METRICS
 # =============================================================================
-
-
 
 
 # =============================================================================
@@ -348,13 +342,10 @@ class TestRunBacktestMethod:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-
-
     def test_empty_trades_pnl(self, engine):
         """Test P&L calculation with empty trades."""
         trade_records = engine._calculate_trade_pnl([])
         assert trade_records == []
-
 
 
 if __name__ == "__main__":

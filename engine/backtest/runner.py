@@ -292,7 +292,6 @@ class BacktestRunnerMixin:
                     if event.get("error"):
                         decision_error_count += 1
 
-
                 # Record equity and gross exposure at end of day
                 portfolio_value = backtest_broker.get_portfolio_value(current_date)
                 equity_curve.append(portfolio_value)
@@ -302,7 +301,6 @@ class BacktestRunnerMixin:
                     # Broker without the exposure API (mocks, custom brokers):
                     # record 0.0 rather than poisoning the series.
                     exposure_curve.append(0.0)
-
 
                 # ==========================================
                 # GAP RISK MODELING: Update previous closes

@@ -24,7 +24,3 @@ async def test_backtest_engine_default_initialization():
     assert backtest_engine.broker is None
     assert backtest_engine.strategies == []
     assert backtest_engine.results == {}
-
-
-
-
