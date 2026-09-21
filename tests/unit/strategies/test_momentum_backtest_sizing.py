@@ -15,7 +15,7 @@ from strategies.momentum_strategy_backtest import MomentumStrategyBacktest
 
 def _strategy(parameters, *, cash, equity, price=100.0):
     broker = AsyncMock()
-    broker.get_all_positions = AsyncMock(return_value=[])
+    broker.get_positions = AsyncMock(return_value=[])
     broker.get_account = AsyncMock(return_value=SimpleNamespace(cash=cash, equity=equity))
     broker.get_latest_quote = AsyncMock(return_value=SimpleNamespace(ask_price=price))
     strategy = MomentumStrategyBacktest(broker=broker, parameters=parameters)

@@ -205,7 +205,7 @@ class BacktestRunnerMixin:
         for day_num, current_date in enumerate(trading_days):
             try:
                 # Update the backtest broker's current date for price lookups
-                backtest_broker._current_date = current_date
+                backtest_broker.advance_to(current_date)
 
                 # ==========================================
                 # GAP RISK MODELING: Process overnight gaps
@@ -213,7 +213,7 @@ class BacktestRunnerMixin:
                 # Before processing today's signals, check if any positions
                 # were affected by overnight gaps (stops gapped through, etc.)
                 if day_num > 0:  # Skip first day (no previous close)
-                    gap_events = backtest_broker.process_day_start_gaps(current_date)
+                    gap_events = await backtest_broker.process_day_start_gaps(current_date)
                     if gap_events:
                         for gap in gap_events:
                             if gap.stop_triggered:
@@ -347,8 +347,9 @@ class BacktestRunnerMixin:
 
         logger.info(f"Backtest complete: Final equity = ${final_equity:,.2f} ({total_return:+.2%})")
         logger.info(f"Total trades: {len(trade_records)}")
+        open_positions = await backtest_broker.get_positions()
         stress_test = run_portfolio_stress_test(
-            backtest_broker.get_positions(),
+            open_positions,
             equity=final_equity,
         )
 
@@ -433,7 +434,7 @@ class BacktestRunnerMixin:
             "initial_capital": initial_capital,
             "final_equity": final_equity,
             "total_return": total_return,
-            "positions": backtest_broker.get_positions(),
+            "positions": open_positions,
             "total_trades": len(trade_records),
             "stress_test": stress_test,
             "run_metadata": {
@@ -536,10 +537,8 @@ class BacktestRunnerMixin:
         flow through `_calculate_trade_pnl`.
 
         Long positions (qty > 0) are sold; short positions (qty < 0) are
-        covered with a buy. Snapshot the positions list before mutating —
-        `broker.get_positions()` returns a live reference into the broker's
-        ledger and the underlying `positions` dict is mutated during the
-        loop.
+        covered with a buy. The positions are read once up front because
+        each fill mutates the broker's ledger during the loop.
 
         Args:
             broker: The backtest broker holding the positions to liquidate.
@@ -553,21 +552,19 @@ class BacktestRunnerMixin:
         """
         # Pin the broker's effective "now" so price lookups + slippage use the
         # final session, not wall-clock time.
-        try:
-            broker._current_date = final_date
-        except AttributeError:
-            # Non-BacktestBroker brokers (test stubs) may not expose this knob.
-            pass
+        advance = getattr(broker, "advance_to", None)
+        if advance is not None:
+            advance(final_date)
 
-        # Snapshot — place_order mutates broker.positions during iteration.
-        open_positions = list(broker.get_positions())
+        # Read once: place_order mutates the ledger during iteration.
+        open_positions = list(await broker.get_positions())
         if not open_positions:
             return 0
 
         liquidated = 0
         for position in open_positions:
-            symbol = position.get("symbol")
-            qty = position.get("quantity", 0)
+            symbol = position.symbol
+            qty = position.qty
             if symbol is None or qty == 0:
                 continue
 
@@ -577,7 +574,7 @@ class BacktestRunnerMixin:
                 continue
 
             try:
-                broker.place_order(
+                await broker.place_order(
                     symbol=symbol,
                     quantity=abs_qty,
                     side=side,

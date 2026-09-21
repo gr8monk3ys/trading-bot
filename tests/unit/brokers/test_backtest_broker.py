@@ -66,7 +66,7 @@ def sample_price_data():
 def broker_with_data(broker, sample_price_data):
     """Create a BacktestBroker with price data loaded."""
     broker.set_price_data("AAPL", sample_price_data)
-    broker._current_date = sample_price_data.index[15]  # Middle of data
+    broker.advance_to(sample_price_data.index[15])  # Middle of data
     return broker
 
 
@@ -273,10 +273,10 @@ class TestPartialFillSimulation:
 class TestOrderPlacement:
     """Test order placement functionality."""
 
-    def test_place_market_buy_order(self, broker_with_data):
+    async def test_place_market_buy_order(self, broker_with_data):
         """Test placing a market buy order."""
         initial_balance = broker_with_data.balance
-        order = broker_with_data.place_order("AAPL", 10, "buy", order_type="market")
+        order = await broker_with_data.place_order("AAPL", 10, "buy", order_type="market")
 
         assert order["symbol"] == "AAPL"
         assert order["quantity"] == 10
@@ -286,56 +286,58 @@ class TestOrderPlacement:
         assert order["filled_avg_price"] > 0
         assert broker_with_data.balance < initial_balance
 
-    def test_place_market_sell_order(self, broker_with_data):
+    async def test_place_market_sell_order(self, broker_with_data):
         """Test placing a market sell order."""
         # First buy
-        broker_with_data.place_order("AAPL", 10, "buy", order_type="market")
+        await broker_with_data.place_order("AAPL", 10, "buy", order_type="market")
         balance_after_buy = broker_with_data.balance
 
         # Then sell
-        order = broker_with_data.place_order("AAPL", 10, "sell", order_type="market")
+        order = await broker_with_data.place_order("AAPL", 10, "sell", order_type="market")
 
         assert order["side"] == "sell"
         assert broker_with_data.balance > balance_after_buy
 
-    def test_place_limit_order(self, broker_with_data):
+    async def test_place_limit_order(self, broker_with_data):
         """Test placing a limit order."""
-        order = broker_with_data.place_order("AAPL", 10, "buy", price=100.0, order_type="limit")
+        order = await broker_with_data.place_order(
+            "AAPL", 10, "buy", price=100.0, order_type="limit"
+        )
         assert order["type"] == "limit"
         assert order["price"] == 100.0
 
-    def test_order_updates_position(self, broker_with_data):
+    async def test_order_updates_position(self, broker_with_data):
         """Test order updates positions correctly."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        position = broker_with_data.get_position("AAPL")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        position = await broker_with_data.get_position("AAPL")
 
         assert position is not None
-        assert position["quantity"] == 10
+        assert position.qty == 10
 
-    def test_sell_removes_position(self, broker_with_data):
+    async def test_sell_removes_position(self, broker_with_data):
         """Test selling entire position removes it."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data.place_order("AAPL", 10, "sell")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "sell")
 
-        assert broker_with_data.get_position("AAPL") is None
+        assert await broker_with_data.get_position("AAPL") is None
 
-    def test_averaging_entry_price(self, broker_with_data):
+    async def test_averaging_entry_price(self, broker_with_data):
         """Test multiple buys average the entry price."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        first_entry = broker_with_data.get_position("AAPL")["entry_price"]
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        first_entry = (await broker_with_data.get_position("AAPL")).avg_entry_price
 
         # Wait a day for price to change
-        broker_with_data._current_date = broker_with_data._current_date + timedelta(days=1)
-        broker_with_data.place_order("AAPL", 10, "buy")
+        broker_with_data.advance_to(broker_with_data.current_date + timedelta(days=1))
+        await broker_with_data.place_order("AAPL", 10, "buy")
 
-        position = broker_with_data.get_position("AAPL")
-        assert position["quantity"] == 20
+        position = await broker_with_data.get_position("AAPL")
+        assert position.qty == 20
         # Entry price should be average
-        assert position["entry_price"] != first_entry
+        assert position.avg_entry_price != first_entry
 
-    def test_order_records_trade(self, broker_with_data):
+    async def test_order_records_trade(self, broker_with_data):
         """Test order records trade correctly."""
-        broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "buy")
         trades = broker_with_data.get_trades()
 
         assert len(trades) == 1
@@ -343,15 +345,15 @@ class TestOrderPlacement:
         assert trades[0]["quantity"] == 10
         assert trades[0]["side"] == "buy"
 
-    def test_order_without_current_date(self, broker, sample_price_data):
+    async def test_order_without_current_date(self, broker, sample_price_data):
         """Test order uses current datetime when _current_date not set."""
         broker.set_price_data("AAPL", sample_price_data)
-        order = broker.place_order("AAPL", 10, "buy")
+        order = await broker.place_order("AAPL", 10, "buy")
         assert order["created_at"] is not None
 
-    def test_slippage_recorded_in_order(self, broker_with_data):
+    async def test_slippage_recorded_in_order(self, broker_with_data):
         """Test slippage is recorded in order details."""
-        order = broker_with_data.place_order("AAPL", 10, "buy", order_type="market")
+        order = await broker_with_data.place_order("AAPL", 10, "buy", order_type="market")
         assert "slippage_bps" in order
         assert order["slippage_bps"] >= 0
 
@@ -364,31 +366,31 @@ class TestOrderPlacement:
 class TestPositionManagement:
     """Test position management methods."""
 
-    def test_get_position_existing(self, broker_with_data):
+    async def test_get_position_existing(self, broker_with_data):
         """Test getting existing position."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        position = broker_with_data.get_position("AAPL")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        position = await broker_with_data.get_position("AAPL")
 
         assert position is not None
-        assert position["symbol"] == "AAPL"
-        assert position["quantity"] == 10
+        assert position.symbol == "AAPL"
+        assert position.qty == 10
 
-    def test_get_position_nonexistent(self, broker):
+    async def test_get_position_nonexistent(self, broker):
         """Test getting nonexistent position returns None."""
-        assert broker.get_position("AAPL") is None
+        assert await broker.get_position("AAPL") is None
 
-    def test_get_positions_empty(self, broker):
+    async def test_get_positions_empty(self, broker):
         """Test getting positions when empty."""
-        positions = broker.get_positions()
+        positions = await broker.get_positions()
         assert positions == []
 
-    def test_get_positions_multiple(self, broker_with_data, sample_price_data):
+    async def test_get_positions_multiple(self, broker_with_data, sample_price_data):
         """Test getting multiple positions."""
         broker_with_data.set_price_data("MSFT", sample_price_data)
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data.place_order("MSFT", 20, "buy")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("MSFT", 20, "buy")
 
-        positions = broker_with_data.get_positions()
+        positions = await broker_with_data.get_positions()
         assert len(positions) == 2
 
 
@@ -404,27 +406,27 @@ class TestBalanceAndPortfolioValue:
         """Test getting balance."""
         assert broker.get_balance() == 10000
 
-    def test_balance_decreases_on_buy(self, broker_with_data):
+    async def test_balance_decreases_on_buy(self, broker_with_data):
         """Test balance decreases after buy order."""
         initial = broker_with_data.get_balance()
-        broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "buy")
         assert broker_with_data.get_balance() < initial
 
-    def test_balance_increases_on_sell(self, broker_with_data):
+    async def test_balance_increases_on_sell(self, broker_with_data):
         """Test balance increases after sell order."""
-        broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "buy")
         balance_after_buy = broker_with_data.get_balance()
-        broker_with_data.place_order("AAPL", 10, "sell")
+        await broker_with_data.place_order("AAPL", 10, "sell")
         assert broker_with_data.get_balance() > balance_after_buy
 
     def test_get_portfolio_value_no_positions(self, broker):
         """Test portfolio value equals balance when no positions."""
         assert broker.get_portfolio_value() == broker.balance
 
-    def test_get_portfolio_value_with_positions(self, broker_with_data):
+    async def test_get_portfolio_value_with_positions(self, broker_with_data):
         """Test portfolio value includes positions."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        portfolio_value = broker_with_data.get_portfolio_value(broker_with_data._current_date)
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        portfolio_value = broker_with_data.get_portfolio_value(broker_with_data.current_date)
 
         # Portfolio value should be balance + position value
         assert portfolio_value > broker_with_data.balance
@@ -438,24 +440,24 @@ class TestBalanceAndPortfolioValue:
 class TestOrderQueries:
     """Test order query methods."""
 
-    def test_get_orders_empty(self, broker):
+    async def test_get_orders_empty(self, broker):
         """Test getting orders when empty."""
-        assert broker.get_orders() == []
+        assert await broker.get_orders() == []
 
-    def test_get_orders_all(self, broker_with_data):
+    async def test_get_orders_all(self, broker_with_data):
         """Test getting all orders."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data.place_order("AAPL", 10, "sell")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "sell")
 
-        orders = broker_with_data.get_orders()
+        orders = await broker_with_data.get_orders()
         assert len(orders) == 2
 
-    def test_get_orders_by_status(self, broker_with_data):
+    async def test_get_orders_by_status(self, broker_with_data):
         """Test filtering orders by status."""
-        broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "buy")
 
-        filled_orders = broker_with_data.get_orders(status="filled")
-        unfilled_orders = broker_with_data.get_orders(status="unfilled")
+        filled_orders = await broker_with_data.get_orders(status="filled")
+        unfilled_orders = await broker_with_data.get_orders(status="unfilled")
 
         # All orders should be filled in normal case
         assert len(filled_orders) >= 0
@@ -563,19 +565,19 @@ class TestAsyncWrappers:
         assert bars == []
 
     @pytest.mark.asyncio
-    async def test_get_all_positions(self, broker_with_data, sample_price_data):
-        """Test async get_all_positions method."""
+    async def test_get_positions_returns_protocol_shape(self, broker_with_data, sample_price_data):
+        """Positions come back in the protocol shape."""
         broker_with_data.set_price_data("MSFT", sample_price_data)
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data.place_order("MSFT", 20, "buy")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("MSFT", 20, "buy")
 
-        positions = await broker_with_data.get_all_positions()
+        positions = await broker_with_data.get_positions()
 
         assert len(positions) == 2
         assert hasattr(positions[0], "symbol")
         assert hasattr(positions[0], "qty")
         assert hasattr(positions[0], "quantity")
-        assert hasattr(positions[0], "entry_price")
+        assert hasattr(positions[0], "avg_entry_price")
 
 
 # =============================================================================
@@ -586,17 +588,17 @@ class TestAsyncWrappers:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_sell_more_than_owned(self, broker_with_data):
+    async def test_sell_more_than_owned(self, broker_with_data):
         """Test selling more than owned removes entire position."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data.place_order("AAPL", 15, "sell")  # Sell more than owned
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 15, "sell")  # Sell more than owned
 
         # Position should be removed
-        assert broker_with_data.get_position("AAPL") is None
+        assert await broker_with_data.get_position("AAPL") is None
 
-    def test_zero_quantity_order(self, broker_with_data):
+    async def test_zero_quantity_order(self, broker_with_data):
         """Test placing order with zero quantity."""
-        order = broker_with_data.place_order("AAPL", 0, "buy")
+        order = await broker_with_data.place_order("AAPL", 0, "buy")
         # Order should still be recorded
         assert order is not None
 
@@ -623,29 +625,29 @@ class TestEdgeCases:
         price = broker.get_price("AAPL", naive_date)
         assert price > 0
 
-    def test_multiple_orders_same_symbol(self, broker_with_data):
+    async def test_multiple_orders_same_symbol(self, broker_with_data):
         """Test multiple orders for same symbol."""
         for _i in range(5):
-            broker_with_data.place_order("AAPL", 10, "buy")
+            await broker_with_data.place_order("AAPL", 10, "buy")
 
-        position = broker_with_data.get_position("AAPL")
-        assert position["quantity"] == 50
-        assert len(broker_with_data.get_orders()) == 5
+        position = await broker_with_data.get_position("AAPL")
+        assert position.qty == 50
+        assert len(await broker_with_data.get_orders()) == 5
 
-    def test_order_ids_are_unique(self, broker_with_data):
+    async def test_order_ids_are_unique(self, broker_with_data):
         """Test order IDs are unique."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data.place_order("AAPL", 10, "sell")
-        broker_with_data.place_order("AAPL", 5, "buy")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "sell")
+        await broker_with_data.place_order("AAPL", 5, "buy")
 
-        orders = broker_with_data.get_orders()
+        orders = await broker_with_data.get_orders()
         ids = [o["id"] for o in orders]
         assert len(ids) == len(set(ids))  # All unique
 
-    def test_trade_ids_are_unique(self, broker_with_data):
+    async def test_trade_ids_are_unique(self, broker_with_data):
         """Test trade IDs are unique."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data.place_order("AAPL", 10, "sell")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "sell")
 
         trades = broker_with_data.get_trades()
         ids = [t["id"] for t in trades]
@@ -660,16 +662,16 @@ class TestEdgeCases:
 class TestRealisticScenarios:
     """Test realistic trading scenarios."""
 
-    def test_round_trip_trade(self, broker_with_data):
+    async def test_round_trip_trade(self, broker_with_data):
         """Test a complete buy-sell round trip."""
         initial_balance = broker_with_data.get_balance()
 
         # Buy
-        buy_order = broker_with_data.place_order("AAPL", 100, "buy")
+        buy_order = await broker_with_data.place_order("AAPL", 100, "buy")
         buy_order["filled_avg_price"]
 
         # Sell
-        sell_order = broker_with_data.place_order("AAPL", 100, "sell")
+        sell_order = await broker_with_data.place_order("AAPL", 100, "sell")
         sell_order["filled_avg_price"]
 
         final_balance = broker_with_data.get_balance()
@@ -678,24 +680,24 @@ class TestRealisticScenarios:
         # (buy high, sell low)
         assert final_balance < initial_balance
 
-    def test_scaling_into_position(self, broker_with_data):
+    async def test_scaling_into_position(self, broker_with_data):
         """Test scaling into a position over time."""
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data._current_date += timedelta(days=1)
-        broker_with_data.place_order("AAPL", 10, "buy")
-        broker_with_data._current_date += timedelta(days=1)
-        broker_with_data.place_order("AAPL", 10, "buy")
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        broker_with_data.advance_to(broker_with_data.current_date + timedelta(days=1))
+        await broker_with_data.place_order("AAPL", 10, "buy")
+        broker_with_data.advance_to(broker_with_data.current_date + timedelta(days=1))
+        await broker_with_data.place_order("AAPL", 10, "buy")
 
-        position = broker_with_data.get_position("AAPL")
-        assert position["quantity"] == 30
+        position = await broker_with_data.get_position("AAPL")
+        assert position.qty == 30
 
-    def test_partial_sell(self, broker_with_data):
+    async def test_partial_sell(self, broker_with_data):
         """Test selling partial position."""
-        broker_with_data.place_order("AAPL", 100, "buy")
-        broker_with_data.place_order("AAPL", 30, "sell")
+        await broker_with_data.place_order("AAPL", 100, "buy")
+        await broker_with_data.place_order("AAPL", 30, "sell")
 
-        position = broker_with_data.get_position("AAPL")
-        assert position["quantity"] == 70
+        position = await broker_with_data.get_position("AAPL")
+        assert position.qty == 70
 
 
 if __name__ == "__main__":

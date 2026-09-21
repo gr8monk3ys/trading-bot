@@ -15,13 +15,14 @@ entries while flat keep working exactly as before.
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+from brokers.protocol import Position
 from strategies.momentum_strategy_backtest import MomentumStrategyBacktest
 
 
 def _strategy(*, position=None, cash=100_000, equity=100_000, price=100.0):
     broker = AsyncMock()
     positions = [position] if position is not None else []
-    broker.get_all_positions = AsyncMock(return_value=positions)
+    broker.get_positions = AsyncMock(return_value=positions)
     broker.get_account = AsyncMock(return_value=SimpleNamespace(cash=cash, equity=equity))
     broker.get_latest_quote = AsyncMock(return_value=SimpleNamespace(ask_price=price))
     strategy = MomentumStrategyBacktest(broker=broker, parameters={})
@@ -30,11 +31,11 @@ def _strategy(*, position=None, cash=100_000, equity=100_000, price=100.0):
 
 
 def _long(symbol="SPY", qty=100):
-    return SimpleNamespace(symbol=symbol, quantity=qty, qty=str(qty), entry_price=90.0)
+    return Position(symbol, float(qty), 90.0)
 
 
 def _short(symbol="SPY", qty=-100):
-    return SimpleNamespace(symbol=symbol, quantity=qty, qty=str(qty), entry_price=110.0)
+    return Position(symbol, float(qty), 110.0)
 
 
 async def test_short_signal_while_long_exits_the_long():
@@ -83,11 +84,3 @@ async def test_short_signal_while_short_does_nothing():
     await strategy.execute_trade("SPY", "short")
 
     strategy._place_backtest_order.assert_not_awaited()
-
-
-async def test_dict_position_shape_also_exits():
-    strategy = _strategy(position={"symbol": "SPY", "quantity": 40, "entry_price": 90.0})
-
-    await strategy.execute_trade("SPY", "short")
-
-    strategy._place_backtest_order.assert_awaited_once_with("SPY", 40, "sell", is_exit=True)

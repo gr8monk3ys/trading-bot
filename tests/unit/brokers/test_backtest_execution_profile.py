@@ -25,13 +25,12 @@ def _price_data() -> pd.DataFrame:
     )
 
 
-def test_order_includes_latency_and_profile_metadata():
+async def test_order_includes_latency_and_profile_metadata():
     broker = BacktestBroker(execution_profile="realistic", random_seed=42)
     data = _price_data()
     broker.set_price_data("AAPL", data)
-    broker._current_date = data.index[-1]
-
-    order = broker.place_order("AAPL", 10, "buy")
+    broker.advance_to(data.index[-1])
+    order = await broker.place_order("AAPL", 10, "buy")
 
     assert "latency_ms" in order
     assert "execution_profile" in order
@@ -39,7 +38,7 @@ def test_order_includes_latency_and_profile_metadata():
     assert order["status"] in {"filled", "partially_filled"}
 
 
-def test_stressed_profile_has_higher_slippage_than_idealistic():
+async def test_stressed_profile_has_higher_slippage_than_idealistic():
     data = _price_data()
     check_date = data.index[-1]
 
@@ -68,16 +67,15 @@ def test_stressed_profile_has_higher_slippage_than_idealistic():
 
     ideal.set_price_data("AAPL", data)
     stressed.set_price_data("AAPL", data)
-    ideal._current_date = check_date
-    stressed._current_date = check_date
-
-    ideal_order = ideal.place_order("AAPL", 100, "buy")
-    stressed_order = stressed.place_order("AAPL", 100, "buy")
+    ideal.advance_to(check_date)
+    stressed.advance_to(check_date)
+    ideal_order = await ideal.place_order("AAPL", 100, "buy")
+    stressed_order = await stressed.place_order("AAPL", 100, "buy")
 
     assert stressed_order["slippage_bps"] > ideal_order["slippage_bps"]
 
 
-def test_reject_probability_can_simulate_liquidity_reject():
+async def test_reject_probability_can_simulate_liquidity_reject():
     broker = BacktestBroker(random_seed=123)
     broker.set_execution_profile(
         ExecutionProfile(
@@ -91,11 +89,10 @@ def test_reject_probability_can_simulate_liquidity_reject():
     )
     data = _price_data()
     broker.set_price_data("AAPL", data)
-    broker._current_date = datetime(2024, 2, 9)
-
-    order = broker.place_order("AAPL", 10, "buy")
+    broker.advance_to(datetime(2024, 2, 9))
+    order = await broker.place_order("AAPL", 10, "buy")
 
     assert order["status"] == "rejected"
     assert order["filled_qty"] == 0
-    assert broker.get_positions() == []
+    assert await broker.get_positions() == []
     assert broker.get_trades() == []

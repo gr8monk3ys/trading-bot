@@ -41,9 +41,7 @@ def broker_with_position(broker):
         index=dates,
     )
     broker.set_price_data("AAPL", data)
-    broker._current_date = dates[15]
-
-    # Create a position
+    broker.advance_to(dates[15])  # Create a position
     broker.positions["AAPL"] = {
         "symbol": "AAPL",
         "quantity": 100,
@@ -167,7 +165,7 @@ class TestStopOrderManagement:
 
     def test_set_stop_order(self, broker):
         """Test setting a stop order."""
-        broker._current_date = datetime(2024, 1, 15)
+        broker.advance_to(datetime(2024, 1, 15))
         broker.set_stop_order("AAPL", stop_price=95.0, quantity=100)
 
         assert "AAPL" in broker._stop_orders
@@ -177,7 +175,7 @@ class TestStopOrderManagement:
 
     def test_set_stop_order_short_position(self, broker):
         """Test setting a stop order for a short position."""
-        broker._current_date = datetime(2024, 1, 15)
+        broker.advance_to(datetime(2024, 1, 15))
         broker.set_stop_order("AAPL", stop_price=105.0, quantity=100, side="buy")
 
         assert broker._stop_orders["AAPL"]["side"] == "buy"
@@ -211,7 +209,7 @@ class TestPrevDayCloseTracking:
 
     def test_update_prev_day_closes_from_positions(self, broker_with_position):
         """Test updating closes for all held positions."""
-        broker_with_position.update_prev_day_closes(broker_with_position._current_date)
+        broker_with_position.update_prev_day_closes(broker_with_position.current_date)
 
         assert "AAPL" in broker_with_position._prev_day_close
 
@@ -224,12 +222,12 @@ class TestPrevDayCloseTracking:
 class TestGapSimulation:
     """Tests for overnight gap simulation."""
 
-    def test_simulate_small_gap_ignored(self, broker_with_position):
+    async def test_simulate_small_gap_ignored(self, broker_with_position):
         """Test that small gaps (<0.5%) are ignored."""
         broker_with_position.update_prev_day_close("AAPL", 105.0)
 
         # 0.3% gap - should be ignored
-        gap_event = broker_with_position.simulate_overnight_gap(
+        gap_event = await broker_with_position.simulate_overnight_gap(
             symbol="AAPL",
             open_price=105.315,  # +0.3%
             date=datetime(2024, 1, 16),
@@ -237,12 +235,12 @@ class TestGapSimulation:
 
         assert gap_event is None
 
-    def test_simulate_significant_gap_tracked(self, broker_with_position):
+    async def test_simulate_significant_gap_tracked(self, broker_with_position):
         """Test that significant gaps (>0.5%) are tracked."""
         broker_with_position.update_prev_day_close("AAPL", 105.0)
 
         # 2% gap down
-        gap_event = broker_with_position.simulate_overnight_gap(
+        gap_event = await broker_with_position.simulate_overnight_gap(
             symbol="AAPL",
             open_price=102.9,  # -2%
             date=datetime(2024, 1, 16),
@@ -253,11 +251,11 @@ class TestGapSimulation:
         assert gap_event.gap_pct < 0  # Negative gap
         assert abs(gap_event.gap_pct - (-0.02)) < 0.001
 
-    def test_gap_without_position_returns_none(self, broker):
+    async def test_gap_without_position_returns_none(self, broker):
         """Test that gap returns None if no position exists."""
         broker.update_prev_day_close("AAPL", 100.0)
 
-        gap_event = broker.simulate_overnight_gap(
+        gap_event = await broker.simulate_overnight_gap(
             symbol="AAPL",
             open_price=92.0,  # -8% gap
             date=datetime(2024, 1, 16),
@@ -266,13 +264,13 @@ class TestGapSimulation:
         # No position, so no gap event
         assert gap_event is None
 
-    def test_stop_gapped_through_long_position(self, broker_with_position):
+    async def test_stop_gapped_through_long_position(self, broker_with_position):
         """Test stop order gapped through on long position."""
         broker_with_position.update_prev_day_close("AAPL", 105.0)
         broker_with_position.set_stop_order("AAPL", stop_price=100.0, quantity=100)
 
         # Gap down below stop
-        gap_event = broker_with_position.simulate_overnight_gap(
+        gap_event = await broker_with_position.simulate_overnight_gap(
             symbol="AAPL",
             open_price=95.0,  # Below stop of 100
             date=datetime(2024, 1, 16),
@@ -282,13 +280,13 @@ class TestGapSimulation:
         assert gap_event.stop_triggered is True
         assert gap_event.slippage_from_stop == 5.0  # 100 - 95
 
-    def test_stop_not_triggered_if_gap_above_stop(self, broker_with_position):
+    async def test_stop_not_triggered_if_gap_above_stop(self, broker_with_position):
         """Test stop not triggered if gap is above stop price."""
         broker_with_position.update_prev_day_close("AAPL", 105.0)
         broker_with_position.set_stop_order("AAPL", stop_price=100.0, quantity=100)
 
         # Gap down but still above stop
-        gap_event = broker_with_position.simulate_overnight_gap(
+        gap_event = await broker_with_position.simulate_overnight_gap(
             symbol="AAPL",
             open_price=101.0,  # Above stop of 100
             date=datetime(2024, 1, 16),
@@ -298,7 +296,7 @@ class TestGapSimulation:
         assert gap_event.stop_triggered is False
         assert gap_event.slippage_from_stop == 0.0
 
-    def test_short_position_gap_up_triggers_stop(self, broker):
+    async def test_short_position_gap_up_triggers_stop(self, broker):
         """Test short position stop triggered by gap up."""
         # Create short position
         broker.positions["AAPL"] = {
@@ -310,7 +308,7 @@ class TestGapSimulation:
         broker.set_stop_order("AAPL", stop_price=100.0, quantity=100, side="buy")
 
         # Gap up above stop
-        gap_event = broker.simulate_overnight_gap(
+        gap_event = await broker.simulate_overnight_gap(
             symbol="AAPL",
             open_price=105.0,  # Above stop of 100
             date=datetime(2024, 1, 16),
@@ -320,7 +318,7 @@ class TestGapSimulation:
         assert gap_event.stop_triggered is True
         assert gap_event.slippage_from_stop == 5.0  # 105 - 100
 
-    def test_gapped_stop_executes_at_open_price(self, broker_with_position):
+    async def test_gapped_stop_executes_at_open_price(self, broker_with_position):
         """Test that gapped stop fills at open price, not stop price."""
         broker_with_position.update_prev_day_close("AAPL", 105.0)
         broker_with_position.set_stop_order("AAPL", stop_price=100.0, quantity=100)
@@ -328,7 +326,7 @@ class TestGapSimulation:
         initial_balance = broker_with_position.balance
 
         # Gap down below stop
-        broker_with_position.simulate_overnight_gap(
+        await broker_with_position.simulate_overnight_gap(
             symbol="AAPL",
             open_price=95.0,  # Below stop of 100
             date=datetime(2024, 1, 16),
@@ -457,7 +455,7 @@ class TestGapStatisticsCalculation:
 class TestProcessDayStartGaps:
     """Tests for processing gaps at start of trading day."""
 
-    def test_process_day_start_gaps(self, broker, price_data_with_gap):
+    async def test_process_day_start_gaps(self, broker, price_data_with_gap):
         """Test processing gaps for all positions at day start."""
         data, dates = price_data_with_gap
         broker.set_price_data("AAPL", data)
@@ -473,12 +471,12 @@ class TestProcessDayStartGaps:
         broker._prev_day_close["AAPL"] = data.iloc[14]["close"]
 
         # Process gaps for day 15 (which has the gap)
-        gap_events = broker.process_day_start_gaps(dates[15])
+        gap_events = await broker.process_day_start_gaps(dates[15])
 
         assert len(gap_events) == 1
         assert gap_events[0].symbol == "AAPL"
 
-    def test_process_day_start_gaps_no_position(self, broker, price_data_with_gap):
+    async def test_process_day_start_gaps_no_position(self, broker, price_data_with_gap):
         """Test that gaps are not tracked without a position."""
         data, dates = price_data_with_gap
         broker.set_price_data("AAPL", data)
@@ -486,11 +484,11 @@ class TestProcessDayStartGaps:
         # No position, just set prev close
         broker._prev_day_close["AAPL"] = data.iloc[14]["close"]
 
-        gap_events = broker.process_day_start_gaps(dates[15])
+        gap_events = await broker.process_day_start_gaps(dates[15])
 
         assert len(gap_events) == 0
 
-    def test_process_day_start_gaps_multiple_symbols(self, broker):
+    async def test_process_day_start_gaps_multiple_symbols(self, broker):
         """Test processing gaps for multiple positions."""
         # Create data for two symbols
         dates = pd.date_range(start="2024-01-01", periods=10, freq="B")
@@ -514,7 +512,7 @@ class TestProcessDayStartGaps:
             }
             broker._prev_day_close[symbol] = 103.0  # Day before gap
 
-        gap_events = broker.process_day_start_gaps(dates[4])
+        gap_events = await broker.process_day_start_gaps(dates[4])
 
         # Both symbols should have gap events
         assert len(gap_events) == 2
@@ -528,7 +526,7 @@ class TestProcessDayStartGaps:
 class TestGapRiskIntegration:
     """Integration tests for gap risk modeling."""
 
-    def test_full_gap_workflow(self, broker):
+    async def test_full_gap_workflow(self, broker):
         """Test complete gap risk workflow."""
         # Setup price data with a large gap
         dates = pd.date_range(start="2024-01-01", periods=10, freq="B")
@@ -554,8 +552,8 @@ class TestGapRiskIntegration:
         broker._prev_day_close["AAPL"] = 103.0  # Day 3 close
 
         # Process the gap day
-        broker._current_date = dates[4]
-        gap_events = broker.process_day_start_gaps(dates[4])
+        broker.advance_to(dates[4])
+        gap_events = await broker.process_day_start_gaps(dates[4])
 
         # Should have detected the gap and triggered stop
         assert len(gap_events) == 1
@@ -572,7 +570,7 @@ class TestGapRiskIntegration:
         assert stats.stops_gapped_through == 1
         assert stats.total_gap_slippage == 10.0
 
-    def test_multiple_days_gap_tracking(self, broker):
+    async def test_multiple_days_gap_tracking(self, broker):
         """Test gap tracking across multiple days."""
         dates = pd.date_range(start="2024-01-01", periods=10, freq="B")
         data = pd.DataFrame(
@@ -596,10 +594,10 @@ class TestGapRiskIntegration:
         # Simulate multi-day backtest
         total_gaps = 0
         for i in range(1, len(dates)):
-            broker._current_date = dates[i]
+            broker.advance_to(dates[i])
             broker._prev_day_close["AAPL"] = data.iloc[i - 1]["close"]
 
-            gap_events = broker.process_day_start_gaps(dates[i])
+            gap_events = await broker.process_day_start_gaps(dates[i])
             total_gaps += len(gap_events)
 
             # Skip if position was closed
@@ -614,11 +612,11 @@ class TestGapRiskIntegration:
 class TestGapRiskEdgeCases:
     """Edge case tests for gap risk modeling."""
 
-    def test_gap_with_no_prev_close(self, broker_with_position):
+    async def test_gap_with_no_prev_close(self, broker_with_position):
         """Test gap simulation when no previous close is recorded."""
         # Don't set prev_day_close
 
-        gap_event = broker_with_position.simulate_overnight_gap(
+        gap_event = await broker_with_position.simulate_overnight_gap(
             symbol="AAPL",
             open_price=95.0,
             date=datetime(2024, 1, 16),
@@ -626,7 +624,7 @@ class TestGapRiskEdgeCases:
 
         assert gap_event is None
 
-    def test_gap_with_missing_price_data(self, broker):
+    async def test_gap_with_missing_price_data(self, broker):
         """Test gap processing with missing price data."""
         broker.positions["UNKNOWN"] = {
             "symbol": "UNKNOWN",
@@ -636,19 +634,19 @@ class TestGapRiskEdgeCases:
         broker._prev_day_close["UNKNOWN"] = 100.0
 
         # Should not error, just return no events
-        gap_events = broker.process_day_start_gaps(datetime(2024, 1, 16))
+        gap_events = await broker.process_day_start_gaps(datetime(2024, 1, 16))
 
         # No price data means _get_open_price returns None
         assert len(gap_events) == 0
 
-    def test_exactly_at_stop_price(self, broker_with_position):
+    async def test_exactly_at_stop_price(self, broker_with_position):
         """Test behavior when opening exactly at stop price."""
         broker_with_position.update_prev_day_close("AAPL", 105.0)
         broker_with_position.set_stop_order("AAPL", stop_price=100.0, quantity=100)
 
         # Open exactly at stop price - this should NOT trigger gap-through
         # because we didn't gap THROUGH it (we're at it, not below it)
-        gap_event = broker_with_position.simulate_overnight_gap(
+        gap_event = await broker_with_position.simulate_overnight_gap(
             symbol="AAPL",
             open_price=100.0,  # Exactly at stop
             date=datetime(2024, 1, 16),
@@ -657,13 +655,13 @@ class TestGapRiskEdgeCases:
         assert gap_event is not None
         assert gap_event.stop_triggered is False  # At stop, not through it
 
-    def test_very_large_gap(self, broker_with_position):
+    async def test_very_large_gap(self, broker_with_position):
         """Test behavior with extremely large gap (e.g., bankruptcy)."""
         broker_with_position.update_prev_day_close("AAPL", 100.0)
         broker_with_position.set_stop_order("AAPL", stop_price=90.0, quantity=100)
 
         # 50% gap down (e.g., bankruptcy news)
-        gap_event = broker_with_position.simulate_overnight_gap(
+        gap_event = await broker_with_position.simulate_overnight_gap(
             symbol="AAPL",
             open_price=50.0,
             date=datetime(2024, 1, 16),

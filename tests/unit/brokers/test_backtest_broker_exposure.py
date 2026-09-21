@@ -29,7 +29,7 @@ def broker_with_prices():
         index=dates,
     )
     broker.set_price_data("SPY", frame)
-    broker._current_date = dates[5]
+    broker.advance_to(dates[5])
     return broker, dates[5]
 
 

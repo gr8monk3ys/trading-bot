@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 from brokers.backtest.gaps import GapEvent
+from brokers.protocol import Position
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class BacktestBrokerCore:
         self.set_execution_profile(execution_profile)
         self.run_id = run_id
 
-        # Current date for backtesting (set by BacktestEngine)
+        # Current date for backtesting; the engine moves it with advance_to().
         self._current_date: Optional[datetime] = None
 
         # Gap risk tracking
@@ -394,13 +395,43 @@ class BacktestBrokerCore:
         except Exception:
             return 0.30
 
-    def get_position(self, symbol):
-        """Get position for a symbol"""
-        return self.positions.get(symbol, None)
+    @property
+    def current_date(self) -> Optional[datetime]:
+        """The simulated "now": the session every price lookup and fill uses."""
+        return self._current_date
 
-    def get_positions(self):
-        """Get all positions"""
-        return list(self.positions.values())
+    def advance_to(self, date: datetime) -> None:
+        """Move the simulated clock. The engine calls this once per session."""
+        self._current_date = date
+
+    def _to_position(self, position: Dict) -> Position:
+        qty = float(position["quantity"])
+        entry = float(position["entry_price"])
+        try:
+            price = float(self.get_price(position["symbol"], self._current_date or datetime.now()))
+        except (ValueError, KeyError):
+            price = entry
+        market_value = qty * price
+        unrealized_pl = (price - entry) * qty
+        cost_basis = abs(qty) * entry
+        return Position(
+            symbol=position["symbol"],
+            qty=qty,
+            avg_entry_price=entry,
+            current_price=price,
+            market_value=market_value,
+            unrealized_pl=unrealized_pl,
+            unrealized_plpc=(unrealized_pl / cost_basis) if cost_basis else 0.0,
+        )
+
+    async def get_position(self, symbol) -> Optional[Position]:
+        """Position for a symbol, or None."""
+        raw = self.positions.get(symbol)
+        return self._to_position(raw) if raw else None
+
+    async def get_positions(self) -> List[Position]:
+        """All open positions as the protocol's Position shape."""
+        return [self._to_position(p) for p in self.positions.values()]
 
     def get_balance(self):
         """Get current cash balance"""
@@ -435,7 +466,7 @@ class BacktestBrokerCore:
             return 0.0
         return gross / portfolio_value
 
-    def get_orders(self, status=None):
+    async def get_orders(self, status=None):
         """Get orders with given status"""
         if status:
             return [order for order in self.orders if order["status"] == status]
@@ -479,7 +510,7 @@ class BacktestBrokerCore:
             side = side.value
 
         # Place the order
-        result = self.place_order(symbol, int(qty), side, order_type=str(order_type))
+        result = await self.place_order(symbol, int(qty), side, order_type=str(order_type))
 
         # Return a mock order response
         class MockOrder:
@@ -529,16 +560,3 @@ class BacktestBrokerCore:
             )
 
         return bars
-
-    async def get_all_positions(self):
-        """Async wrapper for getting all positions (for strategy compatibility)."""
-
-        # Convert dict positions to mock position objects
-        class MockPosition:
-            def __init__(self, position_dict):
-                self.symbol = position_dict["symbol"]
-                self.qty = str(position_dict["quantity"])
-                self.quantity = position_dict["quantity"]
-                self.entry_price = position_dict["entry_price"]
-
-        return [MockPosition(pos) for pos in self.positions.values()]

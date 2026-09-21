@@ -66,7 +66,7 @@ The main data-flow paths through the system:
 ## Packages
 
 ### `brokers/`
-Broker abstractions. `AlpacaBroker` is the live broker; `BacktestBroker` is the backtest-mode simulator. Both have been split into focused sub-modules:
+Broker abstractions. `brokers/protocol.py` states the seam both brokers satisfy (`Broker` protocol, one `Position` shape, async throughout); everything else on either class is that adapter's internal seam (ADR 0003). `AlpacaBroker` is the live broker; `BacktestBroker` is the backtest-mode simulator. Both have been split into focused sub-modules:
 
 - `brokers/alpaca_broker.py` — thin facade combining the mixins below.
 - `brokers/alpaca/account.py` — connection, auth, account/position/asset queries.

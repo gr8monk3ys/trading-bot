@@ -50,7 +50,7 @@ class _StubBacktestBroker:
         order.filled_qty = 5
         return order
 
-    def place_order(self, symbol, quantity, side, order_type="market"):
+    async def place_order(self, symbol, quantity, side, order_type="market"):
         self.place_calls.append((symbol, quantity, side, order_type))
         return {
             "id": "stub-exit-1",

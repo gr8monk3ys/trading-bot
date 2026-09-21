@@ -28,21 +28,21 @@ def broker():
         index=dates,
     )
     b.set_price_data("SPY", frame)
-    b._current_date = dates[5]
+    b.advance_to(dates[5])
     return b
 
 
-def test_naked_sell_opens_short_position(broker):
-    broker.place_order("SPY", 100, "sell", order_type="market")
+async def test_naked_sell_opens_short_position(broker):
+    await broker.place_order("SPY", 100, "sell", order_type="market")
 
     assert "SPY" in broker.positions
     assert broker.positions["SPY"]["quantity"] == -100
 
 
-def test_naked_sell_does_not_create_free_equity(broker):
+async def test_naked_sell_does_not_create_free_equity(broker):
     start_value = broker.get_portfolio_value()
 
-    broker.place_order("SPY", 100, "sell", order_type="market")
+    await broker.place_order("SPY", 100, "sell", order_type="market")
 
     # Cash rises by proceeds but the short liability offsets it: portfolio
     # value must not jump by the sale proceeds (only execution costs move it).
@@ -51,8 +51,8 @@ def test_naked_sell_does_not_create_free_equity(broker):
     assert end_value < start_value + 5_000
 
 
-def test_short_then_cover_returns_to_flat(broker):
-    broker.place_order("SPY", 100, "sell", order_type="market")
-    broker.place_order("SPY", 100, "buy", order_type="market")
+async def test_short_then_cover_returns_to_flat(broker):
+    await broker.place_order("SPY", 100, "sell", order_type="market")
+    await broker.place_order("SPY", 100, "buy", order_type="market")
 
     assert "SPY" not in broker.positions

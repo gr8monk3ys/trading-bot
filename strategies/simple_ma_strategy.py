@@ -125,20 +125,8 @@ class SimpleMACrossoverStrategy(BaseStrategy):
         try:
             # Get current position
             position = None
-            # Use async method if available
-            if hasattr(self.broker, "get_all_positions"):
-                positions = await self.broker.get_all_positions()
-            else:
-                positions = (
-                    self.broker.get_positions() if hasattr(self.broker, "get_positions") else []
-                )
-            for pos in positions:
-                pos_symbol = (
-                    pos.get("symbol") if isinstance(pos, dict) else getattr(pos, "symbol", None)
-                )
-                if pos_symbol == symbol:
-                    position = pos
-                    break
+            positions = await self.broker.get_positions()
+            position = next((p for p in positions if p.symbol == symbol), None)
 
             # Get account info
             account = await self.broker.get_account()
@@ -160,12 +148,7 @@ class SimpleMACrossoverStrategy(BaseStrategy):
 
             elif action == "sell" and position is not None:
                 # Close position
-                if isinstance(position, dict):
-                    pos_qty = int(position.get("quantity", 0))
-                else:
-                    pos_qty = int(
-                        getattr(position, "quantity", 0) or float(getattr(position, "qty", 0))
-                    )
+                pos_qty = int(position.qty)
                 if pos_qty > 0:
                     await self._place_order(symbol, pos_qty, "sell")
                     logger.info(f"SELL {pos_qty} shares of {symbol} @ ${price:.2f}")

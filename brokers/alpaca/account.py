@@ -21,11 +21,36 @@ from brokers.alpaca._retry import (
     BrokerConnectionError,
     retry_with_backoff,
 )
+from brokers.protocol import Position
 from utils.audit_log import AuditLog
 from utils.crypto_utils import is_crypto_symbol, normalize_crypto_symbol
 from utils.order_lifecycle import OrderLifecycleTracker
 
 logger = logging.getLogger(__name__)
+
+
+def _to_position(raw) -> Position:
+    """Alpaca's Position object → the protocol's Position (floats, signed qty)."""
+
+    def f(name, default=0.0):
+        value = getattr(raw, name, None)
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    qty = f("qty")
+    if str(getattr(raw, "side", "long")).lower().endswith("short") and qty > 0:
+        qty = -qty
+    return Position(
+        symbol=str(getattr(raw, "symbol", "")),
+        qty=qty,
+        avg_entry_price=f("avg_entry_price"),
+        current_price=f("current_price"),
+        market_value=f("market_value"),
+        unrealized_pl=f("unrealized_pl"),
+        unrealized_plpc=f("unrealized_plpc"),
+    )
 
 
 class AlpacaAccountMixin:
@@ -271,7 +296,7 @@ class AlpacaAccountMixin:
                 timeout=self.DEFAULT_API_TIMEOUT,
                 operation_name="get_positions",
             )
-            return positions
+            return [_to_position(p) for p in positions]
         except asyncio.TimeoutError:
             raise BrokerConnectionError(
                 "Position fetch timed out - broker may be unreachable"
@@ -293,7 +318,7 @@ class AlpacaAccountMixin:
                 timeout=self.DEFAULT_API_TIMEOUT,
                 operation_name=f"get_position({symbol})",
             )
-            return position
+            return _to_position(position) if position is not None else None
         except ValueError as e:
             logger.error(f"Invalid symbol: {e}")
             return None

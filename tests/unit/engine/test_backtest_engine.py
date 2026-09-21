@@ -40,7 +40,7 @@ def mock_broker():
     broker = MagicMock()
     broker.get_portfolio_value.return_value = 10000
     broker.get_balance.return_value = 5000
-    broker.get_positions.return_value = []
+    broker.get_positions = AsyncMock(return_value=[])
     broker.get_trades.return_value = []
     return broker
 
@@ -276,13 +276,13 @@ class TestRunBacktestMethod:
         engine_with_broker.broker.get_trades.return_value = []
         engine_with_broker.broker.get_portfolio_value.return_value = 100000
         engine_with_broker.broker.get_balance.return_value = 100000
-        engine_with_broker.broker.get_positions.return_value = []
+        engine_with_broker.broker.get_positions = AsyncMock(return_value=[])
 
         with patch("brokers.backtest.BacktestBroker") as MockBacktestBroker:
             mock_bb = MagicMock()
             mock_bb.get_portfolio_value.return_value = 100000
             mock_bb.get_trades.return_value = []
-            mock_bb.get_positions.return_value = []
+            mock_bb.get_positions = AsyncMock(return_value=[])
             mock_bb.price_data = {}
             MockBacktestBroker.return_value = mock_bb
 
@@ -316,7 +316,7 @@ class TestRunBacktestMethod:
             mock_bb = MagicMock()
             mock_bb.get_portfolio_value.return_value = 100000
             mock_bb.get_trades.return_value = []
-            mock_bb.get_positions.return_value = []
+            mock_bb.get_positions = AsyncMock(return_value=[])
             mock_bb.price_data = {}
             MockBacktestBroker.return_value = mock_bb
 
