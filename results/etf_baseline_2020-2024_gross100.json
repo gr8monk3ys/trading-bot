@@ -1,6 +1,6 @@
 {
   "spec_ref": "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md",
-  "generated_at": "2026-09-21T06:22:33.028841Z",
+  "generated_at": "2026-09-21T07:16:07.832670Z",
   "status": "INCONCLUSIVE",
   "data_source": "yfinance",
   "config": {
@@ -51,11 +51,11 @@
       "symbol": "SPY",
       "start": "2020-01-01",
       "end": "2024-12-31",
-      "total_return": 0.9529553241705706,
-      "cagr": 0.14343156917972744,
-      "sharpe": 0.7450330235007427,
-      "max_drawdown": -0.33717270361192986,
-      "final_equity": 195295.53241705705,
+      "total_return": 0.9529547140178256,
+      "cagr": 0.14343149764418328,
+      "sharpe": 0.7450324767392766,
+      "max_drawdown": -0.33717275321149764,
+      "final_equity": 195295.47140178256,
       "n_days": 1257,
       "reason": null
     },
@@ -63,11 +63,11 @@
       "symbol": "QQQ",
       "start": "2020-01-01",
       "end": "2024-12-31",
-      "total_return": 1.459524687891229,
-      "cagr": 0.19747557639666935,
-      "sharpe": 0.8327937231561259,
-      "max_drawdown": -0.3511871218228141,
-      "final_equity": 245952.46878912288,
+      "total_return": 1.459524360882209,
+      "cagr": 0.19747554451503158,
+      "sharpe": 0.8327932150162024,
+      "max_drawdown": -0.35118744022951864,
+      "final_equity": 245952.43608822091,
       "n_days": 1257,
       "reason": null
     }

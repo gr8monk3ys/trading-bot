@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from config import BASELINE  # noqa: E402
 from engine.backtest_engine import BacktestEngine  # noqa: E402
 from engine.historical_bars import (  # noqa: E402
     DataUnavailableError,
@@ -134,7 +135,7 @@ def _write_report(rows: list[dict], source: str, spy: dict) -> None:
 
 async def main() -> int:
     try:
-        data_broker, source = await resolve_bars_source()
+        data_broker, source = await resolve_bars_source(preferred=BASELINE["data_source"])
     except DataUnavailableError as exc:
         print(f"STATUS=DATA_UNAVAILABLE  {exc}")
         return 1

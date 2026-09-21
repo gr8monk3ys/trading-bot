@@ -118,45 +118,20 @@ class MomentumParams(BaseParams):
 
 @dataclass
 class MomentumBacktestParams(MomentumParams):
-    adx_period: int = 14
+    """Daily-data overrides; every one explicit so nothing is inherited by accident."""
+
     adx_threshold: int = 20
-    atr_multiplier: float = 2.0
-    atr_period: int = 14
-    bb_buy_threshold: float = 0.3
-    bb_period: int = 20
-    bb_sell_threshold: float = 0.7
-    bb_std: float = 2.0
-    crypto_long_only_buy_score_threshold: float = 1.0
-    crypto_long_only_dip_buy_enabled: bool = True
-    crypto_long_only_dip_min_macd_hist_delta: float = 0.02
-    crypto_long_only_dip_min_rebound_pct: float = 0.001
-    crypto_long_only_dip_rsi_max: float = 35.0
-    crypto_long_only_relaxed_entry: bool = True
     enable_short_selling: bool = True
-    fast_ma_period: int = 10
-    macd_fast_period: int = 12
-    macd_signal_period: int = 9
-    macd_slow_period: int = 26
-    max_portfolio_risk: float = 0.02
-    max_position_risk: float = 0.01
-    medium_ma_period: int = 20
     mtf_require_alignment: bool = False
-    mtf_timeframes: Any = field(default_factory=lambda: ["5Min", "15Min", "1Hour"])
-    position_size: float = 0.05
-    position_size_pct: float = 0.1
     rsi_mode: str = "standard"
     rsi_overbought: int = 70
     rsi_oversold: int = 30
     rsi_period: int = 14
-    sizing_basis: str = "equity"
-    slow_ma_period: int = 50
-    trailing_activation_pct: float = 0.02
-    trailing_stop_pct: float = 0.02
     use_bollinger_filter: bool = True
+    use_kelly_criterion: bool = False
     use_multi_timeframe: bool = False
-    use_trailing_stop: bool = True
+    use_volatility_regime: bool = False
     volume_factor: float = 1.2
-    volume_ma_period: int = 20
 
 
 @dataclass

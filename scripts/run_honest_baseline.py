@@ -49,6 +49,7 @@ SPREAD_BPS = 10  # 0.10%
 MIN_TRADES_FOR_SIGNIFICANCE = 50
 SPEC_REF = "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md"
 
+from config import BASELINE  # noqa: E402
 from engine.historical_bars import DataUnavailableError, resolve_bars_source  # noqa: E402
 
 RESULTS_DIR = REPO_ROOT / "results"
@@ -297,7 +298,7 @@ async def _run_backtest(data_broker, source_name: str) -> None:
 
 async def main() -> int:
     try:
-        data_broker, source = await resolve_bars_source()
+        data_broker, source = await resolve_bars_source(preferred=BASELINE["data_source"])
     except DataUnavailableError as exc:
         print(f"STATUS=DATA_UNAVAILABLE  {exc}")
         return 1

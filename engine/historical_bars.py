@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from config import alpaca_credentials_present
+
 logger = logging.getLogger(__name__)
 
 
@@ -215,12 +217,21 @@ async def load_bars(source: Any, symbols: List[str], start: str, end: str) -> Ba
     )
 
 
-async def resolve_bars_source(probe_symbol: str = "SPY") -> Tuple[Any, str]:
-    """Alpaca when credentials work, else yfinance. Raises DataUnavailableError when neither."""
-    tried = []
-    from config import alpaca_credentials_present
+async def resolve_bars_source(
+    probe_symbol: str = "SPY", *, preferred: Optional[str] = None
+) -> Tuple[Any, str]:
+    """Pick the bars source.
 
-    if alpaca_credentials_present():
+    ``preferred="yfinance"`` skips Alpaca even when credentials are present:
+    the canonical baseline artifacts were produced from yfinance, and which
+    keys happen to be loaded must not change what a rerun measures.
+    ``preferred="alpaca"`` (or None) tries Alpaca first, then yfinance.
+    Raises DataUnavailableError when nothing works.
+    """
+    tried = []
+    if preferred == "yfinance":
+        tried.append("alpaca: skipped, baseline pins yfinance")
+    elif alpaca_credentials_present():
         try:
             from brokers.alpaca_broker import AlpacaBroker
 

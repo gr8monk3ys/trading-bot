@@ -173,6 +173,7 @@ class BaselineSettings(TypedDict):
     slippage_bps: float
     spread_bps: float
     min_trades_for_significance: int
+    data_source: str
 
 
 BASELINE: BaselineSettings = {
@@ -184,4 +185,7 @@ BASELINE: BaselineSettings = {
     "slippage_bps": 40,
     "spread_bps": 10,
     "min_trades_for_significance": 50,
+    # The committed artifacts were produced from yfinance; a rerun must use the
+    # same source regardless of which broker keys happen to be loaded.
+    "data_source": "yfinance",
 }

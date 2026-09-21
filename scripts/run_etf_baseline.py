@@ -531,7 +531,7 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
 
 async def main() -> int:
     try:
-        data_broker, source = await resolve_bars_source()
+        data_broker, source = await resolve_bars_source(preferred=BASELINE["data_source"])
     except DataUnavailableError as exc:
         print(f"STATUS=DATA_UNAVAILABLE  {exc}")
         return 1
