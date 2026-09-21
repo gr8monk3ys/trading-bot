@@ -11,7 +11,6 @@ Usage:
 
 import hmac
 import logging
-import os
 import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
@@ -49,9 +48,10 @@ async def lifespan(app: FastAPI):
 
     # --- Trade history (always attempt) ---
     try:
+        from config import TRADE_HISTORY_DB
         from engine.trade_history import SqliteStore, TradeHistory
 
-        _history = TradeHistory(SqliteStore("data/trading_bot.db"))
+        _history = TradeHistory(SqliteStore(TRADE_HISTORY_DB))
         logger.info("Dashboard trade history opened")
     except Exception as exc:
         _log_internal_error(
@@ -123,7 +123,9 @@ async def _require_dashboard_token(request: Request, call_next):
     if request.url.path in _AUTH_EXEMPT_PATHS:
         return await call_next(request)
 
-    configured = os.environ.get("DASHBOARD_TOKEN", "")
+    from config import dashboard_token
+
+    configured = dashboard_token()
     if not configured:
         return JSONResponse(
             status_code=503,
@@ -426,7 +428,9 @@ async def get_market_status():
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("PORT", 8000))
+    from config import PORT
+
+    port = PORT
     uvicorn.run(
         "web.app:app",
         host="0.0.0.0",

@@ -297,7 +297,9 @@ class StrategyManager:
 
             recorder = TradeRecorder()
             if self.trade_history is None:
-                self.trade_history = TradeHistory(SqliteStore("data/trading_bot.db"))
+                from config import TRADE_HISTORY_DB
+
+                self.trade_history = TradeHistory(SqliteStore(TRADE_HISTORY_DB))
             recorder.subscribe_all(self.trade_history.record_trade)
             self._order_submission = OrderSubmission(
                 self.broker,

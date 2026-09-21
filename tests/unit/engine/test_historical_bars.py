@@ -92,3 +92,29 @@ async def test_engine_refuses_to_run_on_partial_data():
             initial_capital=10_000,
         )
     assert info.value.result.failed == ["BBB"]
+
+
+async def test_preferred_yfinance_skips_alpaca_even_with_credentials(monkeypatch):
+    import engine.historical_bars as hb
+
+    monkeypatch.setattr(hb, "alpaca_credentials_present", lambda: True)
+    calls = []
+
+    class _YF:
+        name = "yfinance"
+
+        def __init__(self):
+            calls.append("yfinance")
+
+        async def get_bars(self, symbol, start, end):
+            return _bars(2)
+
+    monkeypatch.setattr(hb, "YFinanceBars", _YF)
+    source, name = await hb.resolve_bars_source(preferred="yfinance")
+    assert name == "yfinance" and calls == ["yfinance"]
+
+
+def test_baseline_pins_its_data_source():
+    from config import BASELINE
+
+    assert BASELINE["data_source"] == "yfinance"

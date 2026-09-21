@@ -18,6 +18,7 @@ import talib
 
 from engine.order_submission import OrderIntent
 from strategies.base_strategy import BaseStrategy
+from strategies.params import MeanReversionParams
 from strategies.risk_manager import RiskManager
 from utils.multi_timeframe import MultiTimeframeAnalyzer
 
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class MeanReversionStrategy(BaseStrategy):
+    Params = MeanReversionParams
     """
     Mean reversion strategy that identifies overbought/oversold conditions and
     trades on the expectation that prices will revert to the mean. Uses Bollinger
@@ -34,39 +36,8 @@ class MeanReversionStrategy(BaseStrategy):
     NAME = "MeanReversionStrategy"
 
     def default_parameters(self):
-        """Return default parameters for the strategy."""
-        return {
-            # Basic parameters
-            "position_size": 0.1,  # 10% of available capital per position
-            "max_positions": 5,  # Maximum number of concurrent positions
-            "max_portfolio_risk": 0.02,  # Maximum portfolio risk (2%)
-            "stop_loss": 0.02,  # 2% stop loss
-            "take_profit": 0.04,  # 4% take profit
-            # Mean reversion parameters
-            "bb_period": 20,  # Bollinger Bands period
-            "bb_std": 2.0,  # Bollinger Bands standard deviation
-            "rsi_period": 14,  # RSI period
-            "rsi_overbought": 70,  # RSI overbought threshold
-            "rsi_oversold": 30,  # RSI oversold threshold
-            "sma_period": 50,  # SMA period for mean
-            "mean_lookback": 20,  # Lookback period for mean reversion
-            "std_threshold": 1.5,  # Standard deviation threshold
-            # Exit parameters
-            "profit_target_std": 0.5,  # Exit when price reverts to this many stdevs from mean
-            "max_hold_days": 5,  # Maximum holding period in days
-            "trailing_stop": 0.015,  # 1.5% trailing stop once in profit
-            # Risk management
-            "max_correlation": 0.7,  # Maximum correlation between positions
-            "max_sector_exposure": 0.3,  # Maximum exposure to any one sector
-            # Multi-timeframe analysis (NEW FEATURE)
-            "use_multi_timeframe": True,  # Enable multi-timeframe filtering
-            "mtf_timeframes": ["5Min", "15Min", "1Hour"],  # Timeframes to analyze
-            "mtf_require_alignment": False,  # If True, ALL timeframes must agree
-            # Short selling (NEW FEATURE - HIGH ROI)
-            "enable_short_selling": True,  # Enable short selling for extreme overbought
-            "short_position_size": 0.08,  # Smaller size for shorts (more conservative)
-            "short_stop_loss": 0.03,  # Tighter stop for shorts (3% vs 2% for longs)
-        }
+        """The defaults live once, on ``Params`` (strategies/params.py)."""
+        return dict(self.Params.defaults())
 
     async def initialize(self, **kwargs):
         """Initialize the mean reversion strategy."""
@@ -111,21 +82,21 @@ class MeanReversionStrategy(BaseStrategy):
             self.price_history = {symbol: [] for symbol in self.symbols}
 
             # Multi-timeframe analysis (NEW FEATURE)
-            self.use_multi_timeframe = self.parameters.get("use_multi_timeframe", True)
-            self.mtf_require_alignment = self.parameters.get("mtf_require_alignment", False)
+            self.use_multi_timeframe = self.parameters["use_multi_timeframe"]
+            self.mtf_require_alignment = self.parameters["mtf_require_alignment"]
             self.mtf_analyzer = None
 
             if self.use_multi_timeframe:
-                mtf_timeframes = self.parameters.get("mtf_timeframes", ["5Min", "15Min", "1Hour"])
+                mtf_timeframes = self.parameters["mtf_timeframes"]
                 self.mtf_analyzer = MultiTimeframeAnalyzer(
                     timeframes=mtf_timeframes, history_length=200
                 )
                 logger.info(f"✅ Multi-timeframe filtering enabled: {', '.join(mtf_timeframes)}")
 
             # Short selling parameters (NEW FEATURE)
-            self.enable_short_selling = self.parameters.get("enable_short_selling", True)
-            self.short_position_size = self.parameters.get("short_position_size", 0.08)
-            self.short_stop_loss = self.parameters.get("short_stop_loss", 0.03)
+            self.enable_short_selling = self.parameters["enable_short_selling"]
+            self.short_position_size = self.parameters["short_position_size"]
+            self.short_stop_loss = self.parameters["short_stop_loss"]
 
             if self.enable_short_selling:
                 logger.info("✅ Short selling enabled - profit from extreme overbought conditions!")
@@ -133,7 +104,7 @@ class MeanReversionStrategy(BaseStrategy):
             # Risk manager initialization
             self.risk_manager = RiskManager(
                 max_portfolio_risk=self.parameters["max_portfolio_risk"],
-                max_position_risk=self.parameters.get("max_position_risk", 0.01),
+                max_position_risk=self.parameters["max_position_risk"],
                 max_correlation=self.parameters["max_correlation"],
             )
 
@@ -197,8 +168,8 @@ class MeanReversionStrategy(BaseStrategy):
             symbol,
             when,
             portfolio,
-            size_pct=float(self.parameters.get("position_size_pct", 0.10)),
-            sizing_basis=self.parameters.get("sizing_basis", "equity"),
+            size_pct=float(self.parameters["position_size_pct"]),
+            sizing_basis=self.parameters["sizing_basis"],
             reason="mean_reversion_backtest",
         )
 
@@ -396,7 +367,7 @@ class MeanReversionStrategy(BaseStrategy):
             # Mean reversion works best when price is extended in ranging markets
             # Filter out mean reversion trades when higher timeframe has strong trend
             if self.use_multi_timeframe and self.mtf_analyzer:
-                mtf_timeframes = self.parameters.get("mtf_timeframes", ["5Min", "15Min", "1Hour"])
+                mtf_timeframes = self.parameters["mtf_timeframes"]
                 highest_tf = mtf_timeframes[-1]  # Highest timeframe (e.g., 1Hour)
                 higher_tf_trend = self.mtf_analyzer.get_trend(symbol, highest_tf)
 

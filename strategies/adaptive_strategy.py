@@ -35,12 +35,14 @@ from typing import Any, Dict, List
 from strategies.base_strategy import BaseStrategy
 from strategies.mean_reversion_strategy import MeanReversionStrategy
 from strategies.momentum_strategy import MomentumStrategy
+from strategies.params import AdaptiveParams
 from utils.market_regime import MarketRegimeDetector
 
 logger = logging.getLogger(__name__)
 
 
 class AdaptiveStrategy(BaseStrategy):
+    Params = AdaptiveParams
     """
     Adaptive strategy that switches between sub-strategies based on market regime.
 
@@ -85,36 +87,8 @@ class AdaptiveStrategy(BaseStrategy):
         )
 
     def default_parameters(self):
-        """Return default parameters for the adaptive strategy."""
-        return {
-            # Basic parameters
-            "position_size": 0.10,
-            "max_positions": 5,
-            "max_portfolio_risk": 0.02,
-            "stop_loss": 0.03,
-            "take_profit": 0.05,
-            # Regime detection settings
-            "regime_check_interval_minutes": 30,  # How often to check regime
-            "min_regime_confidence": 0.55,  # Minimum confidence to act on regime
-            # Strategy selection
-            "bull_strategy": "momentum",  # Strategy for bull regime
-            "bear_strategy": "momentum_short",  # Strategy for bear regime
-            "sideways_strategy": "mean_reversion",  # Strategy for sideways regime
-            "volatile_strategy": "defensive",  # Strategy for high volatility
-            # Position adjustments by regime
-            "bull_position_mult": 1.2,  # 20% larger in bull
-            "bear_position_mult": 0.8,  # 20% smaller in bear (shorts are riskier)
-            "sideways_position_mult": 1.0,  # Normal in sideways
-            "volatile_position_mult": 0.5,  # 50% smaller in volatile
-            # Defensive thresholds
-            "skip_trades_vix_threshold": 40,  # Skip new trades if VIX > 40
-            "reduce_exposure_vix_threshold": 30,  # Reduce exposure if VIX > 30
-            # Sub-strategy parameters (passed through)
-            "use_kelly_criterion": True,
-            "use_volatility_regime": True,
-            "use_trailing_stop": True,
-            "use_multi_timeframe": True,
-        }
+        """The defaults live once, on ``Params`` (strategies/params.py)."""
+        return dict(self.Params.defaults())
 
     async def initialize(self, **kwargs):
         """Initialize the adaptive strategy with sub-strategies."""
@@ -150,10 +124,10 @@ class AdaptiveStrategy(BaseStrategy):
                 "max_positions": self.max_positions,
                 "stop_loss": self.stop_loss,
                 "take_profit": self.take_profit,
-                "use_kelly_criterion": self.parameters.get("use_kelly_criterion", True),
-                "use_volatility_regime": self.parameters.get("use_volatility_regime", True),
-                "use_trailing_stop": self.parameters.get("use_trailing_stop", True),
-                "use_multi_timeframe": self.parameters.get("use_multi_timeframe", True),
+                "use_kelly_criterion": self.parameters["use_kelly_criterion"],
+                "use_volatility_regime": self.parameters["use_volatility_regime"],
+                "use_trailing_stop": self.parameters["use_trailing_stop"],
+                "use_multi_timeframe": self.parameters["use_multi_timeframe"],
                 "enable_short_selling": True,  # Enable for bear markets
             }
             self.momentum_strategy = MomentumStrategy(
@@ -168,8 +142,8 @@ class AdaptiveStrategy(BaseStrategy):
                 "position_size": self.position_size,
                 "max_positions": self.max_positions,
                 "stop_loss": self.stop_loss,
-                "take_profit": self.parameters.get("mean_reversion_take_profit", 0.04),
-                "use_multi_timeframe": self.parameters.get("use_multi_timeframe", True),
+                "take_profit": self.parameters["mean_reversion_take_profit"],
+                "use_multi_timeframe": self.parameters["use_multi_timeframe"],
                 "enable_short_selling": True,
             }
             self.mean_reversion_strategy = MeanReversionStrategy(

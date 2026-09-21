@@ -11,7 +11,6 @@ fresh container.
 """
 
 import logging
-import os
 import signal
 import subprocess
 import sys
@@ -93,7 +92,9 @@ def _terminate_process(proc, *, timeout: float = TERMINATE_TIMEOUT_SECONDS) -> N
 
 
 def main():
-    port = os.environ.get("PORT", "8000")
+    from config import PORT
+
+    port = str(PORT)
 
     def launch_dashboard():
         return subprocess.Popen(_dashboard_command(port), stdout=sys.stdout, stderr=sys.stderr)

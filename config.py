@@ -138,3 +138,54 @@ RISK_PARAMS = {
 
 # Validate configuration on module load
 _validate_config()
+
+
+# ---------------------------------------------------------------------------
+# Every other knob the program reads, declared here so this module is the
+# only reader of the environment (ADR 0010).
+# ---------------------------------------------------------------------------
+
+
+def dashboard_token() -> str:
+    """Read at call time: the dashboard checks it per request and tests set it late."""
+    return os.environ.get("DASHBOARD_TOKEN", "")
+
+
+PORT: int = int(os.environ.get("PORT", "8000") or 8000)
+DEBUG: bool = _parse_bool_env("DEBUG", default=False)
+TRADE_HISTORY_DB: str = os.environ.get("TRADE_HISTORY_DB", "data/trading_bot.db")
+AUDIT_LOG_DIR: str = os.environ.get("AUDIT_LOG_DIR", "./audit_logs")
+
+
+def alpaca_credentials_present() -> bool:
+    creds = get_alpaca_creds(refresh=True)
+    return bool(creds["API_KEY"] and creds["API_SECRET"])
+
+
+class BaselineSettings(TypedDict):
+    """The canonical 2020-2024 ETF baseline; scripts import these instead of redeclaring."""
+
+    symbols: list
+    benchmark_symbols: list
+    start: str
+    end: str
+    initial_capital: float
+    slippage_bps: float
+    spread_bps: float
+    min_trades_for_significance: int
+    data_source: str
+
+
+BASELINE: BaselineSettings = {
+    "symbols": ["SPY", "QQQ", "IWM", "EFA"],
+    "benchmark_symbols": ["SPY", "QQQ"],
+    "start": "2020-01-01",
+    "end": "2024-12-31",
+    "initial_capital": 100_000,
+    "slippage_bps": 40,
+    "spread_bps": 10,
+    "min_trades_for_significance": 50,
+    # The committed artifacts were produced from yfinance; a rerun must use the
+    # same source regardless of which broker keys happen to be loaded.
+    "data_source": "yfinance",
+}

@@ -28,10 +28,13 @@ FALLBACK_LIMIT = 100.00  # far below any plausible SPY price if quotes are unava
 
 
 async def main() -> int:
-    if not os.getenv("ALPACA_API_KEY") or not os.getenv("ALPACA_SECRET_KEY"):
+    from config import get_alpaca_creds
+
+    creds = get_alpaca_creds(refresh=True)
+    if not creds["API_KEY"] or not creds["API_SECRET"]:
         print("FAIL: ALPACA_API_KEY / ALPACA_SECRET_KEY not set (.env or environment).")
         return 1
-    if os.getenv("PAPER", "True").lower() not in ("true", "1", "yes"):
+    if not creds["PAPER"]:
         print("FAIL: PAPER is not true; this smoke test only runs against the paper API.")
         return 1
 

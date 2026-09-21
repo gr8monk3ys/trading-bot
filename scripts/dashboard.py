@@ -31,7 +31,9 @@ class TradingDashboard:
 
     def __init__(self):
         self.broker = None
-        self.history = TradeHistory(SqliteStore("data/trading_bot.db"))
+        from config import TRADE_HISTORY_DB
+
+        self.history = TradeHistory(SqliteStore(TRADE_HISTORY_DB))
         self.running = True
 
     async def initialize(self):

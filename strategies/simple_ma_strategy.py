@@ -12,11 +12,13 @@ import numpy as np
 
 from engine.order_submission import OrderIntent
 from strategies.base_strategy import BaseStrategy
+from strategies.params import SimpleMAParams
 
 logger = logging.getLogger(__name__)
 
 
 class SimpleMACrossoverStrategy(BaseStrategy):
+    Params = SimpleMAParams
     """
     Simple dual moving average crossover strategy.
 
@@ -33,8 +35,8 @@ class SimpleMACrossoverStrategy(BaseStrategy):
         super().__init__(broker=broker, parameters=parameters, order_submission=order_submission)
 
         # Simple parameters
-        self.fast_period = self.parameters.get("fast_period", 10)
-        self.slow_period = self.parameters.get("slow_period", 30)
+        self.fast_period = self.parameters["fast_period"]
+        self.slow_period = self.parameters["slow_period"]
         self.min_history = self.slow_period + 5
 
         # State tracking
@@ -47,7 +49,7 @@ class SimpleMACrossoverStrategy(BaseStrategy):
 
     async def initialize(self):
         """Initialize strategy state."""
-        symbols = self.parameters.get("symbols", [])
+        symbols = self.parameters["symbols"]
         for symbol in symbols:
             self.signals[symbol] = "neutral"
             self.previous_crossover[symbol] = None
@@ -55,7 +57,7 @@ class SimpleMACrossoverStrategy(BaseStrategy):
 
     async def generate_signals(self):
         """Generate signals for all symbols."""
-        symbols = self.parameters.get("symbols", [])
+        symbols = self.parameters["symbols"]
         for symbol in symbols:
             await self._update_signal(symbol)
 

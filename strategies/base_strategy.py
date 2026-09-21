@@ -20,6 +20,7 @@ from typing import Optional
 # We don't actually need it - we'll create our own simple base class
 from engine.order_submission import OrderIntent, OrderOutcome
 from engine.position_sizing import PositionSizer
+from strategies.params import BaseParams
 from utils.kelly_criterion import KellyCriterion
 from utils.volatility_regime import VolatilityRegimeDetector
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class BaseStrategy(ABC):
+    Params = BaseParams
     """
     Base class for all trading strategies.
 
@@ -48,14 +50,13 @@ class BaseStrategy(ABC):
         self.name = name or self.__class__.__name__
         self.broker = broker
         self.order_submission = order_submission
-        parameters = parameters or {}
+        # Every parameter is declared once on ``Params``; unknown keys are an error
+        # and every declared key is present with its default (ADR 0010).
+        parameters = self.Params.check(parameters or {})
 
-        # No parent class to initialize anymore - we're independent!
-
-        # Initialize our parameters
         self.parameters = parameters
-        self.interval = parameters.get("interval", 60)  # Default to 60 seconds
-        self.symbols = parameters.get("symbols", [])
+        self.interval = parameters["interval"]  # Default to 60 seconds
+        self.symbols = parameters["symbols"]
         self._shutdown_event = asyncio.Event()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.price_history = {}
@@ -65,22 +66,22 @@ class BaseStrategy(ABC):
         self.tasks = []
 
         # KELLY CRITERION: Initialize for optimal position sizing
-        use_kelly = parameters.get("use_kelly_criterion", False)
+        use_kelly = parameters["use_kelly_criterion"]
         if use_kelly:
-            kelly_fraction = parameters.get("kelly_fraction", 0.5)  # Half Kelly by default
+            kelly_fraction = parameters["kelly_fraction"]  # Half Kelly by default
             self.kelly = KellyCriterion(
                 kelly_fraction=kelly_fraction,
-                min_trades_required=parameters.get("kelly_min_trades", 30),
-                max_position_size=parameters.get("max_position_size", 0.20),
-                min_position_size=parameters.get("min_position_size", 0.01),
-                lookback_trades=parameters.get("kelly_lookback", 50),
+                min_trades_required=parameters["kelly_min_trades"],
+                max_position_size=parameters["max_position_size"],
+                min_position_size=parameters["min_position_size"],
+                lookback_trades=parameters["kelly_lookback"],
             )
             self.logger.info(f"✅ Kelly Criterion enabled: {kelly_fraction} Kelly fraction")
         else:
             self.kelly = None
 
         # VOLATILITY REGIME: Initialize for adaptive risk management
-        use_volatility_regime = parameters.get("use_volatility_regime", False)
+        use_volatility_regime = parameters["use_volatility_regime"]
         if use_volatility_regime:
             self.volatility_regime = None  # Initialized in async initialize()
             self.logger.info("✅ Volatility Regime Detection enabled")
@@ -110,8 +111,8 @@ class BaseStrategy(ABC):
             self.parameters.update(kwargs)
 
             # Set up strategy parameters
-            self.interval = self.parameters.get("interval", 60)
-            self.symbols = self.parameters.get("symbols", [])
+            self.interval = self.parameters["interval"]
+            self.symbols = self.parameters["symbols"]
 
             # Initialize any other strategy-specific parameters
             self._initialize_parameters()
@@ -124,7 +125,7 @@ class BaseStrategy(ABC):
                 )
 
             # VOLATILITY REGIME: Initialize detector with broker
-            if self.parameters.get("use_volatility_regime", False) and self.broker:
+            if self.parameters["use_volatility_regime"] and self.broker:
                 self.volatility_regime = VolatilityRegimeDetector(self.broker)
                 regime, adjustments = await self.volatility_regime.get_current_regime()
                 self.logger.info(
@@ -141,22 +142,20 @@ class BaseStrategy(ABC):
 
     def _initialize_parameters(self):
         """Initialize strategy-specific parameters. Override in subclass."""
-        self.sentiment_threshold = self.parameters.get("sentiment_threshold", 0.6)
-        self.position_size = self.parameters.get("position_size", 0.1)
-        self.max_position_size = self.parameters.get(
-            "max_position_size", 0.05
-        )  # SAFETY: 5% max per position
-        self.stop_loss_pct = self.parameters.get("stop_loss_pct", 0.02)
-        self.take_profit_pct = self.parameters.get("take_profit_pct", 0.05)
-        self.portfolio_risk_limit = self.parameters.get("portfolio_risk_limit", 0.02)
-        self.position_risk_limit = self.parameters.get("position_risk_limit", 0.01)
-        self.max_correlation = self.parameters.get("max_correlation", 0.7)
-        self.var_confidence = self.parameters.get("var_confidence", 0.95)
-        self.price_history_window = self.parameters.get("price_history_window", 30)
-        self.volatility_threshold = self.parameters.get("volatility_threshold", 0.4)
-        self.var_threshold = self.parameters.get("var_threshold", 0.03)
-        self.es_threshold = self.parameters.get("es_threshold", 0.04)
-        self.drawdown_threshold = self.parameters.get("drawdown_threshold", 0.3)
+        self.sentiment_threshold = self.parameters["sentiment_threshold"]
+        self.position_size = self.parameters["position_size"]
+        self.max_position_size = self.parameters["max_position_size"]  # SAFETY: 5% max per position
+        self.stop_loss_pct = self.parameters["stop_loss_pct"]
+        self.take_profit_pct = self.parameters["take_profit_pct"]
+        self.portfolio_risk_limit = self.parameters["portfolio_risk_limit"]
+        self.position_risk_limit = self.parameters["position_risk_limit"]
+        self.max_correlation = self.parameters["max_correlation"]
+        self.var_confidence = self.parameters["var_confidence"]
+        self.price_history_window = self.parameters["price_history_window"]
+        self.volatility_threshold = self.parameters["volatility_threshold"]
+        self.var_threshold = self.parameters["var_threshold"]
+        self.es_threshold = self.parameters["es_threshold"]
+        self.drawdown_threshold = self.parameters["drawdown_threshold"]
 
     async def on_trading_iteration(self):
         """Main trading logic. Must be implemented by subclasses."""
@@ -175,8 +174,8 @@ class BaseStrategy(ABC):
         return self.parameters
 
     def set_parameters(self, parameters):
-        """Set strategy parameters."""
-        self.parameters = parameters
+        """Replace the parameters; every key must be declared on ``Params``."""
+        self.parameters = self.Params.check(parameters or {})
         self._initialize_parameters()
 
     def on_bot_crash(self, error):
@@ -405,11 +404,11 @@ class BaseStrategy(ABC):
         held = view.position(symbol)
         price = getattr(self, "current_prices", {}).get(symbol) or await view.ask_price(symbol)
         name = getattr(self, "name", self.__class__.__name__)
-        max_positions = int(getattr(self, "max_positions", self.parameters.get("max_positions", 5)))
+        max_positions = int(getattr(self, "max_positions", self.parameters["max_positions"]))
         if action in ("buy", "short") and held is None:
             is_short = action == "short"
             if is_short and not getattr(
-                self, "enable_short_selling", self.parameters.get("enable_short_selling", False)
+                self, "enable_short_selling", self.parameters["enable_short_selling"]
             ):
                 return intents
             if len(view.positions) >= max_positions:
@@ -432,13 +431,11 @@ class BaseStrategy(ABC):
                 logger.info(f"No tradeable size for {symbol}: {'; '.join(sizing.steps)}")
                 return intents
             qty = sizing.qty
-            take_profit = float(
-                getattr(self, "take_profit", self.parameters.get("take_profit", 0.05))
-            )
+            take_profit = float(getattr(self, "take_profit", self.parameters["take_profit"]))
             stop_loss = float(
-                getattr(self, "short_stop_loss", self.parameters.get("short_stop_loss", 0.04))
+                getattr(self, "short_stop_loss", self.parameters["short_stop_loss"])
                 if is_short
-                else getattr(self, "stop_loss", self.parameters.get("stop_loss", 0.03))
+                else getattr(self, "stop_loss", self.parameters["stop_loss"])
             )
             if is_short:
                 tp_price, sl_price = price * (1 - take_profit), price * (1 + stop_loss)
@@ -476,18 +473,14 @@ class BaseStrategy(ABC):
 
     def sizer(self) -> PositionSizer:
         """The one sizing decision, built from this strategy's parameters."""
-        use_kelly = bool(self.parameters.get("use_kelly_criterion", False))
+        use_kelly = bool(self.parameters["use_kelly_criterion"])
         return PositionSizer(
-            base_fraction=float(
-                getattr(self, "position_size", self.parameters.get("position_size", 0.1))
-            ),
+            base_fraction=float(getattr(self, "position_size", self.parameters["position_size"])),
             short_fraction=float(
-                getattr(
-                    self, "short_position_size", self.parameters.get("short_position_size", 0.08)
-                )
+                getattr(self, "short_position_size", self.parameters["short_position_size"])
             ),
             max_position_fraction=float(
-                getattr(self, "max_position_size", self.parameters.get("max_position_size", 0.05))
+                getattr(self, "max_position_size", self.parameters["max_position_size"])
             ),
             kelly=self.kelly if use_kelly and getattr(self, "kelly", None) is not None else None,
             risk_manager=getattr(self, "risk_manager", None),
@@ -503,7 +496,7 @@ class BaseStrategy(ABC):
         if getattr(self, "execution_mode", "daily") == "live":
             return await self._live_intents(symbol, when, view)
         intents = []
-        if self.parameters.get("daily_exits", False):
+        if self.parameters["daily_exits"]:
             intents.extend(await self._exit_intents(symbol, when, view))
         intents.extend(
             await self._daily_intents(symbol, self._signal_action(symbol), view, **daily)

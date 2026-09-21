@@ -97,6 +97,7 @@ Backtest engine and performance analytics.
 ### `strategies/`
 Trading strategies. Each is a subclass of `BaseStrategy`.
 
+- `strategies/params.py` — every strategy parameter declared once as a dataclass with its default; unknown keys raise at construction; the four risk knobs default from `config.RISK_PARAMS` (ADR 0010).
 - `strategies/base_strategy.py` — `BaseStrategy`: init, lifecycle, state, the decider interface (`prepare`/`decide`), the daily and live intent rules, and `sizer()`.
 - `strategies/momentum_strategy.py` — `MomentumStrategy`: state, on-bar dispatch, TA-Lib indicators, entry/exit signals, trailing stops, execute.
 - `strategies/momentum_strategy_backtest.py` — daily-bar variant of `MomentumStrategy`.

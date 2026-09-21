@@ -1,6 +1,6 @@
 # ETF baseline 2020-2024 — survivorship-bias-free test of strategy edge
 
-Generated: 2026-09-21T06:22:29.520388Z
+Generated: 2026-09-21T07:16:04.448590Z
 Spec: `docs/superpowers/specs/2026-05-11-honest-cleanup-design.md`
 Data source: `yfinance`
 
