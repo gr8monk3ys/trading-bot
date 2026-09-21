@@ -165,8 +165,8 @@ class AlpacaBroker(
 
             # INSTITUTIONAL SAFETY: Gateway enforcement flag
             # When True, direct calls to submit_order_advanced() will raise GatewayBypassError
-            # All orders must route through OrderGateway for safety checks
-            self._gateway_required: bool = False  # Set to True after OrderGateway is initialized
+            # All orders must route through OrderSubmission for safety checks
+            self._gateway_required: bool = False  # Set to True after OrderSubmission is initialized
             self._gateway_caller_token: Optional[str] = None  # Token for authorized gateway calls
 
             # INSTITUTIONAL SAFETY: Partial fill tracking

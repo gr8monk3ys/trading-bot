@@ -505,12 +505,22 @@ class BacktestBrokerCore:
         if symbol is None or qty is None:
             return None
 
-        # Convert side to string if it's an enum
-        if hasattr(side, "value"):
-            side = side.value
+        # Enums (alpaca OrderSide / OrderType) become their plain values. Before
+        # 2026-09 ``str(OrderType.MARKET)`` was "OrderType.MARKET", which never
+        # equalled "market" in the slippage model, so every builder-built order
+        # was priced with the reduced limit-order impact. See PR arch 3.
+        side = getattr(side, "value", side)
+        order_type = str(getattr(order_type, "value", order_type)).lower()
+        limit_price = getattr(order_request, "limit_price", None)
 
         # Place the order
-        result = await self.place_order(symbol, int(qty), side, order_type=str(order_type))
+        result = await self.place_order(
+            symbol,
+            float(qty),
+            side,
+            price=float(limit_price) if limit_price is not None else None,
+            order_type=order_type,
+        )
 
         # Return a mock order response
         class MockOrder:
@@ -522,6 +532,7 @@ class BacktestBrokerCore:
                 self.filled_avg_price = str(order_dict["filled_avg_price"])
                 self.status = order_dict["status"]
                 self.side = order_dict["side"]
+                self.rejection_reason = order_dict.get("rejection_reason", "")
 
         return MockOrder(result)
 

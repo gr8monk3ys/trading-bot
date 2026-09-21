@@ -10,7 +10,7 @@ The implementation lives in ``engine/backtest/``:
                                          PnL accounting (Step 2B fix).
     - engine/backtest/runner.py        — comprehensive run_backtest()
                                          driver, parallel data loading,
-                                         OrderGateway wiring (Step 2A),
+                                         OrderSubmission wiring,
                                          end-of-period liquidation
                                          (Step 2C), result assembly.
 

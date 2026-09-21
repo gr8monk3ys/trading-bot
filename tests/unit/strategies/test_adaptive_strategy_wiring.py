@@ -43,7 +43,7 @@ async def _initialized_strategy():
     strategy = AdaptiveStrategy(
         broker=broker,
         parameters={"symbols": [SYMBOL]},
-        order_gateway=MagicMock(),
+        order_submission=MagicMock(),
     )
     assert await strategy.initialize() is True
     return strategy, broker

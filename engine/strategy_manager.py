@@ -53,7 +53,7 @@ class StrategyManager:
         self.strategy_path = strategy_path
         self.circuit_breaker = circuit_breaker
         self._closed = False
-        self._live_order_gateway = None
+        self._order_submission = None
 
         # Initialize broker first (required by downstream components/logging)
         self.broker = broker
@@ -286,15 +286,15 @@ class StrategyManager:
         self.strategy_allocations = allocations
         return allocations
 
-    def _get_live_order_gateway(self):
-        """One shared LiveOrderGateway per manager (the token claim is per-broker)."""
-        if self._live_order_gateway is None:
-            from engine.live_order_gateway import LiveOrderGateway
+    def _get_order_submission(self):
+        """One shared OrderSubmission per manager (the gateway token claim is per-broker)."""
+        if self._order_submission is None:
+            from engine.order_submission import OrderSubmission
 
-            self._live_order_gateway = LiveOrderGateway(
-                broker=self.broker, circuit_breaker=self.circuit_breaker
+            self._order_submission = OrderSubmission(
+                self.broker, circuit_breaker=self.circuit_breaker, audit_log=self.audit_log
             )
-        return self._live_order_gateway
+        return self._order_submission
 
     async def start_strategy(self, strategy_name, parameters=None, symbols=None, allocation=None):
         """
@@ -350,12 +350,10 @@ class StrategyManager:
                 parameters=merged_params,
             )
 
-            # Attach the live order gateway: BaseStrategy blocks every
-            # entry/exit without one, so a strategy constructed here could
-            # otherwise never place an order. (The backtest engine attaches
-            # its own BacktestOrderGateway instead.)
-            if getattr(strategy, "order_gateway", None) is None and self.broker is not None:
-                strategy.order_gateway = self._get_live_order_gateway()
+            # Attach order submission: BaseStrategy blocks every entry/exit
+            # without one. (The backtest engine wires its own instance.)
+            if getattr(strategy, "order_submission", None) is None and self.broker is not None:
+                strategy.order_submission = self._get_order_submission()
 
             # Initialize the strategy
             logger.info(f"Initializing strategy {strategy_name} with allocation {allocation:.2%}")

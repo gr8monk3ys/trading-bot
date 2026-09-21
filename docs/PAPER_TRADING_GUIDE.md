@@ -211,7 +211,7 @@ echo "Bot restarted"
 ## Expected Behavior (Based on Backtests)
 
 **From `results/etf_baseline_2020-2024_exposure_sweep.md` (the only current reference):**
-- 2020-2024, gross-100 target: +16.4% total, Sharpe 0.16, 26 trades (INCONCLUSIVE, below the 50-trade bar)
+- 2020-2024, gross-100 target: +16.3% total, Sharpe 0.16, 26 trades (INCONCLUSIVE, below the 50-trade bar)
 - SPY buy-and-hold over the same window: +95.3%, Sharpe 0.75
 - Expect few trades per month and no edge over the benchmark; earlier "Sharpe 2.8-3.5 / 67-86% win rate" figures came from a broken backtest and are void
 

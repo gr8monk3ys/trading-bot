@@ -16,11 +16,14 @@ Target: Increase coverage from 5.39% to 90%+
 """
 
 from collections import deque
+from contextlib import nullcontext
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import numpy as np
 import pytest
+
+from engine.order_submission import OrderSubmission
 
 
 class TestMomentumStrategyName:
@@ -147,9 +150,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             result = await strategy.initialize()
 
         assert result is True
@@ -167,9 +168,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert hasattr(strategy, "indicators")
@@ -188,9 +187,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert hasattr(strategy, "signals")
@@ -209,9 +206,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert strategy.rsi_period == 2
@@ -234,9 +229,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert strategy.rsi_period == 14
@@ -257,9 +250,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert strategy.enable_short_selling is True
@@ -279,9 +270,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert strategy.use_multi_timeframe is True
@@ -302,9 +291,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert strategy.use_bollinger_filter is True
@@ -323,9 +310,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         mock_broker._add_subscriber.assert_called_once_with(strategy)
@@ -342,9 +327,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert hasattr(strategy, "risk_manager")
@@ -382,9 +365,7 @@ class TestMomentumStrategyInitialize:
         }
         strategy = MomentumStrategy(broker=broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             result = await strategy.initialize()
 
         assert result is True
@@ -1321,10 +1302,10 @@ class TestExecuteSignal:
         """Stock entries should keep bracket order protection at broker level."""
         await trading_strategy._execute_signal("AAPL", "buy")
 
-        order = trading_strategy.submit_entry_order.call_args.args[0]
-        assert str(getattr(order, "order_class", "")).lower().endswith("bracket")
-        assert getattr(order, "take_profit", None) is not None
-        assert getattr(order, "stop_loss", None) is not None
+        intent = trading_strategy.submit_entry_order.call_args.args[0]
+        assert intent.take_profit is not None and intent.stop_loss is not None
+        built = OrderSubmission(MagicMock(spec=[]))._build_request(intent)
+        assert str(getattr(built, "order_class", "")).lower().endswith("bracket")
 
     @pytest.mark.asyncio
     async def test_execute_signal_buy_crypto_uses_market_order(self, trading_strategy):
@@ -1336,10 +1317,11 @@ class TestExecuteSignal:
 
         await trading_strategy._execute_signal("BTC/USD", "buy")
 
-        order = trading_strategy.submit_entry_order.call_args.args[0]
-        assert getattr(order, "order_class", None) is None
-        assert getattr(order, "take_profit", None) is None
-        assert getattr(order, "stop_loss", None) is None
+        intent = trading_strategy.submit_entry_order.call_args.args[0]
+        built = OrderSubmission(MagicMock(spec=[]))._build_request(intent)
+        assert not str(getattr(built, "order_class", "") or "").lower().endswith("bracket")
+        assert getattr(built, "take_profit", None) is None
+        assert getattr(built, "stop_loss", None) is None
 
     @pytest.mark.asyncio
     async def test_execute_signal_buy_stores_stop_and_target(self, trading_strategy):

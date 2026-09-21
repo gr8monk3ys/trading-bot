@@ -1,7 +1,7 @@
 """End-to-end smoke test of the live order path against the Alpaca PAPER API.
 
 Proves the chain main.py uses in production — AlpacaBroker -> AuditLog ->
-CircuitBreaker.enforce_before_order -> LiveOrderGateway._internal_submit_order —
+CircuitBreaker.enforce_before_order -> OrderSubmission -> AlpacaBroker._internal_submit_order —
 by placing one 1-share SPY limit buy priced ~50% below market (it can never
 fill), verifying the order ID lands in audit_logs/, then cancelling it.
 
@@ -36,8 +36,7 @@ async def main() -> int:
         return 1
 
     from brokers.alpaca_broker import AlpacaBroker
-    from brokers.order_builder import OrderBuilder
-    from engine.live_order_gateway import LiveOrderGateway
+    from engine.order_submission import OrderIntent, OrderSubmission
     from utils.audit_log import AuditLog
     from utils.circuit_breaker import CircuitBreaker
 
@@ -56,7 +55,7 @@ async def main() -> int:
     circuit_breaker = CircuitBreaker(max_daily_loss=0.03, auto_close_positions=False)
     await circuit_breaker.initialize(broker)
 
-    gateway = LiveOrderGateway(broker, circuit_breaker=circuit_breaker)
+    submission = OrderSubmission(broker, circuit_breaker=circuit_breaker, audit_log=audit_log)
 
     try:
         price = await broker.get_last_price(SYMBOL)
@@ -66,11 +65,19 @@ async def main() -> int:
         limit_price = FALLBACK_LIMIT
     print(f"Submitting 1-share {SYMBOL} limit buy @ {limit_price} (unfillable by design)")
 
-    order_request = OrderBuilder(SYMBOL, "buy", 1).limit(limit_price).day().build()
-    result = await gateway.submit_order(order_request=order_request, strategy_name="smoke_test")
+    result = await submission.submit(
+        OrderIntent(
+            symbol=SYMBOL,
+            side="buy",
+            qty=1,
+            order_type="limit",
+            limit_price=limit_price,
+            strategy_name="smoke_test",
+        )
+    )
 
-    if not result.success:
-        print(f"FAIL: gateway rejected the order: {result.rejection_reason}")
+    if not result.ok:
+        print(f"FAIL: order {result.status.value}: {result.reason}")
         return 1
     print(f"PASS: order accepted, id={result.order_id}")
 

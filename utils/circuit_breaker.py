@@ -12,7 +12,7 @@ Usage:
     circuit_breaker = CircuitBreaker(max_daily_loss=0.03)  # 3% max daily loss
     await circuit_breaker.initialize(broker)
 
-    # In OrderGateway (recommended):
+    # In OrderSubmission (the one order path):
     try:
         await circuit_breaker.check_before_order()
     except TradingHaltedException as e:
@@ -113,7 +113,7 @@ class CircuitBreaker:
         self.halt_triggered_at = None
         self.last_reset_date = None
         self.broker = None
-        self.order_gateway = None
+        self.order_submission = None
         self._last_logged_loss_pct = 0  # Track last logged loss for throttling
         self._halt_reason = None  # Track why we halted
         self._halt_loss_pct = None  # Track loss at halt time
@@ -168,14 +168,14 @@ class CircuitBreaker:
             logger.error(f"Failed to initialize circuit breaker: {e}")
             raise
 
-    def set_order_gateway(self, order_gateway) -> None:
+    def set_order_submission(self, order_submission) -> None:
         """
-        Attach an OrderGateway for emergency liquidation routing.
+        Attach the OrderSubmission used for emergency liquidation.
 
         When configured, emergency close orders are submitted via gateway exit
         path to preserve safety and audit guarantees while reducing exposure.
         """
-        self.order_gateway = order_gateway
+        self.order_submission = order_submission
 
     def _init_economic_calendar(self):
         """Lazy-load and initialize economic calendar."""
@@ -345,19 +345,24 @@ class CircuitBreaker:
                     order = OrderBuilder(symbol, side, quantity).market().day().build()
                     result = None
 
-                    if self.order_gateway:
-                        result = await self.order_gateway.submit_exit_order(
-                            symbol=symbol,
-                            quantity=quantity,
-                            strategy_name="circuit_breaker",
-                            side=side,
-                            reason="circuit_breaker_emergency_close",
+                    if self.order_submission:
+                        from engine.order_submission import OrderIntent
+
+                        result = await self.order_submission.submit(
+                            OrderIntent(
+                                symbol=symbol,
+                                side=side,
+                                qty=quantity,
+                                is_exit=True,
+                                strategy_name="circuit_breaker",
+                                reason="circuit_breaker_emergency_close",
+                            )
                         )
-                        if not getattr(result, "success", False):
+                        if not getattr(result, "ok", False):
                             logger.error(
                                 "Emergency close rejected for %s: %s",
                                 symbol,
-                                getattr(result, "rejection_reason", "unknown"),
+                                getattr(result, "reason", "unknown"),
                             )
                             continue
                         logger.info("Emergency exit submitted for %s: %s", symbol, result.order_id)
@@ -460,7 +465,7 @@ class CircuitBreaker:
         """
         INSTITUTIONAL ATOMIC CHECK: Enforce circuit breaker before order submission.
 
-        This is the RECOMMENDED method for OrderGateway. Raises TradingHaltedException
+        This is the RECOMMENDED method for OrderSubmission. Raises TradingHaltedException
         when trading should be blocked, ensuring orders are atomically rejected.
 
         Uses a 1-second TTL cache to balance freshness with API efficiency.

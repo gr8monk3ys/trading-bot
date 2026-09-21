@@ -182,8 +182,8 @@ class AlpacaOrdersMixin:
         if self._gateway_required:
             raise GatewayBypassError(
                 "Direct order submission is disabled. "
-                "All orders must route through OrderGateway for safety checks. "
-                "Use order_gateway.submit_order() instead of broker.submit_order()."
+                "All orders must route through OrderSubmission for safety checks. "
+                "Use order_submission.submit() instead of broker.submit_order()."
             )
         try:
             # Convert order to alpaca-py format
@@ -232,7 +232,7 @@ class AlpacaOrdersMixin:
         Submit an advanced order using OrderBuilder or direct request object.
 
         IMPORTANT: When gateway enforcement is enabled, this method will raise
-        GatewayBypassError. Use OrderGateway.submit_order() instead.
+        GatewayBypassError. Use OrderSubmission.submit() instead.
 
         Now includes Almgren-Chriss market impact calculation for execution awareness.
 
@@ -244,14 +244,14 @@ class AlpacaOrdersMixin:
             Order confirmation from Alpaca
 
         Raises:
-            GatewayBypassError: If gateway enforcement is enabled (use OrderGateway instead)
+            GatewayBypassError: If gateway enforcement is enabled (use OrderSubmission instead)
         """
         # INSTITUTIONAL SAFETY: Enforce gateway requirement
         if self._gateway_required:
             raise GatewayBypassError(
                 "Direct order submission is disabled. "
-                "All orders must route through OrderGateway for safety checks. "
-                "Use order_gateway.submit_order() instead of broker.submit_order_advanced()."
+                "All orders must route through OrderSubmission for safety checks. "
+                "Use order_submission.submit() instead of broker.submit_order_advanced()."
             )
 
         try:
@@ -338,9 +338,9 @@ class AlpacaOrdersMixin:
         self, order_request, gateway_token: str, check_impact: bool = True
     ):
         """
-        Internal order submission method for authorized callers (OrderGateway only).
+        Internal order submission method for authorized callers (OrderSubmission only).
 
-        PRIVATE API: This method should ONLY be called by OrderGateway with
+        PRIVATE API: This method should ONLY be called by OrderSubmission with
         the authorization token obtained from enable_gateway_requirement().
 
         Args:
@@ -359,7 +359,7 @@ class AlpacaOrdersMixin:
             if not gateway_token or gateway_token != self._gateway_caller_token:
                 raise GatewayBypassError(
                     "Invalid gateway authorization token. "
-                    "This method is reserved for OrderGateway internal use only."
+                    "This method is reserved for OrderSubmission internal use only."
                 )
 
         try:

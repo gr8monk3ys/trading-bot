@@ -33,8 +33,8 @@ sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 )
 
-from brokers.order_builder import OrderBuilder
 from engine.backtest_engine import BacktestEngine
+from engine.order_submission import OrderIntent
 from strategies.base_strategy import BaseStrategy
 
 # =============================================================================
@@ -100,12 +100,10 @@ class _BuyAndHoldStrategy(BaseStrategy):
             return
         if symbol in type(self)._bought:
             return
-        order_request = OrderBuilder(symbol, "buy", 10).market().day().build()
         result = await self.submit_entry_order(
-            order_request=order_request,
-            reason="buy_and_hold",
+            OrderIntent(symbol=symbol, side="buy", qty=10, reason="buy_and_hold")
         )
-        if result is not None and getattr(result, "success", False):
+        if result is not None and result.ok:
             type(self)._bought.add(symbol)
 
 
@@ -138,23 +136,22 @@ class _BuyThenSellStrategy(BaseStrategy):
     async def execute_trade(self, symbol, signal):
         action = signal.get("action")
         if action == "buy" and symbol not in type(self)._bought:
-            order_request = OrderBuilder(symbol, "buy", 10).market().day().build()
-            result = await self.submit_entry_order(order_request=order_request, reason="enter")
-            if result is not None and getattr(result, "success", False):
+            result = await self.submit_entry_order(
+                OrderIntent(symbol=symbol, side="buy", qty=10, reason="enter")
+            )
+            if result is not None and result.ok:
                 type(self)._bought.add(symbol)
         elif action == "sell" and symbol not in type(self)._sold:
             # Close the full position via gateway's exit path directly.
-            gateway = getattr(self, "order_gateway", None)
+            gateway = getattr(self, "order_submission", None)
             if gateway is None:
                 return
-            result = await gateway.submit_exit_order(
-                symbol=symbol,
-                quantity=10,
-                strategy_name=self.name,
-                side="sell",
-                reason="exit",
+            result = await gateway.submit(
+                OrderIntent(
+                    symbol=symbol, side="sell", qty=10, is_exit=True, strategy_name=self.name
+                )
             )
-            if result is not None and getattr(result, "success", False):
+            if result is not None and result.ok:
                 type(self)._sold.add(symbol)
 
 

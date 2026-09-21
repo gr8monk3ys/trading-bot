@@ -437,10 +437,10 @@ class AlpacaAccountMixin:
 
     def enable_gateway_requirement(self) -> str:
         """
-        Enable mandatory OrderGateway routing for all orders.
+        Enable mandatory OrderSubmission routing for all orders.
 
         CRITICAL SAFETY: Once enabled, direct calls to submit_order_advanced()
-        will raise GatewayBypassError. Only the OrderGateway can submit orders
+        will raise GatewayBypassError. Only the OrderSubmission can submit orders
         using the returned authorization token.
 
         Returns:
@@ -448,15 +448,15 @@ class AlpacaAccountMixin:
 
         Usage:
             gateway_token = broker.enable_gateway_requirement()
-            # Store token in OrderGateway
-            # Now all orders MUST go through OrderGateway
+            # Store token in OrderSubmission
+            # Now all orders MUST go through OrderSubmission
         """
         import secrets
 
         token = secrets.token_hex(16)
         self._gateway_caller_token = token
         self._gateway_required = True
-        logger.info("🔒 GATEWAY ENFORCEMENT ENABLED: All orders must route through OrderGateway")
+        logger.info("🔒 GATEWAY ENFORCEMENT ENABLED: All orders must route through OrderSubmission")
         return token
 
     def disable_gateway_requirement(self):

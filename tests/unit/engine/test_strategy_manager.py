@@ -460,10 +460,10 @@ class TestStartStrategy:
 
     @pytest.mark.asyncio
     async def test_start_strategy_rejects_missing_gateway_wiring(self, manager_for_start):
-        """Test strategy start fails when strategy does not accept order_gateway."""
+        """Test strategy start fails when strategy does not accept order_submission."""
 
         def _raise_type_error(**_kwargs):
-            raise TypeError("unexpected keyword argument 'order_gateway'")
+            raise TypeError("unexpected keyword argument 'order_submission'")
 
         manager_for_start.available_strategies["TestStrategy"].side_effect = _raise_type_error
 

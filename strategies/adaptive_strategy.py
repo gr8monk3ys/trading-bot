@@ -63,7 +63,7 @@ class AdaptiveStrategy(BaseStrategy):
         broker=None,
         symbols=None,
         parameters=None,
-        order_gateway=None,
+        order_submission=None,
     ):
         """
         Initialize adaptive strategy with symbols.
@@ -72,7 +72,7 @@ class AdaptiveStrategy(BaseStrategy):
             broker: Trading broker instance
             symbols: List of symbols to trade
             parameters: Strategy parameters
-            order_gateway: Optional order gateway for order submission
+            order_submission: Optional OrderSubmission shared with both arms
         """
         parameters = parameters or {}
         if symbols:
@@ -81,7 +81,7 @@ class AdaptiveStrategy(BaseStrategy):
             name=self.NAME,
             broker=broker,
             parameters=parameters,
-            order_gateway=order_gateway,
+            order_submission=order_submission,
         )
 
     def default_parameters(self):
@@ -159,7 +159,7 @@ class AdaptiveStrategy(BaseStrategy):
             self.momentum_strategy = MomentumStrategy(
                 broker=self.broker,
                 parameters=momentum_params,
-                order_gateway=self.order_gateway,
+                order_submission=self.order_submission,
             )
 
             # Mean reversion strategy for sideways markets
@@ -175,7 +175,7 @@ class AdaptiveStrategy(BaseStrategy):
             self.mean_reversion_strategy = MeanReversionStrategy(
                 broker=self.broker,
                 parameters=mean_rev_params,
-                order_gateway=self.order_gateway,
+                order_submission=self.order_submission,
             )
 
             # Performance optimization: Initialize sub-strategies in parallel

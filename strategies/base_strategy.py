@@ -13,13 +13,15 @@ adjustments, position queries) sit at the end of the class.
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from datetime import datetime
+from typing import Optional
 
 # NOTE: Removed lumibot.strategies.Strategy import - it crashes at import time
 # We don't actually need it - we'll create our own simple base class
 import numpy as np
 
-from utils.circuit_breaker import CircuitBreaker
+from engine.order_submission import OrderIntent, OrderOutcome
 from utils.kelly_criterion import KellyCriterion, Trade
 from utils.streak_sizing import StreakSizer
 from utils.volatility_regime import VolatilityRegimeDetector
@@ -35,20 +37,20 @@ class BaseStrategy(ABC):
     which has import-time initialization issues that crash the bot.
     """
 
-    def __init__(self, name=None, broker=None, parameters=None, order_gateway=None):
+    def __init__(self, name=None, broker=None, parameters=None, order_submission=None):
         """Initialize the strategy.
 
         Args:
             name: Strategy name (defaults to class name)
             broker: Broker instance for data queries
             parameters: Strategy parameters dict
-            order_gateway: OrderGateway instance for order submission (recommended)
+            order_submission: OrderSubmission that turns intents into outcomes
                           If not provided, orders will fail when gateway enforcement is enabled
         """
         # Basic attributes
         self.name = name or self.__class__.__name__
         self.broker = broker
-        self.order_gateway = order_gateway  # INSTITUTIONAL: All orders should go through gateway
+        self.order_submission = order_submission
         parameters = parameters or {}
 
         # No parent class to initialize anymore - we're independent!
@@ -64,12 +66,6 @@ class BaseStrategy(ABC):
         # P1 FIX: Initialize running flag and tasks list for cleanup()
         self.running = False
         self.tasks = []
-
-        # CRITICAL SAFETY: Initialize circuit breaker for daily loss protection
-        max_daily_loss = parameters.get("max_daily_loss", 0.03)  # Default 3%
-        self.circuit_breaker = CircuitBreaker(
-            max_daily_loss=max_daily_loss, auto_close_positions=True
-        )
 
         # KELLY CRITERION: Initialize for optimal position sizing
         use_kelly = parameters.get("use_kelly_criterion", False)
@@ -142,13 +138,6 @@ class BaseStrategy(ABC):
 
             # Initialize any other strategy-specific parameters
             self._initialize_parameters()
-
-            # CRITICAL SAFETY: Initialize circuit breaker with broker
-            if self.broker:
-                await self.circuit_breaker.initialize(self.broker)
-                self.logger.info(
-                    f"✅ Circuit breaker armed: max daily loss = {self.circuit_breaker.max_daily_loss:.1%}"
-                )
 
             # VOLATILITY REGIME: Initialize detector with broker
             if self.parameters.get("use_volatility_regime", False) and self.broker:
@@ -223,143 +212,71 @@ class BaseStrategy(ABC):
         """Positions in the protocol's shape (brokers/protocol.py), from either broker."""
         return await self.broker.get_positions()
 
-    async def submit_exit_order(
-        self,
-        symbol: str,
-        qty: float,
-        side: str = "sell",
-        reason: str = "exit",
-    ):
-        """
-        Submit an exit order with appropriate safety checks.
-
-        INSTITUTIONAL SAFETY: Exit orders MUST route through OrderGateway for
-        audit trail, consistent controls, and kill-switch behavior.
-
-        Args:
-            symbol: Stock symbol
-            qty: Quantity to exit
-            side: 'sell' for long exit, 'buy' for short exit
-            reason: Reason for exit (for logging)
-
-        Returns:
-            Order result or None on failure
-        """
-        try:
-            strategy_name = getattr(self, "name", self.__class__.__name__)
-            order_gateway = getattr(self, "order_gateway", None)
-            strategy_logger = getattr(self, "logger", logger)
-
-            # Verify we own this position
-            positions = await self._fetch_broker_positions()
-            current_position = next((p for p in positions if p.symbol == symbol), None)
-
-            if not current_position:
-                strategy_logger.warning(f"EXIT REJECTED: No position found for {symbol}")
-                return None
-
-            actual_qty = abs(float(current_position.qty))
-            if qty > actual_qty * 1.01:  # Allow 1% tolerance for fractional shares
-                strategy_logger.warning(
-                    f"EXIT ADJUSTED: Requested {qty} but only have {actual_qty} {symbol}"
-                )
-                qty = actual_qty
-
-            if not order_gateway:
-                strategy_logger.error(
-                    "No OrderGateway configured. Exit order blocked; "
-                    "gateway-only routing is mandatory."
-                )
-                return None
-
-            result = await order_gateway.submit_exit_order(
-                symbol=symbol,
-                quantity=qty,
-                strategy_name=strategy_name,
-                side=side,
-                reason=reason,
-            )
-            if result.success:
-                strategy_logger.info(
-                    f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} "
-                    f"(Order ID: {result.order_id})"
-                )
-                return result
-
-            strategy_logger.warning(f"EXIT ORDER FAILED for {symbol}: {result.rejection_reason}")
+    async def submit_entry_order(self, intent: OrderIntent) -> Optional[OrderOutcome]:
+        """Hand an entry intent to order submission; None only when none is wired."""
+        submission = getattr(self, "order_submission", None)
+        strategy_logger = getattr(self, "logger", logger)
+        if submission is None:
+            strategy_logger.error("No OrderSubmission wired; entry for %s blocked.", intent.symbol)
             return None
+        if not intent.strategy_name:
+            intent = replace(intent, strategy_name=getattr(self, "name", self.__class__.__name__))
+        outcome = await submission.submit(intent)
+        if outcome.ok:
+            strategy_logger.info(
+                f"ENTRY ORDER: {intent.reason} - {outcome.side.upper()} {outcome.qty_requested} "
+                f"{intent.symbol} ({outcome.status.value}, id={outcome.order_id})"
+            )
+        else:
+            strategy_logger.warning(
+                f"ENTRY ORDER {outcome.status.value.upper()} for {intent.symbol}: {outcome.reason}"
+            )
+        return outcome
 
+    async def submit_exit_order(
+        self, symbol: str, qty: float, side: str = "sell", reason: str = "exit"
+    ) -> Optional[OrderOutcome]:
+        """Close (part of) a held position. Returns None when nothing is held or no
+        submission is wired; otherwise the outcome, which may be rejected."""
+        strategy_logger = getattr(self, "logger", logger)
+        submission = getattr(self, "order_submission", None)
+        try:
+            positions = await self._fetch_broker_positions()
         except Exception as e:
-            strategy_logger = getattr(self, "logger", logger)
             strategy_logger.error(f"EXIT ORDER ERROR for {symbol}: {e}")
             return None
-
-    async def submit_entry_order(
-        self,
-        order_request,
-        reason: str = "entry",
-        max_positions: int = None,
-    ):
-        """
-        Submit an entry order through the OrderGateway with full safety checks.
-
-        INSTITUTIONAL SAFETY: ALL entry orders MUST route through OrderGateway
-        for circuit breaker, position conflict, and risk limit enforcement.
-
-        Args:
-            order_request: Order request from OrderBuilder
-            reason: Reason for entry (for logging)
-            max_positions: Maximum number of positions allowed (optional)
-
-        Returns:
-            OrderResult with success status and details, or None on error
-
-        Raises:
-            RuntimeError: If no OrderGateway is configured and gateway enforcement is enabled
-        """
-        order_gateway = getattr(self, "order_gateway", None)
-        strategy_name = getattr(self, "name", self.__class__.__name__)
-        strategy_logger = getattr(self, "logger", logger)
-
-        if not order_gateway:
-            strategy_logger.error(
-                "No OrderGateway configured. Entry order blocked; "
-                "gateway-only routing is mandatory."
-            )
+        held = next((p for p in positions if p.symbol == symbol), None)
+        if held is None:
+            strategy_logger.warning(f"EXIT REJECTED: No position found for {symbol}")
             return None
-
-        try:
-            # Extract symbol for logging
-            symbol = getattr(order_request, "symbol", "UNKNOWN")
-            if hasattr(order_request, "build"):
-                built = order_request.build()
-                symbol = getattr(built, "symbol", symbol)
-
-            risk_price_history = self._extract_close_price_history(symbol)
-
-            result = await order_gateway.submit_order(
-                order_request=order_request,
-                strategy_name=strategy_name,
-                max_positions=max_positions,
-                price_history=risk_price_history,
-                is_exit_order=False,
+        actual_qty = abs(float(held.qty))
+        if qty > actual_qty * 1.01:
+            strategy_logger.warning(
+                f"EXIT ADJUSTED: Requested {qty} but only have {actual_qty} {symbol}"
             )
-
-            if result.success:
-                strategy_logger.info(
-                    f"ENTRY ORDER: {reason} - {result.side.upper()} {result.quantity} {symbol} "
-                    f"(Order ID: {result.order_id})"
-                )
-            else:
-                strategy_logger.warning(
-                    f"ENTRY ORDER REJECTED for {symbol}: {result.rejection_reason}"
-                )
-
-            return result
-
-        except Exception as e:
-            strategy_logger.error(f"Entry order error: {e}")
+            qty = actual_qty
+        if submission is None:
+            strategy_logger.error("No OrderSubmission wired; exit for %s blocked.", symbol)
             return None
+        outcome = await submission.submit(
+            OrderIntent(
+                symbol=symbol,
+                side=side,
+                qty=qty,
+                is_exit=True,
+                strategy_name=getattr(self, "name", self.__class__.__name__),
+                reason=reason,
+            )
+        )
+        if outcome.ok:
+            strategy_logger.info(
+                f"EXIT ORDER: {reason} - {side.upper()} {qty:.4f} {symbol} (id={outcome.order_id})"
+            )
+        else:
+            strategy_logger.warning(
+                f"EXIT ORDER {outcome.status.value.upper()} for {symbol}: {outcome.reason}"
+            )
+        return outcome
 
     def _extract_close_price_history(self, symbol: str) -> list[float]:
         """
@@ -540,23 +457,6 @@ class BaseStrategy(ABC):
         """Shutdown the strategy."""
         self._shutdown_event.set()
         await self.cleanup()
-
-    async def check_trading_allowed(self) -> bool:
-        """
-        CRITICAL SAFETY: Check if trading is allowed (circuit breaker not triggered).
-
-        ALL strategies must call this before executing any trades.
-
-        Returns:
-            True if trading is allowed, False if halted
-
-        Example:
-            if not await self.check_trading_allowed():
-                logger.warning("Trading halted by circuit breaker")
-                return
-        """
-        is_halted = await self.circuit_breaker.check_and_halt()
-        return not is_halted
 
     async def enforce_position_size_limit(self, symbol, desired_position_value, current_price):
         """

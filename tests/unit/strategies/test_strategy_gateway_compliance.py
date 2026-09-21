@@ -99,8 +99,8 @@ def _live_strategy_classes() -> list[StrategyClassInfo]:
     return sorted(live_classes, key=lambda x: (x.path.name, x.name))
 
 
-def test_live_strategies_expose_order_gateway_constructor():
-    """Every live strategy constructor must accept order_gateway wiring."""
+def test_live_strategies_expose_order_submission_constructor():
+    """Every live strategy constructor must accept order_submission wiring."""
     missing: list[str] = []
     for info in _live_strategy_classes():
         init_method = next(
@@ -118,7 +118,7 @@ def test_live_strategies_expose_order_gateway_constructor():
 
         arg_names = [arg.arg for arg in init_method.args.args]
         has_kwargs = init_method.args.kwarg is not None
-        if "order_gateway" not in arg_names and not has_kwargs:
+        if "order_submission" not in arg_names and not has_kwargs:
             missing.append(f"{info.path.name}:{info.name}")
 
     assert (

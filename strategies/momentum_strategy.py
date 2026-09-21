@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import talib
 
-from brokers.order_builder import OrderBuilder
+from engine.order_submission import OrderIntent
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
 from utils.multi_timeframe import MultiTimeframeAnalyzer
@@ -495,27 +495,25 @@ class MomentumStrategy(BaseStrategy):
             logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} units")
             logger.info(f"  Managed TP: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
             logger.info(f"  Managed SL: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
-            order = OrderBuilder(symbol, "buy", quantity).market().gtc().build()
         else:
             logger.info(f"Creating bracket order for {symbol}:")
             logger.info(f"  Entry: ${price:.2f} x {quantity:.4f} shares")
             logger.info(f"  Take-profit: ${take_profit_price:.2f} (+{self.take_profit:.1%})")
             logger.info(f"  Stop-loss: ${stop_loss_price:.2f} (-{self.stop_loss:.1%})")
-            order = (
-                OrderBuilder(symbol, "buy", quantity)
-                .market()
-                .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-                .gtc()
-                .build()
-            )
 
         result = await self.submit_entry_order(
-            order,
-            reason="momentum_entry",
-            max_positions=self.max_positions,
+            OrderIntent(
+                symbol=symbol,
+                side="buy",
+                qty=quantity,
+                stop_loss=stop_loss_price,
+                take_profit=take_profit_price,
+                time_in_force="gtc",
+                reason="momentum_entry",
+            )
         )
 
-        if result and (not hasattr(result, "success") or result.success):
+        if result is not None and result.ok:
             logger.info(
                 f"BUY bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
             )
@@ -567,7 +565,6 @@ class MomentumStrategy(BaseStrategy):
                 f"  Managed stop-loss: BUY at ${stop_loss_price:.2f} "
                 f"(+{self.short_stop_loss:.1%} price rise)"
             )
-            order = OrderBuilder(symbol, "sell", quantity).market().gtc().build()
         else:
             logger.info(f"🔻 Creating SHORT bracket order for {symbol}:")
             logger.info(f"  Entry: SELL ${price:.2f} x {quantity:.4f} shares (SHORT)")
@@ -577,21 +574,20 @@ class MomentumStrategy(BaseStrategy):
             logger.info(
                 f"  Stop-loss: BUY at ${stop_loss_price:.2f} (+{self.short_stop_loss:.1%} price rise)"
             )
-            order = (
-                OrderBuilder(symbol, "sell", quantity)
-                .market()
-                .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-                .gtc()
-                .build()
-            )
 
         result = await self.submit_entry_order(
-            order,
-            reason="momentum_short_entry",
-            max_positions=self.max_positions,
+            OrderIntent(
+                symbol=symbol,
+                side="sell",
+                qty=quantity,
+                stop_loss=stop_loss_price,
+                take_profit=take_profit_price,
+                time_in_force="gtc",
+                reason="momentum_short_entry",
+            )
         )
 
-        if result and (not hasattr(result, "success") or result.success):
+        if result is not None and result.ok:
             logger.info(
                 f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
             )
@@ -614,7 +610,7 @@ class MomentumStrategy(BaseStrategy):
             reason="signal_exit",
         )
 
-        if result:
+        if result is not None and result.ok:
             logger.info(f"SELL order submitted for {symbol}: {quantity} shares at ~${price:.2f}")
             self.stop_prices.pop(symbol, None)
             self.target_prices.pop(symbol, None)

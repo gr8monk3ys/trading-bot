@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
+from engine.order_submission import OrderIntent
 from strategies.base_strategy import BaseStrategy
 
 logger = logging.getLogger(__name__)
@@ -27,9 +28,9 @@ class SimpleMACrossoverStrategy(BaseStrategy):
 
     NAME = "SimpleMACrossover"
 
-    def __init__(self, broker=None, parameters: Dict[str, Any] = None, order_gateway=None):
+    def __init__(self, broker=None, parameters: Dict[str, Any] = None, order_submission=None):
         """Initialize the strategy."""
-        super().__init__(broker=broker, parameters=parameters, order_gateway=order_gateway)
+        super().__init__(broker=broker, parameters=parameters, order_submission=order_submission)
 
         # Simple parameters
         self.fast_period = self.parameters.get("fast_period", 10)
@@ -159,17 +160,10 @@ class SimpleMACrossoverStrategy(BaseStrategy):
     async def _place_order(self, symbol: str, qty: int, side: str):
         """Place an order through the broker."""
         try:
-            # Create simple order request object
-            class SimpleOrder:
-                def __init__(self, sym, q, s):
-                    self.symbol = sym
-                    self.qty = q
-                    self.side = s
-                    self.type = "market"
-
-            order = SimpleOrder(symbol, qty, side)
             if side == "buy":
-                await self.submit_entry_order(order, reason="simple_ma_entry")
+                await self.submit_entry_order(
+                    OrderIntent(symbol=symbol, side="buy", qty=qty, reason="simple_ma_entry")
+                )
             else:
                 await self.submit_exit_order(
                     symbol=symbol,

@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from engine.order_submission import OrderIntent
+
 
 class _FakeOrderBuilder:
     """Minimal order builder stub used to avoid external dependency details in tests."""
@@ -47,11 +49,9 @@ class _ConcreteBaseStrategy:
 
 
 @pytest.mark.asyncio
-async def test_momentum_backtest_entry_order_uses_strategy_gateway_helpers(monkeypatch):
+async def test_momentum_backtest_entry_order_uses_strategy_gateway_helpers():
     """Backtest entry path should not call broker.submit_order_advanced directly."""
     from strategies import momentum_strategy_backtest as module
-
-    monkeypatch.setattr(module, "OrderBuilder", _FakeOrderBuilder)
 
     broker = AsyncMock()
     broker.submit_order_advanced = AsyncMock()
@@ -65,19 +65,15 @@ async def test_momentum_backtest_entry_order_uses_strategy_gateway_helpers(monke
     strategy.submit_exit_order.assert_not_awaited()
     broker.submit_order_advanced.assert_not_awaited()
 
-    kwargs = strategy.submit_entry_order.await_args.kwargs
-    assert kwargs["reason"] == "backtest_entry"
-    assert kwargs["max_positions"] is None
-    assert kwargs["order_request"].symbol == "AAPL"
-    assert kwargs["order_request"].side == "buy"
+    intent = strategy.submit_entry_order.await_args.args[0]
+    assert intent.reason == "momentum_backtest_entry"
+    assert intent.symbol == "AAPL" and intent.side == "buy" and intent.qty == 10
 
 
 @pytest.mark.asyncio
-async def test_momentum_backtest_exit_order_uses_submit_exit_order(monkeypatch):
+async def test_momentum_backtest_exit_order_uses_submit_exit_order():
     """Backtest exit path should route through submit_exit_order for safety checks."""
     from strategies import momentum_strategy_backtest as module
-
-    monkeypatch.setattr(module, "OrderBuilder", _FakeOrderBuilder)
 
     strategy = module.MomentumStrategyBacktest(broker=AsyncMock(), parameters={})
     strategy.submit_entry_order = AsyncMock()
@@ -103,9 +99,9 @@ async def test_base_strategy_entry_order_blocks_when_gateway_missing():
     broker.submit_order_advanced = AsyncMock(return_value=SimpleNamespace(id="direct-order"))
 
     strategy = TestStrategy(broker=broker, parameters={})
-    order_request = SimpleNamespace(symbol="AAPL", qty=1, side="buy")
-
-    result = await strategy.submit_entry_order(order_request=order_request, reason="test-entry")
+    result = await strategy.submit_entry_order(
+        OrderIntent(symbol="AAPL", side="buy", qty=1, reason="test-entry")
+    )
 
     assert result is None
     broker.submit_order_advanced.assert_not_awaited()

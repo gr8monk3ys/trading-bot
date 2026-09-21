@@ -90,18 +90,6 @@ class TestBaseStrategyInit:
         assert strategy.symbols == ["AAPL", "MSFT"]
         assert strategy.parameters["position_size"] == 0.15
 
-    def test_init_circuit_breaker_default(self):
-        """Should initialize circuit breaker with default max_daily_loss."""
-        strategy = ConcreteStrategy()
-
-        assert strategy.circuit_breaker is not None
-
-    def test_init_circuit_breaker_custom(self):
-        """Should initialize circuit breaker with custom max_daily_loss."""
-        strategy = ConcreteStrategy(parameters={"max_daily_loss": 0.05})
-
-        assert strategy.circuit_breaker is not None
-
     def test_init_kelly_disabled_by_default(self):
         """Kelly should be None when not enabled."""
         strategy = ConcreteStrategy()
@@ -166,18 +154,6 @@ class TestInitialize:
 
         assert strategy.symbols == ["AAPL"]
         assert strategy.interval == 120
-
-    @pytest.mark.asyncio
-    async def test_initialize_with_broker_initializes_circuit_breaker(self):
-        """Initialize with broker should set up circuit breaker."""
-        mock_broker = AsyncMock()
-        mock_broker.get_account = AsyncMock(return_value=MagicMock(equity="100000", cash="50000"))
-        strategy = ConcreteStrategy(broker=mock_broker)
-
-        await strategy.initialize()
-
-        # Circuit breaker should have been initialized with broker
-        assert strategy.circuit_breaker is not None
 
 
 # ============================================================================
@@ -733,7 +709,6 @@ class TestInitAttributes:
         strategy = ConcreteStrategy()
 
         # Access attributes set in __init__
-        assert hasattr(strategy, "circuit_breaker")
         assert hasattr(strategy, "kelly")
         assert hasattr(strategy, "volatility_regime")
         assert hasattr(strategy, "streak_sizer")

@@ -7,7 +7,7 @@ less strict parameters to generate realistic trade signals.
 
 import logging
 
-from brokers.order_builder import OrderBuilder
+from engine.order_submission import OrderIntent
 from strategies.momentum_strategy import MomentumStrategy
 
 logger = logging.getLogger(__name__)
@@ -167,11 +167,8 @@ class MomentumStrategyBacktest(MomentumStrategy):
                 )
                 return
 
-            order_request = OrderBuilder(symbol, side, qty).market().day().build()
             await self.submit_entry_order(
-                order_request=order_request,
-                reason="backtest_entry",
-                max_positions=self.parameters.get("max_positions"),
+                OrderIntent(symbol=symbol, side=side, qty=qty, reason="momentum_backtest_entry")
             )
 
         except Exception as e:

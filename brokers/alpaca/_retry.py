@@ -49,15 +49,15 @@ class OrderError(BrokerError):
 
 class GatewayBypassError(BrokerError):
     """
-    Raised when attempting to submit orders without using OrderGateway.
+    Raised when attempting to submit orders without using OrderSubmission.
 
-    CRITICAL SAFETY: All orders MUST route through OrderGateway to ensure:
+    CRITICAL SAFETY: All orders MUST route through OrderSubmission to ensure:
     - Circuit breaker checks
     - Position conflict detection
     - Risk manager limits enforcement
     - Audit trail maintenance
 
-    To fix this error, use order_gateway.submit_order() instead of
+    To fix this error, use order_submission.submit() instead of
     broker.submit_order_advanced() directly.
     """
 
