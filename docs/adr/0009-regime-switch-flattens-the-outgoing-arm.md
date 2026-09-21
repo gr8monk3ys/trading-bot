@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # One regime per bar; switching arms flattens the outgoing arm
 

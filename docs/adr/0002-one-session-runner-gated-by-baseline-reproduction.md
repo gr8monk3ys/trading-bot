@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # One session runner for live and backtest, gated by baseline reproduction
 
@@ -11,3 +11,7 @@ Because the refactor can change what a backtest measures, every step is gated: `
 
 - Keep two loops and document the gotcha (rejected: the gotcha already cost one corrupted baseline).
 - Unify and accept whatever the numbers become (rejected: silent verdict drift is the thing the repo exists to avoid).
+
+## Outcome (2026-09-21)
+
+The unified session reproduced the baseline exactly. The second run (`scripts/run_etf_baseline.py --exits`, trailing stops active in daily mode) gave 50 trades, +9.1% / Sharpe -0.02 at gross-100 versus +16.3% / 0.16 without; it did not change the verdict and the canonical artifacts stay the run without trailing stops (see `results/where_we_landed.md`).

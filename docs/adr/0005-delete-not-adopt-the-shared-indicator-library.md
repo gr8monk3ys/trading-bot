@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # Delete the shared indicator library rather than adopt it
 

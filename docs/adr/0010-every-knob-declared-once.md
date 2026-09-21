@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # Every configuration knob is declared once
 

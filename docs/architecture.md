@@ -26,9 +26,9 @@ The main data-flow paths through the system:
         └─────────┬──────────┘  └─────────┬──────────┘
                   │                       │
         ┌─────────▼──────────────────────▼──────────┐
-        │            BaseStrategy                    │
-        │   (strategies/base_strategy.py)            │
-        │                                            │
+        │     Session / LiveSession (engine/session.py) │
+        │   prepare() once, decide() per symbol,     │
+        │   submit the intents (ADR 0001)            │
         │  ┌─────────────────────────────────────┐  │
         │  │  MomentumStrategy / MeanReversion / │  │
         │  │  AdaptiveStrategy / SimpleMA        │  │

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # A failed bar fetch fails the run; it is never an empty backtest
 

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # Trade history is one store, separate from the audit trail
 

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 # Rejected and halted are order outcomes, not fills of zero
 
