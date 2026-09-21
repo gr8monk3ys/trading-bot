@@ -23,7 +23,7 @@ etc.), which is why mixin composition is preferred over plain helper modules.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Dict, List
 
 import pandas as pd
 
@@ -97,64 +97,6 @@ class BacktestCoreMixin:
     # ------------------------------------------------------------------
     # Per-symbol signal processing (used by run_backtest in runner.py)
     # ------------------------------------------------------------------
-
-    async def _process_symbol_signal(
-        self, symbol: str, strategy, backtest_broker, day_num: int
-    ) -> Dict[str, Any]:
-        """Process a single symbol's signal in parallel.
-
-        Performance optimization: This method allows multiple symbols to be
-        analyzed and traded concurrently using asyncio.gather().
-
-        Args:
-            symbol: The symbol to process
-            strategy: The strategy instance
-            backtest_broker: The backtest broker instance
-            day_num: Current day number (for debug logging)
-        """
-        event: Dict[str, Any] = {
-            "event_type": "decision",
-            "symbol": symbol,
-            "day_num": day_num,
-            "action": "neutral",
-            "trade_attempted": False,
-            "trade_executed": False,
-            "error": None,
-        }
-
-        if symbol not in backtest_broker.price_data:
-            event["action"] = "no_data"
-            return event
-
-        try:
-            signal = await strategy.analyze_symbol(symbol)
-            event["signal"] = (
-                signal if isinstance(signal, (dict, list, str, int, float, bool)) else str(signal)
-            )
-            if signal:
-                # Handle both string and dict signal formats
-                if isinstance(signal, str):
-                    action = signal
-                else:
-                    action = signal.get("action") if isinstance(signal, dict) else "neutral"
-                event["action"] = action
-
-                if day_num < 5:  # Log first few days for debugging
-                    logger.debug(f"  {symbol} signal: {action}")
-
-                if action not in ["hold", "neutral", None]:
-                    event["trade_attempted"] = True
-                    logger.info(f"  Trade signal: {symbol} - {action}")
-                    # Convert string signal to dict for execute_trade
-                    if isinstance(signal, str):
-                        signal = {"action": signal, "symbol": symbol}
-                    await strategy.execute_trade(symbol, signal)
-                    event["trade_executed"] = True
-        except Exception as e:
-            logger.warning(f"Error processing {symbol}: {e}")
-            event["error"] = str(e)
-
-        return event
 
     # ------------------------------------------------------------------
     # Trade-level PnL accounting (signed-position state machine, Step 2B)

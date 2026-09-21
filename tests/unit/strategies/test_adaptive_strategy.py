@@ -669,8 +669,8 @@ class TestSignalRouting:
         assert result.get("action") == "neutral"
 
     @pytest.mark.asyncio
-    async def test_execute_trade_delegates_to_active_strategy(self, mock_broker):
-        """Test that execute_trade delegates to the active strategy."""
+    async def test_decide_delegates_to_active_strategy(self, mock_broker):
+        """decide() delegates to the active arm."""
         from strategies.adaptive_strategy import AdaptiveStrategy
 
         with (
@@ -680,7 +680,7 @@ class TestSignalRouting:
         ):
             mock_momentum = AsyncMock()
             mock_momentum.initialize = AsyncMock(return_value=True)
-            mock_momentum.execute_trade = AsyncMock()
+            mock_momentum.decide = AsyncMock(return_value=[])
             MockMomentum.return_value = mock_momentum
 
             mock_mean_rev = AsyncMock()
@@ -690,9 +690,9 @@ class TestSignalRouting:
             strategy = AdaptiveStrategy(broker=mock_broker, symbols=TEST_SYMBOLS)
             await strategy.initialize()
 
-            await strategy.execute_trade(SINGLE_SYMBOL, "buy")
+            await strategy.decide("AAPL", None, None)
 
-            mock_momentum.execute_trade.assert_called_once_with(SINGLE_SYMBOL, "buy")
+            mock_momentum.decide.assert_awaited_once_with("AAPL", None, None)
 
     @pytest.mark.asyncio
     async def test_generate_signals_delegates_to_active_strategy(self, mock_broker):

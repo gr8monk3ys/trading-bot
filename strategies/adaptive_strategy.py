@@ -367,24 +367,15 @@ class AdaptiveStrategy(BaseStrategy):
             return technical_result
         return {"action": "neutral", "confidence": 0.0}
 
-    async def execute_trade(self, symbol: str, signal):
-        """
-        Execute trade using the active strategy.
+    async def prepare(self, when, histories) -> None:
+        if self.active_strategy:
+            await self.active_strategy.prepare(when, histories)
+            self.signals = self.active_strategy.signals.copy()
 
-        Args:
-            symbol: Stock symbol
-            signal: Signal dict with action / confidence, or a legacy string.
-        """
+    async def decide(self, symbol, when, portfolio):
         if not self.active_strategy:
-            return
-
-        # Extract action from signal
-        if isinstance(signal, dict):
-            action = signal.get("action", "neutral")
-            await self.active_strategy.execute_trade(symbol, action)
-        else:
-            # Legacy string signal
-            await self.active_strategy.execute_trade(symbol, signal)
+            return []
+        return await self.active_strategy.decide(symbol, when, portfolio)
 
     async def generate_signals(self):
         """Generate signals for all symbols using active strategy."""

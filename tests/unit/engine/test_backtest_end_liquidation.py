@@ -75,7 +75,7 @@ def _bars_by_symbol(symbols, start, n=10):
 
 
 class _BuyAndHoldStrategy(BaseStrategy):
-    """On day 1, buy a fixed quantity per symbol. Never sell.
+    """On its first decision per symbol, buy a fixed quantity. Never sell.
 
     This is the minimum strategy that guarantees the backtest ends with
     open positions, so the liquidation pass has work to do.
@@ -83,7 +83,6 @@ class _BuyAndHoldStrategy(BaseStrategy):
 
     NAME = "BuyAndHoldStrategy"
 
-    # Class-level state to avoid coupling to strategy-specific kwargs.
     _bought: set = set()
 
     async def initialize(self, **kwargs):
@@ -91,31 +90,21 @@ class _BuyAndHoldStrategy(BaseStrategy):
         type(self)._bought = set()
 
     async def analyze_symbol(self, symbol):
-        if symbol in type(self)._bought:
-            return {"action": "neutral"}
-        return {"action": "buy", "symbol": symbol}
+        return {"action": "neutral"}
 
-    async def execute_trade(self, symbol, signal):
-        if signal.get("action") != "buy":
-            return
+    async def prepare(self, when, histories):
+        pass
+
+    async def decide(self, symbol, when, view):
         if symbol in type(self)._bought:
-            return
-        result = await self.submit_entry_order(
-            OrderIntent(symbol=symbol, side="buy", qty=10, reason="buy_and_hold")
-        )
-        if result is not None and result.ok:
-            type(self)._bought.add(symbol)
+            return []
+        type(self)._bought.add(symbol)
+        return [OrderIntent(symbol=symbol, side="buy", qty=10, reason="buy_and_hold")]
 
 
 class _BuyThenSellStrategy(BaseStrategy):
-    """Buy on iteration 1, sell on iteration 2 — should leave 0 open positions.
-
-    Uses the gateway's `submit_exit_order` directly (bypassing
-    `BaseStrategy.submit_exit_order`, which does an `await
-    broker.get_positions()` that does not work against the sync
-    `BacktestBroker.get_positions` API). The gateway path is sufficient
-    to prove the engine adds no extra trades when nothing is left open.
-    """
+    """Buy on the first session, sell on the second: leaves 0 open positions,
+    so the engine must add no extra trades when nothing is left open."""
 
     NAME = "BuyThenSellStrategy"
 
@@ -127,32 +116,19 @@ class _BuyThenSellStrategy(BaseStrategy):
         type(self)._sold = set()
 
     async def analyze_symbol(self, symbol):
-        if symbol not in type(self)._bought:
-            return {"action": "buy", "symbol": symbol}
-        if symbol not in type(self)._sold:
-            return {"action": "sell", "symbol": symbol}
         return {"action": "neutral"}
 
-    async def execute_trade(self, symbol, signal):
-        action = signal.get("action")
-        if action == "buy" and symbol not in type(self)._bought:
-            result = await self.submit_entry_order(
-                OrderIntent(symbol=symbol, side="buy", qty=10, reason="enter")
-            )
-            if result is not None and result.ok:
-                type(self)._bought.add(symbol)
-        elif action == "sell" and symbol not in type(self)._sold:
-            # Close the full position via gateway's exit path directly.
-            gateway = getattr(self, "order_submission", None)
-            if gateway is None:
-                return
-            result = await gateway.submit(
-                OrderIntent(
-                    symbol=symbol, side="sell", qty=10, is_exit=True, strategy_name=self.name
-                )
-            )
-            if result is not None and result.ok:
-                type(self)._sold.add(symbol)
+    async def prepare(self, when, histories):
+        pass
+
+    async def decide(self, symbol, when, view):
+        if symbol not in type(self)._bought:
+            type(self)._bought.add(symbol)
+            return [OrderIntent(symbol=symbol, side="buy", qty=10, reason="enter")]
+        if symbol not in type(self)._sold:
+            type(self)._sold.add(symbol)
+            return [OrderIntent(symbol=symbol, side="sell", qty=10, is_exit=True, reason="exit")]
+        return []
 
 
 # =============================================================================

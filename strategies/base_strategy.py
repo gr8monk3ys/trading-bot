@@ -278,6 +278,88 @@ class BaseStrategy(ABC):
             )
         return outcome
 
+    # ------------------------------------------------------------------
+    # Decider interface: the session calls these; strategies never submit.
+    # ------------------------------------------------------------------
+
+    async def prepare(self, when, histories) -> None:
+        """Compute this session's signals from bar histories (bars strictly before ``when``).
+
+        The default feeds the legacy per-symbol structures and runs
+        ``generate_signals`` so existing signal code keeps working unchanged.
+        """
+        if not hasattr(self, "current_data"):
+            self.current_data = {}
+        for symbol, df in histories.items():
+            if len(df) == 0:
+                continue
+            self.current_data[symbol] = df
+            if hasattr(self, "price_history"):
+                self.price_history[symbol] = df["close"].tolist()[-30:]
+        generate = getattr(self, "generate_signals", None)
+        if callable(generate):
+            await generate()
+
+    async def decide(self, symbol, when, portfolio) -> list:
+        """Order intents for ``symbol`` this session. Default: none."""
+        return []
+
+    def _signal_action(self, symbol) -> str:
+        signal = getattr(self, "signals", {}).get(symbol, "neutral")
+        if isinstance(signal, dict):
+            signal = signal.get("action", "neutral")
+        return signal or "neutral"
+
+    async def _daily_intents(self, symbol, action, portfolio, *, size_pct, sizing_basis, reason):
+        """Fixed-fraction daily execution: enter when flat, exit on the opposite signal.
+
+        Reproduces the 2020-2024 baseline semantics exactly (integer shares,
+        equity- or cash-based sizing, no stop-and-reverse).
+        """
+        if action in ("neutral", "hold", None):
+            return []
+        held = portfolio.position(symbol)
+        cash = float(portfolio.cash)
+        price = await portfolio.ask_price(symbol)
+        if sizing_basis == "cash":
+            position_value = cash * size_pct
+        else:
+            position_value = (float(portfolio.equity) or cash) * size_pct
+        qty = int(position_value / price)
+        if action == "buy":
+            qty = min(qty, int(cash / price))
+        if qty <= 0:
+            return []
+        pos_qty = int(held.qty) if held is not None else 0
+        name = getattr(self, "name", self.__class__.__name__)
+
+        def entry(side):
+            return OrderIntent(
+                symbol=symbol, side=side, qty=qty, strategy_name=name, reason=f"{reason}_entry"
+            )
+
+        def exit_(side, q):
+            return OrderIntent(
+                symbol=symbol,
+                side=side,
+                qty=q,
+                is_exit=True,
+                strategy_name=name,
+                reason=f"{reason}_exit",
+            )
+
+        if action == "buy" and held is None:
+            return [entry("buy")]
+        if action == "short" and held is None:
+            return [entry("sell")]
+        if action == "short" and pos_qty > 0:
+            return [exit_("sell", pos_qty)]
+        if action == "buy" and pos_qty < 0:
+            return [exit_("buy", -pos_qty)]
+        if action == "sell" and pos_qty > 0:
+            return [exit_("sell", pos_qty)]
+        return []
+
     def _extract_close_price_history(self, symbol: str) -> list[float]:
         """
         Normalize symbol history into a close-price series for risk calculations.
@@ -351,14 +433,6 @@ class BaseStrategy(ABC):
     @abstractmethod
     async def analyze_symbol(self, symbol):
         """Analyze a symbol and return trading signals."""
-        pass
-
-    @abstractmethod
-    async def execute_trade(self, symbol, signal):
-        """Execute a trade based on the signal.
-
-        P1 FIX: Added async to match implementations in subclasses.
-        """
         pass
 
     def create_order(

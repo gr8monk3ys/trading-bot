@@ -484,10 +484,17 @@ class MeanReversionStrategy(BaseStrategy):
         """Analyze a symbol and return trading signal."""
         return self.signals.get(symbol, "neutral")
 
-    async def execute_trade(self, symbol, signal):
-        """Execute a trade based on the signal."""
-        # This is already handled in _execute_signal
-        pass
+    async def decide(self, symbol, when, portfolio):
+        """Daily execution of this session's signal. Before the session runner,
+        mean reversion computed signals in backtests but never traded them."""
+        return await self._daily_intents(
+            symbol,
+            self._signal_action(symbol),
+            portfolio,
+            size_pct=float(self.parameters.get("position_size_pct", 0.10)),
+            sizing_basis=self.parameters.get("sizing_basis", "equity"),
+            reason="mean_reversion_backtest",
+        )
 
     async def generate_signals(self):
         """Generate signals for all symbols (used in backtest mode)."""

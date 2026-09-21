@@ -1579,17 +1579,6 @@ class TestAnalyzeSymbol:
 class TestExecuteTrade:
     """Tests for the execute_trade method."""
 
-    @pytest.mark.asyncio
-    async def test_execute_trade_is_noop(self):
-        """Test that execute_trade does nothing (handled in _execute_signal)."""
-        from strategies.momentum_strategy import MomentumStrategy
-
-        strategy = MomentumStrategy.__new__(MomentumStrategy)
-
-        result = await strategy.execute_trade("AAPL", "buy")
-
-        assert result is None
-
 
 class TestGenerateSignals:
     """Tests for the generate_signals method (backtest mode)."""

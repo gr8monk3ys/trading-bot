@@ -105,6 +105,39 @@ class SimpleMACrossoverStrategy(BaseStrategy):
             logger.error(f"Error updating signal for {symbol}: {e}")
             self.signals[symbol] = "neutral"
 
+    async def decide(self, symbol, when, portfolio):
+        """Buy 20% of cash on a bullish crossover when flat; sell the position on a bearish one."""
+        action = self._signal_action(symbol)
+        if action == "neutral":
+            return []
+        held = portfolio.position(symbol)
+        price = await portfolio.ask_price(symbol)
+        name = getattr(self, "name", self.__class__.__name__)
+        if action == "buy" and held is None:
+            qty = int(portfolio.cash * 0.20 / price)
+            if qty > 0:
+                return [
+                    OrderIntent(
+                        symbol=symbol,
+                        side="buy",
+                        qty=qty,
+                        strategy_name=name,
+                        reason="simple_ma_entry",
+                    )
+                ]
+        elif action == "sell" and held is not None and int(held.qty) > 0:
+            return [
+                OrderIntent(
+                    symbol=symbol,
+                    side="sell",
+                    qty=int(held.qty),
+                    is_exit=True,
+                    strategy_name=name,
+                    reason="simple_ma_exit",
+                )
+            ]
+        return []
+
     async def analyze_symbol(self, symbol: str) -> Dict[str, Any]:
         """
         Analyze a symbol and return trading signal.
@@ -115,62 +148,3 @@ class SimpleMACrossoverStrategy(BaseStrategy):
         signal = self.signals.get(symbol, "neutral")
 
         return {"action": signal, "symbol": symbol, "strategy": self.NAME}
-
-    async def execute_trade(self, symbol: str, signal: Dict[str, Any]):
-        """Execute a trade based on signal."""
-        action = signal.get("action", "neutral")
-
-        if action == "neutral":
-            return
-
-        try:
-            # Get current position
-            position = None
-            positions = await self.broker.get_positions()
-            position = next((p for p in positions if p.symbol == symbol), None)
-
-            # Get account info
-            account = await self.broker.get_account()
-            cash = float(account.cash)
-
-            # Simple position sizing: 20% of cash per position
-            position_size = cash * 0.20
-
-            # Get current price
-            quote = await self.broker.get_latest_quote(symbol)
-            price = float(quote.ask_price)
-
-            if action == "buy" and position is None:
-                # Open new position
-                qty = int(position_size / price)
-                if qty > 0:
-                    await self._place_order(symbol, qty, "buy")
-                    logger.info(f"BUY {qty} shares of {symbol} @ ${price:.2f}")
-
-            elif action == "sell" and position is not None:
-                # Close position
-                pos_qty = int(position.qty)
-                if pos_qty > 0:
-                    await self._place_order(symbol, pos_qty, "sell")
-                    logger.info(f"SELL {pos_qty} shares of {symbol} @ ${price:.2f}")
-
-        except Exception as e:
-            logger.error(f"Error executing trade for {symbol}: {e}")
-
-    async def _place_order(self, symbol: str, qty: int, side: str):
-        """Place an order through the broker."""
-        try:
-            if side == "buy":
-                await self.submit_entry_order(
-                    OrderIntent(symbol=symbol, side="buy", qty=qty, reason="simple_ma_entry")
-                )
-            else:
-                await self.submit_exit_order(
-                    symbol=symbol,
-                    qty=qty,
-                    side="sell",
-                    reason="simple_ma_exit",
-                )
-
-        except Exception as e:
-            logger.error(f"Error placing order: {e}")

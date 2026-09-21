@@ -23,7 +23,6 @@ This mixin depends on helpers provided by ``BacktestCoreMixin`` and is
 composed onto ``BacktestEngine`` together with it.
 """
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Type
@@ -33,6 +32,7 @@ import pytz
 
 from engine.historical_bars import BrokerBars, DataUnavailableError, YFinanceBars, load_bars
 from engine.order_submission import OrderIntent
+from engine.session import Session
 from utils.portfolio_stress import run_portfolio_stress_test
 
 logger = logging.getLogger(__name__)
@@ -141,6 +141,7 @@ class BacktestRunnerMixin:
 
         order_submission = OrderSubmission(backtest_broker)
         strategy.order_submission = order_submission
+        session = Session(strategy, backtest_broker, order_submission, symbols)
 
         # Initialize the strategy if it has an initialize method
         if hasattr(strategy, "initialize"):
@@ -193,65 +194,25 @@ class BacktestRunnerMixin:
                 )
 
                 # Ensure strategy has current_data attribute
-                if not hasattr(strategy, "current_data"):
-                    strategy.current_data = {}
-
                 # No survivorship-bias correction: trade the full symbol list each day.
-                tradeable_symbols = symbols
-
-                for symbol in tradeable_symbols:
-                    if symbol in backtest_broker.price_data:
-                        df = backtest_broker.price_data[symbol]
-                        # CRITICAL: Use strictly LESS THAN (<) to prevent look-ahead bias
-                        # Strategy should only see data from BEFORE the current trading day
-                        # Using <= would allow seeing today's close when making today's decision
-                        try:
-                            historical = df[df.index < current_date_utc]
-                        except TypeError:
-                            # If comparison fails, try normalizing the index
-                            df_naive = df.copy()
-                            df_naive.index = df_naive.index.tz_localize(None)
-                            historical = df_naive[
-                                df_naive.index < current_date.replace(tzinfo=None)
-                            ]
-
-                        if len(historical) > 0:
-                            prices = historical["close"].tolist()
-                            if hasattr(strategy, "price_history"):
-                                strategy.price_history[symbol] = prices[-30:]  # Keep last 30 days
-                            # Also populate current_data with the historical DataFrame
-                            strategy.current_data[symbol] = historical
-
-                # Generate signals if the strategy has a generate_signals method
-                if hasattr(strategy, "generate_signals"):
+                # Strategies see bars strictly BEFORE the current session (no look-ahead).
+                histories = {}
+                for symbol in symbols:
+                    df = backtest_broker.price_data.get(symbol)
+                    if df is None:
+                        continue
                     try:
-                        await strategy.generate_signals()
-                    except Exception as e:
-                        logger.debug(f"Error in generate_signals: {e}")
+                        historical = df[df.index < current_date_utc]
+                    except TypeError:
+                        df_naive = df.copy()
+                        df_naive.index = df_naive.index.tz_localize(None)
+                        historical = df_naive[df_naive.index < current_date.replace(tzinfo=None)]
+                    if len(historical) > 0:
+                        histories[symbol] = historical
 
-                # Performance optimization: Process all symbols in parallel using asyncio.gather
-                # This significantly speeds up backtests with many symbols by running
-                # analyze_symbol and execute_trade concurrently
-                # Only process symbols that were tradeable on this date
-                decision_events = await asyncio.gather(
-                    *[
-                        self._process_symbol_signal(symbol, strategy, backtest_broker, day_num)
-                        for symbol in tradeable_symbols
-                    ],
-                    return_exceptions=True,  # Don't fail on individual symbol errors
-                )
-
-                for event in decision_events:
-                    if isinstance(event, Exception):
-                        decision_error_count += 1
-                        continue
-
-                    if not isinstance(event, dict):
-                        continue
-
-                    decision_event_count += 1
-                    if event.get("error"):
-                        decision_error_count += 1
+                report = await session.run_session(current_date, histories)
+                decision_event_count += report.decisions
+                decision_error_count += report.errors
 
                 # Record equity and gross exposure at end of day
                 portfolio_value = backtest_broker.get_portfolio_value(current_date)
