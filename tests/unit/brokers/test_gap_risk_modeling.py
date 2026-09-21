@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from brokers.backtest_broker import BacktestBroker, GapEvent, GapStatistics
+from brokers.backtest import BacktestBroker, GapEvent, GapStatistics
 
 # ============================================================================
 # FIXTURES

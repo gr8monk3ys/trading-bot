@@ -12,9 +12,9 @@ APIs.
 
 from unittest.mock import AsyncMock, Mock
 
-from brokers.backtest_broker import BacktestBroker
+from brokers.backtest import BacktestBroker
 from engine.backtest_order_gateway import OrderResult
-from strategies.base.strategy import BaseStrategy
+from strategies.base_strategy import BaseStrategy
 
 
 class _ExitProbeStrategy(BaseStrategy):

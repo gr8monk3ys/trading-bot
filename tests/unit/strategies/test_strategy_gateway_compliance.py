@@ -32,7 +32,7 @@ class StrategyClassInfo:
 def _read_strategy_classes() -> dict[str, StrategyClassInfo]:
     """Parse strategy modules and return class metadata by class name."""
     class_map: dict[str, StrategyClassInfo] = {}
-    for path in sorted(STRATEGY_DIR.glob("*.py")):
+    for path in sorted(STRATEGY_DIR.rglob("*.py")):
         if path.name in {"__init__.py", "base_strategy.py"}:
             continue
 

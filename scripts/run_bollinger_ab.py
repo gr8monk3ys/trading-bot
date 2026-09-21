@@ -1,6 +1,6 @@
 """A/B the Bollinger filter on the ETF baseline, holding everything else fixed.
 
-Why this exists: `strategies/momentum/signals.py` adds +0.5 to a buy score
+Why this exists: `strategies/momentum_strategy.py` adds +0.5 to a buy score
 when price sits near the lower band and subtracts 0.5 near the upper band —
 mean-reversion scoring layered onto a momentum signal that needs >= 2.0 to
 fire. Production defaults have the filter OFF ("DISABLED - enable after
