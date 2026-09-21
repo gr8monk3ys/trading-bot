@@ -24,7 +24,7 @@ Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
   regime switcher, `risk_manager/`, `base_strategy.py`.
 - `brokers/` Alpaca wrapper, backtest broker, `order_builder.py`.
 - `engine/` backtest engine, performance metrics, strategy manager, order submission.
-- `utils/` circuit breaker, market regime, websocket, database, audit log.
+- `utils/` circuit breaker, market regime, websocket, audit log. Trade history is `engine/trade_history.py`.
 - `main.py` the only CLI: `live`, `backtest`, `optimize`.
 - `results/` committed backtest artifacts; `docs/architecture.md` for the data flow.
 - Unvalidated quant code (factor models, pairs trading, walk-forward harness) is

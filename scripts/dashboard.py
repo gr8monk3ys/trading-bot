@@ -23,7 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from brokers.alpaca_broker import AlpacaBroker
-from utils.performance_tracker import PerformanceTracker
+from engine.trade_history import SqliteStore, TradeHistory
 
 
 class TradingDashboard:
@@ -31,7 +31,7 @@ class TradingDashboard:
 
     def __init__(self):
         self.broker = None
-        self.tracker = PerformanceTracker()
+        self.history = TradeHistory(SqliteStore("data/trading_bot.db"))
         self.running = True
 
     async def initialize(self):
@@ -109,7 +109,7 @@ class TradingDashboard:
             # Recent Trades
             print("\n📈 RECENT TRADES")
             print("-" * 100)
-            recent_trades = self.tracker.trades[-10:]  # Last 10 trades
+            recent_trades = list(reversed(self.history.trades(limit=10)))
             if recent_trades:
                 print(f"{'Time':<20} {'Symbol':<8} {'Side':<6} {'P/L $':>12} {'P/L %':>10}")
                 print("-" * 100)
@@ -127,21 +127,16 @@ class TradingDashboard:
             print("-" * 100)
 
             # Performance Metrics
-            if self.tracker.trades:
-                metrics = self.tracker.calculate_metrics(100000)
-
+            summary = self.history.summary()
+            if summary["total_trades"]:
                 print("\n📊 PERFORMANCE METRICS")
                 print("-" * 100)
+                pf = summary["profit_factor"]
                 print(
-                    f"  Total Trades: {metrics.total_trades:>4}  |  "
-                    f"Win Rate: {metrics.win_rate:>6.1%}  |  "
-                    f"Profit Factor: {metrics.profit_factor:>6.2f}  |  "
-                    f"Sharpe: {metrics.sharpe_ratio:>6.2f}"
-                )
-                print(
-                    f"  Total Return: ${metrics.total_return:>+10,.2f} ({metrics.total_return_pct:>+7.2%})  |  "
-                    f"Max DD: {metrics.max_drawdown_pct:>7.2%}  |  "
-                    f"Avg Win: ${metrics.avg_win:>8,.2f}"
+                    f"  Total Trades: {summary['total_trades']:>4}  |  "
+                    f"Win Rate: {summary['win_rate']:>6.1%}  |  "
+                    f"Profit Factor: {(pf if pf is not None else float('nan')):>6.2f}  |  "
+                    f"Total P/L: ${summary['total_pnl']:>+10,.2f}"
                 )
                 print("-" * 100)
 

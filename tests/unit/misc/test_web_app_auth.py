@@ -23,7 +23,7 @@ def client(monkeypatch):
         # auth tests must exercise the default (offline) endpoint paths, never
         # the network.
         monkeypatch.setattr(web_app, "_broker", None)
-        monkeypatch.setattr(web_app, "_db", None)
+        monkeypatch.setattr(web_app, "_history", None)
         yield c
 
 
