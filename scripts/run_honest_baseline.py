@@ -24,13 +24,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import sys
 import traceback
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 # Ensure repo root is on sys.path so this script can be run as `python scripts/...`
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -52,192 +49,11 @@ SPREAD_BPS = 10  # 0.10%
 MIN_TRADES_FOR_SIGNIFICANCE = 50
 SPEC_REF = "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md"
 
+from engine.historical_bars import DataUnavailableError, resolve_bars_source  # noqa: E402
+
 RESULTS_DIR = REPO_ROOT / "results"
 MD_PATH = RESULTS_DIR / "honest_backtest_2020-2024.md"
 JSON_PATH = RESULTS_DIR / "honest_backtest_2020-2024.json"
-
-
-@dataclass
-class SimpleBar:
-    """Minimal bar object matching what engine.backtest_engine reads.
-
-    The engine accesses .timestamp, .open, .high, .low, .close, .volume — see
-    engine/backtest_engine.py:_load_symbol_data. Anything with those attributes works.
-    """
-
-    timestamp: Any
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-
-
-class YFinanceDataBroker:
-    """A read-only data broker that serves daily bars from yfinance.
-
-    BacktestEngine.run_backtest only calls one method on the data broker:
-    `await data_broker.get_bars(symbol, start=..., end=..., timeframe="1Day")`,
-    so that is the only thing this class needs to implement.
-    """
-
-    def __init__(self) -> None:
-        import yfinance as yf
-
-        self._yf = yf
-
-    async def get_bars(self, symbol, start=None, end=None, timeframe="1Day", limit=None):
-        # yfinance is synchronous; run in thread to avoid blocking the event loop.
-        return await asyncio.to_thread(self._sync_get_bars, symbol, start, end)
-
-    def _sync_get_bars(self, symbol, start, end):
-        try:
-            df = self._yf.download(
-                symbol,
-                start=start,
-                end=end,
-                progress=False,
-                auto_adjust=False,
-                threads=False,
-            )
-        except Exception as exc:
-            logger.warning("yfinance fetch failed for %s: %s", symbol, exc)
-            return []
-
-        if df is None or df.empty:
-            return []
-
-        # yfinance 1.3 returns a MultiIndex column frame when downloading a
-        # single ticker — flatten to a single-level by picking the symbol.
-        if hasattr(df.columns, "nlevels") and df.columns.nlevels > 1:
-            try:
-                df = df.xs(symbol, axis=1, level=-1)
-            except KeyError:
-                df.columns = [c[0] for c in df.columns]
-
-        bars = []
-        for ts, row in df.iterrows():
-            try:
-                open_p = float(row["Open"])
-                high_p = float(row["High"])
-                low_p = float(row["Low"])
-                close_p = float(row["Close"])
-                volume = float(row["Volume"]) if not _isnan(row["Volume"]) else 0.0
-            except (KeyError, TypeError, ValueError):
-                continue
-            if any(_isnan(x) for x in (open_p, high_p, low_p, close_p)):
-                continue
-            bars.append(
-                SimpleBar(
-                    timestamp=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
-                    open=open_p,
-                    high=high_p,
-                    low=low_p,
-                    close=close_p,
-                    volume=volume,
-                )
-            )
-        return bars
-
-
-def _isnan(x) -> bool:
-    try:
-        return x != x  # NaN is the only value not equal to itself
-    except Exception:
-        return False
-
-
-async def _try_alpaca_data_broker():
-    """Return an AlpacaBroker for data or None if credentials/import are unavailable."""
-    if not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
-        logger.info("Alpaca credentials not set — will fall back to yfinance.")
-        return None
-    try:
-        from brokers.alpaca_broker import AlpacaBroker
-
-        broker = AlpacaBroker(paper=True)
-        # Sanity probe one symbol to confirm the API actually works in this env.
-        probe = await broker.get_bars("SPY", start="2024-01-01", end="2024-01-10", timeframe="1Day")
-        if not probe:
-            logger.warning("Alpaca probe returned no bars — falling back to yfinance.")
-            return None
-        return broker
-    except Exception as exc:
-        logger.warning("Alpaca broker unusable (%s) — falling back to yfinance.", exc)
-        return None
-
-
-async def _try_yfinance_data_broker():
-    try:
-        broker = YFinanceDataBroker()
-        # Sanity probe so we fail fast if the network is gone.
-        probe = await broker.get_bars("SPY", start="2024-01-01", end="2024-01-10")
-        if not probe:
-            return None
-        return broker
-    except Exception as exc:
-        logger.warning("yfinance unusable: %s", exc)
-        return None
-
-
-async def _resolve_data_broker():
-    """Try Alpaca, then yfinance. Returns (broker, source_name) or (None, error_msg)."""
-    alpaca = await _try_alpaca_data_broker()
-    if alpaca is not None:
-        return alpaca, "alpaca"
-
-    yfin = await _try_yfinance_data_broker()
-    if yfin is not None:
-        return yfin, "yfinance"
-
-    return None, (
-        "No data source available. Tried Alpaca (credentials missing or API "
-        "unreachable) and yfinance (network unreachable or rate-limited). "
-        "To run: set ALPACA_API_KEY and ALPACA_SECRET_KEY, or ensure outbound "
-        "network access to yfinance from this environment."
-    )
-
-
-def _write_data_unavailable_report(reason: str) -> None:
-    RESULTS_DIR.mkdir(exist_ok=True)
-    artifact = {
-        "spec_ref": SPEC_REF,
-        "generated_at": datetime.utcnow().isoformat() + "Z",
-        "status": "DATA_UNAVAILABLE",
-        "reason": reason,
-        "config": {
-            "symbols": SYMBOLS,
-            "start": START,
-            "end": END,
-            "initial_capital": INITIAL_CAPITAL,
-            "slippage_bps": SLIPPAGE_BPS,
-            "spread_bps": SPREAD_BPS,
-            "min_trades_for_significance": MIN_TRADES_FOR_SIGNIFICANCE,
-        },
-    }
-    JSON_PATH.write_text(json.dumps(artifact, indent=2, default=str))
-
-    md = (
-        "# Honest baseline backtest 2020-2024\n\n"
-        f"Generated: {artifact['generated_at']}\n"
-        f"Spec: `{SPEC_REF}`\n\n"
-        "> **Status: BACKTEST DID NOT RUN — data source unavailable.**\n\n"
-        f"{reason}\n\n"
-        "No metrics are reported because no backtest was executed. The previous "
-        "in-doc claims (`+42.68%` etc.) remain unsupported by a real evidence "
-        "file; once `scripts/run_honest_baseline.py` succeeds in an environment "
-        "with data access, this file will be replaced with the actual result.\n\n"
-        "## Configuration that would be used\n\n"
-        f"- **Strategy:** `MomentumStrategyBacktest` (daily-bar variant of MomentumStrategy, default parameters)\n"
-        f"- **Symbols:** {', '.join(SYMBOLS)}\n"
-        f"- **Period:** {START} to {END}\n"
-        f"- **Initial capital:** ${INITIAL_CAPITAL:,}\n"
-        f"- **Slippage:** {SLIPPAGE_BPS} bps per trade\n"
-        f"- **Spread:** {SPREAD_BPS} bps\n"
-        f"- **Significance bar:** {MIN_TRADES_FOR_SIGNIFICANCE} trades\n"
-    )
-    MD_PATH.write_text(md)
-    logger.error("Backtest did not run: %s", reason)
 
 
 def _format_pct(value, default="N/A") -> str:
@@ -374,7 +190,7 @@ def _format_markdown(artifact: dict) -> str:
 
 async def _run_backtest(data_broker, source_name: str) -> None:
     from engine.backtest_engine import BacktestEngine
-    from engine.performance_metrics import PerformanceMetrics
+    from engine.performance_metrics import PerformanceMetrics, verdict
 
     # NOTE on strategy choice:
     # The plan's draft script specified `MomentumStrategy`, but that class has
@@ -415,24 +231,15 @@ async def _run_backtest(data_broker, source_name: str) -> None:
 
     trades = result.get("trades", [])
     n_trades = len(trades)
-    inconclusive = n_trades < MIN_TRADES_FOR_SIGNIFICANCE
+    run_verdict = verdict(
+        metrics, n_trades, result.get("data_quality"), min_trades=MIN_TRADES_FOR_SIGNIFICANCE
+    )
+    inconclusive = not run_verdict.quotable
     equity_curve = result.get("equity_curve", [INITIAL_CAPITAL])
 
     data_quality = result.get("data_quality", {})
     symbols_loaded = data_quality.get("symbols_loaded", 0)
     symbols_requested = data_quality.get("symbols_requested", len(SYMBOLS))
-
-    # Defensive: if we asked for 10 symbols and 0 loaded, the backtest didn't
-    # really run — refuse to publish a misleading 0-trade INCONCLUSIVE result.
-    if symbols_loaded == 0:
-        reason = (
-            f"Backtest engine loaded 0 of {symbols_requested} requested symbols "
-            f"from data source `{source_name}`. No real backtest was executed. "
-            "Check network access and credentials, then re-run."
-        )
-        _write_data_unavailable_report(reason)
-        print("STATUS=DATA_UNAVAILABLE  (0 symbols loaded)")
-        return
 
     artifact = {
         "spec_ref": SPEC_REF,
@@ -490,21 +297,20 @@ async def _run_backtest(data_broker, source_name: str) -> None:
 
 async def main() -> int:
     try:
-        data_broker, source = await _resolve_data_broker()
-    except Exception as exc:
-        _write_data_unavailable_report(f"Unexpected error resolving data source: {exc}")
-        return 1
-
-    if data_broker is None:
-        _write_data_unavailable_report(source)  # `source` is the error string here
+        data_broker, source = await resolve_bars_source()
+    except DataUnavailableError as exc:
+        print(f"STATUS=DATA_UNAVAILABLE  {exc}")
         return 1
 
     try:
         await _run_backtest(data_broker, source)
+    except DataUnavailableError as exc:
+        print(f"STATUS=DATA_UNAVAILABLE  {exc}")
+        return 1
     except Exception as exc:
         tb = traceback.format_exc()
         logger.error("Backtest crashed: %s\n%s", exc, tb)
-        _write_data_unavailable_report(
+        logger.error(
             f"Backtest engine crashed before producing a result: {exc}\n\n"
             f"Traceback (last 1000 chars):\n{tb[-1000:]}"
         )

@@ -35,14 +35,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
-import os
 import sys
 import traceback
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 # Ensure repo root is on sys.path so this script can be run as `python scripts/...`
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -79,250 +75,11 @@ HAND_PICKED_BASELINE = {
     "n_trades": 102,
 }
 
+from engine.historical_bars import DataUnavailableError, resolve_bars_source  # noqa: E402
+
 RESULTS_DIR = REPO_ROOT / "results"
 MD_PATH = RESULTS_DIR / "etf_baseline_2020-2024.md"
 JSON_PATH = RESULTS_DIR / "etf_baseline_2020-2024.json"
-
-
-@dataclass
-class SimpleBar:
-    """Minimal bar object matching what engine.backtest_engine reads.
-
-    The engine accesses .timestamp, .open, .high, .low, .close, .volume — see
-    engine/backtest_engine.py:_load_symbol_data. Anything with those attributes works.
-    """
-
-    timestamp: Any
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-
-
-class YFinanceDataBroker:
-    """A read-only data broker that serves daily bars from yfinance.
-
-    BacktestEngine.run_backtest only calls one method on the data broker:
-    `await data_broker.get_bars(symbol, start=..., end=..., timeframe="1Day")`,
-    so that is the only thing this class needs to implement.
-    """
-
-    def __init__(self) -> None:
-        import yfinance as yf
-
-        self._yf = yf
-
-    async def get_bars(self, symbol, start=None, end=None, timeframe="1Day", limit=None):
-        # yfinance is synchronous; run in thread to avoid blocking the event loop.
-        return await asyncio.to_thread(self._sync_get_bars, symbol, start, end)
-
-    def _sync_get_bars(self, symbol, start, end):
-        try:
-            df = self._yf.download(
-                symbol,
-                start=start,
-                end=end,
-                progress=False,
-                auto_adjust=False,
-                threads=False,
-            )
-        except Exception as exc:
-            logger.warning("yfinance fetch failed for %s: %s", symbol, exc)
-            return []
-
-        if df is None or df.empty:
-            return []
-
-        if hasattr(df.columns, "nlevels") and df.columns.nlevels > 1:
-            try:
-                df = df.xs(symbol, axis=1, level=-1)
-            except KeyError:
-                df.columns = [c[0] for c in df.columns]
-
-        bars = []
-        for ts, row in df.iterrows():
-            try:
-                open_p = float(row["Open"])
-                high_p = float(row["High"])
-                low_p = float(row["Low"])
-                close_p = float(row["Close"])
-                volume = float(row["Volume"]) if not _isnan(row["Volume"]) else 0.0
-            except (KeyError, TypeError, ValueError):
-                continue
-            if any(_isnan(x) for x in (open_p, high_p, low_p, close_p)):
-                continue
-            bars.append(
-                SimpleBar(
-                    timestamp=ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts,
-                    open=open_p,
-                    high=high_p,
-                    low=low_p,
-                    close=close_p,
-                    volume=volume,
-                )
-            )
-        return bars
-
-
-def _isnan(x) -> bool:
-    try:
-        return x != x
-    except Exception:
-        return False
-
-
-async def _try_alpaca_data_broker():
-    """Return an AlpacaBroker for data or None if credentials/import are unavailable."""
-    if not (os.getenv("ALPACA_API_KEY") and os.getenv("ALPACA_SECRET_KEY")):
-        logger.info("Alpaca credentials not set — will fall back to yfinance.")
-        return None
-    try:
-        from brokers.alpaca_broker import AlpacaBroker
-
-        broker = AlpacaBroker(paper=True)
-        probe = await broker.get_bars("SPY", start="2024-01-01", end="2024-01-10", timeframe="1Day")
-        if not probe:
-            logger.warning("Alpaca probe returned no bars — falling back to yfinance.")
-            return None
-        return broker
-    except Exception as exc:
-        logger.warning("Alpaca broker unusable (%s) — falling back to yfinance.", exc)
-        return None
-
-
-async def _try_yfinance_data_broker():
-    try:
-        broker = YFinanceDataBroker()
-        probe = await broker.get_bars("SPY", start="2024-01-01", end="2024-01-10")
-        if not probe:
-            return None
-        return broker
-    except Exception as exc:
-        logger.warning("yfinance unusable: %s", exc)
-        return None
-
-
-async def _resolve_data_broker():
-    alpaca = await _try_alpaca_data_broker()
-    if alpaca is not None:
-        return alpaca, "alpaca"
-
-    yfin = await _try_yfinance_data_broker()
-    if yfin is not None:
-        return yfin, "yfinance"
-
-    return None, (
-        "No data source available. Tried Alpaca (credentials missing or API "
-        "unreachable) and yfinance (network unreachable or rate-limited). "
-        "To run: set ALPACA_API_KEY and ALPACA_SECRET_KEY, or ensure outbound "
-        "network access to yfinance from this environment."
-    )
-
-
-def _compute_buy_and_hold(
-    symbol: str,
-    start: str,
-    end: str,
-    initial_capital: float = INITIAL_CAPITAL,
-) -> dict:
-    """Compute buy-and-hold metrics for `symbol` over [start, end] via yfinance.
-
-    Returns a dict with total_return (fraction), cagr, sharpe (rf=0),
-    max_drawdown (negative fraction), final_equity, and n_days. Missing data
-    returns None fields rather than raising — benchmarks are nice-to-have,
-    not load-bearing.
-    """
-    try:
-        import yfinance as yf
-    except Exception as exc:
-        logger.warning("yfinance import failed for benchmark %s: %s", symbol, exc)
-        return _empty_benchmark(symbol, start, end, reason=f"yfinance import failed: {exc}")
-
-    try:
-        df = yf.download(
-            symbol,
-            start=start,
-            end=end,
-            progress=False,
-            auto_adjust=True,
-            threads=False,
-        )
-    except Exception as exc:
-        logger.warning("yfinance fetch failed for benchmark %s: %s", symbol, exc)
-        return _empty_benchmark(symbol, start, end, reason=f"yfinance fetch failed: {exc}")
-
-    if df is None or df.empty:
-        return _empty_benchmark(symbol, start, end, reason="no data")
-
-    # Single ticker download can come back as MultiIndex columns in newer yfinance.
-    if hasattr(df.columns, "nlevels") and df.columns.nlevels > 1:
-        try:
-            df = df.xs(symbol, axis=1, level=-1)
-        except KeyError:
-            df.columns = [c[0] for c in df.columns]
-
-    closes = df["Close"].squeeze().dropna()
-    if len(closes) < 2:
-        return _empty_benchmark(symbol, start, end, reason="<2 closes")
-
-    first = float(closes.iloc[0])
-    last = float(closes.iloc[-1])
-    if first <= 0:
-        return _empty_benchmark(symbol, start, end, reason="non-positive start price")
-
-    total_return = (last / first) - 1.0
-    final_equity = initial_capital * (last / first)
-
-    # CAGR from the period spanned by the actual close dates.
-    try:
-        first_ts = closes.index[0]
-        last_ts = closes.index[-1]
-        years = max((last_ts - first_ts).days / 365.25, 1e-9)
-    except Exception:
-        years = max(len(closes) / 252.0, 1e-9)
-    cagr = ((last / first) ** (1.0 / years)) - 1.0 if last > 0 else None
-
-    # Daily returns, Sharpe (rf=0, annualized), max drawdown.
-    daily_returns = closes.pct_change().dropna()
-    if len(daily_returns) >= 2:
-        mean = float(daily_returns.mean())
-        std = float(daily_returns.std(ddof=1))
-        sharpe = (mean / std) * math.sqrt(252) if std > 0 else None
-    else:
-        sharpe = None
-
-    running_max = closes.cummax()
-    drawdowns = (closes / running_max) - 1.0
-    max_dd = float(drawdowns.min()) if len(drawdowns) else None
-
-    return {
-        "symbol": symbol,
-        "start": start,
-        "end": end,
-        "total_return": total_return,
-        "cagr": cagr,
-        "sharpe": sharpe,
-        "max_drawdown": max_dd,
-        "final_equity": final_equity,
-        "n_days": int(len(closes)),
-        "reason": None,
-    }
-
-
-def _empty_benchmark(symbol: str, start: str, end: str, reason: str) -> dict:
-    return {
-        "symbol": symbol,
-        "start": start,
-        "end": end,
-        "total_return": None,
-        "cagr": None,
-        "sharpe": None,
-        "max_drawdown": None,
-        "final_equity": None,
-        "n_days": 0,
-        "reason": reason,
-    }
 
 
 def _abs_or_none(value):
@@ -351,47 +108,6 @@ def _format_num(value, fmt="{:.2f}", default="N/A") -> str:
         return fmt.format(float(value))
     except (TypeError, ValueError):
         return default
-
-
-def _write_data_unavailable_report(reason: str) -> None:
-    RESULTS_DIR.mkdir(exist_ok=True)
-    artifact = {
-        "spec_ref": SPEC_REF,
-        "generated_at": datetime.utcnow().isoformat() + "Z",
-        "status": "DATA_UNAVAILABLE",
-        "reason": reason,
-        "config": {
-            "symbols": SYMBOLS,
-            "start": START,
-            "end": END,
-            "initial_capital": INITIAL_CAPITAL,
-            "slippage_bps": SLIPPAGE_BPS,
-            "spread_bps": SPREAD_BPS,
-            "min_trades_for_significance": MIN_TRADES_FOR_SIGNIFICANCE,
-        },
-    }
-    JSON_PATH.write_text(json.dumps(artifact, indent=2, default=str))
-
-    md = (
-        "# ETF baseline 2020-2024 — survivorship-bias-free test of strategy edge\n\n"
-        f"Generated: {artifact['generated_at']}\n"
-        f"Spec: `{SPEC_REF}`\n\n"
-        "> **Status: BACKTEST DID NOT RUN — data source unavailable.**\n\n"
-        f"{reason}\n\n"
-        "No metrics are reported because no backtest was executed. Once the\n"
-        "script succeeds in an environment with data access, this file will be\n"
-        "replaced with the actual result.\n\n"
-        "## Configuration that would be used\n\n"
-        f"- **Strategy:** `MomentumStrategyBacktest` (daily-bar variant of MomentumStrategy, default parameters)\n"
-        f"- **Symbols:** {', '.join(SYMBOLS)}\n"
-        f"- **Period:** {START} to {END}\n"
-        f"- **Initial capital:** ${INITIAL_CAPITAL:,}\n"
-        f"- **Slippage:** {SLIPPAGE_BPS} bps per trade\n"
-        f"- **Spread:** {SPREAD_BPS} bps\n"
-        f"- **Significance bar:** {MIN_TRADES_FOR_SIGNIFICANCE} trades\n"
-    )
-    MD_PATH.write_text(md)
-    logger.error("Backtest did not run: %s", reason)
 
 
 def _format_markdown(artifact: dict) -> str:
@@ -646,7 +362,10 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
     exposure-sweep report.
     """
     from engine.backtest_engine import BacktestEngine
-    from engine.performance_metrics import PerformanceMetrics
+    from engine.historical_bars import (
+        compute_buy_and_hold,
+    )
+    from engine.performance_metrics import PerformanceMetrics, verdict
 
     # See run_honest_baseline.py for why we use the *Backtest variant —
     # MomentumStrategy.execute_trade is a no-op in the engine path.
@@ -683,22 +402,15 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
 
     trades = result.get("trades", [])
     n_trades = len(trades)
-    inconclusive = n_trades < MIN_TRADES_FOR_SIGNIFICANCE
+    run_verdict = verdict(
+        metrics, n_trades, result.get("data_quality"), min_trades=MIN_TRADES_FOR_SIGNIFICANCE
+    )
+    inconclusive = not run_verdict.quotable
     equity_curve = result.get("equity_curve", [INITIAL_CAPITAL])
 
     data_quality = result.get("data_quality", {})
     symbols_loaded = data_quality.get("symbols_loaded", 0)
     symbols_requested = data_quality.get("symbols_requested", len(SYMBOLS))
-
-    if symbols_loaded == 0:
-        reason = (
-            f"Backtest engine loaded 0 of {symbols_requested} requested symbols "
-            f"from data source `{source_name}`. No real backtest was executed. "
-            "Check network access and credentials, then re-run."
-        )
-        _write_data_unavailable_report(reason)
-        print("STATUS=DATA_UNAVAILABLE  (0 symbols loaded)")
-        return {"status": "DATA_UNAVAILABLE", "target_gross": target_gross}
 
     # Compute benchmarks in parallel-ish (sequentially is fine — these are
     # fast yfinance calls and the script is one-shot).
@@ -706,7 +418,7 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
     benchmarks = {}
     for bench in BENCHMARK_SYMBOLS:
         benchmarks[bench] = await asyncio.to_thread(
-            _compute_buy_and_hold,
+            compute_buy_and_hold,
             bench,
             START,
             END,
@@ -807,13 +519,9 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
 
 async def main() -> int:
     try:
-        data_broker, source = await _resolve_data_broker()
-    except Exception as exc:
-        _write_data_unavailable_report(f"Unexpected error resolving data source: {exc}")
-        return 1
-
-    if data_broker is None:
-        _write_data_unavailable_report(source)
+        data_broker, source = await resolve_bars_source()
+    except DataUnavailableError as exc:
+        print(f"STATUS=DATA_UNAVAILABLE  {exc}")
         return 1
 
     # Exposure sweep: same signals, same universe, only the sizing target
@@ -824,16 +532,25 @@ async def main() -> int:
     try:
         for target in targets:
             summaries.append(await _run_backtest(data_broker, source, target_gross=target))
+    except DataUnavailableError as exc:
+        print(f"STATUS=DATA_UNAVAILABLE  {exc}")
+        return 1
     except Exception as exc:
         tb = traceback.format_exc()
         logger.error("Backtest crashed: %s\n%s", exc, tb)
-        _write_data_unavailable_report(
+        logger.error(
             f"Backtest engine crashed before producing a result: {exc}\n\n"
             f"Traceback (last 1000 chars):\n{tb[-1000:]}"
         )
         return 1
 
     _write_sweep_report(summaries)
+    manifest = {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "producer": "scripts/run_etf_baseline.py",
+        "artifacts": [row["json_path"] for row in summaries if row.get("json_path")],
+    }
+    (RESULTS_DIR / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return 0
 
 

@@ -28,6 +28,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from engine.backtest_engine import BacktestEngine  # noqa: E402
+from engine.historical_bars import (  # noqa: E402
+    DataUnavailableError,
+    compute_buy_and_hold,
+    resolve_bars_source,
+)
 from engine.performance_metrics import PerformanceMetrics  # noqa: E402
 from scripts.run_etf_baseline import (  # noqa: E402
     END,
@@ -36,8 +41,6 @@ from scripts.run_etf_baseline import (  # noqa: E402
     RESULTS_DIR,
     START,
     SYMBOLS,
-    _compute_buy_and_hold,
-    _resolve_data_broker,
 )
 from strategies.momentum_strategy_backtest import MomentumStrategyBacktest  # noqa: E402
 
@@ -130,13 +133,14 @@ def _write_report(rows: list[dict], source: str, spy: dict) -> None:
 
 
 async def main() -> int:
-    data_broker, source = await _resolve_data_broker()
-    if data_broker is None:
-        print("DATA UNAVAILABLE:", source)
+    try:
+        data_broker, source = await resolve_bars_source()
+    except DataUnavailableError as exc:
+        print(f"STATUS=DATA_UNAVAILABLE  {exc}")
         return 1
 
     rows = [await _run(data_broker, use_bb) for use_bb in (True, False)]
-    spy = _compute_buy_and_hold("SPY", START, END)
+    spy = compute_buy_and_hold("SPY", START, END)
     _write_report(rows, source, spy)
 
     for r in rows:

@@ -33,11 +33,27 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = REPO_ROOT / "results"
 
 # The exposure sweep the README and CLAUDE.md quote.
-CURRENT = [
+# The producer publishes what it wrote; fall back to the known set only when
+# no manifest exists (e.g. a checkout that predates it).
+_FALLBACK_CURRENT = [
     "etf_baseline_2020-2024_gross25.json",
     "etf_baseline_2020-2024_gross50.json",
     "etf_baseline_2020-2024_gross100.json",
 ]
+
+
+def _current_from_manifest() -> list[str]:
+    manifest = RESULTS_DIR / "manifest.json"
+    if not manifest.exists():
+        return list(_FALLBACK_CURRENT)
+    try:
+        artifacts = json.loads(manifest.read_text()).get("artifacts", [])
+    except (OSError, ValueError):
+        return list(_FALLBACK_CURRENT)
+    return [Path(p).name for p in artifacts] or list(_FALLBACK_CURRENT)
+
+
+CURRENT = _current_from_manifest()
 
 # Kept for the record, banner-marked SUPERSEDED in their .md siblings.
 SUPERSEDED = [

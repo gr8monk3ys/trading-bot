@@ -28,6 +28,23 @@ from engine.backtest_engine import BacktestEngine
 # =============================================================================
 
 
+def _daily_bars(n):
+    """Minimal bar objects: the engine refuses to run on empty data (ADR 0008)."""
+    from types import SimpleNamespace
+
+    return [
+        SimpleNamespace(
+            timestamp=datetime(2024, 1, 1 + i),
+            open=100.0,
+            high=101.0,
+            low=99.0,
+            close=100.0,
+            volume=1e6,
+        )
+        for i in range(n)
+    ]
+
+
 @pytest.fixture
 def engine():
     """Create a basic BacktestEngine instance."""
@@ -272,7 +289,7 @@ class TestRunBacktestMethod:
         mock_strategy_class.return_value = mock_strategy_instance
 
         # Setup broker methods
-        engine_with_broker.broker.get_bars = AsyncMock(return_value=[])
+        engine_with_broker.broker.get_bars = AsyncMock(return_value=_daily_bars(5))
         engine_with_broker.broker.get_trades.return_value = []
         engine_with_broker.broker.get_portfolio_value.return_value = 100000
         engine_with_broker.broker.get_balance.return_value = 100000
@@ -310,7 +327,7 @@ class TestRunBacktestMethod:
         mock_strategy_instance.analyze_symbol = AsyncMock(return_value={"action": "neutral"})
         mock_strategy_class.return_value = mock_strategy_instance
 
-        engine_with_broker.broker.get_bars = AsyncMock(return_value=[])
+        engine_with_broker.broker.get_bars = AsyncMock(return_value=_daily_bars(5))
 
         with patch("brokers.backtest.BacktestBroker") as MockBacktestBroker:
             mock_bb = MagicMock()

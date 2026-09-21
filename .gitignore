@@ -96,6 +96,7 @@ results/*
 !results/can_this_beat_qqq.md
 # Canonical performance reference (exposure sweep, exits active).
 !results/etf_baseline_2020-2024_exposure_sweep.md
+!results/manifest.json
 !results/etf_baseline_2020-2024_gross25.md
 !results/etf_baseline_2020-2024_gross25.json
 !results/etf_baseline_2020-2024_gross50.md

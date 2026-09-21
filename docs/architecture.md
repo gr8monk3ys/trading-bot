@@ -85,9 +85,10 @@ Backtest engine and performance analytics.
 
 - `engine/backtest_engine.py` — `BacktestEngine` facade.
 - `engine/backtest/core.py` — session resolution, per-symbol signal processing, signed-position P&L calculator.
+- `engine/historical_bars.py` — the one way to load bars: Alpaca or yfinance adapter behind `load_bars`, a data outcome per symbol (loaded / empty / failed), and `DataUnavailableError` when any symbol is missing. The baseline scripts and the runner all use it (ADR 0008). Also hosts `compute_buy_and_hold`.
 - `engine/backtest/runner.py` — comprehensive backtest driver (data loading, broker setup, OrderSubmission wiring, end-of-period liquidation, result assembly).
 - `engine/order_submission.py` — `OrderSubmission`: the one path from an `OrderIntent` to an `OrderOutcome` (halt gate, build, dispatch, normalise, protective levels). Live and backtest differ only in the broker behind it (ADR 0004).
-- `engine/performance_metrics.py` — `PerformanceMetrics` class: total return, Sharpe, Sortino, Calmar, max drawdown, win rate, profit factor.
+- `engine/performance_metrics.py` — `PerformanceMetrics.calculate_metrics` (total return, Sharpe, Sortino, Calmar, max drawdown, win rate, profit factor) and `verdict()`, the one judgement of whether a run's numbers are quotable; every script renders that verdict.
 - `engine/statistical_testing.py` — Bonferroni / FDR-BH multiple-testing corrections, Cohen's d, Hedge's g effect sizes.
 - `engine/strategy_manager.py` — orchestrates multiple strategies in live mode; capital allocation.
 
@@ -159,7 +160,7 @@ Optional FastAPI dashboard for live monitoring.
 5. `brokers/alpaca/orders.py` — how orders actually go to Alpaca.
 
 **If you're touching the backtest path:**
-1. `scripts/run_etf_baseline.py` — the canonical baseline script (read it as the reference invocation).
+1. `scripts/run_etf_baseline.py` — the canonical baseline script (read it as the reference invocation). It writes `results/manifest.json`, which `scripts/audit_results.py` reads.
 2. `engine/backtest/runner.py` — `run_backtest` driver.
 3. `engine/backtest/core.py` — per-symbol signal processing and P&L matching.
 4. `brokers/backtest/execution.py` — how simulated orders fill.
