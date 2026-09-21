@@ -416,7 +416,7 @@ class TestPlaceOrder:
         assert order.symbol == "AAPL"
         assert order.qty == 100
         assert order.side == "buy"
-        assert order.type == "market"
+        assert order.order_type == "market"
 
     @pytest.mark.asyncio
     async def test_place_order_sell(self):

@@ -7,8 +7,8 @@ Only `use_bollinger_filter` differs between the two rows.
 
 | Bollinger filter | Trades | Total return | Sharpe | Max DD | Avg gross |
 |---|---|---|---|---|---|
-| ON | 26 | 16.44% | 0.16 | 12.90% | 59.06% |
-| OFF | 66 | -1.88% | -0.11 | 21.50% | 82.03% |
+| ON | 26 | 16.28% | 0.16 | 12.91% | 59.10% |
+| OFF | 66 | -2.08% | -0.11 | 21.52% | 82.05% |
 | _SPY buy-and-hold_ | — | 95.30% | 0.75 | -33.72% | 100% |
 
 ## What this settles
@@ -18,9 +18,9 @@ momentum strategy is supposed to buy. **The opposite is true, and it matters
 more than the filter itself.**
 
 
-Turning the filter off roughly triples trade count (26 to 66), pushes average gross exposure from 59.06% to 82.03%, and takes
-total return from 16.44% to -1.88% — from thin positive to outright negative,
-with drawdown nearly doubling (12.90% to 21.50%).
+Turning the filter off roughly triples trade count (26 to 66), pushes average gross exposure from 59.10% to 82.05%, and takes
+total return from 16.28% to -2.08% — from thin positive to outright negative,
+with drawdown nearly doubling (12.91% to 21.52%).
 
 
 So the mean-reversion overlay is not fighting the momentum signal; it is

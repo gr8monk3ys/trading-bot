@@ -13,7 +13,7 @@ APIs.
 from unittest.mock import AsyncMock, Mock
 
 from brokers.backtest import BacktestBroker
-from engine.backtest_order_gateway import OrderResult
+from engine.order_submission import OrderOutcome, OrderStatus
 from strategies.base_strategy import BaseStrategy
 
 
@@ -31,10 +31,10 @@ def _strategy_with_position():
     broker = BacktestBroker(initial_balance=100_000)
     broker.positions["SPY"] = {"symbol": "SPY", "quantity": 10, "entry_price": 100.0}
     gateway = Mock()
-    gateway.submit_exit_order = AsyncMock(
-        return_value=OrderResult(success=True, order_id="bt-1", side="sell", quantity=10)
+    gateway.submit = AsyncMock(
+        return_value=OrderOutcome(OrderStatus.FILLED, "SPY", "sell", 10, 10, "bt-1")
     )
-    strategy = _ExitProbeStrategy(broker=broker, order_gateway=gateway)
+    strategy = _ExitProbeStrategy(broker=broker, order_submission=gateway)
     return strategy, gateway
 
 
@@ -43,9 +43,9 @@ async def test_submit_exit_order_reaches_gateway_under_backtest_broker():
 
     result = await strategy.submit_exit_order(symbol="SPY", qty=10, reason="signal_exit")
 
-    assert result is not None and result.success
-    gateway.submit_exit_order.assert_awaited_once()
-    assert gateway.submit_exit_order.call_args.kwargs["symbol"] == "SPY"
+    assert result is not None and result.ok
+    gateway.submit.assert_awaited_once()
+    assert gateway.submit.call_args.args[0].symbol == "SPY"
 
 
 async def test_submit_exit_order_still_rejects_unheld_symbol():
@@ -54,4 +54,4 @@ async def test_submit_exit_order_still_rejects_unheld_symbol():
     result = await strategy.submit_exit_order(symbol="QQQ", qty=5, reason="signal_exit")
 
     assert result is None
-    gateway.submit_exit_order.assert_not_awaited()
+    gateway.submit.assert_not_awaited()

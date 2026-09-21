@@ -12,6 +12,7 @@ Tests cover:
 - Backtest mode (generate_signals, get_orders)
 """
 
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -128,9 +129,7 @@ class TestMeanReversionStrategyInitialize:
         }
         strategy = MeanReversionStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             result = await strategy.initialize()
 
         assert result is True
@@ -150,9 +149,7 @@ class TestMeanReversionStrategyInitialize:
         }
         strategy = MeanReversionStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert "AAPL" in strategy.indicators
@@ -177,9 +174,7 @@ class TestMeanReversionStrategyInitialize:
         }
         strategy = MeanReversionStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert strategy.use_multi_timeframe is True
@@ -199,9 +194,7 @@ class TestMeanReversionStrategyInitialize:
         }
         strategy = MeanReversionStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert strategy.enable_short_selling is True
@@ -220,9 +213,7 @@ class TestMeanReversionStrategyInitialize:
         }
         strategy = MeanReversionStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         assert hasattr(strategy, "risk_manager")
@@ -255,9 +246,7 @@ class TestMeanReversionStrategyInitialize:
         }
         strategy = MeanReversionStrategy(broker=mock_broker, parameters=params)
 
-        with patch.object(
-            strategy, "check_trading_allowed", new_callable=AsyncMock, return_value=True
-        ):
+        with nullcontext():
             await strategy.initialize()
 
         mock_broker._add_subscriber.assert_called_once_with(strategy)

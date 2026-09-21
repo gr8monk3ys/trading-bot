@@ -8,7 +8,7 @@ via multiple inheritance:
     - core.py          — session resolution, per-symbol signal
                          processing, signed-qty PnL accounting
     - runner.py        — comprehensive run_backtest() driver, data
-                         loading, OrderGateway wiring, end-of-period
+                         loading, OrderSubmission wiring, end-of-period
                          liquidation, result assembly
 
 External callers continue to import ``BacktestEngine`` from

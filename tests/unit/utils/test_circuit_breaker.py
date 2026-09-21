@@ -422,13 +422,13 @@ class TestEmergencyClosePositions:
         ), "Should submit orders for both positions"
 
     @pytest.mark.asyncio
-    async def test_close_positions_uses_order_gateway_when_available(self, cb_for_close):
+    async def test_close_positions_uses_order_submission_when_available(self, cb_for_close):
         """Test emergency close routes through order gateway when configured."""
         pos1 = create_mock_position(TEST_SYMBOL_1, TEST_POSITION_QTY_1)
         cb_for_close.broker.get_positions.return_value = [pos1]
-        cb_for_close.order_gateway = AsyncMock()
-        cb_for_close.order_gateway.submit_exit_order = AsyncMock(
-            return_value=MagicMock(success=True, order_id="exit-1")
+        cb_for_close.order_submission = AsyncMock()
+        cb_for_close.order_submission.submit = AsyncMock(
+            return_value=MagicMock(ok=True, order_id="exit-1")
         )
 
         with patch("brokers.order_builder.OrderBuilder") as MockOrderBuilder:
@@ -440,7 +440,7 @@ class TestEmergencyClosePositions:
 
             await cb_for_close._emergency_close_positions()
 
-        cb_for_close.order_gateway.submit_exit_order.assert_called_once()
+        cb_for_close.order_submission.submit.assert_called_once()
         cb_for_close.broker.submit_order_advanced.assert_not_called()
 
     @pytest.mark.asyncio
@@ -450,9 +450,9 @@ class TestEmergencyClosePositions:
         cb_for_close.broker.get_positions.return_value = [pos1]
         cb_for_close.broker._gateway_required = True
         cb_for_close.broker._internal_submit_order = AsyncMock()
-        cb_for_close.order_gateway = AsyncMock()
-        cb_for_close.order_gateway.submit_exit_order = AsyncMock(
-            return_value=MagicMock(success=False, rejection_reason="risk_limit")
+        cb_for_close.order_submission = AsyncMock()
+        cb_for_close.order_submission.submit = AsyncMock(
+            return_value=MagicMock(ok=False, reason="risk_limit")
         )
 
         with patch("brokers.order_builder.OrderBuilder") as MockOrderBuilder:
@@ -464,7 +464,7 @@ class TestEmergencyClosePositions:
 
             await cb_for_close._emergency_close_positions()
 
-        cb_for_close.order_gateway.submit_exit_order.assert_called_once()
+        cb_for_close.order_submission.submit.assert_called_once()
         cb_for_close.broker.submit_order_advanced.assert_not_called()
         cb_for_close.broker._internal_submit_order.assert_not_called()
 

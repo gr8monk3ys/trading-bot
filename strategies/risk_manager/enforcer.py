@@ -130,7 +130,7 @@ class RiskEnforcerMixin:
         """
         Enforce risk limits and return both adjusted size and violation details.
 
-        This is the RECOMMENDED method for OrderGateway integration.
+        This is the RECOMMENDED method for OrderSubmission integration.
         Unlike adjust_position_size(), this method:
         - Returns explicit violation reasons
         - Uses stricter enforcement (rejects on any violation)

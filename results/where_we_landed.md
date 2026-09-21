@@ -26,6 +26,20 @@ Both fixed 2026-08-18: opposite-signal exits (bearish signal while long closes t
 
 ---
 
+## Addendum 2026-09-21: builder-built orders were priced as limit orders
+
+`BacktestBroker.submit_order_advanced` compared `str(OrderType.MARKET)` ("OrderType.MARKET") with `"market"`, so every entry the strategy built through `OrderBuilder` took the reduced limit-order impact branch of the slippage model while exits and liquidations, placed directly, paid full market impact. Fixed in the arch-3 order-submission refactor (enum values are normalised). Rerun of the same 2020–2024 sweep with every order paying market slippage:
+
+| Target gross | Avg gross | Trades | Total return | Sharpe | was (08-18) |
+|---|---|---|---|---|---|
+| 25% | 14% | 26 | +4.1% | -0.50 | +4.1% / -0.50 |
+| 50% | 28% | 26 | +8.3% | -0.06 | +8.4% / -0.06 |
+| 100% | 59% | 26 | +16.3% | 0.16 | +16.4% / 0.16 |
+
+Same 26 trades, a tenth of a point lower at each target. The verdict does not move.
+
+---
+
 ## Addendum 2026-08-17: the May numbers were corrupted; the verdict got *stronger*
 
 *(Superseded by 2026-08-18 above — the "8 trades" here were enter-and-hold artifacts.)*

@@ -2,7 +2,7 @@
 
 Alpaca paper-trading bot in async Python with a backtester. Verdict, from
 `results/etf_baseline_2020-2024_exposure_sweep.md` (2020-2024, exits active):
-momentum +16.4% / Sharpe 0.16 / 26 trades vs SPY buy-and-hold +95.3% / 0.75.
+momentum +16.3% / Sharpe 0.16 / 26 trades vs SPY buy-and-hold +95.3% / 0.75.
 Nothing here beats buy-and-hold. Paper only; never deploy real capital.
 Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 
@@ -23,7 +23,7 @@ Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 - `strategies/` momentum (+ `_backtest` daily variant), mean reversion, adaptive
   regime switcher, `risk_manager/`, `base_strategy.py`.
 - `brokers/` Alpaca wrapper, backtest broker, `order_builder.py`.
-- `engine/` backtest engine, performance metrics, strategy manager, live order gateway.
+- `engine/` backtest engine, performance metrics, strategy manager, order submission.
 - `utils/` circuit breaker, market regime, websocket, database, audit log.
 - `main.py` the only CLI: `live`, `backtest`, `optimize`.
 - `results/` committed backtest artifacts; `docs/architecture.md` for the data flow.

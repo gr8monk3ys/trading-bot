@@ -6,8 +6,8 @@ Owns the full single-run lifecycle:
     - Parallel historical bar loading (per-symbol get_bars under
       asyncio.gather).
     - BacktestBroker instantiation with the requested execution profile.
-    - Strategy instantiation + OrderGateway wiring (Step 2A: every order
-      must route through ``BacktestOrderGateway`` so the strategy's
+    - Strategy instantiation + OrderSubmission wiring (every order, including
+      the end-of-run liquidation, goes through one ``OrderSubmission`` so the strategy's
       ``submit_entry_order`` / ``submit_exit_order`` calls don't fail with
       "No OrderGateway configured").
     - Day-by-day signal processing via ``_process_symbol_signal`` (defined
@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Type
 import pandas as pd
 import pytz
 
+from engine.order_submission import OrderIntent
 from utils.portfolio_stress import run_portfolio_stress_test
 
 logger = logging.getLogger(__name__)
@@ -163,14 +164,12 @@ class BacktestRunnerMixin:
             params.update(strategy_params)
         strategy = strategy_class(broker=backtest_broker, parameters=params)
 
-        # Wire the canonical backtest OrderGateway. PR #22 made gateway routing
-        # mandatory for BaseStrategy.submit_entry_order / submit_exit_order; the
-        # backtest engine has to attach one or every order is rejected with
-        # "No OrderGateway configured" and the run looks like a data-fetch
-        # failure. See engine/backtest_order_gateway.py for rationale.
-        from engine.backtest_order_gateway import BacktestOrderGateway
+        # One order submission for the run: the strategy's entries and exits
+        # and the end-of-run liquidation all go through it (ADR 0004).
+        from engine.order_submission import OrderSubmission
 
-        strategy.order_gateway = BacktestOrderGateway(broker=backtest_broker)
+        order_submission = OrderSubmission(backtest_broker)
+        strategy.order_submission = order_submission
 
         # Initialize the strategy if it has an initialize method
         if hasattr(strategy, "initialize"):
@@ -326,6 +325,7 @@ class BacktestRunnerMixin:
         # "Add an end-of-backtest liquidation pass").
         if trading_days:
             await self._liquidate_open_positions(
+                order_submission,
                 broker=backtest_broker,
                 final_date=trading_days[-1],
                 execution_profile=execution_profile,
@@ -525,6 +525,7 @@ class BacktestRunnerMixin:
 
     async def _liquidate_open_positions(
         self,
+        order_submission,
         broker,
         final_date: datetime,
         execution_profile: str = "realistic",
@@ -569,20 +570,24 @@ class BacktestRunnerMixin:
                 continue
 
             side = "sell" if qty > 0 else "buy"
-            abs_qty = int(abs(qty))
+            abs_qty = abs(qty)
             if abs_qty <= 0:
                 continue
 
-            try:
-                await broker.place_order(
+            outcome = await order_submission.submit(
+                OrderIntent(
                     symbol=symbol,
-                    quantity=abs_qty,
                     side=side,
-                    order_type="market",
+                    qty=abs_qty,
+                    is_exit=True,
+                    strategy_name="backtest_engine",
+                    reason="end_of_backtest_liquidation",
                 )
+            )
+            if outcome.ok:
                 liquidated += 1
-            except Exception as exc:
-                logger.warning(f"End-of-backtest liquidation failed for {symbol}: {exc}")
+            else:
+                logger.warning(f"End-of-backtest liquidation failed for {symbol}: {outcome.reason}")
 
         if liquidated:
             logger.info(f"Liquidated {liquidated} open positions at end of backtest")

@@ -38,11 +38,10 @@ The main data-flow paths through the system:
                               │ submit_entry_order / submit_exit_order
                               ▼
               ┌───────────────────────────────────┐
-              │       OrderGateway                 │  (live:
-              │   live: engine/live_order_gateway. │   LiveOrderGateway, restored
-              │   py (circuit-breaker interlock);  │   2026-08-17; backtest:
-              │   backtest: engine/backtest_order_ │   BacktestOrderGateway wired
-              │   gateway.py                       │   in engine/backtest/runner)
+              │       OrderSubmission              │  one path for both modes:
+              │   engine/order_submission.py       │  halt gate → build →
+              │   OrderIntent → OrderOutcome       │  dispatch → normalise →
+              │   (circuit-breaker interlock)      │  protective levels (ADR 0004)
               └───────────────────┬───────────────┘
                                   │
                   ┌───────────────┴─────────────────┐
@@ -86,8 +85,8 @@ Backtest engine and performance analytics.
 
 - `engine/backtest_engine.py` — `BacktestEngine` facade.
 - `engine/backtest/core.py` — session resolution, per-symbol signal processing, signed-position P&L calculator.
-- `engine/backtest/runner.py` — comprehensive backtest driver (data loading, broker setup, OrderGateway wiring, end-of-period liquidation, result assembly).
-- `engine/backtest_order_gateway.py` — `BacktestOrderGateway` (`BaseStrategy` requires a gateway since PR #22; this satisfies that requirement in backtest mode).
+- `engine/backtest/runner.py` — comprehensive backtest driver (data loading, broker setup, OrderSubmission wiring, end-of-period liquidation, result assembly).
+- `engine/order_submission.py` — `OrderSubmission`: the one path from an `OrderIntent` to an `OrderOutcome` (halt gate, build, dispatch, normalise, protective levels). Live and backtest differ only in the broker behind it (ADR 0004).
 - `engine/performance_metrics.py` — `PerformanceMetrics` class: total return, Sharpe, Sortino, Calmar, max drawdown, win rate, profit factor.
 - `engine/statistical_testing.py` — Bonferroni / FDR-BH multiple-testing corrections, Cohen's d, Hedge's g effect sizes.
 - `engine/strategy_manager.py` — orchestrates multiple strategies in live mode; capital allocation.
@@ -164,7 +163,7 @@ Optional FastAPI dashboard for live monitoring.
 2. `engine/backtest/runner.py` — `run_backtest` driver.
 3. `engine/backtest/core.py` — per-symbol signal processing and P&L matching.
 4. `brokers/backtest/execution.py` — how simulated orders fill.
-5. `engine/backtest_order_gateway.py` — the gateway shim that lets `BaseStrategy` work in backtest mode.
+5. `engine/order_submission.py` — how intents become outcomes in both modes.
 
 **If you're touching risk management:**
 1. `strategies/base_strategy.py` — base-class sizing helpers.
@@ -183,10 +182,10 @@ In live mode:
 
 ```
 Strategy.execute_trade()
-  → BaseStrategy.submit_entry_order()
-    → self.order_gateway.submit_order(...)
-      → AlpacaBroker.submit_order_advanced(...)
-        → brokers/alpaca/orders.py::AlpacaOrdersMixin.submit_order_advanced
+  → BaseStrategy.submit_entry_order(OrderIntent)
+    → OrderSubmission.submit(intent)                 (engine/order_submission.py)
+      → AlpacaBroker._internal_submit_order(request, gateway_token)
+        → brokers/alpaca/orders.py::AlpacaOrdersMixin._internal_submit_order
           → alpaca-py TradingClient.submit_order
             → Alpaca API
 ```
@@ -195,9 +194,9 @@ In backtest mode:
 
 ```
 Strategy.execute_trade()
-  → BaseStrategy.submit_entry_order()
-    → self.order_gateway.submit_order(...)            (BacktestOrderGateway)
-      → BacktestBroker.place_order(...)               (or submit_order_advanced for entries)
+  → BaseStrategy.submit_entry_order(OrderIntent)
+    → OrderSubmission.submit(intent)                 (same module, backtest broker behind it)
+      → BacktestBroker.submit_order_advanced(...) → place_order(...)
         → brokers/backtest/execution.py::BacktestBrokerExecutionMixin.place_order
           → applies slippage + spread, records the trade in self._trades
 ```

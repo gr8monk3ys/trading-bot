@@ -394,7 +394,7 @@ async def _run_backtest(data_broker, source_name: str) -> None:
     # we pass via `broker=` is only used as a *data source* (its get_bars is
     # called). The internal BacktestBroker uses the default execution
     # profile "realistic" which models slippage + spread. The engine also
-    # attaches a `BacktestOrderGateway` to the strategy automatically so
+    # attaches an `OrderSubmission` to the strategy automatically so
     # `BaseStrategy.submit_entry_order` / `submit_exit_order` route to the
     # backtest broker — no gateway shim is needed here.
     engine = BacktestEngine(broker=data_broker)

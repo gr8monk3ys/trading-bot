@@ -17,7 +17,7 @@ from datetime import datetime
 import numpy as np
 import talib
 
-from brokers.order_builder import OrderBuilder
+from engine.order_submission import OrderIntent
 from strategies.base_strategy import BaseStrategy
 from strategies.risk_manager import RiskManager
 from utils.multi_timeframe import MultiTimeframeAnalyzer
@@ -273,20 +273,19 @@ class MeanReversionStrategy(BaseStrategy):
 
                 # Create and submit bracket order for automatic risk management
                 # Use fractional shares for precise position sizing
-                order = (
-                    OrderBuilder(symbol, "buy", quantity)
-                    .market()
-                    .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-                    .gtc()
-                    .build()
-                )
                 result = await self.submit_entry_order(
-                    order,
-                    reason="mean_reversion_entry",
-                    max_positions=self.max_positions,
+                    OrderIntent(
+                        symbol=symbol,
+                        side="buy",
+                        qty=quantity,
+                        stop_loss=stop_loss_price,
+                        take_profit=take_profit_price,
+                        time_in_force="gtc",
+                        reason="mean_reversion_entry",
+                    )
                 )
 
-                if result and (not hasattr(result, "success") or result.success):
+                if result is not None and result.ok:
                     logger.info(
                         f"BUY bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
                     )
@@ -372,21 +371,20 @@ class MeanReversionStrategy(BaseStrategy):
                 )
 
                 # Short = SELL without owning (profit from price drop back to mean)
-                order = (
-                    OrderBuilder(symbol, "sell", quantity)  # SELL to open short
-                    .market()
-                    .bracket(take_profit=take_profit_price, stop_loss=stop_loss_price)
-                    .gtc()
-                    .build()
-                )
 
                 result = await self.submit_entry_order(
-                    order,
-                    reason="mean_reversion_short_entry",
-                    max_positions=self.max_positions,
+                    OrderIntent(
+                        symbol=symbol,
+                        side="sell",
+                        qty=quantity,
+                        stop_loss=stop_loss_price,
+                        take_profit=take_profit_price,
+                        time_in_force="gtc",
+                        reason="mean_reversion_short_entry",
+                    )
                 )
 
-                if result and (not hasattr(result, "success") or result.success):
+                if result is not None and result.ok:
                     logger.info(
                         f"🔻 SHORT bracket order submitted for {symbol}: {quantity:.4f} shares at ~${price:.2f}"
                     )
