@@ -84,6 +84,7 @@ Broker abstractions. `brokers/protocol.py` states the seam both brokers satisfy 
 Backtest engine and performance analytics.
 
 - `engine/backtest_engine.py` — `BacktestEngine` facade.
+- `engine/trade_history.py` — the one store of completed trades (SQLite or memory), written by `engine/trade_recorder.py`, read by the dashboards (ADR 0007). The audit log is a separate tamper-evidence chain.
 - `engine/backtest/core.py` — session resolution and the signed-position P&L calculator.
 - `engine/session.py` — `Session`: one strategy over sessions of bars. `prepare()` once per session, then `decide()` per symbol against a fresh `PortfolioView`, submitting the returned intents (ADR 0001). The backtest runner drives it day by day with `Session`; `StrategyManager` drives `LiveSession` from the websocket bar stream, which is the only bar subscriber (ADR 0002). Strategies have no `on_bar`.
 - `engine/historical_bars.py` — the one way to load bars: Alpaca or yfinance adapter behind `load_bars`, a data outcome per symbol (loaded / empty / failed), and `DataUnavailableError` when any symbol is missing. The baseline scripts and the runner all use it (ADR 0008). Also hosts `compute_buy_and_hold`.
@@ -112,7 +113,6 @@ Utilities that the production path actually uses. (The 2026-08 slop sweep delete
 Core utilities:
 - `utils/circuit_breaker.py` — daily-loss halts + economic-event blocking.
 - `utils/economic_calendar.py` — FOMC/NFP/CPI event calendar (lazily imported by the circuit breaker, on by default).
-- `utils/database/core.py` + `analytics.py` — SQLite trade/position/metrics storage with aggregation queries.
 - `utils/market_regime.py` — `MarketRegimeDetector`: bull/bear/sideways/volatile detection.
 - `utils/multi_timeframe.py` — multi-timeframe analyzer (canonical version).
 - `utils/audit_log.py` — hash-chained event logging.

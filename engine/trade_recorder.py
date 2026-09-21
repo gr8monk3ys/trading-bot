@@ -36,6 +36,10 @@ class TradeRecorder:
     def subscribe(self, strategy_name: str, listener: Callable[[Trade], None]) -> None:
         self._listeners[strategy_name].append(listener)
 
+    def subscribe_all(self, listener: Callable[[Trade, str], None]) -> None:
+        """Hear every completed trade with its strategy name (trade history uses this)."""
+        self._listeners["*"].append(listener)
+
     def on_outcome(self, intent, outcome, when: Optional[datetime] = None) -> Optional[Trade]:
         if not outcome.ok or outcome.qty_filled <= 0 or outcome.fill_price is None:
             return None
@@ -79,4 +83,9 @@ class TradeRecorder:
                 listener(trade)
             except Exception as e:  # a learner must never block the order path
                 logger.error(f"trade listener failed: {e}")
+        for listener in self._listeners.get("*", []):
+            try:
+                listener(trade, intent.strategy_name)
+            except Exception as e:
+                logger.error(f"trade history listener failed: {e}")
         return trade

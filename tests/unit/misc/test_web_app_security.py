@@ -18,13 +18,13 @@ class _FailingBroker:
 
 
 class _FailingDatabase:
-    async def get_trades(self, *, limit):
+    def trades(self, *, limit=None):
         raise RuntimeError(f"super-secret-trades-{limit}")
 
-    async def get_summary_stats(self):
+    def summary(self):
         raise RuntimeError("super-secret-performance")
 
-    async def get_daily_metrics(self, start, end):
+    def daily(self, start, end):
         raise RuntimeError(f"super-secret-daily-metrics-{start}-{end}")
 
 
@@ -73,7 +73,7 @@ async def test_error_responses_do_not_expose_exception_details(
     caplog,
 ):
     monkeypatch.setattr(web_app, "_broker", _FailingBroker())
-    monkeypatch.setattr(web_app, "_db", _FailingDatabase())
+    monkeypatch.setattr(web_app, "_history", _FailingDatabase())
     monkeypatch.setattr(web_app, "_paper_mode", True)
 
     with caplog.at_level(logging.ERROR):

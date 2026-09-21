@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # Global state – populated during lifespan startup
 # ---------------------------------------------------------------------------
 _broker = None
-_db = None
+_history = None
 _start_time: float = 0.0
 _paper_mode: bool = True
 
@@ -44,23 +44,22 @@ BOT_VERSION = "3.0.0"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize broker and database connections on startup, clean up on shutdown."""
-    global _broker, _db, _start_time, _paper_mode
+    global _broker, _history, _start_time, _paper_mode
     _start_time = time.time()
 
-    # --- Database (always attempt) ---
+    # --- Trade history (always attempt) ---
     try:
-        from utils.database import TradingDatabase
+        from engine.trade_history import SqliteStore, TradeHistory
 
-        _db = TradingDatabase("data/trading_bot.db")
-        await _db.initialize()
-        logger.info("Dashboard database connected")
+        _history = TradeHistory(SqliteStore("data/trading_bot.db"))
+        logger.info("Dashboard trade history opened")
     except Exception as exc:
         _log_internal_error(
-            "Dashboard database initialization",
+            "Dashboard trade history initialization",
             exc,
             level=logging.WARNING,
         )
-        _db = None
+        _history = None
 
     # --- Broker (optional – dashboard still works without it) ---
     try:
@@ -85,9 +84,9 @@ async def lifespan(app: FastAPI):
     yield  # ---- app is running ----
 
     # --- Shutdown ---
-    if _db:
+    if _history:
         try:
-            await _db.close()
+            _history.close()
         except Exception:
             pass
     logger.info("Dashboard shutdown complete")
@@ -227,7 +226,7 @@ async def health_check():
         "uptime_seconds": round(uptime_seconds, 1),
         "uptime_human": _format_uptime(uptime_seconds),
         "broker_connected": _broker is not None,
-        "database_connected": _db is not None,
+        "database_connected": _history is not None,
         "paper_mode": _paper_mode,
         "timestamp": datetime.utcnow().isoformat(),
     }
@@ -321,122 +320,67 @@ async def get_positions():
 
 @app.get("/api/trades")
 async def get_trades(limit: int = Query(default=20, ge=1, le=500)):
-    """Recent trades from database (paginated)."""
-    if not _db:
-        return {"trades": [], "count": 0, "error": "Database not connected"}
+    """Recent completed trades from trade history (newest first)."""
+    if not _history:
+        return {"trades": [], "count": 0, "error": "Trade history not available"}
 
     try:
-        trades = await _db.get_trades(limit=limit)
-        result = [t.to_dict() for t in trades]
+        result = [t.to_dict() for t in _history.trades(limit=limit)]
         return {"trades": result, "count": len(result)}
     except Exception as exc:
         _log_internal_error("Trades fetch", exc)
-        return _server_error_response(
-            "Unable to fetch trades",
-            trades=[],
-            count=0,
-        )
+        return _server_error_response("Unable to fetch trades", trades=[], count=0)
 
 
 @app.get("/api/performance")
 async def get_performance():
-    """Performance metrics from database summary stats."""
-    if not _db:
+    """Performance from trade history: summary plus 90-day daily-P&L statistics."""
+    if not _history:
         return {
             "total_trades": 0,
             "win_rate": 0,
             "total_pnl": 0,
             "sharpe_ratio": None,
-            "sortino_ratio": None,
             "max_drawdown": None,
             "profit_factor": None,
             "avg_win": None,
             "avg_loss": None,
-            "error": "Database not connected",
+            "error": "Trade history not available",
         }
-
     try:
-        summary = await _db.get_summary_stats()
-        latest = await _db.get_latest_metrics()
-
-        # Build performance response from available data
+        summary = _history.summary()
         response: Dict[str, Any] = {
-            "total_trades": summary.get("total_trades", 0),
-            "winning_trades": (
-                summary.get("winning_trades", 0) if "winning_trades" in summary else None
-            ),
-            "win_rate": round(summary.get("win_rate", 0) * 100, 2),
-            "total_pnl": round(summary.get("total_pnl", 0), 2),
-            "open_positions": summary.get("open_positions", 0),
-            "unique_symbols": summary.get("unique_symbols", 0),
-            "unique_strategies": summary.get("unique_strategies", 0),
-            "first_trade": summary.get("first_trade"),
-            "last_trade": summary.get("last_trade"),
+            "total_trades": summary["total_trades"],
+            "winning_trades": summary["winning_trades"],
+            "win_rate": round(summary["win_rate"] * 100, 2),
+            "total_pnl": round(summary["total_pnl"], 2),
+            "profit_factor": summary["profit_factor"],
+            "avg_win": summary["avg_win"],
+            "avg_loss": summary["avg_loss"],
+            "unique_symbols": summary["unique_symbols"],
+            "unique_strategies": summary["unique_strategies"],
+            "first_trade": summary["first_trade"].isoformat() if summary["first_trade"] else None,
+            "last_trade": summary["last_trade"].isoformat() if summary["last_trade"] else None,
+            "sharpe_ratio": None,
+            "max_drawdown": None,
         }
+        end = date.today()
+        daily = _history.daily(end - timedelta(days=90), end)
+        pnls = [d["pnl"] for d in daily]
+        if len(pnls) >= 2:
+            import statistics
 
-        # Add daily metrics if available
-        if latest:
-            response["max_drawdown"] = (
-                round(latest.max_drawdown * 100, 2) if latest.max_drawdown else None
+            std = statistics.stdev(pnls)
+            response["sharpe_ratio"] = (
+                round(statistics.mean(pnls) / std * (252**0.5), 2) if std > 0 else None
             )
-            response["latest_pnl"] = round(latest.pnl, 2) if latest.pnl else None
-            response["latest_pnl_pct"] = round(latest.pnl_pct * 100, 2) if latest.pnl_pct else None
-
-        # Try to compute extended metrics from daily data
-        try:
-            end = date.today()
-            start = end - timedelta(days=90)
-            daily = await _db.get_daily_metrics(start, end)
-            if daily and len(daily) >= 2:
-                returns = []
-                for dm in daily:
-                    if dm.starting_equity and dm.starting_equity > 0:
-                        returns.append(dm.pnl / dm.starting_equity)
-
-                if returns:
-                    import statistics
-
-                    mean_ret = statistics.mean(returns)
-                    std_ret = statistics.stdev(returns) if len(returns) > 1 else 0
-
-                    # Sharpe (annualized, assuming 252 trading days)
-                    if std_ret > 0:
-                        response["sharpe_ratio"] = round((mean_ret / std_ret) * (252**0.5), 2)
-
-                    # Sortino (annualized, downside deviation)
-                    downside = [r for r in returns if r < 0]
-                    if downside:
-                        downside_std = (
-                            statistics.stdev(downside) if len(downside) > 1 else abs(downside[0])
-                        )
-                        if downside_std > 0:
-                            response["sortino_ratio"] = round(
-                                (mean_ret / downside_std) * (252**0.5), 2
-                            )
-
-                    # Profit factor from daily returns
-                    gross_profit = sum(r for r in returns if r > 0)
-                    gross_loss = abs(sum(r for r in returns if r < 0))
-                    if gross_loss > 0:
-                        response["profit_factor"] = round(gross_profit / gross_loss, 2)
-
-                    # Max drawdown from daily equity
-                    equities = [dm.ending_equity for dm in daily if dm.ending_equity]
-                    if equities:
-                        peak = equities[0]
-                        max_dd = 0
-                        for eq in equities:
-                            if eq > peak:
-                                peak = eq
-                            dd = (peak - eq) / peak if peak > 0 else 0
-                            max_dd = max(max_dd, dd)
-                        response["max_drawdown"] = round(max_dd * 100, 2)
-        except Exception as exc:
-            logger.debug(
-                "Extended metrics calculation skipped due to %s",
-                type(exc).__name__,
-            )
-
+            peak = running = 0.0
+            max_dd = 0.0
+            for pnl in pnls:
+                running += pnl
+                peak = max(peak, running)
+                max_dd = min(max_dd, running - peak)
+            response["max_drawdown"] = round(max_dd, 2)
         return response
     except Exception as exc:
         _log_internal_error("Performance fetch", exc)
@@ -445,23 +389,17 @@ async def get_performance():
 
 @app.get("/api/daily-metrics")
 async def get_daily_metrics(days: int = Query(default=30, ge=1, le=365)):
-    """Daily equity/P&L history for charting."""
-    if not _db:
-        return {"metrics": [], "count": 0, "error": "Database not connected"}
+    """Daily realised P&L for charting."""
+    if not _history:
+        return {"metrics": [], "count": 0, "error": "Trade history not available"}
 
     try:
         end = date.today()
-        start = end - timedelta(days=days)
-        daily = await _db.get_daily_metrics(start, end)
-        result = [dm.to_dict() for dm in daily]
+        result = _history.daily(end - timedelta(days=days), end)
         return {"metrics": result, "count": len(result)}
     except Exception as exc:
         _log_internal_error("Daily metrics fetch", exc)
-        return _server_error_response(
-            "Unable to fetch daily metrics",
-            metrics=[],
-            count=0,
-        )
+        return _server_error_response("Unable to fetch daily metrics", metrics=[], count=0)
 
 
 @app.get("/api/market-status")

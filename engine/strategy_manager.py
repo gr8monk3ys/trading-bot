@@ -55,6 +55,7 @@ class StrategyManager:
         self._closed = False
         self._order_submission = None
         self.sessions = {}
+        self.trade_history = None  # set lazily; tests may inject a memory-backed one
 
         # Initialize broker first (required by downstream components/logging)
         self.broker = broker
@@ -291,13 +292,18 @@ class StrategyManager:
         """One shared OrderSubmission per manager (the gateway token claim is per-broker)."""
         if self._order_submission is None:
             from engine.order_submission import OrderSubmission
+            from engine.trade_history import SqliteStore, TradeHistory
             from engine.trade_recorder import TradeRecorder
 
+            recorder = TradeRecorder()
+            if self.trade_history is None:
+                self.trade_history = TradeHistory(SqliteStore("data/trading_bot.db"))
+            recorder.subscribe_all(self.trade_history.record_trade)
             self._order_submission = OrderSubmission(
                 self.broker,
                 circuit_breaker=self.circuit_breaker,
                 audit_log=self.audit_log,
-                recorder=TradeRecorder(),
+                recorder=recorder,
             )
         return self._order_submission
 
