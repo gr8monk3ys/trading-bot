@@ -15,6 +15,9 @@ Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 - Backtest: `uv run python main.py backtest --strategy MomentumStrategyBacktest --start-date 2024-01-01 --end-date 2024-12-31`
 - Paper: `uv run python main.py live` (needs `.env`; `--force` outside market hours).
 - Regenerate the canonical numbers: `uv run python scripts/run_etf_baseline.py`.
+- New candidates go through `scripts/run_trend_gate.py --window dev` first; the holdout
+  window is locked (`results/holdout_lock.json`, ADR 0011). Never open it for a
+  candidate that failed dev, and never tune against it.
 - Audit the committed artifacts: `uv run python scripts/audit_results.py`
   (`--all` adds the superseded runs, which are NOT TRUSTWORTHY on purpose).
 
