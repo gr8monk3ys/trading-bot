@@ -438,9 +438,13 @@ class BacktestBrokerCore:
         return self.balance
 
     def get_portfolio_value(self, date=None):
-        """Get total portfolio value at given date"""
+        """Get total portfolio value at given date (default: the simulation's current date).
+
+        Defaulting to wall-clock time priced every position at the last bar of
+        the loaded data, so equity-based sizing saw end-of-backtest prices.
+        """
         value = self.balance
-        current_date = date or datetime.now()
+        current_date = date or self._current_date or datetime.now()
 
         for symbol, position in self.positions.items():
             price = self.get_price(symbol, current_date)
@@ -455,7 +459,7 @@ class BacktestBrokerCore:
         Shorts count at absolute notional, so a hedged book still shows its
         true footprint.
         """
-        current_date = date or datetime.now()
+        current_date = date or self._current_date or datetime.now()
         gross = 0.0
         for symbol, position in self.positions.items():
             price = self.get_price(symbol, current_date)

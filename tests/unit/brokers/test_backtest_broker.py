@@ -70,6 +70,31 @@ def broker_with_data(broker, sample_price_data):
     return broker
 
 
+class TestEquityUsesSimulationDate:
+    """Equity reported to strategies must use the simulated day's prices, not the last bar."""
+
+    async def test_get_account_values_positions_at_current_date(self, broker, sample_price_data):
+        broker.set_price_data("AAPL", sample_price_data)
+        day = sample_price_data.index[5]
+        broker.advance_to(day)
+        broker.positions["AAPL"] = {"symbol": "AAPL", "quantity": 10, "avg_price": 100.0}
+        broker.balance = 0.0
+
+        account = await broker.get_account()
+
+        expected = 10 * float(sample_price_data.loc[day, "close"])
+        last = 10 * float(sample_price_data["close"].iloc[-1])
+        assert float(account.equity) == pytest.approx(expected)
+        assert float(account.equity) != pytest.approx(last)
+
+    def test_gross_exposure_defaults_to_current_date(self, broker, sample_price_data):
+        broker.set_price_data("AAPL", sample_price_data)
+        broker.advance_to(sample_price_data.index[5])
+        broker.positions["AAPL"] = {"symbol": "AAPL", "quantity": 10, "avg_price": 100.0}
+        broker.balance = 0.0
+        assert broker.get_gross_exposure() == pytest.approx(1.0)
+
+
 # =============================================================================
 # TEST INITIALIZATION
 # =============================================================================
