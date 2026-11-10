@@ -175,3 +175,21 @@ class AdaptiveParams(BaseParams):
 class SimpleMAParams(BaseParams):
     fast_period: int = 10
     slow_period: int = 30
+
+
+TREND_UNIVERSE = ["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"]
+
+
+@dataclass
+class TrendParams(BaseParams):
+    """Time-series trend following (docs/adr/0011-trend-candidate.md).
+
+    Every value was fixed from the published literature before any backtest
+    ran: 12-month lookback, monthly rebalance, long-only, equal slots. Do not
+    tune these against the holdout; a change means a new candidate and a new
+    holdout (see scripts/run_trend_gate.py).
+    """
+
+    lookback_days: int = 252  # ~12 months of sessions
+    target_gross: float = 1.0  # all slots filled = 100% of equity, never margin
+    symbols: Any = field(default_factory=lambda: list(TREND_UNIVERSE))
