@@ -13,7 +13,7 @@ What paper can and cannot tell you: it checks execution (fills, slippage vs
 the 50 bps the backtest assumes, the monthly schedule actually running). It
 cannot tell you whether the strategy has an edge: a few months of returns
 are noise. The candidate FAILED its dev-window pass bar
-(results/trend_gate_dev.md), so expect it to track a lower-risk blend of
+(results/gate_trend_dev.md), so expect it to track a lower-risk blend of
 stocks and bonds, not to beat SPY.
 """
 

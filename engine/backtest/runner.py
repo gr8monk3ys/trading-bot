@@ -53,6 +53,7 @@ class BacktestRunnerMixin:
         execution_profile: str = "realistic",
         run_id: str | None = None,
         artifacts_dir: str = "results/runs",
+        dividends: Dict[str, pd.Series] | None = None,
     ) -> Dict[str, Any]:
         """
         Run a comprehensive backtest for a strategy.
@@ -67,6 +68,10 @@ class BacktestRunnerMixin:
             execution_profile: Backtest execution realism profile
             run_id: Optional externally provided run ID
             artifacts_dir: Base path for run artifact directories
+            dividends: Optional cash dividends per share by symbol, indexed by
+                ex-date. When given, positions held into an ex-date collect
+                them (``BacktestBroker.credit_dividends``). Default None keeps
+                the price-only behaviour the committed baselines were made with.
 
         Returns:
             Dictionary with backtest results including equity_curve and trades
@@ -127,6 +132,8 @@ class BacktestRunnerMixin:
         for symbol, data in loaded_price_data.items():
             backtest_broker.set_price_data(symbol, data)
             logger.debug(f"Loaded {len(data)} bars for {symbol}")
+        for symbol, series in (dividends or {}).items():
+            backtest_broker.set_dividends(symbol, series)
         data_quality_reports = bars.report()
         loaded_sessions = bars.sessions()
 
@@ -169,6 +176,8 @@ class BacktestRunnerMixin:
             try:
                 # Update the backtest broker's current date for price lookups
                 backtest_broker.advance_to(current_date)
+                # Positions held into today's ex-dates collect before trading.
+                backtest_broker.credit_dividends(current_date)
 
                 # ==========================================
                 # GAP RISK MODELING: Process overnight gaps
@@ -346,6 +355,7 @@ class BacktestRunnerMixin:
         result = {
             "equity_curve": equity_curve,
             "exposure_curve": exposure_curve,
+            "dividends_credited": float(getattr(backtest_broker, "dividends_credited", 0.0)),
             "avg_gross_exposure": (
                 sum(exposure_curve) / len(exposure_curve) if exposure_curve else 0.0
             ),
