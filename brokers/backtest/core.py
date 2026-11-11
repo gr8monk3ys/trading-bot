@@ -82,6 +82,7 @@ class BacktestBrokerCore:
         execution_profile: str = "realistic",
         random_seed: Optional[int] = None,
         run_id: Optional[str] = None,
+        fixed_cost_bps: Optional[float] = None,
     ):
         """
         Initialize broker with starting balance and slippage parameters.
@@ -97,6 +98,10 @@ class BacktestBrokerCore:
             execution_profile: Fill realism profile ('idealistic', 'realistic', 'stressed')
             random_seed: Optional seed for deterministic simulations
             run_id: Optional run identifier for observability correlation
+            fixed_cost_bps: When set, every market fill pays exactly this many basis
+                points against the trader (spread and slippage together) instead of
+                the dynamic spread + impact model. Note ``slippage_bps`` is stored
+                but the dynamic model never reads it.
         """
         # Note: api_key, api_secret, paper are accepted for API compatibility
         # but not stored (unused in backtesting, avoids accidental credential exposure)
@@ -112,6 +117,7 @@ class BacktestBrokerCore:
         # Slippage parameters (basis points = 1/100th of 1%)
         self.slippage_bps = slippage_bps
         self.spread_bps = spread_bps
+        self.fixed_cost_bps = fixed_cost_bps
         self.enable_partial_fills = enable_partial_fills
         self._rng = np.random.default_rng(random_seed)
         self.execution_profile = EXECUTION_PROFILE_PRESETS["realistic"]

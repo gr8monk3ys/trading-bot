@@ -11,8 +11,12 @@ parameters. Any later holdout run, for any candidate, refuses unless
 stays visible in git (commit the lock file with ``git add -f``). Only open
 the holdout for a candidate that passed dev (ADR 0011).
 
-Pass bar (ADR 0011), on the window only, after the engine's costs
-(40 bps slippage + 10 bps spread per fill, config.BASELINE), with dividends
+Costs (ADR 0013): ``--cost-bps N`` charges a flat N bps per fill; the default
+is 50 (40 slippage + 10 spread, config.BASELINE, as ADR 0011 states).
+``--cost-bps engine`` uses the broker's dynamic spread + impact model instead.
+Every artifact records the setting and the cost actually charged.
+
+Pass bar (ADR 0011), on the window only, after costs, with dividends
 credited to positions held into each ex-date:
     1. Beats SPY total return (dividends reinvested) held at the strategy's
        average gross exposure.
@@ -50,7 +54,11 @@ logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(mes
 CANDIDATES = {
     "trend": ("strategies.trend_following_strategy", "TrendFollowingStrategy"),
     "volmanaged": ("strategies.vol_managed_strategy", "VolManagedStrategy"),
+    "swing": ("strategies.swing_rsi_strategy", "SwingRSIStrategy"),
 }
+# ADR 0011 as written: 40 bps slippage + 10 bps spread per fill. Before ADR 0013
+# these numbers were only printed; the broker's dynamic model was what ran.
+DEFAULT_COST_BPS = float(BASELINE["slippage_bps"] + BASELINE["spread_bps"])
 WINDOWS = {
     "dev": ("2008-01-01", "2019-12-31"),
     "holdout": ("2020-01-01", "2026-10-30"),
@@ -79,13 +87,14 @@ def _strategy_class(candidate: str):
     return getattr(importlib.import_module(module), name)
 
 
-def _check_lock(candidate: str, reopen: str | None) -> None:
+def _check_lock(candidate: str, reopen: str | None, cost_bps: float | None) -> None:
     cls = _strategy_class(candidate)
     entry = {
         "at": _now(),
         "candidate": candidate,
         "commit": _git_sha(),
         "params": cls.Params.defaults(),
+        "cost_bps": cost_bps,
     }
     if LOCK.exists():
         lock = json.loads(LOCK.read_text(encoding="utf-8"))
@@ -124,7 +133,7 @@ def _stats(r: pd.Series) -> dict:
     }
 
 
-async def _run(candidate: str, window: str) -> dict:
+async def _run(candidate: str, window: str, cost_bps: float | None) -> dict:
     from engine.backtest_engine import BacktestEngine
     from engine.historical_bars import load_dividends, resolve_bars_source
 
@@ -146,6 +155,7 @@ async def _run(candidate: str, window: str) -> dict:
         initial_capital=BASELINE["initial_capital"],
         execution_profile="realistic",
         dividends=dividends,
+        fixed_cost_bps=cost_bps,
     )
 
     # Session dates from SPY's bars over the same load range (the engine's own
@@ -220,7 +230,9 @@ async def _run(candidate: str, window: str) -> dict:
         "data_source": source,
         "commit": _git_sha(),
         "params": params,
-        "costs_bps": {"slippage": BASELINE["slippage_bps"], "spread": BASELINE["spread_bps"]},
+        "cost_model": "engine (dynamic spread + impact)" if cost_bps is None else "fixed",
+        "cost_bps_setting": cost_bps,
+        "mean_fill_cost_bps": result.get("mean_fill_cost_bps", 0.0),
         "dividends_credited": result.get("dividends_credited", 0.0),
         "avg_gross_exposure": gross,
         "strategy": strat,
@@ -248,6 +260,21 @@ async def _run(candidate: str, window: str) -> dict:
     }
 
 
+def _cost_text(a: dict) -> str:
+    if a["cost_bps_setting"] is None:
+        return "broker's dynamic spread + impact model"
+    return f"flat {a['cost_bps_setting']:g} bps per fill"
+
+
+def _parse_cost(value: str) -> float | None:
+    if value == "engine":
+        return None
+    cost = float(value)
+    if cost < 0:
+        raise argparse.ArgumentTypeError("cost must be >= 0")
+    return cost
+
+
 def _markdown(a: dict) -> str:
     s, b = a["strategy"], a["spy_same_exposure"]
     rows = "\n".join(
@@ -273,7 +300,7 @@ SPY buy-and-hold, 100% invested, dividends reinvested: {a['spy_buy_hold_total_re
 Alpha {a['alpha_annual']:+.2%}/yr (t = {a['alpha_t']:.2f}), beta {a['beta']:.2f}.
 Closed round trips: {a['round_trips']} ({a['fills']} fills incl. warm-up and final liquidation).
 Dividends credited: ${a['dividends_credited']:,.0f}.
-Costs: {a['costs_bps']['slippage']} bps slippage + {a['costs_bps']['spread']} bps spread per fill.
+Costs: {_cost_text(a)}; charged on average {a['mean_fill_cost_bps']:.1f} bps per fill.
 Data: `{a['data_source']}`, commit `{a['commit'][:7]}`.
 
 | Half | Strategy | SPY same exposure | Beats |
@@ -287,11 +314,22 @@ def main() -> int:
     ap.add_argument("--candidate", choices=sorted(CANDIDATES), required=True)
     ap.add_argument("--window", choices=sorted(WINDOWS), required=True)
     ap.add_argument("--reopen", help="reason for another look at the holdout")
+    ap.add_argument(
+        "--cost-bps",
+        type=_parse_cost,
+        default=DEFAULT_COST_BPS,
+        help=f'flat cost per fill in bps (default {DEFAULT_COST_BPS:g}), or "engine"',
+    )
     args = ap.parse_args()
     if args.window == "holdout":
-        _check_lock(args.candidate, args.reopen)
-    artifact = asyncio.run(_run(args.candidate, args.window))
-    stem = RESULTS / f"gate_{args.candidate}_{args.window}"
+        _check_lock(args.candidate, args.reopen, args.cost_bps)
+    artifact = asyncio.run(_run(args.candidate, args.window, args.cost_bps))
+    suffix = ""
+    if args.cost_bps is None:
+        suffix = "_engine"
+    elif args.cost_bps != DEFAULT_COST_BPS:
+        suffix = f"_cost{args.cost_bps:g}"
+    stem = RESULTS / f"gate_{args.candidate}_{args.window}{suffix}"
     stem.with_suffix(".json").write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
     stem.with_suffix(".md").write_text(_markdown(artifact), encoding="utf-8")
     print(_markdown(artifact))

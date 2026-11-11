@@ -211,3 +211,24 @@ class VolManagedParams(BaseParams):
     rebalance_band: float = 0.25  # trade only when the target moves >25% of a full slot
     target_gross: float = 1.0
     symbols: Any = field(default_factory=lambda: list(VOL_MANAGED_UNIVERSE))
+
+
+SWING_RSI_UNIVERSE = ["SPY", "QQQ", "IWM", "DIA"]
+
+
+@dataclass
+class SwingRSIParams(BaseParams):
+    """Swing mean reversion (ADR 0013). Connors and Alvarez (2008) values, never tuned.
+
+    Buy when the close is above its ``trend_sma_days`` average and the
+    ``rsi_period``-day RSI is below ``entry_rsi``; sell when the close is above
+    its ``exit_sma_days`` average. Each position is ``target_gross / len(symbols)``
+    of equity.
+    """
+
+    rsi_period: int = 2
+    entry_rsi: float = 10.0
+    trend_sma_days: int = 200
+    exit_sma_days: int = 5
+    target_gross: float = 1.0
+    symbols: Any = field(default_factory=lambda: list(SWING_RSI_UNIVERSE))
