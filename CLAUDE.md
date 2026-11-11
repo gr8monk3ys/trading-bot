@@ -2,7 +2,7 @@
 
 Alpaca paper-trading bot in async Python with a backtester. Verdict, from
 `results/etf_baseline_2020-2024_exposure_sweep.md` (2020-2024, exits active):
-momentum +17.6% / Sharpe 0.19 / 26 trades vs SPY buy-and-hold +95.3% / 0.75.
+momentum +17.6% / Sharpe 0.19 at rf=2% (0.42 at rf=0) / 26 trades vs SPY buy-and-hold +95.3% / 0.75 (rf=0).
 Nothing here beats buy-and-hold. Paper only; never deploy real capital.
 Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 
