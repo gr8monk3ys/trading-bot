@@ -498,8 +498,8 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
     suffix = ("" if target_gross is None else f"_gross{int(round(target_gross * 100))}") + VARIANT
     json_path = RESULTS_DIR / f"etf_baseline_2020-2024{suffix}.json"
     md_path = RESULTS_DIR / f"etf_baseline_2020-2024{suffix}.md"
-    json_path.write_text(json.dumps(artifact, indent=2, default=str))
-    md_path.write_text(_format_markdown(artifact))
+    json_path.write_text(json.dumps(artifact, indent=2, default=str), encoding="utf-8")
+    md_path.write_text(_format_markdown(artifact), encoding="utf-8")
 
     print(f"Wrote {json_path.relative_to(REPO_ROOT)}")
     print(f"Wrote {md_path.relative_to(REPO_ROOT)}")
@@ -525,7 +525,7 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
         "peak_gross_exposure": result.get("peak_gross_exposure"),
         "spy_bh_return": spy.get("total_return"),
         "spy_bh_sharpe": spy.get("sharpe"),
-        "json_path": str(json_path.relative_to(REPO_ROOT)),
+        "json_path": json_path.relative_to(REPO_ROOT).as_posix(),
     }
 
 
@@ -562,7 +562,9 @@ async def main() -> int:
         "producer": "scripts/run_etf_baseline.py",
         "artifacts": [row["json_path"] for row in summaries if row.get("json_path")],
     }
-    (RESULTS_DIR / f"manifest{VARIANT}.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (RESULTS_DIR / f"manifest{VARIANT}.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
     return 0
 
 
@@ -607,7 +609,7 @@ def _write_sweep_report(summaries: list[dict]) -> None:
         + ", ".join(f"`{s.get('json_path')}`" for s in summaries if s.get("json_path"))
         + "\n"
     )
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
     print(f"Wrote {path.relative_to(REPO_ROOT)}")
 
 
