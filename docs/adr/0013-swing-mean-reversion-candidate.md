@@ -62,4 +62,37 @@ holdout, not evidence of an edge on its own.
 
 ## Result
 
-To be filled in after the run, without changing anything above.
+Dev window 2008-2019, 367 round trips, average gross exposure 11%, so the
+benchmark is SPY total return held at 11% (+14.8%, Sharpe 0.54):
+
+| Cost per fill | Return | Sharpe | Max drawdown | 2008-13 vs SPY | 2014-19 vs SPY | Alpha/yr (t) | Verdict |
+|---|---|---|---|---|---|---|---|
+| 50 bps (formal) | -43.4% | -0.72 | -45.0% | -16.4% vs +5.9% | -32.3% vs +8.4% | -5.8% (-3.41) | FAIL |
+| 10 bps (provisional) | +17.7% | 0.25 | -15.2% | +16.2% vs +5.9% | +1.3% vs +8.4% | +0.3% (0.20) | FAIL |
+| engine, 4.6 bps (info) | +29.9% | 0.39 | -15.1% | +21.2% vs +5.9% | +7.1% vs +8.4% | +1.1% (0.69) | FAIL |
+
+Artifacts: `results/gate_swing_dev.md`, `gate_swing_dev_cost10.md`,
+`gate_swing_dev_engine.md`.
+
+It fails at every cost level. At realistic costs it beats same-exposure SPY
+over the whole window, but only because of 2008-2013; over 2014-2019 it
+loses. Its Sharpe is below SPY's at every cost, and its drawdown is twice
+that of SPY at the same exposure. This matches the known decay. An
+exploratory check outside the engine (not a gate run) found about +0.4%
+per trade before costs, and that the engine's one-day fill delay does not
+lower it on average, so the delay is not the reason it fails.
+
+The holdout stays unopened. Measuring Alpaca fill costs would not change
+this verdict: the strategy fails even at 4.6 bps.
+
+## Consequences
+
+- Trend and vol-managed were rerun at 50 bps; those runs replace their old
+  `gate_*_dev` artifacts. Their `_engine` reruns reproduce the earlier
+  numbers exactly, which confirms the earlier runs used the dynamic model.
+- `scripts/run_etf_baseline.py` and `scripts/run_honest_baseline.py` still
+  print "40 bps slippage + 10 bps spread" for the momentum baseline, which
+  also ran on the dynamic model. Fixing that changes the canonical baseline
+  (ADR 0002), so it is a separate change.
+- Four ideas have now failed the same window. Another candidate needs an
+  edge that does not come from US index ETF prices alone.

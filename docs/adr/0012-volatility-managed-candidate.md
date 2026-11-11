@@ -28,10 +28,13 @@ one failure does not predict the other.
 
 ## Result
 
-Dev window: FAIL (`results/gate_volmanaged_dev.md`), with dividends
-credited and equity valued on the simulated day. +100.4% vs +135.0% for SPY
-at the same 79% exposure; Sharpe 0.50 vs 0.54; max drawdown -26.7% vs
--42.9%; 71 round trips. It lost to SPY in both halves. Alpha +0.6%/yr with
+Dev window: FAIL, with dividends credited and equity valued on the
+simulated day. The broker's dynamic cost model ran (4.6 bps per fill), not
+the 40 + 10 bps first printed (ADR 0013). On that model
+(`results/gate_volmanaged_dev_engine.md`): +100.4% vs +135.0% for SPY at the
+same 79% exposure; Sharpe 0.50 vs 0.54; max drawdown -26.7% vs -42.9%; 71
+round trips. At the stated 50 bps per fill (`results/gate_volmanaged_dev.md`)
+it makes +89.6%. It lost to SPY in both halves. Alpha +0.6%/yr with
 t = 0.30: nothing there. The holdout stays unopened.
 
 ## Consequences

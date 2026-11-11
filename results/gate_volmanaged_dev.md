@@ -8,19 +8,19 @@
 
 | | Strategy | SPY total return at same exposure (79%) |
 |---|---|---|
-| Total return | +100.42% | +135.02% |
-| Annual return | +5.97% | +7.39% |
-| Sharpe (rf=0) | 0.50 | 0.54 |
-| Max drawdown | -26.72% | -42.88% |
+| Total return | +89.62% | +135.12% |
+| Annual return | +5.48% | +7.39% |
+| Sharpe (rf=0) | 0.47 | 0.54 |
+| Max drawdown | -27.17% | -42.90% |
 
 SPY buy-and-hold, 100% invested, dividends reinvested: +181.71%.
-Alpha +0.61%/yr (t = 0.30), beta 0.58.
-Closed round trips: 71 (172 fills incl. warm-up and final liquidation).
-Dividends credited: $27,519.
-Costs: 40 bps slippage + 10 bps spread per fill.
-Data: `yfinance`, commit `ec02e3c`.
+Alpha +0.14%/yr (t = 0.07), beta 0.58.
+Closed round trips: 72 (174 fills incl. warm-up and final liquidation).
+Dividends credited: $26,391.
+Costs: flat 50 bps per fill; charged on average 50.0 bps per fill.
+Data: `yfinance`, commit `c60a325`.
 
 | Half | Strategy | SPY same exposure | Beats |
 |---|---|---|---|
-| 2008-01-02 .. 2013-12-30 | +36.00% | +36.55% | no |
-| 2013-12-31 .. 2019-12-31 | +47.37% | +72.11% | no |
+| 2008-01-02 .. 2013-12-30 | +32.07% | +36.57% | no |
+| 2013-12-31 .. 2019-12-31 | +43.57% | +72.16% | no |

@@ -32,12 +32,16 @@ at the test period, so the test period became training data.
 
 ## Result so far
 
-Dev window: FAIL (`results/gate_trend_dev.md`), with dividends credited and
-equity valued on the simulated day (PR #148). +66.0% vs +111.1% for SPY at
-the same 67% exposure; Sharpe 0.55 vs 0.54; max drawdown -13.8% vs -37.5%;
-96 round trips. It beat SPY over 2008-2013 and lost over 2014-2019. Alpha
-+2.1%/yr with t = 1.06, which is not distinguishable from zero. The holdout
-stays unopened.
+Dev window: FAIL, with dividends credited and equity valued on the
+simulated day (PR #148). These numbers were first reported as "after 40 +
+10 bps", but the broker's dynamic model ran (7.1 bps per fill on average;
+ADR 0013 found the gap). Rerun on that model
+(`results/gate_trend_dev_engine.md`): +66.0% vs +111.1% for SPY at the same
+67% exposure; Sharpe 0.55 vs 0.54; max drawdown -13.8% vs -37.5%; 96 round
+trips. It beat SPY over 2008-2013 and lost over 2014-2019. Alpha +2.1%/yr
+with t = 1.06, not distinguishable from zero. At the stated 50 bps per fill
+(`results/gate_trend_dev.md`) it is worse: +54.4%. The holdout stays
+unopened.
 
 ## Consequences
 
