@@ -25,8 +25,8 @@ can't beat SPY buy-and-hold on this universe, it has no real edge.
 - **Symbols:** SPY, QQQ, IWM, EFA (US large-cap, US tech, US small-cap, developed-intl)
 - **Period:** 2020-01-01 to 2024-12-31
 - **Initial capital:** $100,000
-- **Slippage:** 40 bps per trade
-- **Spread:** 10 bps
+- **Costs:** the backtest broker's dynamic spread + impact model (a few bps per fill).
+  The 40 bps slippage + 10 bps spread once printed here was never applied (ADR 0013) (label corrected 2026-11-10; numbers unchanged).
 - **Significance bar:** 50 trades
 
 ## Headline metrics
@@ -112,9 +112,8 @@ is copied from `results/honest_backtest_2020-2024.md`.
   the in-strategy trade count crosses 50. Don't extrapolate Sharpe
   confidence intervals from this run alone.
 
-- Costs included: 40 bps slippage + 10 bps spread per trade. ETFs trade
-  tighter than that in practice, so per-trade cost drag is if anything
-  overstated here, not understated.
+- Costs: the broker's dynamic spread + impact model, a few bps per fill.
+  The 40 + 10 bps once printed here was never applied (ADR 0013) (label corrected 2026-11-10; numbers unchanged).
 
 - Realized P&L only — open positions at end-of-period are liquidated at
   the final bar with the same spread + slippage as any other trade
