@@ -34,7 +34,7 @@ The full history, including which numbers are superseded and why, is in [`result
 
 ## Run it
 
-Needs Python 3.10+, `uv`, and the TA-Lib C library (`brew install ta-lib`; Linux recipe in [`docs/setup.md`](docs/setup.md)).
+Needs Python 3.11+, `uv`, and the TA-Lib C library (`brew install ta-lib`; Linux recipe in [`docs/setup.md`](docs/setup.md)).
 
 ```bash
 uv sync --group dev --group test

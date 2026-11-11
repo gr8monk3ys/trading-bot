@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.10+ and [`uv`](https://docs.astral.sh/uv/)
+- Python 3.11+ and [`uv`](https://docs.astral.sh/uv/)
 - The TA-Lib C library
 - An Alpaca paper-trading account (only needed for `main.py live` and the connection test)
 
@@ -65,7 +65,7 @@ uv run mypy strategies/ brokers/ engine/ utils/   # advisory in CI
 
 ## CI
 
-One workflow, `.github/workflows/ci.yml`: ruff, black, mypy (advisory), then `pytest tests/unit/` on Python 3.10 and 3.11 with a strict-warnings pass first. Coverage goes to Codecov. CodeQL runs through GitHub's default setup, not a workflow file. Tests that touch the broker use the `ALPACA_*_TEST` repository secrets.
+One workflow, `.github/workflows/ci.yml`: ruff, black, mypy (advisory), then `pytest tests/unit/` on Python 3.11 and 3.12 with a strict-warnings pass first. Coverage goes to Codecov. CodeQL runs through GitHub's default setup, not a workflow file. Tests that touch the broker use the `ALPACA_*_TEST` repository secrets.
 
 ## Docker
 
