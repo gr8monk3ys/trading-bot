@@ -19,8 +19,8 @@ Data source: `yfinance`
 - **Symbols:** SPY, QQQ, AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA, JPM
 - **Period:** 2020-01-01 to 2024-12-31
 - **Initial capital:** $100,000
-- **Slippage:** 40 bps per trade
-- **Spread:** 10 bps
+- **Costs:** the backtest broker's dynamic spread + impact model (a few bps per fill).
+  The 40 bps slippage + 10 bps spread once printed here was never applied (ADR 0013) (label corrected 2026-11-10; numbers unchanged).
 - **Significance bar:** 50 trades
 
 ## Headline metrics
@@ -151,7 +151,7 @@ This is the single performance number cited by `README.md` and `CLAUDE.md`. It s
 
 1. **Survivorship-bias correction is off.** The 10-symbol universe is hand-picked mega-caps that survived 2020-2024; the engine has no survivorship-bias correction. Numbers above are inflated by selection of known winners.
 2. **Realized P&L only — end-of-period liquidation pass enabled.** Open positions at end-of-period are closed at the final bar with realistic spread + slippage (see `BacktestEngine._liquidate_open_positions`), so headline equity reflects realized cash, not unrealized MTM. Short-leg PnL is also captured correctly (Step 2B fixed the matcher). The 5-year window happens to end near all-time highs in the chosen universe; rerun ending on a different date for a different number.
-3. **Costs included: 40 bps slippage + 10 bps spread per trade.** These are realistic for retail at this universe size but do not model gap risk on positions held overnight (gap stats: see engine logs — largest gap in this run was 26%).
+3. **Costs: the broker's dynamic spread + impact model, a few bps per fill.** The 40 + 10 bps once printed here was never applied (ADR 0013) (label corrected 2026-11-10; numbers unchanged). The model does not cover gap risk on positions held overnight (gap stats: see engine logs — largest gap in this run was 26%).
 4. **No walk-forward validation in this artifact.** This is a single in-sample run; treat the Sharpe as an upper bound on what an out-of-sample trader would have realized. A Sharpe well above 1 from a retail momentum system warrants suspicion, not celebration.
 
 Do not extrapolate beyond what the trade count supports. Use this artifact as a sanity check that the pipeline runs end-to-end on real market data, not as evidence of strategy edge.

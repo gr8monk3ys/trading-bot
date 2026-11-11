@@ -2,7 +2,7 @@
 
 Alpaca paper-trading bot in async Python with a backtester. Verdict, from
 `results/etf_baseline_2020-2024_exposure_sweep.md` (2020-2024, exits active):
-momentum +16.3% / Sharpe 0.16 at rf=2% (0.36 at rf=0) / 26 trades vs SPY buy-and-hold +95.3% / 0.75 (rf=0).
+momentum +17.6% / Sharpe 0.19 at rf=2% (0.42 at rf=0) / 26 trades vs SPY buy-and-hold +95.3% / 0.75 (rf=0).
 Nothing here beats buy-and-hold. Paper only; never deploy real capital.
 Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 
@@ -15,6 +15,12 @@ Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 - Backtest: `uv run python main.py backtest --strategy MomentumStrategyBacktest --start-date 2024-01-01 --end-date 2024-12-31`
 - Paper: `uv run python main.py live` (needs `.env`; `--force` outside market hours).
 - Regenerate the canonical numbers: `uv run python scripts/run_etf_baseline.py`.
+- Backtest costs: the broker runs a dynamic spread + impact model (a few bps) unless
+  `fixed_cost_bps` is passed; `config.BASELINE`'s 40 + 10 bps is NOT applied by
+  default (ADR 0013). The gate charges a flat 50 bps per fill (`--cost-bps`).
+- New candidates go through `scripts/run_candidate_gate.py --candidate <name> --window dev` first; the holdout
+  window is locked (`results/holdout_lock.json`, ADR 0011). Never open it for a
+  candidate that failed dev, and never tune against it.
 - Audit the committed artifacts: `uv run python scripts/audit_results.py`
   (`--all` adds the superseded runs, which are NOT TRUSTWORTHY on purpose).
 

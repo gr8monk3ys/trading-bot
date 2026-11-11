@@ -175,3 +175,60 @@ class AdaptiveParams(BaseParams):
 class SimpleMAParams(BaseParams):
     fast_period: int = 10
     slow_period: int = 30
+
+
+TREND_UNIVERSE = ["SPY", "QQQ", "IWM", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"]
+
+
+@dataclass
+class TrendParams(BaseParams):
+    """Time-series trend following (docs/adr/0011-trend-candidate-and-locked-holdout.md).
+
+    Every value was fixed from the published literature before any backtest
+    ran: 12-month lookback, monthly rebalance, long-only, equal slots. Do not
+    tune these against the holdout; a change means a new candidate and a new
+    holdout (see scripts/run_candidate_gate.py).
+    """
+
+    lookback_days: int = 252  # ~12 months of sessions
+    target_gross: float = 1.0  # all slots filled = 100% of equity, never margin
+    symbols: Any = field(default_factory=lambda: list(TREND_UNIVERSE))
+
+
+VOL_MANAGED_UNIVERSE = ["SPY", "QQQ", "IWM", "EFA", "EEM"]
+
+
+@dataclass
+class VolManagedParams(BaseParams):
+    """Volatility-managed equity (ADR 0012). Fixed before any backtest, like TrendParams.
+
+    ``target_vol`` only sets the average exposure; the pass bar compares
+    against SPY at that same exposure, so it is not a lever for passing.
+    """
+
+    vol_lookback_days: int = 21  # last month's realised volatility (Moreira and Muir 2017)
+    target_vol: float = 0.15  # annualised; weight = min(1, target_vol / realised vol)
+    rebalance_band: float = 0.25  # trade only when the target moves >25% of a full slot
+    target_gross: float = 1.0
+    symbols: Any = field(default_factory=lambda: list(VOL_MANAGED_UNIVERSE))
+
+
+SWING_RSI_UNIVERSE = ["SPY", "QQQ", "IWM", "DIA"]
+
+
+@dataclass
+class SwingRSIParams(BaseParams):
+    """Swing mean reversion (ADR 0013). Connors and Alvarez (2008) values, never tuned.
+
+    Buy when the close is above its ``trend_sma_days`` average and the
+    ``rsi_period``-day RSI is below ``entry_rsi``; sell when the close is above
+    its ``exit_sma_days`` average. Each position is ``target_gross / len(symbols)``
+    of equity.
+    """
+
+    rsi_period: int = 2
+    entry_rsi: float = 10.0
+    trend_sma_days: int = 200
+    exit_sma_days: int = 5
+    target_gross: float = 1.0
+    symbols: Any = field(default_factory=lambda: list(SWING_RSI_UNIVERSE))

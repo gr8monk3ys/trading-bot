@@ -15,3 +15,10 @@ Because the refactor can change what a backtest measures, every step is gated: `
 ## Outcome (2026-09-21)
 
 The unified session reproduced the baseline exactly. The second run (`scripts/run_etf_baseline.py --exits`, trailing stops active in daily mode) gave 50 trades, +9.1% / Sharpe -0.02 at gross-100 versus +16.3% / 0.16 without; it did not change the verdict and the canonical artifacts stay the run without trailing stops (see `results/where_we_landed.md`).
+
+**2026-11-10 update.** The baseline was regenerated on purpose once: the backtest
+broker valued open positions at the last bar of the loaded data whenever no date
+was passed, so the equity that sizes new orders was end-of-backtest equity. With
+equity valued on the simulated day, gross-100 moved from +16.3% / Sharpe 0.16
+(59% average gross) to +17.6% / 0.19 (54%), still 26 trades. The verdict is
+unchanged. The 'reproduce the baseline' gate applies from the new artifacts on.

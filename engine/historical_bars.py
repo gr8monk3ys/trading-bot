@@ -187,6 +187,23 @@ class YFinanceBars:
         return bars
 
 
+async def load_dividends(symbols: List[str]) -> Dict[str, Any]:
+    """Cash dividends per share from yfinance, by ex-date (split-adjusted, like its closes).
+
+    A symbol with no dividends maps to an empty series; a fetch error raises,
+    so a run never silently drops the income (ADR 0008).
+    """
+    import pandas as pd
+    import yfinance as yf
+
+    def one(symbol: str):
+        s = yf.Ticker(symbol).dividends
+        return s if s is not None else pd.Series(dtype=float)
+
+    series = await asyncio.gather(*(asyncio.to_thread(one, s) for s in symbols))
+    return dict(zip(symbols, series, strict=True))
+
+
 def _isnan(x) -> bool:
     try:
         return x != x

@@ -175,8 +175,9 @@ def _format_markdown(artifact: dict) -> str:
         f"- **Symbols:** {', '.join(cfg['symbols'])} (US large-cap, US tech, US small-cap, developed-intl)\n"
         f"- **Period:** {cfg['start']} to {cfg['end']}\n"
         f"- **Initial capital:** ${cfg['initial_capital']:,}\n"
-        f"- **Slippage:** {cfg['slippage_bps']} bps per trade\n"
-        f"- **Spread:** {cfg['spread_bps']} bps\n"
+        "- **Costs:** the backtest broker's dynamic spread + impact model (a few bps per\n"
+        "  fill for these ETFs). `config.BASELINE`'s slippage/spread values are recorded\n"
+        "  but not applied (ADR 0013).\n"
         f"- **Significance bar:** {cfg['min_trades_for_significance']} trades\n\n"
     )
 
@@ -345,9 +346,9 @@ def _interpret(metrics: dict, benchmarks: dict, n_trades: int, inconclusive: boo
         "  confidence intervals from this run alone."
     )
     bullets.append(
-        "- Costs included: 40 bps slippage + 10 bps spread per trade. ETFs trade\n"
-        "  tighter than that in practice, so per-trade cost drag is if anything\n"
-        "  overstated here, not understated."
+        "- Costs: the broker's dynamic spread + impact model, a few bps per fill.\n"
+        "  The 40 + 10 bps in `config.BASELINE` is not applied (ADR 0013), so cost\n"
+        "  drag here is close to real ETF spreads, not overstated."
     )
     bullets.append(
         "- Realized P&L only — open positions at end-of-period are liquidated at\n"
@@ -498,8 +499,8 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
     suffix = ("" if target_gross is None else f"_gross{int(round(target_gross * 100))}") + VARIANT
     json_path = RESULTS_DIR / f"etf_baseline_2020-2024{suffix}.json"
     md_path = RESULTS_DIR / f"etf_baseline_2020-2024{suffix}.md"
-    json_path.write_text(json.dumps(artifact, indent=2, default=str))
-    md_path.write_text(_format_markdown(artifact))
+    json_path.write_text(json.dumps(artifact, indent=2, default=str), encoding="utf-8")
+    md_path.write_text(_format_markdown(artifact), encoding="utf-8")
 
     print(f"Wrote {json_path.relative_to(REPO_ROOT)}")
     print(f"Wrote {md_path.relative_to(REPO_ROOT)}")
@@ -525,7 +526,7 @@ async def _run_backtest(data_broker, source_name: str, target_gross: float | Non
         "peak_gross_exposure": result.get("peak_gross_exposure"),
         "spy_bh_return": spy.get("total_return"),
         "spy_bh_sharpe": spy.get("sharpe"),
-        "json_path": str(json_path.relative_to(REPO_ROOT)),
+        "json_path": json_path.relative_to(REPO_ROOT).as_posix(),
     }
 
 
@@ -562,7 +563,9 @@ async def main() -> int:
         "producer": "scripts/run_etf_baseline.py",
         "artifacts": [row["json_path"] for row in summaries if row.get("json_path")],
     }
-    (RESULTS_DIR / f"manifest{VARIANT}.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (RESULTS_DIR / f"manifest{VARIANT}.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
     return 0
 
 
@@ -607,7 +610,7 @@ def _write_sweep_report(summaries: list[dict]) -> None:
         + ", ".join(f"`{s.get('json_path')}`" for s in summaries if s.get("json_path"))
         + "\n"
     )
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
     print(f"Wrote {path.relative_to(REPO_ROOT)}")
 
 
