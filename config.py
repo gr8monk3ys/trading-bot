@@ -182,6 +182,8 @@ BASELINE: BaselineSettings = {
     "start": "2020-01-01",
     "end": "2024-12-31",
     "initial_capital": 100_000,
+    # Recorded in artifacts but NOT passed to the backtest broker, which runs its
+    # own dynamic spread + impact model (a few bps per fill). ADR 0013.
     "slippage_bps": 40,
     "spread_bps": 10,
     "min_trades_for_significance": 50,

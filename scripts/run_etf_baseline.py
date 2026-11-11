@@ -175,8 +175,9 @@ def _format_markdown(artifact: dict) -> str:
         f"- **Symbols:** {', '.join(cfg['symbols'])} (US large-cap, US tech, US small-cap, developed-intl)\n"
         f"- **Period:** {cfg['start']} to {cfg['end']}\n"
         f"- **Initial capital:** ${cfg['initial_capital']:,}\n"
-        f"- **Slippage:** {cfg['slippage_bps']} bps per trade\n"
-        f"- **Spread:** {cfg['spread_bps']} bps\n"
+        "- **Costs:** the backtest broker's dynamic spread + impact model (a few bps per\n"
+        "  fill for these ETFs). `config.BASELINE`'s slippage/spread values are recorded\n"
+        "  but not applied (ADR 0013).\n"
         f"- **Significance bar:** {cfg['min_trades_for_significance']} trades\n\n"
     )
 
@@ -345,9 +346,9 @@ def _interpret(metrics: dict, benchmarks: dict, n_trades: int, inconclusive: boo
         "  confidence intervals from this run alone."
     )
     bullets.append(
-        "- Costs included: 40 bps slippage + 10 bps spread per trade. ETFs trade\n"
-        "  tighter than that in practice, so per-trade cost drag is if anything\n"
-        "  overstated here, not understated."
+        "- Costs: the broker's dynamic spread + impact model, a few bps per fill.\n"
+        "  The 40 + 10 bps in `config.BASELINE` is not applied (ADR 0013), so cost\n"
+        "  drag here is close to real ETF spreads, not overstated."
     )
     bullets.append(
         "- Realized P&L only — open positions at end-of-period are liquidated at\n"

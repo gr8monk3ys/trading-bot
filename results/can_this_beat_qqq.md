@@ -46,6 +46,7 @@ Conservative estimate:
 - Signal fires ~30–80 trades per name per year depending on regime.
 - 5 concurrent names → 150–400 trades/year total.
 - Round-trip cost (slippage 40 bps + spread 10 bps) = 50 bps per trade.
+  (Correction 2026-11-10: these costs were printed but never applied; the backtests ran the broker's dynamic model, a few bps per fill. ADR 0013.)
 - Annual cost drag at 200 trades and 5% positioning: ~5% × 200 × 50 bps × 0.5 (half = round-trip avg) = ~2.5% per year.
 - 2.5% drag on a 5–10% expected return is **eating 25–50% of the expected alpha**.
 

@@ -44,8 +44,8 @@ SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"
 START = "2020-01-01"
 END = "2024-12-31"
 INITIAL_CAPITAL = 100_000
-SLIPPAGE_BPS = 40  # 0.40% per trade (configured via execution profile below)
-SPREAD_BPS = 10  # 0.10%
+SLIPPAGE_BPS = 40  # recorded only; the broker's dynamic model runs (ADR 0013)
+SPREAD_BPS = 10  # recorded only
 MIN_TRADES_FOR_SIGNIFICANCE = 50
 SPEC_REF = "docs/superpowers/specs/2026-05-11-honest-cleanup-design.md"
 
@@ -109,8 +109,8 @@ def _format_markdown(artifact: dict) -> str:
         f"- **Symbols:** {', '.join(cfg['symbols'])}\n"
         f"- **Period:** {cfg['start']} to {cfg['end']}\n"
         f"- **Initial capital:** ${cfg['initial_capital']:,}\n"
-        f"- **Slippage:** {cfg['slippage_bps']} bps per trade\n"
-        f"- **Spread:** {cfg['spread_bps']} bps\n"
+        "- **Costs:** the backtest broker's dynamic spread + impact model; the "
+        "slippage/spread values in the JSON are recorded but not applied (ADR 0013)\n"
         f"- **Significance bar:** {cfg['min_trades_for_significance']} trades\n\n"
     )
 
@@ -173,8 +173,9 @@ def _format_markdown(artifact: dict) -> str:
             "Short-leg PnL is also captured correctly (Step 2B fixed the matcher). "
             "The 5-year window happens to end near all-time highs in the chosen "
             "universe; rerun ending on a different date for a different number.\n"
-            "3. **Costs included: 40 bps slippage + 10 bps spread per trade.** "
-            "These are realistic for retail at this universe size but do not "
+            "3. **Costs: the broker's dynamic spread + impact model, a few bps per "
+            "fill.** The 40 + 10 bps once printed here was never applied (ADR 0013). "
+            "The model does not "
             "model gap risk on positions held overnight (gap stats: see "
             "engine logs — largest gap in this run was 26%).\n"
             "4. **No walk-forward validation in this artifact.** This is a single "
