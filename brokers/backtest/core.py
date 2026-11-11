@@ -82,6 +82,7 @@ class BacktestBrokerCore:
         execution_profile: str = "realistic",
         random_seed: Optional[int] = None,
         run_id: Optional[str] = None,
+        fixed_cost_bps: Optional[float] = None,
     ):
         """
         Initialize broker with starting balance and slippage parameters.
@@ -97,6 +98,10 @@ class BacktestBrokerCore:
             execution_profile: Fill realism profile ('idealistic', 'realistic', 'stressed')
             random_seed: Optional seed for deterministic simulations
             run_id: Optional run identifier for observability correlation
+            fixed_cost_bps: When set, every market fill pays exactly this many basis
+                points against the trader (spread and slippage together) instead of
+                the dynamic spread + impact model. Note ``slippage_bps`` is stored
+                but the dynamic model never reads it.
         """
         # Note: api_key, api_secret, paper are accepted for API compatibility
         # but not stored (unused in backtesting, avoids accidental credential exposure)
@@ -105,10 +110,14 @@ class BacktestBrokerCore:
         self.orders: List[Dict] = []
         self.trades: List[Dict] = []
         self.price_data: Dict[str, pd.DataFrame] = {}
+        # Cash dividends per share by symbol and ex-date; empty = price-only run.
+        self.dividends: Dict[str, Dict[pd.Timestamp, float]] = {}
+        self.dividends_credited = 0.0
 
         # Slippage parameters (basis points = 1/100th of 1%)
         self.slippage_bps = slippage_bps
         self.spread_bps = spread_bps
+        self.fixed_cost_bps = fixed_cost_bps
         self.enable_partial_fills = enable_partial_fills
         self._rng = np.random.default_rng(random_seed)
         self.execution_profile = EXECUTION_PROFILE_PRESETS["realistic"]
@@ -432,6 +441,36 @@ class BacktestBrokerCore:
     async def get_positions(self) -> List[Position]:
         """All open positions as the protocol's Position shape."""
         return [self._to_position(p) for p in self.positions.values()]
+
+    def set_dividends(self, symbol: str, dividends: pd.Series) -> None:
+        """Cash dividends per share for ``symbol``, indexed by ex-date (naive dates)."""
+        table = {}
+        for d, a in dividends.items():
+            ts = pd.Timestamp(d)
+            table[(ts.tz_localize(None) if ts.tzinfo else ts).normalize()] = float(a)
+        self.dividends[symbol] = table
+
+    def credit_dividends(self, date) -> float:
+        """Pay the dividends whose ex-date is ``date`` on positions held into it.
+
+        Call before the session trades, so only positions held at the prior
+        close collect. A short pays the dividend (negative quantity). Without
+        ``set_dividends`` this does nothing, so runs that never load dividends
+        are unchanged.
+        """
+        table = self.dividends
+        if not table:
+            return 0.0
+        day = pd.Timestamp(date)
+        day = (day.tz_localize(None) if day.tzinfo else day).normalize()
+        paid = 0.0
+        for symbol, position in self.positions.items():
+            amount = table.get(symbol, {}).get(day)
+            if amount:
+                paid += position["quantity"] * amount
+        self.balance += paid
+        self.dividends_credited += paid
+        return paid
 
     def get_balance(self):
         """Get current cash balance"""

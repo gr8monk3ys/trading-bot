@@ -45,6 +45,11 @@ class BacktestBrokerExecutionMixin:
         Returns:
             Execution price after slippage
         """
+        fixed = getattr(self, "fixed_cost_bps", None)
+        if fixed is not None:
+            cost = base_price * fixed / 10000.0
+            return base_price + cost if side == "buy" else base_price - cost
+
         current_date = self._current_date if self._current_date else datetime.now()
 
         # 1. Dynamic bid-ask spread based on liquidity and volatility
