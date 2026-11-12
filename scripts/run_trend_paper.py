@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import csv
 import logging
 import sys
 from datetime import datetime, timedelta, timezone
@@ -98,18 +99,39 @@ async def main() -> int:
     if not status.get("is_open", False):
         logger.warning("Market is closed; market orders would queue. Run after the open.")
         return 1
+    # Read just before submission so trend_paper_report.py can price each fill.
+    ref_prices = await broker.get_last_prices(symbols)
     breaker = CircuitBreaker(max_daily_loss=0.03, auto_close_positions=False)
     await breaker.initialize(broker)
     submission = OrderSubmission(broker, circuit_breaker=breaker, recorder=TradeRecorder())
     session = Session(strategy, broker, submission, symbols)
     report = await session.run_session(today, histories)
 
+    from scripts.trend_paper_report import COLUMNS, slippage_bps
+
     LOG_DIR.mkdir(exist_ok=True)
-    with (LOG_DIR / "trend_paper.csv").open("a", encoding="utf-8") as f:
+    log_path = LOG_DIR / "trend_paper.csv"
+    new_file = not log_path.exists()
+    with log_path.open("a", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        if new_file:
+            writer.writerow(COLUMNS)
         for o in report.outcomes:
-            f.write(
-                f"{today.isoformat()},{o.symbol},{o.side},{o.qty_requested},{o.qty_filled},"
-                f"{o.fill_price},{o.status.value},{o.reason}\n"
+            ref = ref_prices.get(o.symbol)
+            cost = slippage_bps(o.side, ref, o.fill_price)
+            writer.writerow(
+                [
+                    today.isoformat(),
+                    o.symbol,
+                    o.side,
+                    o.qty_requested,
+                    o.qty_filled,
+                    o.fill_price,
+                    o.status.value,
+                    o.reason,
+                    ref,
+                    "" if cost is None else f"{cost:.2f}",
+                ]
             )
     account = await broker.get_account()
     logger.info(
