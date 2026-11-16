@@ -143,3 +143,32 @@ async def test_limit_intent_reaches_the_backtest_broker_as_a_limit_order():
     )
     (order,) = await broker.get_orders()
     assert order["type"] == "limit" and order["price"] == 99.5
+
+
+async def test_alpaca_order_reply_side_is_plain_buy_or_sell():
+    from alpaca.trading.models import Order
+
+    from scripts.trend_paper_report import slippage_bps
+
+    reply = Order(
+        id="61e69015-8549-4bfd-b9c3-01e75843f47d",
+        client_order_id="c1",
+        created_at="2026-11-12T14:30:00Z",
+        updated_at="2026-11-12T14:30:00Z",
+        submitted_at="2026-11-12T14:30:00Z",
+        symbol="SPY",
+        asset_class="us_equity",
+        qty="10",
+        filled_qty="10",
+        filled_avg_price="100.25",
+        order_class="simple",
+        order_type="market",
+        type="market",
+        side="buy",
+        time_in_force="day",
+        status="filled",
+        extended_hours=False,
+    )
+    outcome = OrderSubmission(MagicMock())._normalise(OrderIntent("SPY", "buy", 10), reply)
+    assert outcome.side == "buy"
+    assert slippage_bps(outcome.side, 100.0, outcome.fill_price) == pytest.approx(25.0)
