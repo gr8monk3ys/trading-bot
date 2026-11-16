@@ -122,14 +122,27 @@ class TestUpdateState:
         assert tracker.export_state()[ORDER_ID]["updated_at"] == before
 
     def test_valid_transition_advances_updated_at(self):
-        tracker = _tracker_in_state(OrderState.SUBMITTED)
-        record_created = datetime.fromisoformat(tracker.export_state()[ORDER_ID]["created_at"])
+        old = "2026-01-02T09:31:00"
+        tracker = OrderLifecycleTracker()
+        tracker.import_state(
+            {
+                ORDER_ID: {
+                    "order_id": ORDER_ID,
+                    "symbol": SYMBOL,
+                    "side": "buy",
+                    "quantity": 10,
+                    "state": OrderState.SUBMITTED.value,
+                    "created_at": old,
+                    "updated_at": old,
+                }
+            }
+        )
 
         tracker.update_state(ORDER_ID, OrderState.PARTIAL)
 
         exported = tracker.export_state()[ORDER_ID]
-        assert datetime.fromisoformat(exported["updated_at"]) >= record_created
-        assert datetime.fromisoformat(exported["created_at"]) == record_created
+        assert datetime.fromisoformat(exported["updated_at"]) > datetime.fromisoformat(old)
+        assert exported["created_at"] == old
 
     def test_unknown_order_is_a_logged_no_op(self, caplog):
         tracker = _tracker_in_state(OrderState.SUBMITTED)
