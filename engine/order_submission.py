@@ -169,7 +169,8 @@ class OrderSubmission:
         requested = _to_float(getattr(reply, "qty", intent.qty)) or intent.qty
         price = getattr(reply, "filled_avg_price", None)
         fill_price = _to_float(price) if price not in (None, "", "None") else None
-        side = str(getattr(reply, "side", intent.side) or intent.side)
+        reply_side = getattr(reply, "side", None)
+        side = str(getattr(reply_side, "value", reply_side) or intent.side)
         if "reject" in status_text or "cancel" in status_text or "expired" in status_text:
             reason = str(getattr(reply, "rejection_reason", "") or status_text)
             return OrderOutcome(
