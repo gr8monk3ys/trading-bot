@@ -12,6 +12,7 @@ Cite only that file for numbers; older `results/*.md` carry SUPERSEDED banners.
 - Tests: `uv run pytest tests/unit/` (CI also runs it with `-W error`).
   `asyncio_mode = auto`; never add `@pytest.mark.asyncio`.
 - Lint: `uv run ruff check . && uv run black --check .` (line length 100).
+- Everything CI runs locally: `make check` (ruff, black, strict-warning unit tests).
 - Backtest: `uv run python main.py backtest --strategy MomentumStrategyBacktest --start-date 2024-01-01 --end-date 2024-12-31`
 - Paper: `uv run python main.py live` (needs `.env`; `--force` outside market hours).
 - Regenerate the canonical numbers: `uv run python scripts/run_etf_baseline.py`.
