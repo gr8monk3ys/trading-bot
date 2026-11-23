@@ -6,7 +6,7 @@ authors = [
     {name = "gr8monk3ys"}
 ]
 readme = "README.md"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.11.5,<4.0"
 license = {text = "MIT"}
 keywords = ["trading", "algorithmic-trading", "alpaca", "quantitative-finance", "bot"]
 classifiers = [
