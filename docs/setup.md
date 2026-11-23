@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.11+ and [`uv`](https://docs.astral.sh/uv/)
+- Python 3.11.5+ and [`uv`](https://docs.astral.sh/uv/)
 - The TA-Lib C library
 - An Alpaca paper-trading account (only needed for `main.py live` and the connection test)
 
